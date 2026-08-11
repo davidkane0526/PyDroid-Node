@@ -1,0 +1,72 @@
+{
+  "name": "pydroid-flow",
+  "description": "Cross-platform visual Python data-processing workflow editor",
+  "author": "PyDroid Flow contributors",
+  "private": true,
+  "version": "0.1.0",
+  "main": "desktop/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit -p tsconfig.json && vite build",
+    "check": "pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "test": "vitest run",
+    "test:python": "node scripts/python-run.mjs -m pytest -q",
+    "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
+    "env:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
+    "preview": "vite preview",
+    "desktop:build": "tsc --noEmit -p desktop/tsconfig.json && vite build --config desktop/vite.config.ts",
+    "desktop:dev": "node desktop/dev.cjs",
+    "desktop:start": "pnpm desktop:build && electron desktop/main.cjs",
+    "desktop:smoke": "pnpm desktop:build && node scripts/desktop-smoke.mjs",
+    "desktop:package": "node scripts/desktop-package.mjs",
+    "android:live": "powershell -ExecutionPolicy Bypass -File scripts/android-live.ps1",
+    "android:logs": "powershell -ExecutionPolicy Bypass -File scripts/android-logs.ps1",
+    "android:sync": "pnpm build && cap sync android",
+    "android:open": "cap open android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@xyflow/react": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "@vitejs/plugin-react": "latest",
+    "electron": "latest",
+    "electron-builder": "latest",
+    "typescript": "latest",
+    "vite": "latest",
+    "vitest": "latest"
+  },
+  "build": {
+    "appId": "com.dk.pydroidflow.desktop",
+    "productName": "PyDroid Flow",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist-desktop/**/*",
+      "desktop/main.cjs",
+      "desktop/preload.cjs"
+    ],
+    "extraResources": [
+      {
+        "from": "python",
+        "to": "python"
+      },
+      {
+        "from": ".tools/python312-runtime",
+        "to": "python-runtime"
+      }
+    ],
+    "win": {
+      "target": "portable"
+    }
+  }
+}

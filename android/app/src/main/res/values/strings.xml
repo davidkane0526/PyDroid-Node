@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PyDroid Flow</string>
+    <string name="title_activity_main">PyDroid Flow</string>
+    <string name="package_name">com.dk.pydroidflow</string>
+    <string name="custom_url_scheme">com.dk.pydroidflow</string>
+</resources>
