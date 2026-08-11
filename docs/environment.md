@@ -7,7 +7,8 @@
 | --- | --- | --- | --- | --- |
 | Node.js | 当前检测 24.18.0，CI 使用 24 | 系统已有，具体位置由 `Get-Command node` 查询 | Web/Electron 构建 | 系统原有，本项目不自动卸载 |
 | pnpm | 当前检测 11.16.0 | 系统已有 | JS 包管理 | 系统原有，本项目不自动卸载 |
-| Python | 3.12.10 | `C:/Users/DK/AppData/Local/Programs/Python/Python312/`；可由 `PYDROID_PYTHON_EXECUTABLE` 覆盖 | 系统原有注册项曾缺少文件；本次官方安装器修复了该现有安装，但不向其中安装项目包 | 项目不自动卸载；如确认无其他项目使用，可在 Windows“已安装的应用”卸载 Python 3.12.10 |
+| Python | 3.12.10 | `C:/Users/DK/AppData/Local/Programs/Python/Python312/`；可由 `PYDROID_PYTHON_EXECUTABLE` 覆盖 | 2026-08-11 使用已校验的 python.org 安装器执行强制修复，恢复缺失的 `python312.dll`、完整标准库和 pip 25.0.1；注册表修复前备份位于忽略目录 `temp/python312-registry-before-repair.reg` | 项目不自动卸载；如确认无其他项目使用，可在 Windows“已安装的应用”卸载 Python 3.12.10 |
+| Python 3.12 用户包修复依赖 | python-dateutil 2.9.0.post0、pytz 2026.3.post1、six 1.17.0 | `C:/Users/DK/AppData/Roaming/Python/Python312/site-packages/` | 补齐既有 `iztro-py` 与 `LunarCalendar` 的缺失依赖；`py -3.12 -m pip check` 已通过 | `py -3.12 -m pip uninstall -y python-dateutil pytz six`，但卸载后上述既有包会重新出现依赖缺失 |
 | Rust/Cargo | 当前检测 1.86.0 | 系统已有 | 当前桌面方案不依赖，仅记录检测结果 | 系统原有，本项目不自动卸载 |
 | JS 项目依赖 | 锁文件确定；Electron 43.3.0、electron-builder 26.15.3 | `node_modules/` | `pnpm install`；含 React、Capacitor、Electron；仅允许锁定的 `electron-winstaller` 安装脚本 | 删除 `node_modules/` |
 | Electron 下载缓存 | Electron 43.3.0 | `.tools/electron-cache/` | Electron 本地运行与打包 | 删除 `.tools/electron-cache/` |
