@@ -27,7 +27,7 @@
     "android:live": "powershell -ExecutionPolicy Bypass -File scripts/android-live.ps1",
     "android:live:lan": "powershell -ExecutionPolicy Bypass -File scripts/android-lan-live.ps1",
     "android:logs": "powershell -ExecutionPolicy Bypass -File scripts/android-logs.ps1",
-    "android:sync": "pnpm build && cap sync android",
+    "android:sync": "pnpm build && cap sync android && powershell -ExecutionPolicy Bypass -File scripts/fix-capacitor-paths.ps1",
     "android:package": "powershell -ExecutionPolicy Bypass -File scripts/android-package.ps1",
     "android:emulator": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator.ps1",
     "android:emulator:remove": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator-remove.ps1",
@@ -82,8 +82,8 @@
       }
     ],
     "win": {
-      "target": "portable",
-      "icon": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
+      "target": "dir",
+      "icon": "desktop/icon.png"
     }
   }
 }

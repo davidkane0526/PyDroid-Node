@@ -42,7 +42,7 @@ try {
     throw new Error("Desktop renderer staging failed: index.html is missing");
   }
 
-  run(pnpm, ["exec", "electron-builder", "--win", "portable"]);
+  run(pnpm, ["exec", "electron-builder", "--win", "dir"]);
 
   if (!fs.existsSync(packagedExecutable)) {
     throw new Error(`Packaged desktop executable is missing: ${packagedExecutable}`);

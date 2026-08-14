@@ -158,14 +158,23 @@ function runPowerShell(script, timeoutMs = 20000, extraEnv = {}) {
   });
 }
 
-// 脚本统一用 UTF-8 输出错误并经 try/catch 报告，避免 PowerShell 5.1 的 GBK 乱码。
+// 脚本统一用 UTF-8 输出错误并经 try/catch 报告，避免 PowerShell 5.1 的 GBK 乱码；
+// 异常按 HResult 低 16 位（Win32 错误码）映射为中文，避免透传英文系统消息。
 function psWrap(body) {
   return [
     "[Console]::OutputEncoding=[Text.UTF8Encoding]::new()",
     "$ErrorActionPreference='Stop'",
     "try {",
     body,
-    "} catch { Write-Output ('SMB 操作失败：' + $_.Exception.Message); exit 1 }",
+    "} catch {",
+    "  $hr = 0",
+    "  if ($_.Exception.HResult) { $hr = $_.Exception.HResult -band 0xFFFF }",
+    "  elseif ($_.Exception.InnerException -and $_.Exception.InnerException.HResult) { $hr = $_.Exception.InnerException.HResult -band 0xFFFF }",
+    "  $map = @{ 2='系统找不到指定的文件或路径'; 53='找不到网络路径（主机不可达或名称无法解析）'; 64='指定的网络名不再可用'; 67='网络名或共享名不存在，请检查服务器与共享名'; 5='拒绝访问，请检查账号权限'; 1326='用户名或密码错误'; 1219='已有其他连接占用该共享，请断开重试' }",
+    "  $why = if ($map.ContainsKey($hr)) { $map[$hr] + '（错误码 ' + $hr + '）' } else { $_.Exception.Message }",
+    "  Write-Output ('SMB 操作失败：' + $why)",
+    "  exit 1",
+    "}",
   ].join("\n");
 }
 
@@ -232,9 +241,36 @@ async function ensureServerSession(connection) {
 async function listServerShares(connection) {
   return enqueueSmb(async () => {
     await ensureServerSession(connection);
+    // Get-ChildItem \\server 依赖 SMB1/浏览器服务的根枚举，现代系统普遍不可用；
+    // 改用 NetShareEnum（netapi32）走已建立的 IPC$ 会话枚举共享，返回 Unicode 名称，并过滤 $ 结尾的隐藏共享。
     const body = [
       `$srv = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(connection.server)}'))`,
-      "Get-ChildItem -LiteralPath (\"\\\\\" + $srv) -Force -ErrorAction Stop | ForEach-Object { $_.Name }",
+      'Add-Type -TypeDefinition @"',
+      "using System;",
+      "using System.Runtime.InteropServices;",
+      "public static class PydShareEnum {",
+      "  [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Unicode)]",
+      "  struct SI1 { public string NetName; public uint Type; public string Remark; }",
+      "  [DllImport(\"netapi32.dll\", CharSet=CharSet.Unicode)] static extern int NetShareEnum(string server, int level, out IntPtr buf, int pref, out int read, out int total, ref int resume);",
+      "  [DllImport(\"netapi32.dll\")] static extern int NetApiBufferFree(IntPtr p);",
+      "  public static string[] List(string server) {",
+      "    IntPtr buf; int read, total, resume = 0;",
+      "    int rc = NetShareEnum(server, 1, out buf, -1, out read, out total, ref resume);",
+      "    if (rc != 0) throw new System.ComponentModel.Win32Exception(rc);",
+      "    var names = new System.Collections.Generic.List<string>();",
+      "    IntPtr p = buf;",
+      "    int sz = Marshal.SizeOf(typeof(SI1));",
+      "    for (int i = 0; i < read; i++) {",
+      "      var si = (SI1)Marshal.PtrToStructure(p, typeof(SI1));",
+      "      if (!si.NetName.EndsWith(\"$\")) names.Add(si.NetName);",
+      "      p = (IntPtr)(p.ToInt64() + sz);",
+      "    }",
+      "    NetApiBufferFree(buf);",
+      "    return names.ToArray();",
+      "  }",
+      "}",
+      '"@',
+      "[PydShareEnum]::List($srv)",
     ].join("\n");
     const output = await runPowerShell(psWrap(body));
     return output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
