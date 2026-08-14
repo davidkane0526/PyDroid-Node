@@ -12,6 +12,11 @@
 - AI Agent 权限拆分为 8 项：新增 `groupNodes`（组合节点）独立于 `createNodes`，另有 `disconnectNodes`、`arrangeLayout` 等；权限面板按"节点 / 连线与布局 / 执行"分组对齐；旧存档无新权限键时沿用原值，避免权限静默放大。DeepSeek 预设升级为 Responses 接口（`https://api.deepseek.com/responses`）并使用 V4 模型（`deepseek-v4-flash` / `deepseek-v4-pro`，旧名 `deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24 停用），已保存的旧配置自动迁移。
 - 资源拖拽恢复为自定义预览卡片（悬浮光标上方），移除实色快照方案。
 - AI Agent：DeepSeek 预设（thinking 模式不接受强制指定 function 的 `tool_choice`，报 400）在 Responses 与 OpenAI 兼容 Chat 两种协议下均改用 `tool_choice: "required"`；权限面板恢复简洁单列复选框并对齐。
+- 移动端 UI 修复：SMB 对话框登录区改为紧凑两列排布（服务器、域/用户名、密码与按钮同行），共享列表与文件列表压缩间距；子流程画布"返回主流程"面包屑提高不透明度、强制单行并在超宽时横向滑动；组合输入/输出面板改为标签对齐的网格排布；移动端轻点组合资源卡不再直接加入画布，改为弹出"添加到画布"操作菜单（长按拖入画布不受影响）。
+- SMB 对话框整体可上下滑动（移动端自然流布局、桌面端保留列表内滚动并整体兜底滚动），任何高度下内容不再被裁剪；组合资源卡说明提示仅在鼠标悬停设备（`hover: hover` 且 `pointer: fine`）显示，触摸模式点击不再出现提示；"返回主流程"面包屑增加与顶部工具栏一致的背景模糊，亮色模式下激活项改为深紫文字/浅紫背景，不再看不清。
+- 组合资源卡触摸行为与节点卡片完全一致：轻点无操作，长按拖入画布才添加（移除触摸点击弹出菜单）；桌面 SMB 错误改为按 Win32 错误码（HResult 低 16 位）映射中文提示（如 67 = 网络名或共享名不存在），不再透传英文系统消息。
+- 桌面 SMB 共享枚举改用 `NetShareEnum`（netapi32，走已建立的 IPC$ 凭据会话），替代依赖 SMB1/浏览器服务的 `Get-ChildItem \\server` 根枚举（现代 Windows/设备上普遍返回"找不到路径"），并过滤 `$` 结尾的隐藏共享。
+- 桌面打包目标由 portable 单文件改为免安装目录版（`win-unpacked/PyDroid Flow.exe`，整个目录拷贝即用）；Windows 图标改用 512×512 的 `desktop/icon.png`（原 Android 192px 图标不满足 electron-builder ≥256px 要求）；`release/` 输出经 junction 指向 `D:/PyDroidTemp/PyDroid/generated/release`。
 - SMB：`net use` 显式引号包裹 UNC 以支持含空格/中文的共享名；共享枚举改用 `Get-ChildItem`（Unicode 输出，中文共享名不乱码）；新增凭据建立 IPC$ 会话后枚举服务器全部共享，界面改为"登录 → 列出共享 → 点共享进入"的资源管理器式流程。
 - 修复组合子流程输入输出面板与画布顶部工具栏重叠；底部"返回主流程"面包屑改为水平居中，不再与左下角缩放按钮重叠。
 

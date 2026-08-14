@@ -26,6 +26,7 @@
 | Microsoft Build of OpenJDK | 21.0.12 LTS，Windows x64 ZIP | `D:/PyDroidTemp/PyDroid/tools/jdk-21/`（项目内为联接） | 从 Microsoft 官方 `https://aka.ms/download-jdk/microsoft-jdk-21-windows-x64.zip` 下载并解压；仅供 Android Gradle/Chaquopy 构建使用，不修改系统 Java | 删除外部目录及联接 |
 | Android API 36 Google APIs x86_64 系统镜像 | revision 7，`system-images;android-36;google_apis;x86_64`；当前约 5.87 GB（含 emulator、platform-tools、command-line tools） | `D:/PyDroidTemp/PyDroid/tools/android-sdk/`（项目内为联接） | 使用项目内 Android command-line tools 安装；x86_64 AVD 通过官方 NDK translation 运行现有 ARM64-only APK，不给应用增加 x86_64 ABI | 删除外部目录及联接 |
 | PyDroid Flow ARM 转译 AVD | `pydroid_flow_api36_arm_translation`，Pixel 6 配置；当前约 4.45 GB | `D:/PyDroidTemp/PyDroid/tools/android-avd/`（项目内为联接） | 设置 `ANDROID_AVD_HOME=.tools/android-avd` 后由 `avdmanager` 创建；项目结束时必须与上述系统镜像一起删除 | 运行 `pnpm android:emulator:remove`，或删除外部 AVD/SDK 目录及联接 |
+| Gradle 用户缓存 | 8.14.3（由 wrapper 锁定） | `D:/PyDroidTemp/PyDroid/gradle-home/`，通过用户环境变量 `GRADLE_USER_HOME` 指向 | Android 构建的依赖、构建缓存与守护进程，避免写入 `%USERPROFILE%\.gradle`（旧的 2.1 GB 缓存可手动删除） | 删除外部目录并移除用户环境变量 `GRADLE_USER_HOME` |
 
 ## 项目生成物清理
 
