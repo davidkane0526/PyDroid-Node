@@ -71,6 +71,20 @@ public class PythonExecutorPlugin extends Plugin {
         return base.withCredentials(new NtlmPasswordAuthenticator(call.getString("domain", ""), call.getString("username", ""), call.getString("password", "")));
     }
 
+    // jcifs-ng 异常消息是英文系统文本，按关键词映射为中文，便于定位（如"网络名找不到"= 共享名/服务器名错误）。
+    private String smbErrorText(Exception exception) {
+        String message = exception == null ? null : exception.getMessage();
+        if (message == null) return "无法访问 SMB";
+        String lower = message.toLowerCase(Locale.ROOT);
+        if (lower.contains("network name cannot be found") || lower.contains("share name cannot be found") || lower.contains("bad network name")) return "网络名或共享名不存在，请检查服务器地址与共享名";
+        if (lower.contains("the specified network name is no longer available")) return "网络连接已断开，请重试";
+        if (lower.contains("access is denied") || lower.contains("access denied")) return "拒绝访问，请检查账号权限";
+        if (lower.contains("logon failure") || lower.contains("bad password") || lower.contains("password is incorrect")) return "用户名或密码错误";
+        if (lower.contains("connection refused") || lower.contains("no route to host") || lower.contains("unreachable") || lower.contains("timed out") || lower.contains("timeout")) return "无法连接服务器，请检查地址与网络";
+        if (lower.contains("server not found") || lower.contains("unknown host")) return "找不到服务器，请检查地址";
+        return message;
+    }
+
     private String smbUrl(PluginCall call, String relativePath) {
         String server = call.getString("server", "").trim();
         String share = call.getString("share", "").trim();
@@ -102,7 +116,7 @@ public class PythonExecutorPlugin extends Plugin {
                     }
                 }
                 JSObject response = new JSObject(); response.put("entries", entries); call.resolve(response);
-            } catch (Exception exception) { call.reject(exception.getMessage() == null ? "无法访问 SMB 文件夹" : exception.getMessage(), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
         });
     }
 
@@ -121,7 +135,7 @@ public class PythonExecutorPlugin extends Plugin {
                     }
                 }
                 JSObject response = new JSObject(); response.put("shares", shares); call.resolve(response);
-            } catch (Exception exception) { call.reject(exception.getMessage() == null ? "无法扫描 SMB 共享" : exception.getMessage(), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
         });
     }
 
@@ -174,7 +188,7 @@ public class PythonExecutorPlugin extends Plugin {
                 found.sort((left, right) -> left.optString("address").compareTo(right.optString("address")));
                 JSArray servers = new JSArray(); for (JSObject server : found) servers.put(server);
                 JSObject response = new JSObject(); response.put("servers", servers); call.resolve(response);
-            } catch (Exception exception) { call.reject(exception.getMessage() == null ? "无法扫描局域网 SMB 设备" : exception.getMessage(), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
         });
     }
 
@@ -201,7 +215,7 @@ public class PythonExecutorPlugin extends Plugin {
                     }
                 }
                 JSObject response = new JSObject(); response.put("files", files); call.resolve(response);
-            } catch (Exception exception) { call.reject(exception.getMessage() == null ? "无法读取 SMB 文件" : exception.getMessage(), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
         });
     }
 

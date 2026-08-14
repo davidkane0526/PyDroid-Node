@@ -17,6 +17,7 @@
 - 组合资源卡触摸行为与节点卡片完全一致：轻点无操作，长按拖入画布才添加（移除触摸点击弹出菜单）；桌面 SMB 错误改为按 Win32 错误码（HResult 低 16 位）映射中文提示（如 67 = 网络名或共享名不存在），不再透传英文系统消息。
 - 桌面 SMB 共享枚举改用 `NetShareEnum`（netapi32，走已建立的 IPC$ 凭据会话），替代依赖 SMB1/浏览器服务的 `Get-ChildItem \\server` 根枚举（现代 Windows/设备上普遍返回"找不到路径"），并过滤 `$` 结尾的隐藏共享。
 - 桌面打包目标由 portable 单文件改为免安装目录版（`win-unpacked/PyDroid Flow.exe`，整个目录拷贝即用）；Windows 图标改用 512×512 的 `desktop/icon.png`（原 Android 192px 图标不满足 electron-builder ≥256px 要求）；`release/` 输出经 junction 指向 `D:/PyDroidTemp/PyDroid/generated/release`。
+- 安卓端 SMB 错误按 jcifs-ng 异常关键词映射中文提示（网络名/共享名不存在、拒绝访问、凭据错误、连接超时等），不再透传英文；桌面端 SMB 对话框改 flex 列布局，文件列表吸收剩余高度、底部操作栏固定在底部，不再与"进入所选共享"区域重叠；组合资源卡移除原生 title 提示，悬停只显示自定义说明（与节点卡片一致的单一提示）。
 - SMB：`net use` 显式引号包裹 UNC 以支持含空格/中文的共享名；共享枚举改用 `Get-ChildItem`（Unicode 输出，中文共享名不乱码）；新增凭据建立 IPC$ 会话后枚举服务器全部共享，界面改为"登录 → 列出共享 → 点共享进入"的资源管理器式流程。
 - 修复组合子流程输入输出面板与画布顶部工具栏重叠；底部"返回主流程"面包屑改为水平居中，不再与左下角缩放按钮重叠。
 
