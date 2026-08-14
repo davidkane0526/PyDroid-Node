@@ -46,6 +46,7 @@ import jcifs.context.BaseContext;
 import jcifs.context.SingletonContext;
 import jcifs.netbios.NameServiceClientImpl;
 import jcifs.smb.NtlmPasswordAuthenticator;
+import jcifs.smb.SmbException;
 
 @CapacitorPlugin(name = "PythonExecutor")
 public class PythonExecutorPlugin extends Plugin {
@@ -63,12 +64,23 @@ public class PythonExecutorPlugin extends Plugin {
 
     private CIFSContext smbContext(PluginCall call) throws Exception {
         Properties properties = new Properties();
-        properties.setProperty("jcifs.smb.client.minVersion", "SMB202");
+        // 允许回退到 SMB1：部分 NAS/老设备只支持 SMB1（桌面端 Windows 客户端带 SMB1 可连，jcifs-ng 强制 SMB202 会失败）；
+        // 支持 SMB2/3 的服务器仍会协商到最高版本。
+        properties.setProperty("jcifs.smb.client.minVersion", "SMB1");
         properties.setProperty("jcifs.smb.client.maxVersion", "SMB311");
         properties.setProperty("jcifs.smb.client.responseTimeout", "15000");
         properties.setProperty("jcifs.smb.client.soTimeout", "20000");
         CIFSContext base = new BaseContext(new PropertyConfiguration(properties));
         return base.withCredentials(new NtlmPasswordAuthenticator(call.getString("domain", ""), call.getString("username", ""), call.getString("password", "")));
+    }
+
+    // 附加 NT 状态码（十六进制）便于定位，如 STATUS_BAD_NETWORK_NAME = 0xC00000CC。
+    private String withStatus(String text, Exception exception) {
+        if (exception instanceof SmbException) {
+            int status = ((SmbException) exception).getNtStatus();
+            if (status != 0) return text + "（NT_STATUS 0x" + Integer.toHexString(status).toUpperCase(Locale.ROOT) + "）";
+        }
+        return text;
     }
 
     // jcifs-ng 异常消息是英文系统文本，按关键词映射为中文，便于定位（如"网络名找不到"= 共享名/服务器名错误）。
@@ -78,14 +90,14 @@ public class PythonExecutorPlugin extends Plugin {
         if (message == null) return enumeratingShares ? "无法枚举服务器共享列表" : "无法访问 SMB";
         String lower = message.toLowerCase(Locale.ROOT);
         if (lower.contains("network name cannot be found") || lower.contains("share name cannot be found") || lower.contains("bad network name")) {
-            if (enumeratingShares) return "无法枚举共享列表（服务器可能禁止共享枚举），可手动输入共享名重试";
-            return "网络名或共享名不存在，请检查服务器地址与共享名";
+            if (enumeratingShares) return withStatus("无法枚举共享列表（服务器可能禁止共享枚举），可手动输入共享名重试", exception);
+            return withStatus("网络名或共享名不存在，请检查服务器地址与共享名", exception);
         }
-        if (lower.contains("the specified network name is no longer available")) return "网络连接已断开，请重试";
-        if (lower.contains("access is denied") || lower.contains("access denied")) return "拒绝访问，请检查账号权限";
-        if (lower.contains("logon failure") || lower.contains("bad password") || lower.contains("password is incorrect")) return "用户名或密码错误";
-        if (lower.contains("connection refused") || lower.contains("no route to host") || lower.contains("unreachable") || lower.contains("timed out") || lower.contains("timeout")) return "无法连接服务器，请检查地址与网络";
-        if (lower.contains("server not found") || lower.contains("unknown host")) return "找不到服务器，请检查地址";
+        if (lower.contains("the specified network name is no longer available")) return withStatus("网络连接已断开，请重试", exception);
+        if (lower.contains("access is denied") || lower.contains("access denied")) return withStatus("拒绝访问，请检查账号权限", exception);
+        if (lower.contains("logon failure") || lower.contains("bad password") || lower.contains("password is incorrect")) return withStatus("用户名或密码错误", exception);
+        if (lower.contains("connection refused") || lower.contains("no route to host") || lower.contains("unreachable") || lower.contains("timed out") || lower.contains("timeout")) return withStatus("无法连接服务器，请检查地址与网络", exception);
+        if (lower.contains("server not found") || lower.contains("unknown host")) return withStatus("找不到服务器，请检查地址", exception);
         return message;
     }
 
