@@ -467,13 +467,13 @@ button, input, select, textarea { font: inherit; }
 .replacement-list button:hover { border-color: #3b82f6; background: var(--surface-hover); }
 .replacement-list span { color: var(--info-soft); font: var(--font-xs) ui-monospace, monospace; }
 .replacement-list small { grid-column: 1 / -1; color: var(--text-faint); }
-.canvas-breadcrumb { position: absolute; z-index: 14; bottom: 12px; left: 0; right: 0; display: flex; width: max-content; max-width: min(680px, calc(100% - 220px)); margin: 0 auto; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 5px 7px; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border); border-radius: 9px; color: var(--text-muted); background: linear-gradient(180deg, var(--surface-deep)ee, var(--surface-deep)f2); box-shadow: 0 5px 16px #0005, inset 0 1px 0 #ffffff14; scrollbar-width: none; }
+.canvas-breadcrumb { position: absolute; z-index: 14; bottom: 12px; left: 0; right: 0; display: flex; width: max-content; max-width: min(680px, calc(100% - 220px)); margin: 0 auto; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 5px 7px; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border); border-radius: 9px; color: var(--text-muted); background: var(--surface)dd; box-shadow: 0 8px 22px #0006; backdrop-filter: blur(6px); scrollbar-width: none; }
 .canvas-breadcrumb::-webkit-scrollbar { display: none; }
 .canvas-breadcrumb span { display: inline-flex; flex: none; align-items: center; gap: 6px; white-space: nowrap; }
 .canvas-breadcrumb button { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 4px; padding: 5px 8px; border: 0; border-radius: 5px; color: var(--text-highlight); background: transparent; cursor: pointer; white-space: nowrap; line-height: 1.2; }
 .canvas-breadcrumb button:hover, .canvas-breadcrumb button.active { color: #ede9fe; background: #6d28d955; }
 .canvas-breadcrumb button.active { color: #c4b5fd; }
-.app-shell[data-theme="light"] .canvas-breadcrumb { background: linear-gradient(180deg, #ffffff, #f1f5f9); }
+.app-shell[data-theme="light"] .canvas-breadcrumb { border-color: #cbd5e1; background: #ffffffeb; box-shadow: 0 8px 22px #64748b33; }
 .app-shell[data-theme="light"] .canvas-breadcrumb button:hover, .app-shell[data-theme="light"] .canvas-breadcrumb button.active { color: #4c1d95; background: #ddd6fe; }
 .group-interface { position: absolute; z-index: 13; top: 62px; left: 12px; display: grid; gap: 6px; max-width: calc(100% - 24px); color: var(--text-faint); pointer-events: none; font-size: var(--font-xs); }
 .group-interface > span { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 5px 8px; }
