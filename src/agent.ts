@@ -1,12 +1,12 @@
-export type AgentPermission = "createNodes" | "updateParameters" | "connectNodes" | "deleteNodes" | "runWorkflow";
+export type AgentPermission = "createNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";
 export type AgentProvider = "openai-responses" | "openai-compatible" | "anthropic-messages";
 
-export type AgentPreset = { id: string; label: string; provider: AgentProvider; endpoint: string; models: string[] };
+export type AgentPreset = { id: string; label: string; provider: AgentProvider; endpoint: string; models: string[]; note?: string };
 
 export const AGENT_PRESETS: AgentPreset[] = [
   { id: "openai", label: "OpenAI", provider: "openai-responses", endpoint: "https://api.openai.com/v1/responses", models: ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4o"] },
   { id: "anthropic", label: "Anthropic Claude", provider: "anthropic-messages", endpoint: "https://api.anthropic.com/v1/messages", models: ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-5"] },
-  { id: "deepseek", label: "DeepSeek", provider: "openai-compatible", endpoint: "https://api.deepseek.com/chat/completions", models: ["deepseek-chat", "deepseek-reasoner"] },
+  { id: "deepseek", label: "DeepSeek", provider: "openai-compatible", endpoint: "https://api.deepseek.com/chat/completions", models: ["deepseek-chat", "deepseek-reasoner"], note: "deepseek-reasoner 不支持工具调用，节点规划请选择 deepseek-chat" },
   { id: "kimi", label: "Moonshot Kimi", provider: "openai-compatible", endpoint: "https://api.moonshot.cn/v1/chat/completions", models: ["kimi-k2-0905-preview", "moonshot-v1-8k", "moonshot-v1-32k"] },
   { id: "glm", label: "智谱 GLM", provider: "openai-compatible", endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions", models: ["glm-4.6", "glm-4.5-air", "glm-4-flash"] },
   { id: "qwen", label: "通义千问", provider: "openai-compatible", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", models: ["qwen3-max", "qwen-plus", "qwen-turbo"] },
@@ -25,7 +25,7 @@ export type AgentSettings = {
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   presetId: "openai", provider: "openai-responses", endpoint: "https://api.openai.com/v1/responses", model: "",
   language: "zh-CN",
-  permissions: { createNodes: true, updateParameters: true, connectNodes: true, deleteNodes: false, runWorkflow: false },
+  permissions: { createNodes: true, updateParameters: true, connectNodes: true, disconnectNodes: true, deleteNodes: false, arrangeLayout: true, runWorkflow: false },
 };
 
 export function presetById(id: string): AgentPreset { return AGENT_PRESETS.find((preset) => preset.id === id) ?? AGENT_PRESETS[AGENT_PRESETS.length - 1]; }
