@@ -46,7 +46,11 @@ try {
 
     Push-Location "android"
     try {
-        .\gradlew.bat assembleDebug
+        # --no-watch-fs: with the local-storage junction layout (android/app/build ->
+        # D:\PyDroidTemp\PyDroid\generated\android-app-build), Gradle 8's file-system
+        # watching holds handles on Chaquopy's pip staging dirs, so its os.renames
+        # fails with WinError 5 (Access denied). Disabling the VFS watcher fixes it.
+        .\gradlew.bat assembleDebug --no-watch-fs
         if ($LASTEXITCODE -ne 0) {
             throw "Android debug APK build failed."
         }
