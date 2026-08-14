@@ -73,7 +73,7 @@ def _slice_parameter(value: ast.AST) -> tuple[str, dict[str, Any]] | None:
         if not isinstance(node, ast.Slice): return None
         def literal_or_blank(item: ast.AST | None) -> Any:
             return "" if item is None else _literal(item)
-        values = {f"{name}Start": literal_or_blank(node.lower), f"{name}Stop": literal_or_blank(node.upper), f"{name}Step": literal_or_blank(node.step) or 1}
+        values = {f"{name}Start": literal_or_blank(node.lower), f"{name}Stop": literal_or_blank(node.upper), f"{name}Step": 1 if node.step is None else _literal(node.step)}
         return values if all(value is not None for value in values.values()) else None
     row = part("row", target.elts[0]); column = part("column", target.elts[1])
     if row is None or column is None: return None
