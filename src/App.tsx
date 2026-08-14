@@ -124,7 +124,9 @@ function loadAgentSettings(value: unknown): AgentSettings {
       createNodes: permissionValue("createNodes"),
       updateParameters: permissionValue("updateParameters"),
       connectNodes: permissionValue("connectNodes"),
+      disconnectNodes: permissionValue("disconnectNodes"),
       deleteNodes: permissionValue("deleteNodes"),
+      arrangeLayout: permissionValue("arrangeLayout"),
       runWorkflow: permissionValue("runWorkflow"),
     },
   };
@@ -680,9 +682,9 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
     case "add_node": return "createNodes";
     case "set_parameter": return "updateParameters";
     case "connect": return "connectNodes";
-    case "disconnect": return "connectNodes";
+    case "disconnect": return "disconnectNodes";
     case "group_nodes": return "createNodes";
-    case "arrange": return "updateParameters";
+    case "arrange": return "arrangeLayout";
     case "delete_node": return "deleteNodes";
     case "run_workflow": return "runWorkflow";
   }
@@ -877,7 +879,8 @@ function FlowEditor() {
   // Older workflows may carry a persisted smoothstep type, which creates a
   // conspicuous sideways dogleg when vertically stacked node centres differ by
   // only a few pixels.
-  const visibleEdges = useMemo(() => selectionMode ? [] : edges
+  // 框选/多选期间保留连线（1.4.8 曾整体隐藏导致"点击组合后连线消失"的困惑）。
+  const visibleEdges = useMemo(() => edges
     .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
     .map((edge) => {
       const source = nodes.find((node) => node.id === edge.source);
@@ -2995,7 +2998,11 @@ function FlowEditor() {
               if (suppressNextNodeClick.current) { suppressNextNodeClick.current = false; return; }
               if (selectionMode) toggleNodeSelection(node.id); else setSelectedId(node.id);
             }}
-            onNodeDoubleClick={(event, node) => { event.preventDefault(); openNodeMenu(node.id, event.clientX, event.clientY); }}
+            onNodeDoubleClick={(event, node) => {
+              event.preventDefault();
+              if (node.data.nodeType === "workflow.group") { openSubflowGroup(node.id); return; }
+              openNodeMenu(node.id, event.clientX, event.clientY);
+            }}
             onSelectionChange={onSelectionChange}
             onNodeContextMenu={(event, node) => {
               event.preventDefault();
