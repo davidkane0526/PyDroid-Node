@@ -49,9 +49,9 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 ## 当前验证状态
 
 - OneDrive 源码完整读取：通过，82 个源码/配置文件读取失败数为 0
-- Web 单元测试：通过，23/23
-- Python 单元测试：通过，30/30
-- 桌面桥接专项测试：通过，4/4
+- Web 单元测试：通过，38/38（另有 1 项仅在配置 `PYDROID_NOTEBOOK_CORPUS` 后启用）
+- Python 单元测试：通过，66/66
+- 桌面桥接专项测试：通过，6/6
 - Web 与 Windows 渲染层生产构建：通过
 - Windows Electron 源码端到端冒烟测试：通过
 - Windows x64 自包含便携包：通过，`PyDroid Flow 1.3.7.exe`，137,831,608 字节
