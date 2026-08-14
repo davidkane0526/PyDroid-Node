@@ -10,8 +10,9 @@
 - 双击组合节点直接进入内部子流程画布（原先打开节点菜单）。
 - 框选/多选期间保留连线与删除叉号之外的连线可见性，修复"点击组合后连线消失"的困惑；进入多选仍会提示操作方式。
 - AI Agent 权限拆分为 8 项：新增 `groupNodes`（组合节点）独立于 `createNodes`，另有 `disconnectNodes`、`arrangeLayout` 等；权限面板按"节点 / 连线与布局 / 执行"分组对齐；旧存档无新权限键时沿用原值，避免权限静默放大。DeepSeek 预设升级为 Responses 接口（`https://api.deepseek.com/responses`）并使用 V4 模型（`deepseek-v4-flash` / `deepseek-v4-pro`，旧名 `deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24 停用），已保存的旧配置自动迁移。
-- 资源拖拽修复：改用原生 `setDragImage` 元素快照作为拖拽图像（消除"双影子"且拖拽动画可靠跟随）；"我的节点"支持拖拽排序，顺序随库持久化。
-- AI Agent：DeepSeek 预设（thinking 模式不接受强制指定 function 的 `tool_choice`，报 400）改用 `tool_choice: "required"`；权限面板改为紧凑双列分组（节点 / 连线与布局 / 执行）。
+- 资源拖拽修复：拖拽图像改为专用实色卡片快照（图标 + 标签，清晰不透明），消除淡/矩形阴影与"双影子"；"我的节点"支持拖拽排序，顺序随库持久化。
+- AI Agent：DeepSeek 预设（thinking 模式不接受强制指定 function 的 `tool_choice`，报 400）改用 `tool_choice: "required"`；权限面板恢复简洁单列复选框并对齐。
+- SMB：`net use` 显式引号包裹 UNC 以支持含空格/中文的共享名；共享枚举改用 `Get-ChildItem`（Unicode 输出，中文共享名不乱码）；界面澄清共享名 = `\\主机名\共享名` 反斜杠后第一段。
 - 修复组合子流程输入输出面板与画布顶部工具栏重叠；底部"返回主流程"面包屑改为水平居中，不再与左下角缩放按钮重叠。
 
 ## 1.4.8 (31) — 2026-08-13

@@ -201,10 +201,10 @@ async function ensureSmbSession(connection) {
     "$ErrorActionPreference='Continue'",
     "if ($dom -ne '' -or $usr -ne '') {",
     "  $who = if ($dom -ne '') { \"$dom`\\$usr\" } else { $usr }",
-    "  net use $unc /user:$who $env:SMB_PWD 2>$null | Out-Null",
+    "  net use \"$unc\" /user:\"$who\" $env:SMB_PWD 2>$null | Out-Null",
     "  $code = $LASTEXITCODE",
-    "  if ($code -ne 0) { net use $unc /delete 2>$null | Out-Null; net use $unc /user:$who $env:SMB_PWD 2>$null | Out-Null; $code = $LASTEXITCODE }",
-    "} else { net use $unc 2>$null | Out-Null; $code = $LASTEXITCODE }",
+    "  if ($code -ne 0) { net use \"$unc\" /delete 2>$null | Out-Null; net use \"$unc\" /user:\"$who\" $env:SMB_PWD 2>$null | Out-Null; $code = $LASTEXITCODE }",
+    "} else { net use \"$unc\" 2>$null | Out-Null; $code = $LASTEXITCODE }",
     "$ErrorActionPreference='Stop'",
     "if ($code -ne 0) {",
     "  $map = @{ 2='系统找不到指定的文件或路径'; 53='找不到网络路径（主机不可达或名称无法解析）'; 64='网络名不存在'; 67='网络名或共享名不存在，请检查服务器与共享名'; 5='拒绝访问'; 1326='用户名或密码错误'; 1219='已有其他连接占用该共享，请断开重试'; 85='本地设备名已被占用'; 86='指定的网络密码错误' }",
@@ -261,20 +261,16 @@ async function readDesktopSmb(connection, paths) {
 function netViewShares(server) {
   // server 会拼入 PowerShell 命令，必须先校验，避免注入。
   if (!/^[A-Za-z0-9._:-]+$/.test(String(server || ""))) return Promise.resolve([]);
-  return new Promise((resolve) => {
-    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); net view \\\\${server}`], { windowsHide: true });
-    const chunks = [];
-    let settled = false;
-    const finish = (shares = []) => { if (settled) return; settled = true; clearTimeout(timer); resolve(shares); };
-    const timer = setTimeout(() => { child.kill(); finish([]); }, 4000);
-    child.stdout.on("data", (chunk) => chunks.push(chunk));
-    child.once("error", () => finish([]));
-    child.once("close", () => {
-      const lines = Buffer.concat(chunks).toString("utf8").split(/\r?\n/);
-      const shares = lines.map((line) => line.match(/^(.+?)\s{2,}(?:Disk|磁盘|盘|Print|打印)/i)?.[1]?.trim()).filter(Boolean);
-      finish([...new Set(shares)]);
-    });
-  });
+  // 用 Get-ChildItem 列共享（cmdlet 输出 Unicode，中文共享名不乱码；net view 依赖浏览器服务且是 GBK 输出）
+  const script = [
+    "[Console]::OutputEncoding=[Text.UTF8Encoding]::new()",
+    `$srv = '${server}'`,
+    "Get-ChildItem -LiteralPath (\"\\\\\" + $srv) -ErrorAction SilentlyContinue | ForEach-Object { $_.Name }",
+  ].join("\n");
+  return runPowerShell(script, 8000).then((output) => {
+    const shares = output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return [...new Set(shares)];
+  }).catch(() => []);
 }
 
 async function scanDesktopSmbShares(connection) {
