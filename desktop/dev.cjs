@@ -11,6 +11,7 @@ const vite = spawn(pnpm, ["exec", "vite", "--config", "desktop/vite.config.ts", 
   cwd: root,
   stdio: "inherit",
   windowsHide: true,
+  shell: process.platform === "win32",
 });
 
 let desktop;
