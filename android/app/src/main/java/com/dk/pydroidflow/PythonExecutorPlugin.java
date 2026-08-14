@@ -72,11 +72,15 @@ public class PythonExecutorPlugin extends Plugin {
     }
 
     // jcifs-ng 异常消息是英文系统文本，按关键词映射为中文，便于定位（如"网络名找不到"= 共享名/服务器名错误）。
-    private String smbErrorText(Exception exception) {
+    // enumeratingShares 用于区分"枚举共享列表"（部分服务器禁止根枚举，共享本身可用）与"访问具体共享"。
+    private String smbErrorText(Exception exception, boolean enumeratingShares) {
         String message = exception == null ? null : exception.getMessage();
-        if (message == null) return "无法访问 SMB";
+        if (message == null) return enumeratingShares ? "无法枚举服务器共享列表" : "无法访问 SMB";
         String lower = message.toLowerCase(Locale.ROOT);
-        if (lower.contains("network name cannot be found") || lower.contains("share name cannot be found") || lower.contains("bad network name")) return "网络名或共享名不存在，请检查服务器地址与共享名";
+        if (lower.contains("network name cannot be found") || lower.contains("share name cannot be found") || lower.contains("bad network name")) {
+            if (enumeratingShares) return "无法枚举共享列表（服务器可能禁止共享枚举），可手动输入共享名重试";
+            return "网络名或共享名不存在，请检查服务器地址与共享名";
+        }
         if (lower.contains("the specified network name is no longer available")) return "网络连接已断开，请重试";
         if (lower.contains("access is denied") || lower.contains("access denied")) return "拒绝访问，请检查账号权限";
         if (lower.contains("logon failure") || lower.contains("bad password") || lower.contains("password is incorrect")) return "用户名或密码错误";
@@ -116,7 +120,7 @@ public class PythonExecutorPlugin extends Plugin {
                     }
                 }
                 JSObject response = new JSObject(); response.put("entries", entries); call.resolve(response);
-            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception, false), exception); }
         });
     }
 
@@ -135,7 +139,7 @@ public class PythonExecutorPlugin extends Plugin {
                     }
                 }
                 JSObject response = new JSObject(); response.put("shares", shares); call.resolve(response);
-            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception, true), exception); }
         });
     }
 
@@ -188,7 +192,7 @@ public class PythonExecutorPlugin extends Plugin {
                 found.sort((left, right) -> left.optString("address").compareTo(right.optString("address")));
                 JSArray servers = new JSArray(); for (JSObject server : found) servers.put(server);
                 JSObject response = new JSObject(); response.put("servers", servers); call.resolve(response);
-            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception, false), exception); }
         });
     }
 
@@ -215,7 +219,7 @@ public class PythonExecutorPlugin extends Plugin {
                     }
                 }
                 JSObject response = new JSObject(); response.put("files", files); call.resolve(response);
-            } catch (Exception exception) { call.reject(smbErrorText(exception), exception); }
+            } catch (Exception exception) { call.reject(smbErrorText(exception, false), exception); }
         });
     }
 
