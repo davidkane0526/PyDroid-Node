@@ -1480,18 +1480,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const onPaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, resource: PaletteResource) => {
     event.dataTransfer.setData("application/pydroid-resource", JSON.stringify(resource));
     event.dataTransfer.effectAllowed = "copy";
-    // 原生 drag image：用专用实色卡片快照，清晰不透明（不复用页面预览的半透明样式）
-    const card = document.createElement("div");
-    card.className = `drag-image-card drag-image-card--${resource.kind}`;
-    const icon = document.createElement("span");
-    icon.textContent = resource.kind === "group" ? "⧉" : resource.kind === "flow" ? "◇" : "◆";
-    const label = document.createElement("strong");
-    label.textContent = resource.label;
-    card.appendChild(icon);
-    card.appendChild(label);
-    document.body.appendChild(card);
-    event.dataTransfer.setDragImage(card, 14, 14);
-    window.setTimeout(() => card.remove(), 150);
+    setPaletteDragPreview({ kind: resource.kind, label: resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
   };
 
   const updatePaletteDragPreview = (event: ReactDragEvent<HTMLButtonElement>) => {
@@ -2516,6 +2505,17 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     finally { setSmbLoading(false); }
   };
 
+  const selectSmbShare = async (share: string) => {
+    setSmbConnection((current) => ({ ...current, share }));
+    setSmbLoading(true); setSmbError(null);
+    try {
+      const connection = { ...effectiveSmbConnection(), share };
+      setSmbEntries(await listSmbDirectory(connection, ""));
+      setSmbPath(""); setSmbSelected([]);
+    } catch (error) { setSmbError(readableError(error, "无法访问共享，请检查共享名、账号密码和权限")); }
+    finally { setSmbLoading(false); }
+  };
+
   const discoverConfiguredSmb = async () => {
     setSmbLoading(true); setSmbError(null); setSmbServers([]);
     try {
@@ -3251,7 +3251,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       </footer>
       {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
       {historyOpen && <HistoryDialog entries={historyMeta.current} futureCount={future.current.length} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
-      {smbOpen && <SmbDialog open={smbOpen} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
+      {smbOpen && <SmbDialog open={smbOpen} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
       {remoteAccessDialog && <RemoteAccessDialog open={remoteAccessDialog} requirePin={remoteRequirePin} onRequirePin={setRemoteRequirePin} onClose={() => setRemoteAccessDialog(false)} onStart={() => void startConfiguredRemoteServer()} />}
       {remoteBrowser && !remotePaired && <RemotePairDialog policy={remoteAccessPolicy} error={remoteAccessError} pinInput={remotePinInput} onPinChange={(value) => { setRemotePinInput(value.replace(/\D/g, "").slice(0, 4)); setRemoteAccessError(null); }} onSubmitPin={() => void submitRemotePin()} />}
       {inputDialogNode && <InputDialog node={inputDialogNode} value={inputDialogValue} onValueChange={setInputDialogValue} onSubmit={() => void submitInputDialog()} onCancel={() => setInputDialogNode(null)} />}

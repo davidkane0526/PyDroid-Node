@@ -94,7 +94,11 @@ export async function requestAgentPlan(settings: AgentSettings, apiKey: string, 
     const payload = await post(settings, apiKey, { model: settings.model, instructions: plannerInstructions, input, tools: [{ type: "function", name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema }], tool_choice: toolChoice, store: false }) as { output?: Array<{ type?: string; name?: string; arguments?: string }> };
     argumentsText = payload.output?.find((item) => item.type === "function_call" && item.name === "propose_workflow_plan")?.arguments;
   } else {
-    const payload = await post(settings, apiKey, { model: settings.model, messages: [{ role: "system", content: plannerInstructions }, { role: "user", content: input }], tools: [{ type: "function", function: { name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema } }], tool_choice: { type: "function", function: { name: "propose_workflow_plan" } } }) as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
+    // DeepSeek 的 thinking 模式不接受强制指定 function 的 tool_choice（会报 400），改用 "required"
+    const toolChoice = settings.endpoint.includes("deepseek.com")
+      ? "required"
+      : { type: "function", function: { name: "propose_workflow_plan" } };
+    const payload = await post(settings, apiKey, { model: settings.model, messages: [{ role: "system", content: plannerInstructions }, { role: "user", content: input }], tools: [{ type: "function", function: { name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema } }], tool_choice: toolChoice }) as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
     argumentsText = payload.choices?.[0]?.message?.tool_calls?.find((call) => call.function?.name === "propose_workflow_plan")?.function?.arguments;
   }
   if (!argumentsText) throw new Error("AI 没有返回工作流计划工具调用");
