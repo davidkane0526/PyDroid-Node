@@ -341,13 +341,22 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
           <small>{keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : keyStorageHint === "synced" ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
         </section>
         <section><h3>AI 权限</h3>
-          <label className="settings-check"><input type="checkbox" checked={permissions.createNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, createNodes: event.target.checked } })} />创建节点与组合</label>
-          <label className="settings-check"><input type="checkbox" checked={permissions.updateParameters} onChange={(event) => onSettingsChange({ permissions: { ...permissions, updateParameters: event.target.checked } })} />修改参数与标签</label>
-          <label className="settings-check"><input type="checkbox" checked={permissions.connectNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, connectNodes: event.target.checked } })} />创建连线</label>
-          <label className="settings-check"><input type="checkbox" checked={permissions.disconnectNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, disconnectNodes: event.target.checked } })} />断开连线</label>
-          <label className="settings-check"><input type="checkbox" checked={permissions.arrangeLayout} onChange={(event) => onSettingsChange({ permissions: { ...permissions, arrangeLayout: event.target.checked } })} />整理布局</label>
-          <label className="settings-check"><input type="checkbox" checked={permissions.deleteNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, deleteNodes: event.target.checked } })} />删除节点</label>
-          <label className="settings-check"><input type="checkbox" checked={permissions.runWorkflow} onChange={(event) => onSettingsChange({ permissions: { ...permissions, runWorkflow: event.target.checked } })} />执行工作流</label>
+          <div className="agent-permission-groups">
+            <div className="agent-permission-group"><h4>节点</h4>
+              <label className="settings-check"><input type="checkbox" checked={permissions.createNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, createNodes: event.target.checked } })} /><span><strong>创建节点</strong><small>添加目录中的节点与组合模板</small></span></label>
+              <label className="settings-check"><input type="checkbox" checked={permissions.groupNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, groupNodes: event.target.checked } })} /><span><strong>组合节点</strong><small>把多个节点封装为组合</small></span></label>
+              <label className="settings-check"><input type="checkbox" checked={permissions.updateParameters} onChange={(event) => onSettingsChange({ permissions: { ...permissions, updateParameters: event.target.checked } })} /><span><strong>修改参数与标签</strong><small>调整已有节点的参数与名称</small></span></label>
+              <label className="settings-check"><input type="checkbox" checked={permissions.deleteNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, deleteNodes: event.target.checked } })} /><span><strong>删除节点</strong><small>从画布移除节点</small></span></label>
+            </div>
+            <div className="agent-permission-group"><h4>连线与布局</h4>
+              <label className="settings-check"><input type="checkbox" checked={permissions.connectNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, connectNodes: event.target.checked } })} /><span><strong>创建连线</strong><small>在节点端口之间连线</small></span></label>
+              <label className="settings-check"><input type="checkbox" checked={permissions.disconnectNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, disconnectNodes: event.target.checked } })} /><span><strong>断开连线</strong><small>移除节点之间的连线</small></span></label>
+              <label className="settings-check"><input type="checkbox" checked={permissions.arrangeLayout} onChange={(event) => onSettingsChange({ permissions: { ...permissions, arrangeLayout: event.target.checked } })} /><span><strong>整理布局</strong><small>自动排列节点位置</small></span></label>
+            </div>
+            <div className="agent-permission-group"><h4>执行</h4>
+              <label className="settings-check"><input type="checkbox" checked={permissions.runWorkflow} onChange={(event) => onSettingsChange({ permissions: { ...permissions, runWorkflow: event.target.checked } })} /><span><strong>执行工作流</strong><small>运行整个流程并读取结果</small></span></label>
+            </div>
+          </div>
         </section>
         <section className="agent-request"><h3>创建计划</h3><textarea value={instruction} placeholder="例如：读取两个 CSV，按日期合并后绘制销售额折线图" onChange={(event) => onInstructionChange(event.target.value)} /><button className="button primary" disabled={requesting} onClick={onRequestPlan}>{requesting ? "AI 正在规划…" : "请求 AI 计划"}</button><small>模型不能直接执行 Python、访问文件或改写工作流 JSON。</small></section>
         <section className="agent-plan"><h3>计划预览</h3><textarea spellCheck={false} value={planText} placeholder={"可粘贴或检查 AI 返回的 JSON 计划，例如：\n{\"summary\":\"添加读取节点\",\"operations\":[]}"} onChange={(event) => onPlanTextChange(event.target.value)} /><div><button className="button secondary" onClick={onReviewPlan}>检查计划</button><button className="button primary" disabled={!plan || requesting} onClick={onApplyPlan}>确认并应用</button></div>{planError && <p className="validation-error">{planError}</p>}{plan && <p>将执行：{plan.summary}（{plan.operations.length} 项操作）</p>}</section>

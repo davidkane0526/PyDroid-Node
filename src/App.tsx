@@ -132,6 +132,8 @@ function loadAgentSettings(value: unknown): AgentSettings {
     language: saved.language === "en" ? "en" : "zh-CN",
     permissions: {
       createNodes: permissionValue("createNodes"),
+      // 旧存档没有 groupNodes 键时，沿用 createNodes 的值，避免权限静默放大
+      groupNodes: typeof permissions.groupNodes === "boolean" ? permissions.groupNodes : permissionValue("createNodes"),
       updateParameters: permissionValue("updateParameters"),
       connectNodes: permissionValue("connectNodes"),
       disconnectNodes: permissionValue("disconnectNodes"),
@@ -693,7 +695,7 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
     case "set_parameter": return "updateParameters";
     case "connect": return "connectNodes";
     case "disconnect": return "disconnectNodes";
-    case "group_nodes": return "createNodes";
+    case "group_nodes": return "groupNodes";
     case "arrange": return "arrangeLayout";
     case "delete_node": return "deleteNodes";
     case "run_workflow": return "runWorkflow";
@@ -766,6 +768,7 @@ function FlowEditor() {
   const [paletteTab, setPaletteTab] = useState<"nodes" | "groups" | "flows">("nodes");
   const [groupLibrary, setGroupLibrary] = useState<GroupLibraryEntry[]>(loadGroupLibrary);
   const [savedNodeLibrary, setSavedNodeLibrary] = useState<SavedNodeEntry[]>(loadSavedNodeLibrary);
+const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(null);
   const [flowLibrary, setFlowLibrary] = useState<FlowLibraryEntry[]>(loadFlowLibrary);
   const [userProfile, setUserProfile] = useState<UserProfileInfo | null>(null);
   const [showNodeInsights, setShowNodeInsights] = useState(() => loadAppSettings().showNodeInsights);
@@ -1477,6 +1480,11 @@ function FlowEditor() {
   const onPaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, resource: PaletteResource) => {
     event.dataTransfer.setData("application/pydroid-resource", JSON.stringify(resource));
     event.dataTransfer.effectAllowed = "copy";
+    // 隐藏浏览器默认的半透明拖拽 ghost（与自定义预览叠加会形成“双影子”），只保留自定义预览
+    const ghost = document.createElement("canvas");
+    ghost.width = 1;
+    ghost.height = 1;
+    event.dataTransfer.setDragImage(ghost, 0, 0);
     setPaletteDragPreview({ kind: resource.kind, label: resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
   };
 
@@ -1722,8 +1730,19 @@ function FlowEditor() {
     setMessage(`已将“${entry.name}”保存到我的节点`);
   };
 
-  const insertSavedNode = (template: SavedNodeEntry) => {
-    pushHistory();
+  const reorderSavedNodes = (dragId: string, overId: string) => {
+    setSavedNodeLibrary((current) => {
+      const from = current.findIndex((item) => item.id === dragId);
+      const to = current.findIndex((item) => item.id === overId);
+      if (from < 0 || to < 0 || from === to) return current;
+      const next = [...current];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  const insertSavedNode = (template: SavedNodeEntry) => {    pushHistory();
     const id = `${template.node.data.nodeType.replaceAll(".", "-")}-${Date.now()}-${nextNodeNumber.current++}`;
     const node = cloneSnapshot({ nodes: [template.node], edges: [] }).nodes[0];
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
@@ -2962,7 +2981,7 @@ function FlowEditor() {
             <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder="搜索内置或导入节点" /><span>{matchedCatalog.length}</span></label>
           </div>
           <div className="palette-content">
-            {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length}</small></h3>{savedNodeLibrary.map((entry) => { const resource: PaletteResource = { kind: "saved-node", id: entry.id, label: entry.name }; return <button draggable key={entry.id} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "saved-node", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onClick={() => insertSavedNode(entry)} title="加入保存的节点与参数"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
+            {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length} · 可拖拽排序</small></h3>{savedNodeLibrary.map((entry) => { const resource: PaletteResource = { kind: "saved-node", id: entry.id, label: entry.name }; return <button draggable key={entry.id} className={savedNodeDragOverId === entry.id ? "palette-sort-target" : ""} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setSavedNodeDragOverId(entry.id); } }} onDragLeave={() => setSavedNodeDragOverId((current) => current === entry.id ? null : current)} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); setSavedNodeDragOverId(null); const data = event.dataTransfer.getData("application/pydroid-resource"); if (data) { try { const dragged = JSON.parse(data) as PaletteResource; if (dragged.kind === "saved-node") reorderSavedNodes(dragged.id, entry.id); } catch { /* 忽略无效拖拽数据 */ } } }} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "saved-node", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onClick={() => insertSavedNode(entry)} title="加入保存的节点与参数"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
             {[...catalogGroups.entries()].map(([category, specs]) => (
               <section className="palette-group" key={category}>
                 <h3>{category}</h3>
