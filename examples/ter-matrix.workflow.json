@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "name": "TER 多文件矩阵计算与热图",
+  "nodes": [
+    {
+      "id": "read-vg-files",
+      "type": "workflow",
+      "position": { "x": 45, "y": 85 },
+      "data": {
+        "label": "批量读取 Vg CSV",
+        "nodeType": "io.read_csv_batch",
+        "nodeVersion": 1,
+        "parameters": {
+          "separator": ",",
+          "header": "infer",
+          "skipRows": "1",
+          "useColumns": "0,1",
+          "encoding": "utf-8",
+          "sourceColumn": "source_file",
+          "metadataColumn": "Vg_V",
+          "filenamePattern": "vg\\s*=\\s*([-+]?\\d+(?:\\.\\d+)?)\\s*v",
+          "onError": "error"
+        },
+        "status": "idle",
+        "tags": ["TER", "多文件", "输入"]
+      }
+    },
+    {
+      "id": "calculate-ter",
+      "type": "workflow",
+      "position": { "x": 55, "y": 75 },
+      "data": {
+        "label": "计算多 Vg TER",
+        "nodeType": "analysis.ter_matrix",
+        "nodeVersion": 1,
+        "parameters": {
+          "vgColumn": "Vg_V",
+          "voltageColumn": "0",
+          "currentColumn": "1",
+          "sourceColumn": "source_file",
+          "vmin": 0,
+          "vmax": 0,
+          "vstep": 0,
+          "tolerance": 0,
+          "currentFloor": 1e-15,
+          "mode": "high-low"
+        },
+        "status": "idle",
+        "canvasParentId": "ter-analysis-group",
+        "tags": ["TER", "扫描方向", "多 Vg"]
+      }
+    },
+    {
+      "id": "ter-analysis-group",
+      "type": "workflow",
+      "position": { "x": 245, "y": 85 },
+      "data": {
+        "label": "TER 扫描分析",
+        "nodeType": "workflow.group",
+        "nodeVersion": 1,
+        "parameters": { "description": "将多 Vg 扫描数据转换为 TER 长表；内部只使用内置 TER 分析节点。" },
+        "status": "idle",
+        "groupInputs": [{ "id": "input-1", "label": "扫描数据", "valueType": "table", "internalNodeId": "calculate-ter", "internalHandle": "input" }],
+        "groupOutputs": [{ "id": "output-1", "label": "TER 长表", "valueType": "table", "internalNodeId": "calculate-ter", "internalHandle": "output" }]
+      }
+    },
+    {
+      "id": "export-ter-long",
+      "type": "workflow",
+      "position": { "x": 445, "y": 25 },
+      "data": {
+        "label": "导出 TER 长表",
+        "nodeType": "io.export_csv",
+        "nodeVersion": 1,
+        "parameters": { "fileName": "TER_long.csv" },
+        "status": "idle",
+        "tags": ["TER", "导出"]
+      }
+    },
+    {
+      "id": "pivot-ter",
+      "type": "workflow",
+      "position": { "x": 445, "y": 150 },
+      "data": {
+        "label": "生成 TER 矩阵",
+        "nodeType": "table.pivot",
+        "nodeVersion": 1,
+        "parameters": { "index": "Vg_V", "columns": "Vds_V", "values": "TER_percent", "aggregate": "mean", "resetIndex": true },
+        "status": "idle",
+        "tags": ["TER", "矩阵", "pivot"]
+      }
+    },
+    {
+      "id": "export-ter-matrix",
+      "type": "workflow",
+      "position": { "x": 645, "y": 95 },
+      "data": {
+        "label": "导出 TER 矩阵",
+        "nodeType": "io.export_csv",
+        "nodeVersion": 1,
+        "parameters": { "fileName": "TER_matrix.csv" },
+        "status": "idle",
+        "tags": ["TER", "导出"]
+      }
+    },
+    {
+      "id": "plot-ter-heatmap",
+      "type": "workflow",
+      "position": { "x": 645, "y": 205 },
+      "data": {
+        "label": "绘制 TER 热图",
+        "nodeType": "plot.heatmap",
+        "nodeVersion": 1,
+        "parameters": {
+          "rowLabelColumn": "Vg_V",
+          "title": "TER evolution versus gate and drain voltage",
+          "xLabel": "Vds (V)",
+          "yLabel": "Vg (V)",
+          "colorBarLabel": "TER (%)",
+          "colorMap": "viridis",
+          "figureWidth": 10.5,
+          "figureHeight": 6.5,
+          "dpi": 300
+        },
+        "status": "idle",
+        "tags": ["TER", "热图"]
+      }
+    }
+  ],
+  "edges": [
+    { "id": "ter-e1", "source": "read-vg-files", "sourceHandle": "output", "target": "ter-analysis-group", "targetHandle": "input-1" },
+    { "id": "ter-e2", "source": "ter-analysis-group", "sourceHandle": "output-1", "target": "export-ter-long", "targetHandle": "input" },
+    { "id": "ter-e3", "source": "ter-analysis-group", "sourceHandle": "output-1", "target": "pivot-ter", "targetHandle": "input" },
+    { "id": "ter-e4", "source": "pivot-ter", "sourceHandle": "output", "target": "export-ter-matrix", "targetHandle": "input" },
+    { "id": "ter-e5", "source": "pivot-ter", "sourceHandle": "output", "target": "plot-ter-heatmap", "targetHandle": "input" }
+  ]
+}

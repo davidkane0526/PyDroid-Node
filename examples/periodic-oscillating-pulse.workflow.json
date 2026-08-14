@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "name": "周期震荡脉冲",
+  "nodes": [
+    { "id": "oscillation", "type": "workflow", "position": { "x": 80, "y": 80 }, "data": { "label": "生成周期震荡脉冲", "nodeType": "pulse.generate_oscillating_ramp", "nodeVersion": 1, "parameters": { "interval": 0.005, "totalTime": 10, "amplitudeStep": 0.2, "fixedVoltage": 0.6, "gateVoltage": 0 }, "status": "idle" } },
+    { "id": "print", "type": "workflow", "position": { "x": 80, "y": 250 }, "data": { "label": "打印脉冲表", "nodeType": "python.print", "nodeVersion": 1, "parameters": { "prefix": "" }, "status": "idle" } }
+  ],
+  "edges": [
+    { "id": "oscillation-print", "source": "oscillation", "sourceHandle": "output", "target": "print", "targetHandle": "input" }
+  ]
+}
