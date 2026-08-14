@@ -8,7 +8,7 @@
 - 桌面端 SMB 设备发现重写：优先使用 Windows `net view` 获取真实主机名并枚举共享，445 端口扫描作为补充并以 `nbtstat` 解析主机名；设备卡以主机名为主要显示，共享与 IP 作为辅助信息。
 - 双击组合节点直接进入内部子流程画布（原先打开节点菜单）。
 - 框选/多选期间保留连线与删除叉号之外的连线可见性，修复"点击组合后连线消失"的困惑；进入多选仍会提示操作方式。
-- AI Agent 增加 `disconnectNodes`（断开连线）与 `arrangeLayout`（整理布局）独立权限，权限项增至 7 项；DeepSeek 预设更新为 V4 模型（`deepseek-v4-flash` / `deepseek-v4-pro`，旧名 `deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24 停用）。
+- AI Agent 增加 `disconnectNodes`（断开连线）与 `arrangeLayout`（整理布局）独立权限，权限项增至 7 项；DeepSeek 预设升级为 Responses 接口（`https://api.deepseek.com/responses`）并使用 V4 模型（`deepseek-v4-flash` / `deepseek-v4-pro`，旧名 `deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24 停用），已保存的旧配置自动迁移。
 - 资源拖拽预览改为光标右下角自然跟随（不再悬浮在光标上方），节点落点动画改为更顺滑的淡入缩放。
 - 修复组合子流程输入输出面板与画布顶部工具栏重叠；底部"返回主流程"面包屑改为水平居中，不再与左下角缩放按钮重叠。
 

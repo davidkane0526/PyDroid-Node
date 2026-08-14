@@ -114,15 +114,20 @@ function loadAgentSettings(value: unknown): AgentSettings {
   const saved = value && typeof value === "object" ? value as Partial<AgentSettings> : {};
   const permissions = (saved.permissions && typeof saved.permissions === "object" ? saved.permissions : {}) as Partial<Record<AgentPermission, boolean>>;
   const permissionValue = (permission: AgentPermission) => typeof permissions[permission] === "boolean" ? permissions[permission] : DEFAULT_AGENT_SETTINGS.permissions[permission];
-  // DeepSeek 旧模型名 deepseek-chat / deepseek-reasoner 已于 2026-07-24 停用，自动迁移到 V4
+  // DeepSeek 预设迁移：旧模型名 → V4（2026-07-24 停用）；官方默认接口从 Chat Completions 升级到 Responses API（2026-08-13 起 flash/pro 均支持）
   const rawModel = typeof saved.model === "string" ? saved.model : DEFAULT_AGENT_SETTINGS.model;
   const model = saved.presetId === "deepseek"
     ? rawModel === "deepseek-reasoner" ? "deepseek-v4-pro" : rawModel === "deepseek-chat" ? "deepseek-v4-flash" : rawModel
     : rawModel;
+  const rawProvider = saved.provider === "anthropic-messages" || saved.provider === "openai-compatible" ? saved.provider : "openai-responses";
+  const rawEndpoint = typeof saved.endpoint === "string" && saved.endpoint.trim() ? saved.endpoint : DEFAULT_AGENT_SETTINGS.endpoint;
+  const isDeepseekOfficialChat = saved.presetId === "deepseek" && rawProvider === "openai-compatible" && rawEndpoint === "https://api.deepseek.com/chat/completions";
+  const provider = isDeepseekOfficialChat ? "openai-responses" : rawProvider;
+  const endpoint = isDeepseekOfficialChat ? "https://api.deepseek.com/responses" : rawEndpoint;
   return {
     presetId: typeof saved.presetId === "string" ? saved.presetId : DEFAULT_AGENT_SETTINGS.presetId,
-    provider: saved.provider === "anthropic-messages" || saved.provider === "openai-compatible" ? saved.provider : "openai-responses",
-    endpoint: typeof saved.endpoint === "string" && saved.endpoint.trim() ? saved.endpoint : DEFAULT_AGENT_SETTINGS.endpoint,
+    provider,
+    endpoint,
     model,
     language: saved.language === "en" ? "en" : "zh-CN",
     permissions: {
