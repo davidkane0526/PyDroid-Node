@@ -205,70 +205,78 @@ def _detect_oscillating_pulse(tree: ast.Module, assignment_values: dict[str, Any
     }
 
 
-def _analyze_statement(statement: ast.stmt, source: str) -> dict[str, Any]:
+def _statement_base(statement: ast.stmt, source: str) -> dict[str, Any]:
+    """构建语句的基础描述（未映射时的默认记录）。"""
     definitions = sorted({node.id for node in ast.walk(statement) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)})
     uses = sorted({node.id for node in ast.walk(statement) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)})
     fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
     kind = type(statement).__name__
-    base = {"recognized": True, "semantic": False, "kind": kind, "nodeType": "notebook.code_cell", "label": CONTROL_LABELS.get(kind, kind), "parameters": {"source": fragment, "astKind": kind}, "source": fragment, "defines": definitions, "uses": uses, "reason": f"尚未将 {kind} 映射为默认节点"}
+    return {"recognized": True, "semantic": False, "kind": kind, "nodeType": "notebook.code_cell", "label": CONTROL_LABELS.get(kind, kind), "parameters": {"source": fragment, "astKind": kind}, "source": fragment, "defines": definitions, "uses": uses, "reason": f"尚未将 {kind} 映射为默认节点"}
+
+
+def _condition_table_variable(test: ast.AST, uses: list[str]) -> tuple[str | None, str]:
+    """推导条件里的表格变量（`frame['voltage']` / `frame.voltage`），并把列引用改写为反引号形式。"""
+    candidates = [name for name in uses if name not in {"True", "False", "None"}]
+    table_candidates = [_root_name(item.value) for item in ast.walk(test) if isinstance(item, ast.Subscript)]
+    table_variable = next((name for name in table_candidates if name), None)
+    condition = ast.unparse(test)
+    if table_variable:
+        condition = re.sub(rf"\b{re.escape(table_variable)}\[['\"]([^'\"]+)['\"]\]", r"`\1`", condition)
+        condition = re.sub(rf"\b{re.escape(table_variable)}\.([A-Za-z_]\w*)", r"\1", condition)
+    return table_variable, condition
+
+
+def _branch_children(statements: list[ast.stmt], source: str, branch: str) -> list[dict[str, Any]]:
+    children = []
+    for child_index, child in enumerate(statements):
+        child_result = _analyze_statement(child, source)
+        if child_result.get("semantic"):
+            children.append({**child_result, "branch": branch, "childIndex": child_index})
+    return children
+
+
+def _analyze_control_flow(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
+    """识别导入、If/For/While 及暂不支持的控制结构；非控制流语句返回 None。"""
     if isinstance(statement, (ast.Import, ast.ImportFrom)):
         return {**base, "recognized": False, "label": "导入模块", "reason": "导入语句由目标环境依赖处理"}
-    # A notebook function, arbitrary control flow, imports, and filesystem code are
-    # deliberately not converted to a hidden code carrier. The importer records
-    # them as unmapped, rather than pretending that a flow is executable.
     if isinstance(statement, ast.If):
-        condition = ast.unparse(statement.test)
-        candidates = [name for name in uses if name not in {"True", "False", "None"}]
-        table_candidates = [_root_name(item.value) for item in ast.walk(statement.test) if isinstance(item, ast.Subscript)]
-        table_variable = next((name for name in table_candidates if name), None)
-        if table_variable:
-            condition = re.sub(rf"\b{re.escape(table_variable)}\[['\"]([^'\"]+)['\"]\]", r"`\1`", condition)
-            condition = re.sub(rf"\b{re.escape(table_variable)}\.([A-Za-z_]\w*)", r"\1", condition)
-        children = []
-        for branch, statements in (("true", statement.body), ("false", statement.orelse)):
-            for child_index, child in enumerate(statements):
-                child_result = _analyze_statement(child, source)
-                if child_result.get("semantic"):
-                    children.append({**child_result, "branch": branch, "childIndex": child_index})
-        return {**base, "recognized": True, "semantic": True, "nodeType": "logic.if_subflow", "label": "If 条件结构", "parameters": {"condition": condition}, "inputVariable": table_variable or (candidates[0] if candidates else None), "children": children}
+        table_variable, condition = _condition_table_variable(statement.test, base["uses"])
+        children = _branch_children(statement.body, source, "true") + _branch_children(statement.orelse, source, "false")
+        input_variable = table_variable or next((name for name in base["uses"] if name not in {"True", "False", "None"}), None)
+        return {**base, "recognized": True, "semantic": True, "nodeType": "logic.if_subflow", "label": "If 条件结构", "parameters": {"condition": condition}, "inputVariable": input_variable, "children": children}
     if isinstance(statement, ast.For):
         iterable = _root_name(statement.iter)
-        children = []
-        for child_index, child in enumerate(statement.body):
-            child_result = _analyze_statement(child, source)
-            if child_result.get("semantic"):
-                children.append({**child_result, "branch": "body", "childIndex": child_index})
+        children = _branch_children(statement.body, source, "body")
         if iterable:
             return {**base, "recognized": True, "semantic": True, "nodeType": "logic.for_each_subflow", "label": "For 子流程", "parameters": {"maxIterations": 10000}, "inputVariable": iterable, "children": children}
     if isinstance(statement, ast.While):
-        condition = ast.unparse(statement.test)
-        candidates = [name for name in uses if name not in {"True", "False", "None"}]
-        table_candidates = [_root_name(item.value) for item in ast.walk(statement.test) if isinstance(item, ast.Subscript)]
-        table_variable = next((name for name in table_candidates if name), None)
-        if table_variable:
-            condition = re.sub(rf"\b{re.escape(table_variable)}\[['\"]([^'\"]+)['\"]\]", r"`\1`", condition)
-            condition = re.sub(rf"\b{re.escape(table_variable)}\.([A-Za-z_]\w*)", r"\1", condition)
-        children = []
-        for child_index, child in enumerate(statement.body):
-            child_result = _analyze_statement(child, source)
-            if child_result.get("semantic"):
-                children.append({**child_result, "branch": "body", "childIndex": child_index})
-        if table_variable or candidates:
-            return {**base, "recognized": True, "semantic": True, "nodeType": "logic.while_subflow", "label": "While 子流程", "parameters": {"condition": condition, "maxIterations": 100}, "inputVariable": table_variable or candidates[0], "children": children}
+        table_variable, condition = _condition_table_variable(statement.test, base["uses"])
+        children = _branch_children(statement.body, source, "body")
+        if table_variable or base["uses"]:
+            return {**base, "recognized": True, "semantic": True, "nodeType": "logic.while_subflow", "label": "While 子流程", "parameters": {"condition": condition, "maxIterations": 100}, "inputVariable": table_variable or next((name for name in base["uses"] if name not in {"True", "False", "None"}), None), "children": children}
+    # A notebook function, arbitrary control flow, imports, and filesystem code are
+    # deliberately not converted to a hidden code carrier. The importer records
+    # them as unmapped, rather than pretending that a flow is executable.
     if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.With, ast.Try, ast.For, ast.While)):
-        return {**base, "recognized": False, "reason": "需要可复用默认节点", "label": CONTROL_LABELS.get(kind, kind)}
-    call = _call(statement)
-    if call is None:
-        if isinstance(statement, ast.Assign):
-            slice_value = _slice_parameter(statement.value)
-            if slice_value:
-                root, slice_parameters = slice_value
-                target = _target_name(statement)
-                return {**base, "semantic": True, "kind": "slice", "nodeType": "table.slice", "label": target or "行列切片", "parameters": slice_parameters, "inputVariable": root, "outputVariable": target or root}
-            if isinstance(statement.value, ast.Attribute) and statement.value.attr == "T":
-                root = _root_name(statement.value.value); target = _target_name(statement)
-                if root: return {**base, "semantic": True, "kind": "call", "nodeType": "table.transpose", "label": target or "转置", "parameters": {}, "inputVariable": root, "outputVariable": target or root}
-        return {**base, "recognized": False}
+        return {**base, "recognized": False, "reason": "需要可复用默认节点", "label": CONTROL_LABELS.get(base["kind"], base["kind"])}
+    return None
+
+
+def _analyze_assignment(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
+    """识别非调用的赋值模式：行列切片与转置。"""
+    slice_value = _slice_parameter(statement.value)
+    if slice_value:
+        root, slice_parameters = slice_value
+        target = _target_name(statement)
+        return {**base, "semantic": True, "kind": "slice", "nodeType": "table.slice", "label": target or "行列切片", "parameters": slice_parameters, "inputVariable": root, "outputVariable": target or root}
+    if isinstance(statement.value, ast.Attribute) and statement.value.attr == "T":
+        root = _root_name(statement.value.value); target = _target_name(statement)
+        if root: return {**base, "semantic": True, "kind": "call", "nodeType": "table.transpose", "label": target or "转置", "parameters": {}, "inputVariable": root, "outputVariable": target or root}
+    return None
+
+
+def _analyze_call(call: ast.Call, statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any]:
+    """把调用语句映射到节点：内置函数、专用函数、pandas/numpy 方法与转换。"""
     if isinstance(call.func, ast.Name) and call.func.id == "print":
         input_name = _root_name(call.args[0]) if call.args else None
         if input_name:
@@ -342,6 +350,21 @@ def _analyze_statement(statement: ast.stmt, source: str) -> dict[str, Any]:
     if root and call.func.attr == "to_clipboard":
         return {**base, "semantic": True, "kind": "call", "nodeType": "io.export_csv", "label": "导出结果", "parameters": {"fileName": "clipboard.csv"}, "inputVariable": root, "outputVariable": target}
     return {**base, "recognized": False}
+
+
+def _analyze_statement(statement: ast.stmt, source: str) -> dict[str, Any]:
+    base = _statement_base(statement, source)
+    control = _analyze_control_flow(statement, source, base)
+    if control is not None:
+        return control
+    call = _call(statement)
+    if call is None:
+        if isinstance(statement, ast.Assign):
+            assignment = _analyze_assignment(statement, source, base)
+            if assignment is not None:
+                return assignment
+        return {**base, "recognized": False}
+    return _analyze_call(call, statement, source, base)
 
 
 def analyze_python_cell(source: str) -> dict[str, Any]:
