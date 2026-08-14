@@ -5,8 +5,7 @@ const http = require("node:http");
 const os = require("node:os");
 const net = require("node:net");
 const dns = require("node:dns").promises;
-const { Client: SmbClient } = require("node-smb2");
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
@@ -126,32 +125,121 @@ async function safeSmbOperation(action, fallback) {
   catch (error) { throw new Error(smbErrorMessage(error, fallback)); }
 }
 
-async function withSmbTree(connection, action) {
+// ---- Windows 原生 SMB 文件操作（替代 node-smb2） ----
+// node-smb2 仅实现 SMB2 早期子集，对现代 Windows/NAS 协商经常失败；
+// 这里改用 Windows 内置 SMB 客户端：net use 建立会话 + Get-ChildItem / [IO.File] 操作，
+// 兼容 SMB2/3 与任意凭据。net use 是全局会话，因此所有操作通过串行队列执行。
+
+const SMB_MAX_TOTAL_BYTES = 128 * 1024 * 1024;
+let smbQueue = Promise.resolve();
+const establishedSmbUncs = new Set();
+
+function enqueueSmb(task) {
+  const run = smbQueue.then(task, task);
+  smbQueue = run.catch(() => undefined);
+  return run;
+}
+
+function runPowerShell(script, timeoutMs = 20000, extraEnv = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true, env: { ...process.env, ...extraEnv } });
+    const chunks = [];
+    let settled = false;
+    const finish = (error, value) => { if (settled) return; settled = true; clearTimeout(timer); if (error) reject(error); else resolve(value); };
+    const timer = setTimeout(() => { child.kill(); finish(new Error("SMB 操作超时"), null); }, timeoutMs);
+    child.stdout.on("data", (chunk) => chunks.push(chunk));
+    child.stderr.on("data", (chunk) => chunks.push(chunk));
+    child.once("error", (error) => finish(error, null));
+    child.once("close", (code) => {
+      const output = Buffer.concat(chunks).toString("utf8").trim();
+      if (code !== 0) finish(new Error(sanitizeSmbError(output, script) || `PowerShell 退出码 ${code}`), null);
+      else finish(null, output);
+    });
+  });
+}
+
+// 错误信息可能回显脚本行（含 Base64 凭据/路径），脱敏后只保留末尾可读片段。
+function sanitizeSmbError(output, script) {
+  let safe = String(output || "");
+  const embedded = [...script.matchAll(/'([A-Za-z0-9+/=]{8,})'/g)].map((match) => match[1]);
+  for (const value of embedded) safe = safe.split(value).join("***");
+  return safe.slice(-400);
+}
+
+function smbPathValidation(connection, relativePath) {
   if (!/^[A-Za-z0-9._:-]+$/.test(connection.server || "") || !connection.share || /[\\/]/.test(connection.share)) throw new Error("SMB 服务器或共享名无效");
-  const client = new SmbClient(connection.server, { connectTimeout: 8000, requestTimeout: 15000 });
-  try {
-    const session = await client.authenticate({ domain: connection.domain || "", username: connection.username || "", password: connection.password || "" });
-    const tree = await session.connectTree(connection.share);
-    return await action(tree);
-  } finally { await client.close().catch(() => undefined); }
+  const clean = String(relativePath || "").replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
+  if (clean.split("/").includes("..")) throw new Error("SMB 路径无效");
+  return clean;
+}
+
+function smbUnc(connection, relativePath) {
+  const clean = smbPathValidation(connection, relativePath);
+  return `\\\\${connection.server}\\${connection.share}` + (clean ? `\\${clean.replaceAll("/", "\\")}` : "");
+}
+
+function smbB64(text) { return Buffer.from(String(text), "utf8").toString("base64"); }
+
+async function ensureSmbSession(connection) {
+  // net use 建立凭据会话；密码通过子进程环境变量传入（不进入任何进程的命令行）。
+  const script = [
+    "$ErrorActionPreference='Stop'",
+    `$unc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc(connection, ""))}'))`,
+    `$dom = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(connection.domain || "")}'))`,
+    `$usr = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(connection.username || "")}'))`,
+    "if ($dom -ne '' -or $usr -ne '') {",
+    "  $who = if ($dom -ne '') { \"$dom`\\$usr\" } else { $usr }",
+    "  net use $unc /user:$who $env:SMB_PWD 2>&1 | Out-Null",
+    "  if ($LASTEXITCODE -ne 0) { net use $unc /delete 2>&1 | Out-Null; net use $unc /user:$who $env:SMB_PWD 2>&1 | Out-Null }",
+    "} else { net use $unc 2>&1 | Out-Null }",
+    "if ($LASTEXITCODE -ne 0) { throw \"SMB 登录失败（net use 退出码 $LASTEXITCODE）\" }",
+  ].join("\n");
+  await runPowerShell(script, 15000, { SMB_PWD: connection.password || "" });
+  establishedSmbUncs.add(smbUnc(connection, ""));
 }
 
 async function listDesktopSmb(connection, relativePath = "") {
-  const clean = String(relativePath).replaceAll("\\", "/").replace(/^\/+|\/+$/g, "");
-  if (clean.split("/").includes("..")) throw new Error("SMB 路径无效");
-  return withSmbTree(connection, async (tree) => (await tree.readDirectory(clean ? `/${clean}` : "/"))
-    .filter((entry) => entry.type === "Directory" || SMB_FILE_PATTERN.test(entry.filename))
-    .map((entry) => ({ name: entry.filename, path: clean ? `${clean}/${entry.filename}` : entry.filename, directory: entry.type === "Directory", size: Number(entry.fileSize || 0n), modifiedAt: entry.lastWriteTime?.toISOString?.() ?? null })));
+  return enqueueSmb(async () => {
+    await ensureSmbSession(connection);
+    const clean = smbPathValidation(connection, relativePath);
+    const script = [
+      "$ErrorActionPreference='Stop'",
+      `$unc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc(connection, clean))}'))`,
+      "$rows = Get-ChildItem -LiteralPath $unc -Force -ErrorAction Stop | ForEach-Object {",
+      "  [pscustomobject]@{ name = $_.Name; directory = $_.PSIsContainer; size = if ($_.PSIsContainer) { 0 } else { $_.Length }; modifiedAt = if ($_.LastWriteTimeUtc) { $_.LastWriteTimeUtc.ToString('o') } else { $null } }",
+      "}",
+      "$rows | ConvertTo-Json -Compress -Depth 2",
+    ].join("\n");
+    const output = await runPowerShell(script);
+    const parsed = JSON.parse(output || "[]");
+    const rows = Array.isArray(parsed) ? parsed : [parsed].filter(Boolean);
+    return rows
+      .filter((row) => row.directory || SMB_FILE_PATTERN.test(String(row.name || "")))
+      .map((row) => ({ name: String(row.name), path: clean ? `${clean}/${row.name}` : String(row.name), directory: Boolean(row.directory), size: Number(row.size || 0), modifiedAt: row.modifiedAt ?? null }));
+  });
 }
 
 async function readDesktopSmb(connection, paths) {
-  return withSmbTree(connection, async (tree) => Promise.all(paths.slice(0, 100).map(async (relativePath) => {
-    const clean = String(relativePath).replaceAll("\\", "/").replace(/^\/+/, "");
-    if (clean.split("/").includes("..") || !SMB_FILE_PATTERN.test(clean)) throw new Error(`不支持的 SMB 文件：${clean}`);
-    const bytes = await tree.readFile(`/${clean}`);
-    if (bytes.length > 64 * 1024 * 1024) throw new Error(`${clean} 超过 64 MiB`);
-    return { name: clean, base64: bytes.toString("base64") };
-  })));
+  return enqueueSmb(async () => {
+    await ensureSmbSession(connection);
+    const results = [];
+    let totalBytes = 0;
+    for (const relativePath of paths.slice(0, 100)) {
+      const clean = String(relativePath).replaceAll("\\", "/").replace(/^\/+/, "");
+      if (clean.split("/").includes("..") || !SMB_FILE_PATTERN.test(clean)) throw new Error(`不支持的 SMB 文件：${clean}`);
+      const script = [
+        "$ErrorActionPreference='Stop'",
+        `$p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc(connection, clean))}'))`,
+        "if ((Get-Item -LiteralPath $p -Force).Length -gt 67108864) { throw '文件超过 64 MiB 限制' }",
+        "[Convert]::ToBase64String([IO.File]::ReadAllBytes($p))",
+      ].join("\n");
+      const base64 = (await runPowerShell(script)).trim();
+      totalBytes += Math.floor((base64.length * 3) / 4);
+      if (totalBytes > SMB_MAX_TOTAL_BYTES) throw new Error("SMB 导入总量超过 128 MiB 限制");
+      results.push({ name: clean, base64 });
+    }
+    return results;
+  });
 }
 
 function netViewShares(server) {
@@ -178,7 +266,17 @@ async function scanDesktopSmbShares(connection) {
   const candidates = [...new Set([connection.share, ...fromWindows, "public", "share", "shared", "data", "files", "documents", "media", "backup", "homes"].filter(Boolean))];
   const available = [];
   for (const share of candidates) {
-    try { await withSmbTree({ ...connection, share }, async (tree) => { await tree.readDirectory("/"); }); available.push(share); } catch {}
+    try {
+      await enqueueSmb(async () => {
+        await ensureSmbSession({ ...connection, share });
+        await runPowerShell([
+          "$ErrorActionPreference='Stop'",
+          `$unc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc({ ...connection, share }, ""))}'))`,
+          "Get-ChildItem -LiteralPath $unc -Force -ErrorAction Stop | Out-Null",
+        ].join("\n"), 10000);
+      });
+      available.push(share);
+    } catch {}
   }
   if (!available.length && connection.share) throw new Error("凭据有效性或共享名无法确认；请检查账号、密码和共享名");
   return available;
@@ -540,4 +638,13 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   void stopDesktopRemoteServer();
   if (process.platform !== "darwin") app.quit();
+});
+
+// 退出时清理 SMB net use 会话，避免凭据驻留在系统会话中。
+app.on("before-quit", () => {
+  if (establishedSmbUncs.size === 0) return;
+  for (const unc of establishedSmbUncs) {
+    try { spawnSync("net", ["use", unc, "/delete", "/y"], { windowsHide: true }); } catch { /* 忽略清理失败 */ }
+  }
+  establishedSmbUncs.clear();
 });
