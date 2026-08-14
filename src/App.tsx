@@ -1,42 +1,254 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent as ReactDragEvent, type ErrorInfo, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Capacitor } from "@capacitor/core";
 import {
   addEdge,
   Background,
   BackgroundVariant,
+  BaseEdge,
+  ConnectionLineType,
   Controls,
   Handle,
   MiniMap,
+  NodeResizer,
   Position,
   ReactFlow,
   ReactFlowProvider,
+  getBezierPath,
+  reconnectEdge,
   useEdgesState,
   useNodesState,
+  useReactFlow,
+  useUpdateNodeInternals,
   type Connection,
   type Edge,
+  type EdgeProps,
+  type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
-import { NODE_CATALOG, getNodeSpec, type NodeSpec, type ParameterSpec } from "./nodeCatalog";
 import {
+  areValueTypesCompatible,
+  getNodeSpec,
+  NODE_CATALOG,
+  searchNodeCatalog,
+  type NodeSpec,
+  type ParameterSpec,
+  type ValueType,
+} from "./nodeCatalog";
+import {
+  CUSTOM_NODE_TEMPLATES,
+  parseCustomNodeTemplate,
+  parsePythonFunctionSignature,
+  resolveNodeSpec,
+  serializeCustomNodeTemplate,
+  type CustomNodeTemplate,
+} from "./customNode";
+import {
+  compactNodeLayout,
+  flattenWorkflowGroups,
+  normalizeNodePositions,
   parseWorkflow,
   serializeWorkflow,
+  type WorkflowGroupPort,
   type WorkflowNode,
 } from "./workflow";
-import { executeWorkflow, WorkflowExecutionError, type ExecutionResult } from "./execution";
+import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
+import { analyzeNotebook, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, startRemoteServer, stopRemoteServer, warmUpPythonExecutor, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
+import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
+const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
+const NODE_DEFAULTS_KEY = "pydroid-flow.node-defaults.v1";
+const NODE_GROUPS_KEY = "pydroid-flow.node-groups.v1";
+const PACKAGE_REQUIREMENTS_KEY = "pydroid-flow.package-requirements.v1";
+const LAYOUT_MODE_KEY = "pydroid-flow.layout-mode.v2";
+const MINIMAP_MODE_KEY = "pydroid-flow.minimap-mode.v2";
+const SETTINGS_KEY = "pydroid-flow.settings.v1";
+const FLOW_LIBRARY_KEY = "pydroid-flow.workflow-library.v1";
+const GROUP_LIBRARY_KEY = "pydroid-flow.group-library.v1";
+const SAVED_NODE_LIBRARY_KEY = "pydroid-flow.saved-node-library.v1";
+const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-override.v1";
+type PaletteResource = { kind: "node" | "saved-node" | "group" | "flow"; id: string; label: string };
 
-type WorkflowSnapshot = { nodes: WorkflowNode[]; edges: Edge[] };
+type ThemeMode = "system" | "dark" | "light";
+const notebookCellRows = (source: string) => Math.max(3, source.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil(Array.from(line).length / 96)), 0));
+const VALUE_TYPE_COLORS: Record<ValueType, string> = { table: "#22c55e", plot: "#a855f7", csv: "#14b8a6", number: "#f59e0b", text: "#3b82f6", boolean: "#ef4444", list: "#06b6d4", object: "#8b5cf6", any: "#64748b" };
+const bytesToBase64 = (bytes: Uint8Array) => { let binary = ""; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary); };
+
+function resultPreviewText(preview: NodeExecutionPreview): string {
+  if (preview.kind === "value") return preview.text;
+  if (preview.kind === "plot") return `[PNG 图像 · base64 ${preview.plotPngBase64.length} 字符]`;
+  return JSON.stringify({ columns: preview.preview.columns, rows: preview.preview.rows, totalRows: preview.preview.totalRows, totalColumns: preview.preview.totalColumns }, null, 2);
+}
+
+function DataGrid({ preview, onExpand }: { preview: TablePreview; onExpand?: () => void }) {
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ column: number; descending: boolean } | null>(null);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [wrap, setWrap] = useState(false);
+  const [compact, setCompact] = useState(true);
+  const [copied, setCopied] = useState(false);
+  const filtered = useMemo(() => {
+    const token = query.trim().toLocaleLowerCase();
+    const rows = token ? preview.rows.filter((row) => row.some((value) => String(value ?? "").toLocaleLowerCase().includes(token))) : [...preview.rows];
+    if (!sort) return rows;
+    return rows.sort((left, right) => {
+      const a = left[sort.column], b = right[sort.column];
+      const numeric = Number(a) - Number(b);
+      const compared = Number.isNaN(numeric) ? String(a ?? "").localeCompare(String(b ?? ""), undefined, { numeric: true }) : numeric;
+      return sort.descending ? -compared : compared;
+    });
+  }, [preview.rows, query, sort]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = filtered.slice(safePage * pageSize, (safePage + 1) * pageSize);
+  const copyTable = async () => { await navigator.clipboard.writeText([preview.columns, ...filtered].map((row) => row.map((value) => String(value ?? "").replaceAll("\t", " ")).join("\t")).join("\n")); setCopied(true); window.setTimeout(() => setCopied(false), 1200); };
+  return <div className={`data-grid ${wrap ? "data-grid--wrap" : ""} ${compact ? "data-grid--compact" : ""}`} onDoubleClick={onExpand}>
+    <div className="data-grid__toolbar"><label className="data-grid__search"><span>⌕</span><input value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} placeholder="搜索所有已载入单元格" aria-label="筛选表格"/>{query && <button aria-label="清除筛选" onClick={() => setQuery("")}>×</button>}</label><span className="data-grid__count">{filtered.length.toLocaleString()}/{preview.totalRows.toLocaleString()} 行</span><div className="data-grid__actions"><select value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(0); }} aria-label="每页行数"><option value={10}>10 / 页</option><option value={25}>25 / 页</option><option value={50}>50 / 页</option><option value={100}>100 / 页</option></select><button className={wrap ? "active" : ""} title="单元格自动换行" onClick={() => setWrap((value) => !value)}>↩</button><button className={compact ? "active" : ""} title="紧凑行高" onClick={() => setCompact((value) => !value)}>≡</button><button className={copied ? "copied" : ""} title="复制 TSV，可直接粘贴到 Excel" onClick={() => void copyTable()}>{copied ? "已复制 ✓" : "复制"}</button>{onExpand && <button className="data-grid__expand" onClick={onExpand}>全屏</button>}</div></div>
+    <div className="data-grid__viewport"><table><thead><tr><th className="data-grid__row-number">#</th>{preview.columns.map((column, index) => <th key={`${column}-${index}`}><button onClick={() => setSort((current) => current?.column === index ? { column: index, descending: !current.descending } : { column: index, descending: false })}>{column}{sort?.column === index ? sort.descending ? " ↓" : " ↑" : ""}</button></th>)}</tr></thead><tbody>{visible.map((row, rowIndex) => <tr key={`${safePage}-${rowIndex}`}><th className="data-grid__row-number">{safePage * pageSize + rowIndex + 1}</th>{row.map((value, columnIndex) => <td key={columnIndex} title={String(value ?? "")}>{String(value ?? "")}</td>)}</tr>)}</tbody></table></div>
+    <div className="data-grid__pager"><span>{preview.totalRows.toLocaleString()} 行 × {preview.totalColumns.toLocaleString()} 列{preview.rows.length < preview.totalRows ? ` · 当前载入 ${preview.rows.length.toLocaleString()} 行` : ""}</span><div><button disabled={safePage === 0} onClick={() => setPage(0)}>«</button><button disabled={safePage === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>‹</button><b>第 {safePage + 1} / {pageCount} 页</b><button disabled={safePage + 1 >= pageCount} onClick={() => setPage((value) => Math.min(pageCount - 1, value + 1))}>›</button><button disabled={safePage + 1 >= pageCount} onClick={() => setPage(pageCount - 1)}>»</button></div></div>
+  </div>;
+}
+
+const EdgeActionsContext = createContext<{ disconnect: (ids: string[]) => void }>({ disconnect: () => undefined });
+
+function TypedGradientEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data, selected }: EdgeProps) {
+  const edgeActions = useContext(EdgeActionsContext);
+  const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  const gradientId = `edge-gradient-${id.replace(/[^A-Za-z0-9_-]/g, "-")}`;
+  const colors = data as { sourceColor?: string; targetColor?: string } | undefined;
+  const centerX = (sourceX + targetX) / 2;
+  const centerY = (sourceY + targetY) / 2;
+  return <><defs><linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={sourceX} y1={sourceY} x2={targetX} y2={targetY}><stop offset="0%" stopColor={colors?.sourceColor ?? "#64748b"}/><stop offset="100%" stopColor={colors?.targetColor ?? "#64748b"}/></linearGradient></defs><BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={38} style={{ ...style, stroke: `url(#${gradientId})` }} /><path className="edge-disconnect-hit" d={path} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); edgeActions.disconnect([id]); }} />{selected && <foreignObject className="edge-disconnect-control" x={centerX - 14} y={centerY - 14} width="28" height="28"><button type="button" aria-label="断开连线" title="断开连线" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); edgeActions.disconnect([id]); }}>×</button></foreignObject>}</>;
+}
+
+function NotebookEditor({ value, rows, onChange }: { value: string; rows: number; onChange: (value: string) => void }) {
+  const gutter = useRef<HTMLDivElement>(null);
+  const lineCount = Math.max(1, value.split("\n").length);
+  return <div className="notebook-editor"><div ref={gutter} className="notebook-editor__lines" aria-hidden="true">{Array.from({ length: lineCount }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={value} rows={rows} spellCheck={false} onScroll={(event) => { if (gutter.current) gutter.current.scrollTop = event.currentTarget.scrollTop; }} onChange={(event) => onChange(event.target.value)} /></div>;
+}
+type SmbSettings = Omit<SmbConnection, "password"> & { rememberPassword: boolean; guest: boolean };
+type AppSettings = { themeMode: ThemeMode; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
+
+function readableError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message && error.message !== "[object Object]") return error.message;
+  if (typeof error === "string" && error && error !== "[object Object]") return error;
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    for (const key of ["message", "description", "code", "status"]) {
+      const candidate = value[key];
+      if (typeof candidate === "string" && candidate.trim() && candidate !== "[object Object]") return candidate;
+    }
+    try { const serialized = JSON.stringify(error); if (serialized !== "{}") return serialized; } catch { /* ignored */ }
+  }
+  return fallback;
+}
+
+function loadAgentSettings(value: unknown): AgentSettings {
+  const saved = value && typeof value === "object" ? value as Partial<AgentSettings> : {};
+  const permissions = (saved.permissions && typeof saved.permissions === "object" ? saved.permissions : {}) as Partial<Record<AgentPermission, boolean>>;
+  const permissionValue = (permission: AgentPermission) => typeof permissions[permission] === "boolean" ? permissions[permission] : DEFAULT_AGENT_SETTINGS.permissions[permission];
+  return {
+    presetId: typeof saved.presetId === "string" ? saved.presetId : DEFAULT_AGENT_SETTINGS.presetId,
+    provider: saved.provider === "anthropic-messages" || saved.provider === "openai-compatible" ? saved.provider : "openai-responses",
+    endpoint: typeof saved.endpoint === "string" && saved.endpoint.trim() ? saved.endpoint : DEFAULT_AGENT_SETTINGS.endpoint,
+    model: typeof saved.model === "string" ? saved.model : DEFAULT_AGENT_SETTINGS.model,
+    language: saved.language === "en" ? "en" : "zh-CN",
+    permissions: {
+      createNodes: permissionValue("createNodes"),
+      updateParameters: permissionValue("updateParameters"),
+      connectNodes: permissionValue("connectNodes"),
+      deleteNodes: permissionValue("deleteNodes"),
+      runWorkflow: permissionValue("runWorkflow"),
+    },
+  };
+}
+
+function loadAppSettings(): AppSettings {
+  const defaults: AppSettings = { themeMode: "system", paletteWidth: 176, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: false, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
+  try {
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
+    return {
+      themeMode: saved.themeMode === "dark" || saved.themeMode === "light" ? saved.themeMode : "system",
+      paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(132, Number(saved.paletteWidth))) : defaults.paletteWidth,
+      inspectorWidth: Number.isFinite(saved.inspectorWidth) ? Math.min(560, Math.max(250, Number(saved.inspectorWidth))) : defaults.inspectorWidth,
+      inspectorHeight: Number.isFinite(saved.inspectorHeight) ? Math.min(440, Math.max(140, Number(saved.inspectorHeight))) : defaults.inspectorHeight,
+      resultHeight: Number.isFinite(saved.resultHeight) ? Math.min(520, Math.max(180, Number(saved.resultHeight))) : defaults.resultHeight,
+      nodeScale: Number.isFinite(saved.nodeScale) ? Math.min(1.4, Math.max(0.75, Number(saved.nodeScale))) : defaults.nodeScale,
+      endpointScale: Number.isFinite(saved.endpointScale) ? Math.min(1.8, Math.max(0.7, Number(saved.endpointScale))) : defaults.endpointScale,
+      edgeWidth: Number.isFinite(saved.edgeWidth) ? Math.min(5, Math.max(1, Number(saved.edgeWidth))) : defaults.edgeWidth,
+      showNodeInsights: typeof saved.showNodeInsights === "boolean" ? saved.showNodeInsights : defaults.showNodeInsights,
+      debugMode: typeof saved.debugMode === "boolean" ? saved.debugMode : defaults.debugMode,
+      miniMapMode: saved.miniMapMode === "show" || saved.miniMapMode === "auto" || saved.miniMapMode === "hide" ? saved.miniMapMode : defaults.miniMapMode,
+      layoutMode: saved.layoutMode === "auto" || saved.layoutMode === "horizontal" || saved.layoutMode === "vertical" ? saved.layoutMode : defaults.layoutMode,
+      smb: saved.smb && typeof saved.smb === "object" ? { server: String(saved.smb.server ?? ""), share: String(saved.smb.share ?? ""), domain: String(saved.smb.domain ?? ""), username: String(saved.smb.username ?? ""), rememberPassword: Boolean(saved.smb.rememberPassword), guest: Boolean(saved.smb.guest) } : defaults.smb,
+      agent: loadAgentSettings(saved.agent),
+    };
+  } catch { return defaults; }
+}
+
+type WorkflowSnapshot = { nodes: WorkflowNode[]; edges: Edge[]; requirements?: string[] };
+type FlowLibraryEntry = { id: string; name: string; savedAt: string; document: string; uri?: string; external?: boolean; locked?: boolean };
+type GroupLibraryEntry = { id: string; name: string; description: string; nodes: WorkflowNode[]; edges: Edge[]; builtIn?: boolean; locked?: boolean };
+type SavedNodeEntry = { id: string; name: string; node: WorkflowNode; savedAt: string; locked?: boolean };
+type ContextMenuState = { x: number; y: number; nodeId: string };
+type SelectionMenuState = { x: number; y: number };
+type FlowMenuState = { x: number; y: number; entryId: string };
+type ResourceMenuState = { x: number; y: number; kind: "catalog-node" | "saved-node" | "group"; entryId: string };
+const NodeInsightContext = createContext<{ visible: boolean; results: Record<string, NodeExecutionPreview> }>({ visible: true, results: {} });
+const NodeLayoutContext = createContext<"horizontal" | "vertical">("horizontal");
+const NodeAppearanceContext = createContext<{ nodeScale: number; endpointScale: number }>({ nodeScale: 1, endpointScale: 1 });
+const NodeSelectionContext = createContext<{ active: boolean; toggle: (nodeId: string) => void; remove: (nodeId: string) => void }>({ active: false, toggle: () => undefined, remove: () => undefined });
+const BUNDLED_PACKAGES = [
+  { name: "pandas", version: "2.1.3", purpose: "表格处理与 CSV" },
+  { name: "matplotlib", version: "3.8.2", purpose: "绘图与热图" },
+];
+
+class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state: { error: Error | null } = { error: null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("PyDroid Flow render failure", error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.error) return this.props.children;
+    return <main className="startup-recovery" role="alert"><section><strong>PyDroid Flow 未能加载画布</strong><p>{this.state.error.message || "界面发生异常"}</p><p>可清除本机画布缓存后重新启动；不会影响已导出的工作流文件。</p><button onClick={() => { localStorage.removeItem(AUTOSAVE_KEY); localStorage.removeItem(SETTINGS_KEY); window.location.reload(); }}>清除画布缓存并重试</button></section></main>;
+  }
+}
+
+function loadPackageRequirements(): string[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(PACKAGE_REQUIREMENTS_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function loadFlowLibrary(): FlowLibraryEntry[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(FLOW_LIBRARY_KEY) ?? "[]");
+    return Array.isArray(value) ? value.filter((item): item is FlowLibraryEntry => Boolean(item && typeof item === "object" && typeof (item as FlowLibraryEntry).id === "string" && typeof (item as FlowLibraryEntry).name === "string" && typeof (item as FlowLibraryEntry).document === "string")) : [];
+  } catch { return []; }
+}
 
 const initialNodes: WorkflowNode[] = [
-  createNode("read-csv", "io.read_csv", 40, 100, { skipRows: 2 }),
-  createNode("select-columns", "table.select_columns", 280, 100, { columns: "0,1" }),
-  createNode("group-aggregate", "table.group_aggregate", 520, 100),
-  createNode("line-plot", "plot.line", 760, 40),
-  createNode("export-csv", "io.export_csv", 760, 190),
+  createNode("read-csv", "io.read_csv", 45, 70, { skipRows: 2 }),
+  createNode("drop-missing", "pandas.dropna", 235, 70),
+  createNode("select-columns", "table.select_columns", 425, 70, { columns: "0,1" }),
+  createNode("group-aggregate", "table.group_aggregate", 615, 70),
+  createNode("line-plot", "plot.line", 805, 25),
+  createNode("export-csv", "io.export_csv", 805, 135),
 ];
 
 const initialEdges: Edge[] = [
-  { id: "e1", source: "read-csv", target: "select-columns" },
+  { id: "e0", source: "read-csv", target: "drop-missing" },
+  { id: "e1", source: "drop-missing", target: "select-columns" },
   { id: "e2", source: "select-columns", target: "group-aggregate" },
   { id: "e3", source: "group-aggregate", target: "line-plot" },
   { id: "e4", source: "group-aggregate", target: "export-csv" },
@@ -50,6 +262,7 @@ function createNode(
   parameterOverrides: Record<string, string | number | boolean | null> = {},
 ): WorkflowNode {
   const spec = getNodeSpec(nodeType);
+  const remembered = loadRememberedNodeDefaults(nodeType);
   return {
     id,
     type: "workflow",
@@ -58,15 +271,80 @@ function createNode(
       label: spec?.label ?? nodeType,
       nodeType,
       nodeVersion: 1,
-      parameters: { ...(spec?.defaults ?? {}), ...parameterOverrides },
+      parameters: { ...(spec?.defaults ?? {}), ...remembered, ...parameterOverrides },
       status: "idle",
     },
   };
 }
 
-function groupCatalog(): Map<NodeSpec["category"], NodeSpec[]> {
+function defaultGroupLibrary(): GroupLibraryEntry[] {
+  const make = (id: string, name: string, description: string, childTypes: string[], edges: Array<[string, string]>, inputChild: string, outputChild: string): GroupLibraryEntry => {
+    const groupId = `builtin-${id}`;
+    const children = childTypes.map((nodeType, index) => {
+      const child = createNode(`${groupId}-${index + 1}`, nodeType, 55 + index * 215, 80);
+      child.data.canvasParentId = groupId;
+      return child;
+    });
+    const input = children.find((node) => node.data.nodeType === inputChild)!;
+    const output = children.find((node) => node.data.nodeType === outputChild)!;
+    const group: WorkflowNode = { id: groupId, type: "workflow", position: { x: 40, y: 40 }, data: { label: name, nodeType: "workflow.group", nodeVersion: 1, status: "idle", parameters: { description }, groupInputs: [{ id: "input-1", label: "输入表", valueType: "table", internalNodeId: input.id, internalHandle: "input" }], groupOutputs: [{ id: "output-1", label: "结果", valueType: nodeSpecFor(output)?.outputPorts[0]?.valueType ?? "table", internalNodeId: output.id, internalHandle: "output" }] } };
+    const byType = new Map(children.map((node) => [node.data.nodeType, node.id]));
+    return { id: groupId, name, description, builtIn: true, nodes: [group, ...children], edges: edges.map(([source, target], index) => ({ id: `${groupId}-edge-${index + 1}`, source: byType.get(source)!, sourceHandle: "output", target: byType.get(target)!, targetHandle: "input" })) };
+  };
+  const groups: GroupLibraryEntry[] = [
+    make("clean", "数据清洗", "删除缺失值后取绝对值，可直接接入读取和导出节点。", ["pandas.dropna", "table.absolute"], [["pandas.dropna", "table.absolute"]], "pandas.dropna", "table.absolute"),
+    make("cycle", "周期采样与均值", "反复出现在脉冲、Set/Reset 与循环读取 Notebook 中的窗口抽取和末段均值。", ["table.periodic_window", "table.periodic_tail_mean"], [["table.periodic_window", "table.periodic_tail_mean"]], "table.periodic_window", "table.periodic_tail_mean"),
+    make("curve", "实验曲线预处理", "切片、取绝对值并绘制折线图。", ["table.slice", "table.absolute", "plot.line"], [["table.slice", "table.absolute"], ["table.absolute", "plot.line"]], "table.slice", "plot.line"),
+  ];
+  const pulseGroupId = "builtin-pulse-analysis";
+  const segment = createNode(`${pulseGroupId}-segment`, "pulse.segment_measurement", 55, 80);
+  const pulseRows = createNode(`${pulseGroupId}-rows`, "pandas.query", 285, 80, { expression: "phase == 'pulse'" });
+  const pulsePlot = createNode(`${pulseGroupId}-plot`, "plot.line", 515, 80, { xColumn: "voltage_V", yColumns: "mean_current_A", xLabel: "Pulse voltage (V)", yLabel: "Mean current (A)" });
+  [segment, pulseRows, pulsePlot].forEach((node) => { node.data.canvasParentId = pulseGroupId; });
+  groups.push({
+    id: pulseGroupId, name: "脉冲测量分析", builtIn: true,
+    description: "将连续电流记录按脉冲波形分段、筛选写入脉冲并绘制平均 I-V；测量数据与波形均由公开端口输入。",
+    nodes: [
+      { id: pulseGroupId, type: "workflow", position: { x: 40, y: 40 }, data: { label: "脉冲测量分析", nodeType: "workflow.group", nodeVersion: 1, status: "idle", parameters: { description: "连续测量数据 → 脉冲分段平均 → 脉冲 I-V" }, groupInputs: [{ id: "measurement", label: "测量数据", valueType: "table", internalNodeId: segment.id, internalHandle: "measurement" }, { id: "waveform", label: "脉冲波形", valueType: "table", internalNodeId: segment.id, internalHandle: "waveform" }], groupOutputs: [{ id: "output", label: "脉冲 I-V 图", valueType: "plot", internalNodeId: pulsePlot.id, internalHandle: "output" }] } },
+      segment, pulseRows, pulsePlot,
+    ],
+    edges: [
+      { id: `${pulseGroupId}-segment-rows`, source: segment.id, sourceHandle: "output", target: pulseRows.id, targetHandle: "input" },
+      { id: `${pulseGroupId}-rows-plot`, source: pulseRows.id, sourceHandle: "output", target: pulsePlot.id, targetHandle: "input" },
+    ],
+  });
+  return groups;
+}
+
+function loadGroupLibrary(): GroupLibraryEntry[] {
+  const defaults = defaultGroupLibrary();
+  try {
+    const saved = JSON.parse(localStorage.getItem(GROUP_LIBRARY_KEY) ?? "[]") as unknown;
+    const custom = Array.isArray(saved) ? saved.filter((item): item is GroupLibraryEntry => Boolean(item && typeof item === "object" && typeof (item as GroupLibraryEntry).id === "string" && Array.isArray((item as GroupLibraryEntry).nodes) && Array.isArray((item as GroupLibraryEntry).edges))) : [];
+    return [...defaults, ...custom.filter((item) => !item.builtIn)].map((entry) => ({ ...entry, nodes: repairWorkflowGroupInterfaces(entry.nodes, entry.edges) }));
+  } catch { return defaults; }
+}
+
+function loadSavedNodeLibrary(): SavedNodeEntry[] {
+  try {
+    const saved: unknown = JSON.parse(localStorage.getItem(SAVED_NODE_LIBRARY_KEY) ?? "[]");
+    return Array.isArray(saved) ? saved.filter((item): item is SavedNodeEntry => Boolean(item && typeof item === "object" && typeof (item as SavedNodeEntry).id === "string" && typeof (item as SavedNodeEntry).name === "string" && (item as SavedNodeEntry).node && typeof (item as SavedNodeEntry).node === "object")) : [];
+  } catch { return []; }
+}
+
+function loadRememberedNodeDefaults(nodeType: string): Record<string, string | number | boolean | null> {
+  try {
+    const all = JSON.parse(localStorage.getItem(NODE_DEFAULTS_KEY) ?? "{}") as Record<string, Record<string, unknown>>;
+    const allowed = new Set(getNodeSpec(nodeType)?.parameters.filter((parameter) => parameter.rememberDefault).map((parameter) => parameter.key) ?? []);
+    return Object.fromEntries(Object.entries(all[nodeType] ?? {}).filter(([key, value]) => allowed.has(key) && (["string", "number", "boolean"].includes(typeof value) || value === null))) as Record<string, string | number | boolean | null>;
+  } catch {
+    return {};
+  }
+}
+
+function groupCatalog(specifications: NodeSpec[] = NODE_CATALOG): Map<NodeSpec["category"], NodeSpec[]> {
   const groups = new Map<NodeSpec["category"], NodeSpec[]>();
-  for (const item of NODE_CATALOG) {
+  for (const item of specifications) {
     const group = groups.get(item.category) ?? [];
     group.push(item);
     groups.set(item.category, group);
@@ -74,8 +352,137 @@ function groupCatalog(): Map<NodeSpec["category"], NodeSpec[]> {
   return groups;
 }
 
+function loadNodeGroups(): Record<string, string[]> {
+  try {
+    const value = JSON.parse(localStorage.getItem(NODE_GROUPS_KEY) ?? "{}") as Record<string, unknown>;
+    return Object.fromEntries(Object.entries(value).filter(([, nodeTypes]) => Array.isArray(nodeTypes)).map(([name, nodeTypes]) => [name, (nodeTypes as unknown[]).filter((item): item is string => typeof item === "string")]));
+  } catch {
+    return {};
+  }
+}
+
 function cloneSnapshot(snapshot: WorkflowSnapshot): WorkflowSnapshot {
   return JSON.parse(JSON.stringify(snapshot)) as WorkflowSnapshot;
+}
+
+function nodesInExecutionOrder(nodes: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const incoming = new Map(nodes.map((node) => [node.id, 0]));
+  const outgoing = new Map(nodes.map((node) => [node.id, [] as string[]]));
+  for (const edge of edges) {
+    if (!byId.has(edge.source) || !byId.has(edge.target)) continue;
+    incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
+    outgoing.get(edge.source)?.push(edge.target);
+  }
+  const ready = nodes.filter((node) => incoming.get(node.id) === 0);
+  const ordered: WorkflowNode[] = [];
+  const visited = new Set<string>();
+  while (ready.length) {
+    const node = ready.shift()!;
+    if (visited.has(node.id)) continue;
+    visited.add(node.id);
+    ordered.push(node);
+    for (const target of outgoing.get(node.id) ?? []) {
+      const remaining = (incoming.get(target) ?? 1) - 1;
+      incoming.set(target, remaining);
+      if (remaining === 0) ready.push(byId.get(target)!);
+    }
+  }
+  return [...ordered, ...nodes.filter((node) => !visited.has(node.id))];
+}
+
+function arrangeStructureChildren(nodes: WorkflowNode[], direction: "horizontal" | "vertical"): WorkflowNode[] {
+  const structures = new Map(nodes.filter((node) => ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType)).map((node) => [node.id, node]));
+  const totals = new Map<string, number>();
+  for (const node of nodes) if (node.parentId && structures.has(node.parentId)) {
+    const parent = structures.get(node.parentId)!;
+    const branch = parent.data.nodeType === "logic.if_subflow" ? (node.data.branch ?? "true") : "body";
+    const key = `${parent.id}:${branch}`;
+    totals.set(key, (totals.get(key) ?? 0) + 1);
+  }
+  const counters = new Map<string, number>();
+  return nodes.map((node) => {
+    if (structures.has(node.id)) {
+      const branchCount = node.data.nodeType === "logic.if_subflow"
+        ? Math.max(totals.get(`${node.id}:true`) ?? 0, totals.get(`${node.id}:false`) ?? 0)
+        : totals.get(`${node.id}:body`) ?? 0;
+      const rows = node.data.nodeType === "logic.if_subflow" || direction === "vertical" ? branchCount : Math.ceil(branchCount / 2);
+      const height = Math.max(300, 126 + rows * 116);
+      return { ...node, style: { ...node.style, width: Number(node.style?.width ?? 520), height } };
+    }
+    if (!node.parentId || !structures.has(node.parentId)) return node;
+    const parent = structures.get(node.parentId)!;
+    const branch = parent.data.nodeType === "logic.if_subflow" ? (node.data.branch ?? "true") : "body";
+    const key = `${parent.id}:${branch}`;
+    const index = counters.get(key) ?? 0;
+    counters.set(key, index + 1);
+    const position = parent.data.nodeType === "logic.if_subflow"
+      ? { x: branch === "false" ? 285 : 35, y: 108 + index * 112 }
+      : direction === "horizontal"
+        ? { x: 42 + (index % 2) * 238, y: 108 + Math.floor(index / 2) * 116 }
+        : { x: 168, y: 108 + index * 116 };
+    return { ...node, position, extent: "parent" as const, expandParent: true };
+  });
+}
+
+function hydrateNodeDefaults(node: WorkflowNode): WorkflowNode {
+  const spec = getNodeSpec(node.data.nodeType);
+  const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType);
+  const corruptedLabel = /(?:锟斤拷|�{1,}|\?{3,})/.test(node.data.label);
+  return {
+    ...node,
+    ...(isStructure && !node.style ? { style: { width: 520, height: 300 } } : {}),
+    data: {
+      ...node.data,
+      label: corruptedLabel && spec ? spec.label : node.data.label,
+      parameters: { ...(spec?.defaults ?? {}), ...node.data.parameters },
+    },
+  };
+}
+
+function nodeSpecFor(node: WorkflowNode | undefined): NodeSpec | undefined {
+  if (!node) return undefined;
+  if (node.data.nodeType !== "workflow.group") return resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters);
+  return { nodeType: "workflow.group", label: node.data.label, category: "逻辑控制", defaults: { description: "" }, parameters: [{ key: "description", label: "说明", kind: "textarea" }], inputPorts: node.data.groupInputs ?? [], outputPorts: node.data.groupOutputs ?? [] };
+}
+
+function deriveGroupInterface(members: WorkflowNode[], allEdges: Edge[]): { groupInputs: WorkflowGroupPort[]; groupOutputs: WorkflowGroupPort[] } {
+  const memberIds = new Set(members.map((node) => node.id));
+  const internalEdges = allEdges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target));
+  const incomingEdges = allEdges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
+  const outgoingEdges = allEdges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
+  const targeted = new Set(internalEdges.map((edge) => `${edge.target}\u0000${edge.targetHandle ?? "input"}`));
+  const sourced = new Set(internalEdges.map((edge) => `${edge.source}\u0000${edge.sourceHandle ?? "output"}`));
+  const inputCandidates = [
+    ...incomingEdges.map((edge) => ({ nodeId: edge.target, handle: edge.targetHandle ?? "input" })),
+    ...members.flatMap((node) => (nodeSpecFor(node)?.inputPorts ?? []).filter((port) => !targeted.has(`${node.id}\u0000${port.id}`)).map((port) => ({ nodeId: node.id, handle: port.id }))),
+  ];
+  const outputCandidates = [
+    ...outgoingEdges.map((edge) => ({ nodeId: edge.source, handle: edge.sourceHandle ?? "output" })),
+    ...members.flatMap((node) => (nodeSpecFor(node)?.outputPorts ?? []).filter((port) => !sourced.has(`${node.id}\u0000${port.id}`)).map((port) => ({ nodeId: node.id, handle: port.id }))),
+  ];
+  const unique = (items: Array<{ nodeId: string; handle: string }>) => [...new Map(items.map((item) => [`${item.nodeId}\u0000${item.handle}`, item])).values()];
+  const groupInputs = unique(inputCandidates).map(({ nodeId, handle }, index) => {
+    const node = members.find((item) => item.id === nodeId);
+    const port = nodeSpecFor(node)?.inputPorts.find((item) => item.id === handle);
+    return { id: `input-${index + 1}`, label: port?.label || node?.data.label || `输入 ${index + 1}`, valueType: port?.valueType ?? "any", internalNodeId: nodeId, internalHandle: handle };
+  });
+  const groupOutputs = unique(outputCandidates).map(({ nodeId, handle }, index) => {
+    const node = members.find((item) => item.id === nodeId);
+    const port = nodeSpecFor(node)?.outputPorts.find((item) => item.id === handle);
+    return { id: `output-${index + 1}`, label: port?.label || node?.data.label || `输出 ${index + 1}`, valueType: port?.valueType ?? "any", internalNodeId: nodeId, internalHandle: handle };
+  });
+  return { groupInputs, groupOutputs };
+}
+
+function repairWorkflowGroupInterfaces(nodes: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
+  return nodes.map((node) => {
+    if (node.data.nodeType !== "workflow.group") return node;
+    const members = nodes.filter((candidate) => candidate.data.canvasParentId === node.id);
+    if (!members.length || (node.data.groupInputs?.length && node.data.groupOutputs?.length)) return node;
+    const derived = deriveGroupInterface(members, edges);
+    return { ...node, data: { ...node.data, groupInputs: node.data.groupInputs?.length ? node.data.groupInputs : derived.groupInputs, groupOutputs: node.data.groupOutputs?.length ? node.data.groupOutputs : derived.groupOutputs } };
+  });
 }
 
 function loadAutosave(): WorkflowSnapshot | null {
@@ -83,13 +490,14 @@ function loadAutosave(): WorkflowSnapshot | null {
     const saved = localStorage.getItem(AUTOSAVE_KEY);
     if (!saved) return null;
     const document = parseWorkflow(saved);
+    const nodes: WorkflowNode[] = normalizeNodePositions(document.nodes).map((node) => {
+        const hydrated = hydrateNodeDefaults(node);
+        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
+      });
     return {
-      nodes: document.nodes.map((node) => ({
-        ...node,
-        type: "workflow",
-        data: { ...node.data, status: "idle" },
-      })),
+      nodes: repairWorkflowGroupInterfaces(nodes, document.edges),
       edges: document.edges,
+      requirements: document.requirements ?? loadPackageRequirements(),
     };
   } catch {
     localStorage.removeItem(AUTOSAVE_KEY);
@@ -97,19 +505,75 @@ function loadAutosave(): WorkflowSnapshot | null {
   }
 }
 
-function WorkflowNodeCard({ data, selected }: NodeProps<WorkflowNode>) {
-  const inputPorts = getNodeSpec(data.nodeType)?.inputPorts ?? [{ id: "input", label: "" }];
+function loadPersonalTemplates(): CustomNodeTemplate[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(PERSONAL_TEMPLATES_KEY) ?? "[]");
+    if (!Array.isArray(value)) return [];
+    return value.filter((item): item is CustomNodeTemplate => Boolean(
+      item && typeof item.id === "string" && typeof item.label === "string" && typeof item.description === "string" && typeof item.code === "string",
+    ));
+  } catch {
+    return [];
+  }
+}
+
+function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
+  const spec = data.nodeType === "workflow.group"
+    ? { nodeType: "workflow.group", label: data.label, category: "逻辑控制" as const, defaults: {}, parameters: [], inputPorts: data.groupInputs ?? [], outputPorts: data.groupOutputs ?? [] }
+    : resolveNodeSpec(getNodeSpec(data.nodeType), data.parameters);
+  const insight = useContext(NodeInsightContext);
+  const nodeResult = insight.results[id];
+  const direction = useContext(NodeLayoutContext);
+  const { nodeScale, endpointScale } = useContext(NodeAppearanceContext);
+  const selection = useContext(NodeSelectionContext);
+  const updateNodeInternals = useUpdateNodeInternals();
+  const labelLength = Array.from(data.label).length;
+  const nodeWidth = (data.nodeType === "workflow.group"
+    ? 230
+    : direction === "vertical"
+      ? Math.min(220, Math.max(154, 96 + labelLength * 12))
+      : Math.min(270, Math.max(168, 112 + labelLength * 16))) * nodeScale;
+  const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(data.nodeType);
+  useEffect(() => {
+    const refresh = () => updateNodeInternals(id);
+    refresh();
+    const element = document.querySelector<HTMLElement>(`[data-workflow-node-id="${CSS.escape(id)}"]`);
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(refresh);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [direction, endpointScale, id, nodeScale, nodeWidth, updateNodeInternals]);
+  const inputPorts = spec?.inputPorts ?? [];
+  const outputPorts = spec?.outputPorts ?? [];
   return (
-    <div className={`workflow-node status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node direction-${direction} ${isStructure ? "workflow-structure" : ""} ${data.nodeType === "logic.if_subflow" ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+      {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
+      {isStructure && <NodeResizer minWidth={360} minHeight={220} isVisible={selected} />}
       {inputPorts.map((port, index) => (
-        <div className="input-port" style={{ top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` }} key={port.id}>
-          <Handle id={port.id} type="target" position={Position.Left} />
-          {port.label && <span>{port.label}</span>}
+        <div className="input-port" style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
+          <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
+          {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
         </div>
       ))}
-      <div className="workflow-node__type">{data.nodeType}</div>
-      <div className="workflow-node__label">{data.label}</div>
-      <Handle id="output" type="source" position={Position.Right} />
+      <div className="workflow-node__body">
+        <div className="workflow-node__type" title={data.nodeType}>{data.nodeType}</div>
+        <div className="workflow-node__label" title={data.label}>{data.label}</div>
+        <div className="workflow-node__meta">{data.nodeType === "workflow.group" ? `${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作` : `${spec?.parameters.length ?? 0} 参数${data.tags?.length ? ` · ${data.tags.join(" · ")}` : ""}`}</div>
+      </div>
+      {isStructure && <div className="workflow-structure__interior">
+        {data.nodeType === "logic.if_subflow" ? <><div className="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span></div><div className="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span></div></> : <div className="workflow-structure__lane workflow-structure__lane--body"><span>循环体 · 每次迭代的数据由左侧隧道进入</span></div>}
+      </div>}
+      {outputPorts.map((port, index) => (
+        <div className="output-port" style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
+          {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
+          <Handle id={port.id} type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} />
+        </div>
+      ))}
+      {insight.visible && nodeResult && <div className={`node-insight node-insight--${nodeResult.kind} ${data.nodeType === "python.print" ? "node-insight--print" : ""}`}>
+        {nodeResult.kind === "plot" && <img src={`data:image/png;base64,${nodeResult.plotPngBase64}`} alt={`${data.label} 中间结果`} />}
+        {nodeResult.kind === "table" && <><strong>{nodeResult.preview.totalRows}×{nodeResult.preview.totalColumns}</strong><span>{nodeResult.preview.columns.slice(0, 3).join(" · ")}</span></>}
+        {nodeResult.kind === "value" && <><strong>{data.nodeType === "python.print" ? "打印结果" : "结果"}</strong><span>{nodeResult.text}</span></>}
+      </div>}
     </div>
   );
 }
@@ -118,16 +582,19 @@ function ParameterField({
   spec,
   value,
   onChange,
+  onExpand,
 }: {
   spec: ParameterSpec;
   value: string | number | boolean | null | undefined;
   onChange: (value: string | number | boolean | null) => void;
+  onExpand?: () => void;
 }) {
+  const displayValue = value === undefined ? spec.defaultValue : value;
   if (spec.kind === "boolean") {
     return (
       <label className="field field--checkbox">
         <span>{spec.label}</span>
-        <input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} />
+        <span className="switch"><input type="checkbox" checked={Boolean(displayValue)} onChange={(event) => onChange(event.target.checked)} /><i /></span>
       </label>
     );
   }
@@ -136,7 +603,7 @@ function ParameterField({
       <label className="field">
         <span>{spec.label}</span>
         <select
-          value={String(value ?? "")}
+          value={String(displayValue ?? "")}
           onChange={(event) => {
             const option = spec.options?.find((item) => String(item.value) === event.target.value);
             onChange(option?.value ?? event.target.value);
@@ -147,51 +614,386 @@ function ParameterField({
       </label>
     );
   }
+  if (spec.kind === "textarea") {
+    return (
+      <label className="field">
+        <span className="field__heading">{spec.label}{onExpand && <button type="button" onClick={onExpand}>全屏编辑</button>}</span>
+        <textarea
+          value={String(displayValue ?? "")}
+          placeholder={spec.placeholder}
+          required={spec.required}
+          onChange={(event) => onChange(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Tab") return;
+            event.preventDefault();
+            const input = event.currentTarget;
+            const start = input.selectionStart;
+            const next = `${input.value.slice(0, start)}    ${input.value.slice(input.selectionEnd)}`;
+            onChange(next);
+            window.requestAnimationFrame(() => input.setSelectionRange(start + 4, start + 4));
+          }}
+          spellCheck={false}
+        />
+        {spec.description && <small>{spec.description}</small>}
+      </label>
+    );
+  }
+  if (spec.kind === "list") {
+    return (
+      <label className="field">
+        <span>{spec.label}</span>
+        <input
+          type="text"
+          value={String(displayValue ?? "")}
+          placeholder={spec.placeholder ?? (spec.itemType === "text" ? "a,b,c" : "0,1,2")}
+          required={spec.required}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <small>{spec.description ? `${spec.description} · ` : ""}可输入 JSON 数组或用英文逗号分隔。</small>
+      </label>
+    );
+  }
+  if (spec.kind === "number" && spec.control === "slider" && spec.min !== undefined && spec.max !== undefined) {
+    const numericValue = Number(displayValue ?? spec.min);
+    return (
+      <label className="field field--range">
+        <span>{spec.label}<output>{numericValue}</output></span>
+        <input
+          type="range"
+          value={numericValue}
+          min={spec.min}
+          max={spec.max}
+          step={spec.step}
+          onChange={(event) => onChange(Number(event.target.value))}
+        />
+        {spec.description && <small>{spec.description}</small>}
+      </label>
+    );
+  }
   return (
     <label className="field">
       <span>{spec.label}</span>
       <input
         type={spec.kind === "number" ? "number" : "text"}
-        value={String(value ?? "")}
-        onChange={(event) => onChange(spec.kind === "number" ? Number(event.target.value) : event.target.value)}
+        value={String(displayValue ?? "")}
+        placeholder={spec.placeholder}
+        required={spec.required}
+        min={spec.min}
+        max={spec.max}
+        step={spec.step}
+        onChange={(event) => onChange(spec.kind === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value)}
       />
+      {spec.description && <small>{spec.description}</small>}
     </label>
   );
 }
 
+function createsCycle(connection: Connection | Edge, edges: Edge[]): boolean {
+  if (!connection.source || !connection.target) return true;
+  if (connection.source === connection.target) return true;
+  const downstream = new Map<string, string[]>();
+  for (const edge of edges) {
+    const targets = downstream.get(edge.source) ?? [];
+    targets.push(edge.target);
+    downstream.set(edge.source, targets);
+  }
+  const pending = [connection.target];
+  const visited = new Set<string>();
+  while (pending.length) {
+    const nodeId = pending.pop()!;
+    if (nodeId === connection.source) return true;
+    if (visited.has(nodeId)) continue;
+    visited.add(nodeId);
+    pending.push(...(downstream.get(nodeId) ?? []));
+  }
+  return false;
+}
+
+function agentPermissionFor(operation: AgentOperation): AgentPermission {
+  switch (operation.type) {
+    case "add_node": return "createNodes";
+    case "set_parameter": return "updateParameters";
+    case "connect": return "connectNodes";
+    case "disconnect": return "connectNodes";
+    case "group_nodes": return "createNodes";
+    case "arrange": return "updateParameters";
+    case "delete_node": return "deleteNodes";
+    case "run_workflow": return "runWorkflow";
+  }
+}
+
+function isAgentValue(value: unknown): value is string | number | boolean | null {
+  return value === null || ["string", "number", "boolean"].includes(typeof value);
+}
+
 function FlowEditor() {
   const restoredSnapshot = useMemo(loadAutosave, []);
+  const reactFlow = useReactFlow<WorkflowNode, Edge>();
+  const updateNodeInternals = useUpdateNodeInternals();
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(restoredSnapshot?.nodes ?? initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(restoredSnapshot?.edges ?? initialEdges);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [pointerMode, setPointerMode] = useState<"mouse" | "touch">(() => window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse");
+  const [paletteDragPreview, setPaletteDragPreview] = useState<{ kind: PaletteResource["kind"]; label: string; x: number; y: number; overCanvas: boolean } | null>(null);
+  const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
   const [message, setMessage] = useState(restoredSnapshot ? "已恢复上次自动保存的流程" : "尚未执行");
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText] = useState("");
+  const [csvBytes, setCsvBytes] = useState<Uint8Array | null>(null);
+  const [csvFiles, setCsvFiles] = useState<Array<{ name: string; bytes: Uint8Array }>>([]);
   const [result, setResult] = useState<ExecutionResult | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
+  const [flowMenu, setFlowMenu] = useState<FlowMenuState | null>(null);
+  const [resourceMenu, setResourceMenu] = useState<ResourceMenuState | null>(null);
+  const [renameFlow, setRenameFlow] = useState<FlowLibraryEntry | null>(null);
+  const [renameFlowValue, setRenameFlowValue] = useState("");
+  const [personalTemplates, setPersonalTemplates] = useState<CustomNodeTemplate[]>(loadPersonalTemplates);
+  const [templateName, setTemplateName] = useState("");
+  const [codeEditorOpen, setCodeEditorOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [agentPanelOpen, setAgentPanelOpen] = useState(false);
+  const [agentSettings, setAgentSettings] = useState<AgentSettings>(() => loadAppSettings().agent);
+  const [agentApiKey, setAgentApiKey] = useState("");
+  const [agentSecretReady, setAgentSecretReady] = useState(() => !Capacitor.isNativePlatform() && !isRemoteRuntime());
+  const [agentInstruction, setAgentInstruction] = useState("");
+  const [agentRequesting, setAgentRequesting] = useState(false);
+  const [agentConnectionStatus, setAgentConnectionStatus] = useState<string | null>(null);
+  const [agentTesting, setAgentTesting] = useState(false);
+  const [language, setLanguage] = useState<"zh-CN" | "en">(() => loadAppSettings().agent.language);
+  const [agentPlanText, setAgentPlanText] = useState("");
+  const [agentPlan, setAgentPlan] = useState<AgentPlan | null>(null);
+  const [agentPlanError, setAgentPlanError] = useState<string | null>(null);
+  const [agentAudit, setAgentAudit] = useState<Array<{ at: string; summary: string; result: string }>>([]);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [paletteCollapsed, setPaletteCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const [plotExpanded, setPlotExpanded] = useState(false);
+  const [plotZoom, setPlotZoom] = useState(1);
+  const [livePreview, setLivePreview] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
+  const [resultDock, setResultDock] = useState<"right" | "bottom">("right");
+  const [inspectorWidth, setInspectorWidth] = useState(() => loadAppSettings().inspectorWidth);
+  const [inspectorHeight, setInspectorHeight] = useState(() => loadAppSettings().inspectorHeight);
+  const [paletteWidth, setPaletteWidth] = useState(() => loadAppSettings().paletteWidth);
+  const [resultHeight, setResultHeight] = useState(() => loadAppSettings().resultHeight);
+  const [nodeScale, setNodeScale] = useState(() => loadAppSettings().nodeScale);
+  const [endpointScale, setEndpointScale] = useState(() => loadAppSettings().endpointScale);
+  const [edgeWidth, setEdgeWidth] = useState(() => loadAppSettings().edgeWidth);
+  const [nodeSearch, setNodeSearch] = useState("");
+  const [paletteTab, setPaletteTab] = useState<"nodes" | "groups" | "flows">("nodes");
+  const [groupLibrary, setGroupLibrary] = useState<GroupLibraryEntry[]>(loadGroupLibrary);
+  const [savedNodeLibrary, setSavedNodeLibrary] = useState<SavedNodeEntry[]>(loadSavedNodeLibrary);
+  const [flowLibrary, setFlowLibrary] = useState<FlowLibraryEntry[]>(loadFlowLibrary);
+  const [userProfile, setUserProfile] = useState<UserProfileInfo | null>(null);
+  const [showNodeInsights, setShowNodeInsights] = useState(() => loadAppSettings().showNodeInsights);
+  const [debugMode, setDebugMode] = useState(() => loadAppSettings().debugMode);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugBreakpoints, setDebugBreakpoints] = useState<Set<string>>(() => new Set());
+  const [debugPausedAt, setDebugPausedAt] = useState<string | null>(null);
+  const [customGroups, setCustomGroups] = useState<Record<string, string[]>>(loadNodeGroups);
+  const [groupName, setGroupName] = useState("");
+  const [viewMode, setViewMode] = useState<"nodes" | "notebook">("nodes");
+  const [notebookCells, setNotebookCells] = useState<NotebookCell[]>([]);
+  const [notebookMetadata, setNotebookMetadata] = useState<Record<string, unknown>>({});
+  const [notebookError, setNotebookError] = useState<string | null>(null);
+  const [resultDetail, setResultDetail] = useState<{ title: string; text: string; preview?: TablePreview } | null>(null);
+  const [executionError, setExecutionError] = useState<{ title: string; message: string; nodeId?: string; nodeType?: string; traceback?: string | null } | null>(null);
+  const [errorDetailOpen, setErrorDetailOpen] = useState(false);
+  const [notebookCellResults, setNotebookCellResults] = useState<Record<string, NodeExecutionPreview>>({});
+  const [notebookRunningCell, setNotebookRunningCell] = useState<number | "all" | null>(null);
+  const [packageManagerOpen, setPackageManagerOpen] = useState(false);
+  const [packageRequirement, setPackageRequirement] = useState("");
+  const [requirements, setRequirements] = useState<string[]>(restoredSnapshot?.requirements ?? loadPackageRequirements);
+  const [pythonEnvironment, setPythonEnvironment] = useState<PythonEnvironment | null>(null);
+  const [environmentLoading, setEnvironmentLoading] = useState(false);
+  const [layoutMode, setLayoutMode] = useState<"auto" | "horizontal" | "vertical">(() => {
+    const saved = localStorage.getItem(LAYOUT_MODE_KEY);
+    return saved === "horizontal" || saved === "vertical" || saved === "auto" ? saved : loadAppSettings().layoutMode;
+  });
+  const [miniMapMode, setMiniMapMode] = useState<"auto" | "show" | "hide">(() => {
+    const saved = localStorage.getItem(MINIMAP_MODE_KEY);
+    return saved === "show" || saved === "hide" ? saved : loadAppSettings().miniMapMode;
+  });
+  const [replacementOpen, setReplacementOpen] = useState(false);
+  const [replacementShowAll, setReplacementShowAll] = useState(false);
+  const [replacementSearch, setReplacementSearch] = useState("");
+  const [remoteServer, setRemoteServer] = useState<RemoteServerInfo | null>(null);
+  const [remoteAccessDialog, setRemoteAccessDialog] = useState(false);
+  const [remoteRequirePin, setRemoteRequirePin] = useState(true);
+  const [remoteAccessPolicy, setRemoteAccessPolicy] = useState<RemoteAccessPolicy | null>(null);
+  const [remotePaired, setRemotePaired] = useState(false);
+  const [remoteAccessError, setRemoteAccessError] = useState<string | null>(null);
+  const [remotePinInput, setRemotePinInput] = useState("");
+  const [lastRunDurationMs, setLastRunDurationMs] = useState<number | null>(null);
+  const [memoryMb, setMemoryMb] = useState<number | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [smbOpen, setSmbOpen] = useState(false);
+  const [smbConnection, setSmbConnection] = useState<SmbConnection>(() => ({ ...loadAppSettings().smb, password: "" }));
+  const [smbRememberPassword, setSmbRememberPassword] = useState(() => loadAppSettings().smb.rememberPassword);
+  const [smbGuest, setSmbGuest] = useState(() => loadAppSettings().smb.guest);
+  const [smbPasswordVisible, setSmbPasswordVisible] = useState(false);
+  const [smbScannedShares, setSmbScannedShares] = useState<string[]>([]);
+  const [smbServers, setSmbServers] = useState<SmbServer[]>([]);
+  const [smbPath, setSmbPath] = useState("");
+  const [smbEntries, setSmbEntries] = useState<SmbEntry[]>([]);
+  const [smbSelected, setSmbSelected] = useState<string[]>([]);
+  const [smbLoading, setSmbLoading] = useState(false);
+  const [smbError, setSmbError] = useState<string | null>(null);
+  const [inputDialogNode, setInputDialogNode] = useState<WorkflowNode | null>(null);
+  const [inputDialogValue, setInputDialogValue] = useState("");
+  const [alertDialogNode, setAlertDialogNode] = useState<WorkflowNode | null>(null);
+  const interactiveRunContext = useRef<{ nodes: WorkflowNode[]; edges: Edge[]; completed: Set<string> } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const directoryInput = useRef<HTMLInputElement>(null);
   const workflowInput = useRef<HTMLInputElement>(null);
+  const notebookInput = useRef<HTMLInputElement>(null);
+  const templateInput = useRef<HTMLInputElement>(null);
+  const settingsInput = useRef<HTMLInputElement>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const flowLongPressTimer = useRef<number | null>(null);
+  const flowLongPressHandled = useRef(false);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const livePreviewTimer = useRef<number | null>(null);
+  const isRunningRef = useRef(false);
+  const parameterEditSession = useRef<{ key: string; time: number } | null>(null);
+  const applyingRemoteConfiguration = useRef(false);
+  const touchPaletteDrag = useRef<{ resource: PaletteResource; pointerId: number; startX: number; startY: number; element: HTMLButtonElement; armed: boolean } | null>(null);
+  const reconnectSucceeded = useRef(false);
+  const paletteDragTimer = useRef<number | null>(null);
+  const suppressNextNodeClick = useRef(false);
   const nextNodeNumber = useRef(1);
   const history = useRef<WorkflowSnapshot[]>([]);
   const future = useRef<WorkflowSnapshot[]>([]);
+  const historyMeta = useRef<Array<{ id: number; at: Date; summary: string }>>([]);
+  const futureMeta = useRef<Array<{ id: number; at: Date; summary: string }>>([]);
   const [, setHistoryRevision] = useState(0);
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
+  const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
-  const selectedSpec = selectedNode ? getNodeSpec(selectedNode.data.nodeType) : undefined;
-  const catalogGroups = useMemo(groupCatalog, []);
+  const remoteBrowser = isRemoteRuntime();
+  const resolvedTheme = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
+  const selectedSpec = nodeSpecFor(selectedNode ?? undefined);
+  const selectedNodeResult = selectedNode ? result?.nodeResults[selectedNode.id] ?? (selectedNode.data.nodeType === "workflow.group" ? result?.nodeResults[selectedNode.data.groupOutputs?.[0]?.internalNodeId ?? ""] : undefined) : undefined;
+  const alertInputSourceId = alertDialogNode ? edges.find((edge) => edge.target === alertDialogNode.id && edge.targetHandle === "content")?.source : undefined;
+  const alertInputSource = alertInputSourceId ? nodes.find((node) => node.id === alertInputSourceId) : undefined;
+  const alertInputValue = alertInputSource?.data.nodeType === "ui.input_dialog" ? String(alertInputSource.data.parameters.value ?? "") : "";
+  const alertInputPreview: NodeExecutionPreview | undefined = (alertInputSourceId ? result?.nodeResults[alertInputSourceId] : undefined) ?? (alertInputValue ? alertInputValue.startsWith("data:image/") ? { kind: "plot", plotPngBase64: alertInputValue.split(",", 2)[1] ?? "" } : { kind: "value", text: alertInputValue } : undefined);
+  const selectedSignature = selectedNode?.data.nodeType === "custom.python_function"
+    ? parsePythonFunctionSignature(String(selectedNode.data.parameters.code ?? ""))
+    : undefined;
+  const selectedSignatureError = selectedSignature?.error;
+  const matchedCatalog = useMemo(() => searchNodeCatalog(nodeSearch).filter((spec) => !spec.nodeType.startsWith("notebook.")), [nodeSearch]);
+  const catalogGroups = useMemo(() => groupCatalog(matchedCatalog), [matchedCatalog]);
+  const customTemplates = useMemo(() => [...CUSTOM_NODE_TEMPLATES, ...personalTemplates], [personalTemplates]);
+  const autoShowMiniMap = viewportWidth >= 900 && nodes.length >= 6 && !inspectorCollapsed;
+  const showMiniMap = miniMapMode === "show" || (miniMapMode === "auto" && autoShowMiniMap);
+  const finePointer = useMemo(() => window.matchMedia("(any-pointer: fine)").matches, []);
+  const resolvedLayoutDirection: "horizontal" | "vertical" = layoutMode === "auto" ? (viewportWidth < 760 ? "vertical" : "horizontal") : layoutMode;
+  const previousAutoDirection = useRef(resolvedLayoutDirection);
+  const initialLayoutPending = useRef(restoredSnapshot === null);
+  const visibleNodes = useMemo(() => nodes.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId), [currentCanvasId, nodes]);
+  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const refreshVisibleNodeGeometry = useCallback(() => {
+    const ids = visibleNodes.map((node) => node.id);
+    if (!ids.length) return;
+    window.requestAnimationFrame(() => {
+      updateNodeInternals(ids);
+      window.setTimeout(() => updateNodeInternals(ids), 80);
+    });
+  }, [updateNodeInternals, visibleNodes]);
+  useEffect(() => refreshVisibleNodeGeometry(), [refreshVisibleNodeGeometry, resolvedLayoutDirection, nodeScale]);
+  // Always render saved and newly-created edges with the same continuous route.
+  // Older workflows may carry a persisted smoothstep type, which creates a
+  // conspicuous sideways dogleg when vertically stacked node centres differ by
+  // only a few pixels.
+  const visibleEdges = useMemo(() => selectionMode ? [] : edges
+    .filter((edge) => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target))
+    .map((edge) => {
+      const source = nodes.find((node) => node.id === edge.source);
+      const target = nodes.find((node) => node.id === edge.target);
+      const output = nodeSpecFor(source)?.outputPorts.find((port) => port.id === (edge.sourceHandle ?? "output"));
+      const input = nodeSpecFor(target)?.inputPorts.find((port) => port.id === (edge.targetHandle ?? "input"));
+      return { ...edge, type: "typed", data: { ...edge.data, sourceColor: VALUE_TYPE_COLORS[output?.valueType ?? "any"], targetColor: VALUE_TYPE_COLORS[input?.valueType ?? "any"] } };
+    }), [edges, nodes, selectionMode, visibleNodeIds]);
+  const toggleNodeSelection = useCallback((nodeId: string) => {
+    const nextIds = new Set(selectedIds);
+    if (nextIds.has(nodeId)) nextIds.delete(nodeId); else nextIds.add(nodeId);
+    const nextIdList = [...nextIds];
+    setSelectedIds(nextIdList);
+    setSelectedId(nextIdList.length === 1 ? nextIdList[0] : null);
+    setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, selected: nextIds.has(nodeId) } : node));
+  }, [selectedIds, setNodes]);
 
-  const currentSnapshot = () => cloneSnapshot({ nodes, edges });
+  const deleteNodes = useCallback((initialIds: Iterable<string>) => {
+    const removedIds = new Set(initialIds);
+    if (!removedIds.size) return;
+    pushHistory();
+    for (let changed = true; changed;) {
+      changed = false;
+      for (const node of nodes) if ((node.parentId && removedIds.has(node.parentId) || node.data.canvasParentId && removedIds.has(node.data.canvasParentId)) && !removedIds.has(node.id)) {
+        removedIds.add(node.id);
+        changed = true;
+      }
+    }
+    setNodes((current) => current.filter((node) => !removedIds.has(node.id)));
+    setEdges((current) => current.filter((edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target)));
+    setSelectedId(null);
+    setSelectedIds((current) => current.filter((id) => !removedIds.has(id)));
+    setResult(null);
+    setMessage(`已删除 ${removedIds.size} 个节点及其连线`);
+  }, [edges, nodes, setEdges, setNodes]);
+  const disconnectNodes = useCallback((nodeIds: Iterable<string>) => {
+    const ids = new Set(nodeIds);
+    if (!ids.size) return;
+    pushHistory();
+    setEdges((current) => current.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target)));
+    setResult(null);
+    setMessage(`已断开 ${ids.size} 个选中节点的连线`);
+  }, [setEdges]);
+  const disconnectEdges = useCallback((edgeIds: Iterable<string>) => {
+    const ids = new Set(edgeIds);
+    if (!ids.size) return;
+    pushHistory();
+    setEdges((current) => current.filter((edge) => !ids.has(edge.id)));
+    setResult(null);
+    setMessage(`已断开 ${ids.size} 条连线`);
+  }, [setEdges]);
+  const canvasTrail = useMemo(() => {
+    const trail: WorkflowNode[] = [];
+    let cursor = currentCanvasId;
+    while (cursor) {
+      const group = nodes.find((node) => node.id === cursor);
+      if (!group) break;
+      trail.unshift(group);
+      cursor = group.data.canvasParentId ?? null;
+    }
+    return trail;
+  }, [currentCanvasId, nodes]);
+
+  const currentSnapshot = () => cloneSnapshot({ nodes, edges, requirements });
 
   const pushHistory = () => {
     history.current.push(currentSnapshot());
-    if (history.current.length > 50) history.current.shift();
+    historyMeta.current.push({ id: Date.now() + historyMeta.current.length, at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
+    if (history.current.length > 50) { history.current.shift(); historyMeta.current.shift(); }
     future.current = [];
+    futureMeta.current = [];
     setHistoryRevision((value) => value + 1);
   };
 
   const restoreSnapshot = (snapshot: WorkflowSnapshot) => {
     setNodes(snapshot.nodes.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
     setEdges(snapshot.edges);
+    setRequirements(snapshot.requirements ?? []);
     setSelectedId(null);
+    setSelectedIds([]);
+    setSelectionMode(false);
+    setCurrentCanvasId(null);
     setResult(null);
   };
 
@@ -199,6 +1001,8 @@ function FlowEditor() {
     const previous = history.current.pop();
     if (!previous) return;
     future.current.push(currentSnapshot());
+    futureMeta.current.push({ id: Date.now(), at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
+    historyMeta.current.pop();
     restoreSnapshot(previous);
     setMessage("已撤销上一步");
     setHistoryRevision((value) => value + 1);
@@ -208,27 +1012,284 @@ function FlowEditor() {
     const next = future.current.pop();
     if (!next) return;
     history.current.push(currentSnapshot());
+    historyMeta.current.push({ id: Date.now(), at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
+    futureMeta.current.pop();
     restoreSnapshot(next);
     setMessage("已重做上一步");
     setHistoryRevision((value) => value + 1);
+  };
+
+  const restoreHistoryAt = (index: number) => {
+    const snapshot = history.current[index];
+    if (!snapshot) return;
+    future.current.push(currentSnapshot());
+    futureMeta.current.push({ id: Date.now(), at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
+    history.current = history.current.slice(0, index);
+    historyMeta.current = historyMeta.current.slice(0, index);
+    restoreSnapshot(snapshot);
+    setHistoryOpen(false);
+    setMessage("已恢复所选历史版本；可使用重做返回恢复前状态");
+    setHistoryRevision((value) => value + 1);
+  };
+
+  const clearHistory = () => {
+    history.current = [];
+    future.current = [];
+    historyMeta.current = [];
+    futureMeta.current = [];
+    setHistoryRevision((value) => value + 1);
+    setMessage("历史记录已清空");
   };
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       localStorage.setItem(
         AUTOSAVE_KEY,
-        JSON.stringify(serializeWorkflow("自动保存", nodes, edges)),
+        JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements)),
       );
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [edges, nodes]);
+  }, [edges, nodes, requirements]);
+
+  useEffect(() => {
+    localStorage.setItem(PACKAGE_REQUIREMENTS_KEY, JSON.stringify(requirements));
+  }, [requirements]);
+
+  useEffect(() => {
+    localStorage.setItem(LAYOUT_MODE_KEY, layoutMode);
+  }, [layoutMode]);
+
+  useEffect(() => {
+    localStorage.setItem(MINIMAP_MODE_KEY, miniMapMode);
+  }, [miniMapMode]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setSystemDark(media.matches);
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = language;
+  }, [language]);
+
+  useEffect(() => {
+    const settings = { themeMode, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    if (remoteBrowser && agentSecretReady) {
+      if (applyingRemoteConfiguration.current) applyingRemoteConfiguration.current = false;
+      else localStorage.setItem(REMOTE_CONFIGURATION_OVERRIDE_KEY, "1");
+    }
+    void saveUserProfileFile("settings/app-settings.json", JSON.stringify(settings, null, 2));
+    void saveUserProfileFile("settings/agent.json", JSON.stringify(agentSettings, null, 2));
+  }, [themeMode, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
+
+  useEffect(() => {
+    if (remoteBrowser) return;
+    let active = true;
+    void loadSmbSecret().then((password) => { if (active && loadAppSettings().smb.rememberPassword) setSmbConnection((current) => ({ ...current, password })); }).catch(() => undefined);
+    return () => { active = false; };
+  }, [remoteBrowser]);
+
+  useEffect(() => {
+    if (remoteBrowser) return;
+    void saveSmbSecret(smbRememberPassword && !smbGuest ? smbConnection.password : "");
+  }, [smbConnection.password, smbRememberPassword, smbGuest, remoteBrowser]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform() || remoteBrowser) return;
+    let active = true;
+    void loadAgentSecret().then((secret) => {
+      if (active) setAgentApiKey(secret);
+    }).catch(() => {
+      if (active) setMessage("无法读取已加密的 AI 密钥");
+    }).finally(() => { if (active) setAgentSecretReady(true); });
+    return () => { active = false; };
+  }, [remoteBrowser]);
+
+  useEffect(() => {
+    if (!agentSecretReady || !Capacitor.isNativePlatform() || remoteBrowser) return;
+    void saveAgentSecret(agentApiKey).catch(() => setMessage("无法保存已加密的 AI 密钥"));
+  }, [agentApiKey, agentSecretReady, remoteBrowser]);
+
+  useEffect(() => {
+    if (!agentAudit.length) return;
+    void saveUserProfileFile("logs/agent-audit.json", JSON.stringify(agentAudit, null, 2));
+  }, [agentAudit]);
+
+  useEffect(() => {
+    if (layoutMode !== "auto" || previousAutoDirection.current === resolvedLayoutDirection) return;
+    previousAutoDirection.current = resolvedLayoutDirection;
+    setNodes((current) => {
+      const layer = current.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId);
+      const arranged = new Map(compactNodeLayout(layer, viewportWidth, resolvedLayoutDirection, edges).map((node) => [node.id, node]));
+      return current.map((node) => arranged.get(node.id) ?? node);
+    });
+    setMessage(`画布已自动切换为${resolvedLayoutDirection === "vertical" ? "纵向" : "横向"}布局`);
+  }, [currentCanvasId, edges, layoutMode, resolvedLayoutDirection, setNodes, viewportWidth]);
+
+  useEffect(() => {
+    localStorage.setItem(PERSONAL_TEMPLATES_KEY, JSON.stringify(personalTemplates));
+    void saveUserProfileFile("user-code/templates.json", JSON.stringify(personalTemplates, null, 2));
+  }, [personalTemplates]);
+
+  useEffect(() => {
+    localStorage.setItem(NODE_GROUPS_KEY, JSON.stringify(customGroups));
+  }, [customGroups]);
+
+  useEffect(() => {
+    localStorage.setItem(GROUP_LIBRARY_KEY, JSON.stringify(groupLibrary.filter((item) => !item.builtIn)));
+    void saveUserProfileFile("workflows/groups.json", JSON.stringify(groupLibrary.filter((item) => !item.builtIn), null, 2));
+  }, [groupLibrary]);
+
+  useEffect(() => {
+    localStorage.setItem(SAVED_NODE_LIBRARY_KEY, JSON.stringify(savedNodeLibrary));
+    void saveUserProfileFile("nodes/saved-nodes.json", JSON.stringify(savedNodeLibrary, null, 2));
+  }, [savedNodeLibrary]);
+
+  useEffect(() => {
+    localStorage.setItem(FLOW_LIBRARY_KEY, JSON.stringify(flowLibrary));
+    void saveUserProfileFile("workflows/library.json", JSON.stringify(flowLibrary, null, 2));
+  }, [flowLibrary]);
+
+  const refreshExternalWorkflowLibrary = useCallback(async () => {
+    try {
+      const [profile, entries] = await Promise.all([getUserProfileInfo(), listWorkflowLibrary()]);
+      setUserProfile(profile);
+      if (entries.length) setFlowLibrary((current) => {
+        const external = entries.map((entry) => {
+          const id = `external-${entry.uri}`;
+          const previous = current.find((item) => item.id === id);
+          return { id, name: previous?.name ?? entry.name, savedAt: "", document: entry.content, uri: entry.uri, external: true, locked: previous?.locked };
+        });
+        const ids = new Set(external.map((entry) => entry.id));
+        return [...external, ...current.filter((entry) => !ids.has(entry.id))];
+      });
+    } catch (error) { setMessage(error instanceof Error ? error.message : "无法读取用户流程文件夹"); }
+  }, []);
+
+  useEffect(() => { void refreshExternalWorkflowLibrary(); }, [refreshExternalWorkflowLibrary]);
+
+  useEffect(() => {
+    const resize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+
+  useEffect(() => {
+    if (!initialLayoutPending.current) return;
+    // Let React Flow measure the first cards, then lay out the starter graph in its
+    // vertical default. fitView subsequently chooses a readable zoom for the screen.
+    const timer = window.setTimeout(() => {
+      initialLayoutPending.current = false;
+      setNodes((current) => compactNodeLayout(current, viewportWidth, "vertical", edges));
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [edges, setNodes, viewportWidth]);
+
+  useEffect(() => () => {
+    if (livePreviewTimer.current !== null) window.clearTimeout(livePreviewTimer.current);
+  }, []);
+
+  useEffect(() => {
+    if (remoteBrowser && !remotePaired) { setMemoryMb(null); return; }
+    let active = true;
+    warmUpPythonExecutor()
+      .then(() => {
+        if (active) setMessage((current) => current === "尚未执行" ? "Python 解释器已就绪" : current);
+      })
+      .catch((error) => {
+        if (active) setMessage(error instanceof Error ? `Python 初始化失败：${error.message}` : "Python 初始化失败");
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteBrowser) return;
+    let active = true;
+    getRemoteAccessPolicy()
+      .then(async (policy) => {
+        if (!active) return;
+        setRemoteAccessPolicy(policy);
+        if (!policy.requiresPin) {
+          await pairRemoteRuntime();
+          if (active) { setRemotePaired(true); setMessage("已连接 Android 计算服务"); }
+        }
+      })
+      .catch((error) => { if (active) setRemoteAccessError(error instanceof Error ? error.message : "无法连接 Android 计算服务"); });
+    return () => { active = false; };
+  }, [remoteBrowser, remotePaired]);
+
+  useEffect(() => {
+    if (!remoteBrowser || !remotePaired || localStorage.getItem(REMOTE_CONFIGURATION_OVERRIDE_KEY) === "1") return;
+    let active = true;
+    void getRemoteAppConfiguration().then((configuration) => {
+      if (!active) return;
+      const remote = configuration.settings as Partial<AppSettings>;
+      applyingRemoteConfiguration.current = true;
+      if (remote.themeMode === "system" || remote.themeMode === "dark" || remote.themeMode === "light") setThemeMode(remote.themeMode);
+      if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(132, Number(remote.paletteWidth))));
+      if (Number.isFinite(remote.inspectorWidth)) setInspectorWidth(Math.min(560, Math.max(250, Number(remote.inspectorWidth))));
+      if (Number.isFinite(remote.inspectorHeight)) setInspectorHeight(Math.min(440, Math.max(140, Number(remote.inspectorHeight))));
+      if (Number.isFinite(remote.resultHeight)) setResultHeight(Math.min(520, Math.max(180, Number(remote.resultHeight))));
+      if (Number.isFinite(remote.nodeScale)) setNodeScale(Math.min(1.4, Math.max(0.75, Number(remote.nodeScale))));
+      if (Number.isFinite(remote.endpointScale)) setEndpointScale(Math.min(1.8, Math.max(0.7, Number(remote.endpointScale))));
+      if (Number.isFinite(remote.edgeWidth)) setEdgeWidth(Math.min(5, Math.max(1, Number(remote.edgeWidth))));
+      if (typeof remote.showNodeInsights === "boolean") setShowNodeInsights(remote.showNodeInsights);
+      if (remote.miniMapMode === "auto" || remote.miniMapMode === "show" || remote.miniMapMode === "hide") setMiniMapMode(remote.miniMapMode);
+      if (remote.layoutMode === "auto" || remote.layoutMode === "horizontal" || remote.layoutMode === "vertical") setLayoutMode(remote.layoutMode);
+      if (remote.agent) setAgentSettings(loadAgentSettings(remote.agent));
+      if (typeof configuration.agentApiKey === "string") setAgentApiKey(configuration.agentApiKey);
+      setAgentSecretReady(true);
+      setMessage("已采用 Android 端配置；网页修改后将仅保存到此浏览器");
+    }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "无法同步 Android 配置"); });
+    return () => { active = false; };
+  }, [remoteBrowser, remotePaired]);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => { void getRuntimeStats().then((stats) => { if (active) setMemoryMb(stats.memoryBytes === null ? null : stats.memoryBytes / 1024 / 1024); }).catch(() => { if (active) setMemoryMb(null); }); };
+    refresh();
+    const timer = window.setInterval(refresh, 1000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [remoteBrowser]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.matches("input, select, textarea")) return;
+      if (target?.matches("input, select, textarea, [contenteditable='true']")) return;
+      if (event.key === "Escape") {
+        setContextMenu(null);
+        setSelectionMenu(null);
+        setFlowMenu(null);
+        setResourceMenu(null);
+        setNodes((current) => current.map((node) => node.selected ? { ...node, selected: false } : node));
+        setSelectedId(null);
+        setSelectedIds([]);
+        return;
+      }
+      if (event.key === "Delete" || event.key === "Backspace") {
+        if (selectedIds.length) {
+          event.preventDefault();
+          deleteNodes(selectedIds);
+          return;
+        }
+        const selectedEdgeIds = edges.filter((edge) => edge.selected).map((edge) => edge.id);
+        if (selectedEdgeIds.length) {
+          event.preventDefault();
+          disconnectEdges(selectedEdgeIds);
+          return;
+        }
+      }
       if (!(event.ctrlKey || event.metaKey)) return;
-      if (event.key.toLowerCase() === "z") {
+      if (event.key.toLowerCase() === "a" && viewMode === "nodes") {
+        event.preventDefault();
+        const ids = visibleNodes.map((node) => node.id);
+        setNodes((current) => current.map((node) => ({ ...node, selected: ids.includes(node.id) })));
+        setSelectedIds(ids);
+        setSelectedId(ids.length === 1 ? ids[0] : null);
+      } else if (event.key.toLowerCase() === "z") {
         event.preventDefault();
         if (event.shiftKey) redo(); else undo();
       } else if (event.key.toLowerCase() === "y") {
@@ -238,50 +1299,364 @@ function FlowEditor() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  });
+  }, [deleteNodes, disconnectEdges, edges, selectedIds, setNodes, viewMode, visibleNodes]);
+
+  useEffect(() => {
+    if (!contextMenu && !selectionMenu && !flowMenu && !resourceMenu) return;
+    const close = (event: PointerEvent) => {
+      if ((event.target as HTMLElement | null)?.closest(".context-menu")) return;
+      setContextMenu(null);
+      setSelectionMenu(null);
+      setFlowMenu(null);
+      setResourceMenu(null);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [contextMenu, selectionMenu, flowMenu, resourceMenu]);
 
   const resetExecution = useCallback(() => {
     setResult(null);
     setMessage("流程已修改，等待运行");
-    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: node.data.status === "error" ? "error" : "idle" } })));
   }, [setNodes]);
+
+  const isValidConnection = useCallback((connection: Connection | Edge) => {
+    // React Flow calls this continuously while a handle is being dragged, including
+    // transient/incomplete connections. Never let malformed restored node metadata
+    // escape this callback: an exception here unmounts the editor to a blank canvas.
+    try {
+      if (!connection.source || !connection.target || connection.source === connection.target) return false;
+      const sourceNode = nodes.find((node) => node.id === connection.source);
+      const targetNode = nodes.find((node) => node.id === connection.target);
+      if (!sourceNode || !targetNode) return false;
+      const isStructuredLoopBack = ["logic.for_each_subflow", "logic.while_subflow"].includes(targetNode.data.nodeType) && connection.targetHandle === "continue";
+      if (createsCycle(connection, edges) && !isStructuredLoopBack) return false;
+      const sourceSpec = nodeSpecFor(sourceNode);
+      const targetSpec = nodeSpecFor(targetNode);
+      const output = sourceSpec?.outputPorts.find((port) => port.id === (connection.sourceHandle ?? "output"));
+      const input = targetSpec?.inputPorts.find((port) => port.id === (connection.targetHandle ?? "input"));
+      return Boolean(output && input && areValueTypesCompatible(output.valueType, input.valueType));
+    } catch {
+      return false;
+    }
+  }, [edges, nodes]);
 
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      pushHistory();
-      const targetNode = nodes.find((node) => node.id === connection.target);
-      const isMultiInput = (getNodeSpec(targetNode?.data.nodeType ?? "")?.inputPorts?.length ?? 1) > 1;
-      setEdges((current) => addEdge(connection, current.filter((edge) => {
-        if (edge.target !== connection.target) return true;
-        return isMultiInput ? edge.targetHandle !== connection.targetHandle : false;
-      })));
-      resetExecution();
+      const normalized: Connection = {
+        source: connection.source,
+        target: connection.target,
+        sourceHandle: connection.sourceHandle ?? "output",
+        targetHandle: connection.targetHandle ?? "input",
+      };
+      if (!isValidConnection(normalized)) {
+        setMessage("无法连线：端口类型不兼容，或该连线会形成环");
+        return;
+      }
+      try {
+        pushHistory();
+        const targetNode = nodes.find((node) => node.id === normalized.target);
+        const targetSpec = nodeSpecFor(targetNode);
+        const isMultiInput = (targetSpec?.inputPorts.length ?? 1) > 1;
+        setEdges((current) => addEdge(normalized, current.filter((edge) => {
+          if (edge.target !== normalized.target) return true;
+          return isMultiInput ? edge.targetHandle !== normalized.targetHandle : false;
+        })));
+        resetExecution();
+      } catch {
+        setMessage("连线失败：节点端口信息无效，请重新选择节点后再试");
+      }
     },
-    [edges, nodes, resetExecution, setEdges],
+    [edges, isValidConnection, nodes, resetExecution, setEdges],
   );
 
-  const addNodeFromCatalog = (nodeType: string) => {
+  const onReconnect = useCallback((oldEdge: Edge, connection: Connection) => {
+    try {
+      if (!connection.source || !connection.target) return;
+      const candidateEdges = edges.filter((edge) => edge.id !== oldEdge.id);
+      const sourceNode = nodes.find((node) => node.id === connection.source);
+      const targetNode = nodes.find((node) => node.id === connection.target);
+      const sourceSpec = nodeSpecFor(sourceNode);
+      const targetSpec = nodeSpecFor(targetNode);
+      const output = sourceSpec?.outputPorts.find((port) => port.id === (connection.sourceHandle ?? "output"));
+      const input = targetSpec?.inputPorts.find((port) => port.id === (connection.targetHandle ?? "input"));
+      const loopBack = targetNode && ["logic.for_each_subflow", "logic.while_subflow"].includes(targetNode.data.nodeType) && connection.targetHandle === "continue";
+      if (!sourceNode || !targetNode || !output || !input || !areValueTypesCompatible(output.valueType, input.valueType) || createsCycle(connection, candidateEdges) && !loopBack) {
+        setMessage("无法移动连线端点：目标端口不兼容");
+        return;
+      }
+      reconnectSucceeded.current = true;
+      pushHistory();
+      setEdges((current) => reconnectEdge(oldEdge, connection, current));
+      resetExecution();
+      setMessage("已移动连线端点；拖到画布空白处可断开");
+    } catch (error) { setMessage(readableError(error, "移动连线端点失败")); }
+  }, [edges, nodes, resetExecution, setEdges]);
+
+  const openNodeMenu = useCallback((nodeId: string, x: number, y: number) => {
+    const menuHeight = 300;
+    const opensAbove = y > window.innerHeight - menuHeight - 12;
+    setSelectedId(nodeId);
+    setContextMenu({
+      nodeId,
+      x: Math.min(x, window.innerWidth - 190),
+      y: Math.max(8, opensAbove ? y - menuHeight : Math.min(y, window.innerHeight - menuHeight)),
+    });
+  }, []);
+
+  const openSelectionMenu = useCallback((x: number, y: number) => {
+    if (!finePointer) return;
+    setContextMenu(null);
+    setSelectionMenu({
+      x: Math.max(8, Math.min(x, window.innerWidth - 210)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 220)),
+    });
+  }, [finePointer]);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    longPressOrigin.current = null;
+  };
+
+  const onCanvasPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
+    setPointerMode(event.pointerType === "mouse" ? "mouse" : "touch");
+    if (event.pointerType !== "touch" || selectionMode) return;
+    const card = (event.target as HTMLElement).closest<HTMLElement>("[data-workflow-node-id]");
+    const nodeId = card?.dataset.workflowNodeId;
+    if (!nodeId) return;
+    clearLongPress();
+    longPressOrigin.current = { x: event.clientX, y: event.clientY };
+    longPressTimer.current = window.setTimeout(() => {
+      suppressNextNodeClick.current = true;
+      setSelectionMode(true);
+      setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
+      setSelectedId(nodeId);
+      setSelectedIds([nodeId]);
+      setContextMenu(null);
+      setMessage("已进入多选：点按节点勾选，完成后点击“组合”");
+      navigator.vibrate?.(30);
+      clearLongPress();
+    }, 550);
+  };
+
+  const onCanvasPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
+    if (event.pointerType !== "mouse" && pointerMode !== "touch") setPointerMode("touch");
+    const origin = longPressOrigin.current;
+    if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) clearLongPress();
+  };
+
+  const onWorkflowNodesChange = useCallback((changes: NodeChange<WorkflowNode>[]) => {
+    onNodesChange(changes);
+  }, [onNodesChange]);
+
+  const onSelectionChange = useCallback(({ nodes: selected }: { nodes: WorkflowNode[] }) => {
+    const nextIds = selected.map((node) => node.id);
+    setSelectedIds((current) => current.length === nextIds.length && current.every((id, index) => id === nextIds[index]) ? current : nextIds);
+    const nextId = nextIds.length === 1 ? nextIds[0] : null;
+    setSelectedId((current) => current === nextId ? current : nextId);
+  }, []);
+
+  const addNodeFromCatalog = (nodeType: string, position?: { x: number; y: number }) => {
     pushHistory();
     const number = nextNodeNumber.current++;
     const id = `${nodeType.replaceAll(".", "-")}-${Date.now()}-${number}`;
-    const column = (nodes.length + number) % 3;
-    const row = Math.floor((nodes.length + number) / 3) % 4;
-    const node = createNode(id, nodeType, 80 + column * 230, 80 + row * 150);
+    const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
+    const fallback = resolvedLayoutDirection === "vertical"
+      ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : Math.max(70, viewportWidth / 2 - 110), y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 70 }
+      : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 70, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 70 };
+    const node = createNode(id, nodeType, position?.x ?? fallback.x, position?.y ?? fallback.y);
+    node.className = "node-entering";
+    node.data.canvasParentId = currentCanvasId ?? undefined;
+    const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nodeType);
+    if (isStructure) {
+      node.style = { width: 520, height: 300 };
+    } else if (position) {
+      const container = nodes.find((candidate) => {
+        if ((candidate.data.canvasParentId ?? null) !== currentCanvasId || !["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(candidate.data.nodeType)) return false;
+        const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
+        const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
+        return position.x > candidate.position.x + 12 && position.x < candidate.position.x + width - 80 && position.y > candidate.position.y + 58 && position.y < candidate.position.y + height - 24;
+      });
+      if (container) {
+        const relative = { x: Math.max(26, position.x - container.position.x), y: Math.max(104, position.y - container.position.y) };
+        node.parentId = container.id;
+        node.extent = "parent";
+        node.expandParent = true;
+        node.position = relative;
+        node.data.branch = container.data.nodeType === "logic.if_subflow" && relative.x >= Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "false" : container.data.nodeType === "logic.if_subflow" ? "true" : "body";
+      }
+    }
     setNodes((current) => [...current, node]);
+    window.setTimeout(() => setNodes((current) => current.map((item) => item.id === id ? { ...item, className: undefined } : item)), 360);
     setSelectedId(id);
     setResult(null);
     setMessage(`已添加“${node.data.label}”节点`);
   };
 
-  const deleteSelectedNode = () => {
-    if (!selectedId) return;
+  const onPaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, resource: PaletteResource) => {
+    event.dataTransfer.setData("application/pydroid-resource", JSON.stringify(resource));
+    event.dataTransfer.effectAllowed = "copy";
+    setPaletteDragPreview({ kind: resource.kind, label: resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
+  };
+
+  const updatePaletteDragPreview = (event: ReactDragEvent<HTMLButtonElement>) => {
+    if (!event.clientX && !event.clientY) return;
+    const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
+    setPaletteDragPreview((current) => current ? { ...current, x: event.clientX, y: event.clientY, overCanvas: Boolean(bounds && event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) } : null);
+  };
+
+  const clearPaletteDrag = () => {
+    if (paletteDragTimer.current !== null) window.clearTimeout(paletteDragTimer.current);
+    paletteDragTimer.current = null;
+    touchPaletteDrag.current = null;
+    setPaletteDragPreview(null);
+  };
+
+  const onPalettePointerDown = (event: ReactPointerEvent<HTMLButtonElement>, resource: PaletteResource) => {
+    if (event.pointerType !== "touch") return;
+    clearPaletteDrag();
+    const element = event.currentTarget;
+    touchPaletteDrag.current = { resource, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, element, armed: false };
+    paletteDragTimer.current = window.setTimeout(() => {
+      const drag = touchPaletteDrag.current;
+      if (!drag || drag.pointerId !== event.pointerId) return;
+      drag.armed = true;
+      drag.element.setPointerCapture(drag.pointerId);
+      setPaletteDragPreview({ kind: drag.resource.kind, label: drag.resource.label, x: drag.startX, y: drag.startY, overCanvas: false });
+      navigator.vibrate?.(15);
+    }, 280);
+  };
+
+  const onPalettePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = touchPaletteDrag.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (!drag.armed) {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 8) clearPaletteDrag();
+      return;
+    }
+    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 12) clearFlowLongPress();
+    const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
+    setPaletteDragPreview((current) => current ? { ...current, x: event.clientX, y: event.clientY, overCanvas: Boolean(bounds && event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) } : null);
+  };
+
+  const paletteDropPosition = (nodeType: string, clientX: number, clientY: number) => {
+    const point = reactFlow.screenToFlowPosition({ x: clientX, y: clientY });
+    const spec = getNodeSpec(nodeType);
+    const structure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nodeType);
+    const width = structure ? 520 : Math.min(270, Math.max(168, 112 + Array.from(spec?.label ?? nodeType).length * 16)) * nodeScale;
+    const height = structure ? 300 : (resolvedLayoutDirection === "vertical" ? 74 : 58) * nodeScale;
+    return { x: point.x - width / 2, y: point.y - height / 2 };
+  };
+
+  const onPalettePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const drag = touchPaletteDrag.current;
+    if (paletteDragTimer.current !== null) window.clearTimeout(paletteDragTimer.current);
+    paletteDragTimer.current = null;
+    touchPaletteDrag.current = null;
+    setPaletteDragPreview(null);
+    if (!drag || !drag.armed || drag.pointerId !== event.pointerId) return;
+    const canvas = document.querySelector<HTMLElement>(".canvas-panel");
+    const bounds = canvas?.getBoundingClientRect();
+    if (!bounds || event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
+    dropPaletteResource(drag.resource, event.clientX, event.clientY);
+    navigator.vibrate?.(20);
+  };
+
+  const onCanvasDrop = (event: ReactDragEvent<HTMLElement>) => {
+    event.preventDefault();
+    let resource: PaletteResource;
+    try { resource = JSON.parse(event.dataTransfer.getData("application/pydroid-resource")) as PaletteResource; }
+    catch { return; }
+    setPaletteDragPreview(null);
+    dropPaletteResource(resource, event.clientX, event.clientY);
+  };
+
+  const onNodeDragStop = (_event: MouseEvent | TouchEvent, movedNode: WorkflowNode) => {
+    if (["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(movedNode.data.nodeType)) return;
+    setNodes((current) => {
+      const absolute = movedNode.parentId
+        ? { x: movedNode.position.x + (current.find((node) => node.id === movedNode.parentId)?.position.x ?? 0), y: movedNode.position.y + (current.find((node) => node.id === movedNode.parentId)?.position.y ?? 0) }
+        : movedNode.position;
+      const container = current.find((candidate) => {
+        if (candidate.id === movedNode.id || !["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(candidate.data.nodeType)) return false;
+        const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
+        const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
+        return absolute.x > candidate.position.x + 12 && absolute.x < candidate.position.x + width - 100 && absolute.y > candidate.position.y + 58 && absolute.y < candidate.position.y + height - 28;
+      });
+      const next = current.map((node) => {
+        if (node.id !== movedNode.id) return node;
+        if (!container) return { ...node, parentId: undefined, extent: undefined, expandParent: undefined, position: absolute, data: { ...node.data, branch: undefined } };
+        const relative = { x: Math.max(26, absolute.x - container.position.x), y: Math.max(104, absolute.y - container.position.y) };
+        const branch: WorkflowNode["data"]["branch"] = container.data.nodeType === "logic.if_subflow" ? (relative.x < Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "true" : "false") : "body";
+        return { ...node, parentId: container.id, extent: "parent" as const, expandParent: true, position: relative, data: { ...node.data, branch } };
+      });
+      return [...next].sort((left, right) => Number(Boolean(left.parentId)) - Number(Boolean(right.parentId)));
+    });
+  };
+
+  const replacementCandidates = useMemo(() => {
+    if (!selectedNode) return [];
+    const current = resolveNodeSpec(getNodeSpec(selectedNode.data.nodeType), selectedNode.data.parameters);
+    const compatible = (candidate: NodeSpec) => current
+      && candidate.inputPorts.length === current.inputPorts.length
+      && candidate.outputPorts.length === current.outputPorts.length
+      && candidate.inputPorts.every((port, index) => areValueTypesCompatible(current.inputPorts[index]?.valueType ?? "any", port.valueType))
+      && candidate.outputPorts.every((port, index) => areValueTypesCompatible(port.valueType, current.outputPorts[index]?.valueType ?? "any"));
+    const filtered = replacementShowAll ? NODE_CATALOG : NODE_CATALOG.filter(compatible);
+    const query = replacementSearch.trim().toLocaleLowerCase();
+    return filtered.filter((candidate) => candidate.nodeType !== selectedNode.data.nodeType && (!query || `${candidate.label} ${candidate.nodeType} ${candidate.tags?.join(" ") ?? ""}`.toLocaleLowerCase().includes(query)));
+  }, [replacementSearch, replacementShowAll, selectedNode]);
+
+  const replaceSelectedNode = (nextType: string) => {
+    if (!selectedNode) return;
+    const oldSpec = resolveNodeSpec(getNodeSpec(selectedNode.data.nodeType), selectedNode.data.parameters);
+    const nextSpec = getNodeSpec(nextType);
+    if (!nextSpec) return;
     pushHistory();
-    setNodes((current) => current.filter((node) => node.id !== selectedId));
-    setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId));
-    setSelectedId(null);
+    const nextParameters = { ...nextSpec.defaults };
+    for (const parameter of nextSpec.parameters) {
+      if (parameter.key in selectedNode.data.parameters) nextParameters[parameter.key] = selectedNode.data.parameters[parameter.key];
+    }
+    const inputMap = new Map((oldSpec?.inputPorts ?? []).map((port, index) => [port.id, nextSpec.inputPorts[index]?.id]));
+    const outputMap = new Map((oldSpec?.outputPorts ?? []).map((port, index) => [port.id, nextSpec.outputPorts[index]?.id]));
+    const keptEdges = edges.flatMap((edge) => {
+      if (edge.target === selectedNode.id) {
+        const mapped = inputMap.get(edge.targetHandle ?? oldSpec?.inputPorts[0]?.id ?? "input");
+        return mapped ? [{ ...edge, targetHandle: mapped }] : [];
+      }
+      if (edge.source === selectedNode.id) {
+        const mapped = outputMap.get(edge.sourceHandle ?? oldSpec?.outputPorts[0]?.id ?? "output");
+        return mapped ? [{ ...edge, sourceHandle: mapped }] : [];
+      }
+      return [edge];
+    });
+    const removed = edges.length - keptEdges.length;
+    const nextIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nextType);
+    const oldIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(selectedNode.data.nodeType);
+    setNodes((current) => current.map((node) => {
+      if (node.id === selectedNode.id) return {
+        ...node,
+        style: nextIsStructure ? { width: 520, height: 300 } : undefined,
+        data: { ...node.data, nodeType: nextType, label: nextSpec.label, parameters: nextParameters, status: "idle", branch: node.data.branch },
+      };
+      if (oldIsStructure && !nextIsStructure && node.parentId === selectedNode.id) return {
+        ...node, parentId: undefined, extent: undefined,
+        position: { x: selectedNode.position.x + node.position.x, y: selectedNode.position.y + node.position.y },
+        data: { ...node.data, branch: undefined },
+      };
+      return node;
+    }));
+    setEdges(keptEdges);
+    setReplacementOpen(false);
+    setContextMenu(null);
     setResult(null);
-    setMessage("节点及其连线已删除");
+    setMessage(`已将“${oldSpec?.label ?? selectedNode.data.label}”替换为“${nextSpec.label}”${removed ? `，移除 ${removed} 条不兼容连线` : "，兼容连线已保留"}`);
+  };
+
+  const deleteSelectedNode = () => {
+    if (selectedId) deleteNodes([selectedId]);
   };
 
   const duplicateSelectedNode = () => {
@@ -301,15 +1676,364 @@ function FlowEditor() {
     setMessage("节点已复制；连线不会自动复制");
   };
 
+  const createSubflowGroup = () => {
+    const selectedSet = new Set([...selectedIds, ...nodes.filter((node) => node.selected).map((node) => node.id)]);
+    const members = nodes.filter((node) => selectedSet.has(node.id) && (node.data.canvasParentId ?? null) === currentCanvasId);
+    if (members.length < 2) {
+      setSelectionMode(true);
+      setMessage(finePointer ? "请在画布空白处拖出选框，或按住 Ctrl 点击，选择至少两个节点" : "已进入多选：点按节点勾选，选择至少两个后再次点击“组合”");
+      return;
+    }
+    pushHistory();
+    const memberIds = new Set(members.map((node) => node.id));
+    const id = `workflow-group-${Date.now()}`;
+    const incoming = edges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
+    const outgoing = edges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
+    const { groupInputs, groupOutputs } = deriveGroupInterface(members, edges);
+    const group: WorkflowNode = {
+      id, type: "workflow", position: {
+        x: Math.min(...members.map((node) => node.position.x)),
+        y: Math.min(...members.map((node) => node.position.y)),
+      },
+      data: {
+        label: `子流程 ${nodes.filter((node) => node.data.nodeType === "workflow.group").length + 1}`,
+        nodeType: "workflow.group", nodeVersion: 1, status: "idle", parameters: { description: "" },
+        canvasParentId: currentCanvasId ?? undefined, groupInputs, groupOutputs,
+      },
+    };
+    setNodes((current) => [...current.map((node) => memberIds.has(node.id) ? { ...node, selected: false, data: { ...node.data, canvasParentId: id } } : node), group]);
+    setEdges((current) => current.map((edge) => {
+      const inputIndex = incoming.findIndex((item) => item.id === edge.id);
+      if (inputIndex >= 0) {
+        const port = groupInputs.find((item) => item.internalNodeId === edge.target && item.internalHandle === (edge.targetHandle ?? "input"));
+        return port ? { ...edge, target: id, targetHandle: port.id } : edge;
+      }
+      const outputIndex = outgoing.findIndex((item) => item.id === edge.id);
+      if (outputIndex >= 0) {
+        const port = groupOutputs.find((item) => item.internalNodeId === edge.source && item.internalHandle === (edge.sourceHandle ?? "output"));
+        return port ? { ...edge, source: id, sourceHandle: port.id } : edge;
+      }
+      return edge;
+    }));
+    setSelectedIds([id]);
+    setSelectedId(id);
+    setSelectionMode(false);
+    setResult(null);
+    setMessage(`已将 ${members.length} 个节点组合为“${group.data.label}”`);
+  };
+
+  const saveSelectedGroupToLibrary = () => {
+    if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") { setMessage("请先选择一个组合"); return; }
+    const groupId = selectedNode.id;
+    const memberIds = new Set(nodes.filter((node) => node.data.canvasParentId === groupId).map((node) => node.id));
+    const entry: GroupLibraryEntry = { id: `group-template-${Date.now()}`, name: selectedNode.data.label, description: String(selectedNode.data.parameters.description ?? ""), nodes: cloneSnapshot({ nodes: nodes.filter((node) => node.id === groupId || memberIds.has(node.id)), edges: [] }).nodes, edges: cloneSnapshot({ nodes: [], edges: edges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target)) }).edges };
+    setGroupLibrary((current) => [entry, ...current]);
+    setMessage(`已将“${entry.name}”保存到组合资源`);
+  };
+
+  const saveSelectedNodeToLibrary = () => {
+    if (!selectedNode || selectedNode.data.nodeType === "workflow.group") { setMessage("请先选择一个普通节点"); return; }
+    const cleanNode = cloneSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0];
+    cleanNode.data.canvasParentId = undefined;
+    cleanNode.parentId = undefined;
+    cleanNode.extent = undefined;
+    cleanNode.selected = false;
+    const entry: SavedNodeEntry = { id: `saved-node-${Date.now()}`, name: selectedNode.data.label, node: cleanNode, savedAt: new Date().toISOString() };
+    setSavedNodeLibrary((current) => [entry, ...current]);
+    setMessage(`已将“${entry.name}”保存到我的节点`);
+  };
+
+  const insertSavedNode = (template: SavedNodeEntry) => {
+    pushHistory();
+    const id = `${template.node.data.nodeType.replaceAll(".", "-")}-${Date.now()}-${nextNodeNumber.current++}`;
+    const node = cloneSnapshot({ nodes: [template.node], edges: [] }).nodes[0];
+    const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
+    node.id = id;
+    node.position = resolvedLayoutDirection === "vertical"
+      ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
+      : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
+    node.data = { ...node.data, canvasParentId: currentCanvasId ?? undefined, status: "idle" };
+    node.className = "node-entering";
+    setNodes((current) => [...current, node]);
+    window.setTimeout(() => setNodes((current) => current.map((item) => item.id === id ? { ...item, className: undefined } : item)), 360);
+    setSelectedId(id); setSelectedIds([id]); setResult(null);
+    setMessage(`已添加我的节点“${template.name}”`);
+  };
+
+  const insertGroupTemplate = (template: GroupLibraryEntry, dropPosition?: { x: number; y: number }) => {
+    const repairedTemplate = { ...template, nodes: repairWorkflowGroupInterfaces(template.nodes, template.edges) };
+    const sourceGroup = repairedTemplate.nodes.find((node) => node.data.nodeType === "workflow.group");
+    if (!sourceGroup) { setMessage("该组合资源已损坏"); return; }
+    pushHistory();
+    const mapping = new Map(repairedTemplate.nodes.map((node) => [node.id, `${node.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`]));
+    const targetGroupId = mapping.get(sourceGroup.id)!;
+    const offset = dropPosition
+      ? { x: dropPosition.x - sourceGroup.position.x, y: dropPosition.y - sourceGroup.position.y }
+      : { x: 90 + (nodes.length % 4) * 28, y: 90 + (nodes.length % 3) * 35 };
+    const nextNodes: WorkflowNode[] = repairedTemplate.nodes.map((node) => ({ ...cloneSnapshot({ nodes: [node], edges: [] }).nodes[0], id: mapping.get(node.id)!, selected: false, className: node.id === sourceGroup.id ? "node-entering node-entering--group" : undefined, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, data: { ...node.data, label: node.id === sourceGroup.id ? `${template.name}` : node.data.label, canvasParentId: node.id === sourceGroup.id ? currentCanvasId ?? undefined : targetGroupId, groupInputs: node.data.groupInputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), groupOutputs: node.data.groupOutputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), status: "idle" as const } }));
+    const nextEdges = repairedTemplate.edges.map((edge) => ({ ...edge, id: `${edge.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, source: mapping.get(edge.source)!, target: mapping.get(edge.target)! }));
+    setNodes((current) => [...current, ...nextNodes]);
+    window.setTimeout(() => setNodes((current) => current.map((node) => node.id === targetGroupId ? { ...node, className: undefined } : node)), 420);
+    setEdges((current) => [...current, ...nextEdges]);
+    setSelectedId(targetGroupId); setSelectedIds([targetGroupId]); setResult(null);
+    setMessage(`已添加组合“${template.name}”，双击或右键可进入编辑`);
+  };
+
+  const openSubflowGroup = (groupId: string) => {
+    const group = nodes.find((node) => node.id === groupId && node.data.nodeType === "workflow.group");
+    if (!group) return;
+    setCurrentCanvasId(groupId);
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectionMode(false);
+    setContextMenu(null);
+    window.setTimeout(() => reactFlow.fitView({ padding: 0.18, duration: 250 }), 0);
+  };
+
+  const leaveSubflowGroup = (canvasId: string | null) => {
+    setCurrentCanvasId(canvasId);
+    setSelectedId(null);
+    setSelectedIds([]);
+    setSelectionMode(false);
+    window.setTimeout(() => reactFlow.fitView({ padding: 0.18, duration: 250 }), 0);
+  };
+
+  const dissolveSelectedGroup = () => {
+    if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") return;
+    pushHistory();
+    const groupId = selectedNode.id;
+    const parentCanvasId = selectedNode.data.canvasParentId;
+    const inputPorts = new Map((selectedNode.data.groupInputs ?? []).map((port) => [port.id, port]));
+    const outputPorts = new Map((selectedNode.data.groupOutputs ?? []).map((port) => [port.id, port]));
+    setEdges((current) => current.flatMap((edge) => {
+      if (edge.target === groupId) {
+        const port = inputPorts.get(edge.targetHandle ?? "");
+        return port ? [{ ...edge, target: port.internalNodeId, targetHandle: port.internalHandle ?? undefined }] : [];
+      }
+      if (edge.source === groupId) {
+        const port = outputPorts.get(edge.sourceHandle ?? "");
+        return port ? [{ ...edge, source: port.internalNodeId, sourceHandle: port.internalHandle ?? undefined }] : [];
+      }
+      return edge;
+    }));
+    setNodes((current) => current.filter((node) => node.id !== groupId).map((node) => node.data.canvasParentId === groupId ? { ...node, data: { ...node.data, canvasParentId: parentCanvasId } } : node));
+    setSelectedId(null);
+    setSelectedIds([]);
+    setResult(null);
+    setMessage("子流程组已解除，内部节点已返回当前画布");
+  };
+
+  const disconnectSelectedNode = () => {
+    if (!selectedId) return;
+    const connectionCount = edges.filter((edge) => edge.source === selectedId || edge.target === selectedId).length;
+    if (connectionCount === 0) {
+      setMessage("该节点没有连线");
+      return;
+    }
+    pushHistory();
+    setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId));
+    resetExecution();
+    setMessage(`已断开 ${connectionCount} 条连线`);
+  };
+
   const updateParameter = (key: string, value: string | number | boolean | null) => {
+    if (!selectedId) return;
+    const now = Date.now();
+    if (!parameterEditSession.current || parameterEditSession.current.key !== key || now - parameterEditSession.current.time > 800) pushHistory();
+    parameterEditSession.current = { key, time: now };
+    setNodes((current) => {
+      const next = current.map((node) => node.id === selectedId ? {
+        ...node,
+        data: { ...node.data, status: "idle" as const, parameters: { ...node.data.parameters, [key]: value } },
+      } : node);
+      if (livePreview && (csvText || csvBytes)) {
+        if (livePreviewTimer.current !== null) window.clearTimeout(livePreviewTimer.current);
+        livePreviewTimer.current = window.setTimeout(() => void runPrototype(next), 450);
+      }
+      return next;
+    });
+    setResult(null);
+    setMessage("参数已修改，等待运行");
+  };
+
+  const applyNodeLayout = (direction: "horizontal" | "vertical", announce = true) => {
+    pushHistory();
+    setNodes((current) => {
+      const layer = current.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId);
+      const arranged = new Map(compactNodeLayout(layer, viewportWidth, direction, edges).map((node) => [node.id, node]));
+      return arrangeStructureChildren(current.map((node) => arranged.get(node.id) ?? node), direction);
+    });
+    refreshVisibleNodeGeometry();
+    window.setTimeout(() => {
+      const ids = nodes.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId).map((node) => ({ id: node.id }));
+      if (ids.length) void reactFlow.fitView({ nodes: ids, padding: 0.16, duration: 260 });
+    }, 100);
+    if (announce) setMessage(`已按${direction === "vertical" ? "纵向" : "横向"}方式整理节点`);
+  };
+
+  const arrangeNodes = () => {
+    applyNodeLayout(resolvedLayoutDirection);
+  };
+
+  const locateNode = (nodeId: string) => {
+    const target = nodes.find((node) => node.id === nodeId);
+    if (!target) { setMessage(`无法定位节点：${nodeId}`); return; }
+    setViewMode("nodes");
+    setCurrentCanvasId(target.data.canvasParentId ?? null);
+    setInspectorCollapsed(false);
+    setSelectedId(nodeId);
+    setSelectedIds([nodeId]);
+    setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
+    setErrorDetailOpen(false);
+    window.setTimeout(() => {
+      updateNodeInternals(nodeId);
+      void reactFlow.fitView({ nodes: [{ id: nodeId }], padding: .55, duration: 320, maxZoom: 1.15 });
+      document.querySelector<HTMLElement>(`[data-workflow-node-id="${CSS.escape(nodeId)}"]`)?.focus?.();
+    }, 120);
+    setMessage(`已定位到：${target.data.label}`);
+  };
+
+  const cycleLayoutMode = () => {
+    const next = layoutMode === "auto" ? "horizontal" : layoutMode === "horizontal" ? "vertical" : "auto";
+    const nextDirection = next === "auto" ? (viewportWidth < 760 ? "vertical" : "horizontal") : next;
+    setLayoutMode(next);
+    previousAutoDirection.current = nextDirection;
+    applyNodeLayout(nextDirection, false);
+    setMessage(next === "auto" ? `已切换为自动方向，并按${nextDirection === "vertical" ? "纵向" : "横向"}整理` : `已切换为${nextDirection === "vertical" ? "纵向" : "横向"}方向，并完成整理`);
+  };
+
+  const startSidebarResize = (side: "palette" | "inspector", event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = side === "palette" ? paletteWidth : inspectorWidth;
+    const startHeight = inspectorHeight;
+    const resize = (moveEvent: PointerEvent) => {
+      const delta = moveEvent.clientX - startX;
+      if (side === "palette") setPaletteWidth(Math.min(360, Math.max(132, startWidth + delta)));
+      else if (viewportWidth <= 720) setInspectorHeight(Math.min(440, Math.max(140, startHeight - (moveEvent.clientY - startY))));
+      else setInspectorWidth(Math.min(560, Math.max(250, startWidth - delta)));
+    };
+    const stop = () => {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+
+  const startResultResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const startY = event.clientY;
+    const startHeight = resultHeight;
+    const resize = (moveEvent: PointerEvent) => setResultHeight(Math.min(520, Math.max(180, startHeight - (moveEvent.clientY - startY))));
+    const stop = () => {
+      window.removeEventListener("pointermove", resize);
+      window.removeEventListener("pointerup", stop);
+      window.removeEventListener("pointercancel", stop);
+    };
+    window.addEventListener("pointermove", resize);
+    window.addEventListener("pointerup", stop);
+    window.addEventListener("pointercancel", stop);
+  };
+
+  const updateSelectedGroupLabel = (label: string) => {
+    if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") return;
+    setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node));
+  };
+
+  const updateSelectedGroupPort = (direction: "input" | "output", id: string, label: string) => {
+    if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") return;
+    const key = direction === "input" ? "groupInputs" : "groupOutputs";
+    setNodes((current) => current.map((node) => node.id === selectedNode.id ? {
+      ...node, data: { ...node.data, [key]: (node.data[key] ?? []).map((port) => port.id === id ? { ...port, label } : port) },
+    } : node));
+  };
+
+  const updateSelectedTags = (raw: string) => {
+    if (!selectedId) return;
+    const tags = raw.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 6);
+    setNodes((current) => current.map((node) => node.id === selectedId ? { ...node, data: { ...node.data, tags } } : node));
+  };
+
+  const addSelectedToGroup = () => {
+    if (!selectedNode || !groupName.trim()) return;
+    const name = groupName.trim();
+    setCustomGroups((current) => ({ ...current, [name]: [...new Set([...(current[name] ?? []), selectedNode.data.nodeType])] }));
+    setGroupName("");
+    setMessage(`已将“${selectedNode.data.label}”加入自定义组“${name}”`);
+  };
+
+  const saveSelectedDefaults = () => {
+    if (!selectedNode || !selectedSpec) return;
+    const preferred = selectedSpec.parameters.filter((parameter) => parameter.rememberDefault);
+    if (!preferred.length) return;
+    const values = Object.fromEntries(preferred.map((parameter) => [
+      parameter.key,
+      selectedNode.data.parameters[parameter.key] ?? selectedSpec.defaults[parameter.key] ?? null,
+    ]));
+    try {
+      const all = JSON.parse(localStorage.getItem(NODE_DEFAULTS_KEY) ?? "{}") as Record<string, unknown>;
+      all[selectedNode.data.nodeType] = values;
+      localStorage.setItem(NODE_DEFAULTS_KEY, JSON.stringify(all));
+      setMessage(`已保存 ${preferred.length} 项偏好默认值；仅应用于以后新建的“${selectedSpec.label}”节点`);
+    } catch {
+      setMessage("默认值保存失败：本地存储不可用");
+    }
+  };
+
+  const clearSelectedDefaults = () => {
+    if (!selectedNode || !selectedSpec) return;
+    try {
+      const all = JSON.parse(localStorage.getItem(NODE_DEFAULTS_KEY) ?? "{}") as Record<string, unknown>;
+      delete all[selectedNode.data.nodeType];
+      localStorage.setItem(NODE_DEFAULTS_KEY, JSON.stringify(all));
+      setMessage(`已恢复“${selectedSpec.label}”的新建节点内置默认值`);
+    } catch {
+      setMessage("默认值恢复失败：本地存储不可用");
+    }
+  };
+
+  const applyCustomTemplate = (code: string, label: string) => {
     if (!selectedId) return;
     pushHistory();
     setNodes((current) => current.map((node) => node.id === selectedId ? {
       ...node,
-      data: { ...node.data, status: "idle", parameters: { ...node.data.parameters, [key]: value } },
+      data: { ...node.data, status: "idle", parameters: { code } },
     } : node));
+    setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId));
     setResult(null);
-    setMessage("参数已修改，等待运行");
+    setMessage(`已应用“${label}”模板；原连线已断开，请按新签名重新连接`);
+  };
+
+  const savePersonalTemplate = () => {
+    if (!selectedNode || selectedNode.data.nodeType !== "custom.python_function") return;
+    const code = String(selectedNode.data.parameters.code ?? "");
+    const signature = parsePythonFunctionSignature(code);
+    if (signature.error) {
+      setMessage(`模板保存失败：${signature.error}`);
+      return;
+    }
+    const label = templateName.trim() || signature.functionName;
+    const existing = personalTemplates.find((template) => template.label === label);
+    const template: CustomNodeTemplate = {
+      id: existing?.id ?? `personal-${Date.now()}`,
+      label,
+      description: `个人模板 · ${signature.inputPorts.length} 输入 / ${signature.outputPorts.length} 输出`,
+      code,
+    };
+    setPersonalTemplates((current) => [...current.filter((item) => item.id !== template.id), template]);
+    setTemplateName("");
+    setMessage(`已保存个人模板“${label}”`);
+  };
+
+  const deletePersonalTemplate = (id: string, label: string) => {
+    setPersonalTemplates((current) => current.filter((template) => template.id !== id));
+    setMessage(`已删除个人模板“${label}”`);
   };
 
   const downloadText = (text: string, name: string, type: string) => {
@@ -321,160 +2045,1355 @@ function FlowEditor() {
     URL.revokeObjectURL(url);
   };
 
-  const saveWorkflow = () => {
-    const json = JSON.stringify(serializeWorkflow("PyDroid Flow 工作流", nodes, edges), null, 2);
-    downloadText(json, "pydroid-flow.workflow.json", "application/json");
-    setMessage("工作流 JSON 已导出");
+  const exportSettings = () => {
+    const settings = { themeMode, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    downloadText(JSON.stringify({ kind: "pydroid-flow.settings", schemaVersion: 1, settings }, null, 2), "pydroid-flow.settings.json", "application/json");
+    setMessage("设置已导出；为安全起见不包含 AI API Key");
   };
 
-  const importWorkflow = async (event: ChangeEvent<HTMLInputElement>) => {
+  const importSettings = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
     try {
-      const document = parseWorkflow(await file.text());
-      pushHistory();
-      setNodes(document.nodes.map((node) => ({ ...node, type: "workflow", data: { ...node.data, status: "idle" } })));
-      setEdges(document.edges);
-      setSelectedId(null);
-      setResult(null);
-      setMessage(`已导入流程“${document.name}”`);
+      const payload = JSON.parse(await file.text()) as { kind?: string; schemaVersion?: number; settings?: unknown };
+      if (payload.kind !== "pydroid-flow.settings" || payload.schemaVersion !== 1 || !payload.settings || typeof payload.settings !== "object") throw new Error("不是受支持的 PyDroid Flow 设置文件");
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload.settings));
+      const imported = loadAppSettings();
+      setThemeMode(imported.themeMode);
+      setPaletteWidth(imported.paletteWidth);
+      setInspectorWidth(imported.inspectorWidth);
+      setInspectorHeight(imported.inspectorHeight);
+      setResultHeight(imported.resultHeight);
+      setNodeScale(imported.nodeScale);
+      setEndpointScale(imported.endpointScale);
+      setEdgeWidth(imported.edgeWidth);
+      setShowNodeInsights(imported.showNodeInsights);
+      setDebugMode(imported.debugMode);
+      setMiniMapMode(imported.miniMapMode);
+      setLayoutMode(imported.layoutMode);
+      setSmbConnection((current) => ({ ...current, server: imported.smb.server, share: imported.smb.share, domain: imported.smb.domain, username: imported.smb.username }));
+      setSmbRememberPassword(imported.smb.rememberPassword);
+      setSmbGuest(imported.smb.guest);
+      setAgentSettings(imported.agent);
+      setLanguage(imported.agent.language);
+      refreshVisibleNodeGeometry();
+      setMessage("设置已导入并应用；AI API Key 保留当前设备中的加密值");
     } catch (error) {
-      setMessage(error instanceof Error ? `导入失败：${error.message}` : "工作流导入失败");
+      setMessage(error instanceof Error ? `设置导入失败：${error.message}` : "设置导入失败");
     } finally {
       event.target.value = "";
     }
   };
 
-  const chooseCsv = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setFileName(file.name);
-    setCsvText(await file.text());
-    setResult(null);
-    setMessage(`已载入 ${file.name}`);
-  };
-
-  const runPrototype = async () => {
-    if (!csvText) {
-      fileInput.current?.click();
-      setMessage("请先选择 CSV 文件");
+  const exportCurrentTemplate = () => {
+    if (!selectedNode || selectedNode.data.nodeType !== "custom.python_function") return;
+    const code = String(selectedNode.data.parameters.code ?? "");
+    const signature = parsePythonFunctionSignature(code);
+    if (signature.error) {
+      setMessage(`模板导出失败：${signature.error}`);
       return;
     }
-    setMessage("正在执行 Python 工作流…");
-    setResult(null);
-    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
+    const label = templateName.trim() || signature.functionName;
+    const template: CustomNodeTemplate = {
+      id: `shared-${signature.functionName}`,
+      label,
+      description: `PyDroid Flow 自定义节点 · ${signature.inputPorts.length} 输入 / ${signature.outputPorts.length} 输出`,
+      code,
+    };
+    downloadText(JSON.stringify(serializeCustomNodeTemplate(template), null, 2), `${signature.functionName}.pydroid-node.json`, "application/json");
+    setMessage(`已导出模板“${label}”`);
+  };
+
+  const importCustomTemplate = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
     try {
-      const nextResult = await executeWorkflow(nodes, edges, csvText);
-      setResult(nextResult);
-      setMessage(`执行完成：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
-      setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "success" } })));
+      const imported = parseCustomNodeTemplate(await file.text());
+      const template = {
+        ...imported,
+        id: `personal-${Date.now()}`,
+      };
+      setPersonalTemplates((current) => [...current.filter((item) => item.id !== template.id), template]);
+      setMessage(`已导入个人模板“${template.label}”`);
     } catch (error) {
-      if (error instanceof WorkflowExecutionError) {
-        setSelectedId(error.nodeId);
-        setMessage(`${error.nodeType}：${error.message}`);
-        setNodes((current) => current.map((node) => ({
-          ...node,
-          data: { ...node.data, status: node.id === error.nodeId ? "error" : "idle" },
-        })));
-      } else {
-        setMessage(error instanceof Error ? error.message : "执行失败");
-        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "error" } })));
-      }
+      setMessage(error instanceof Error ? `模板导入失败：${error.message}` : "模板导入失败");
+    } finally {
+      event.target.value = "";
     }
   };
 
+  const openNotebookView = () => {
+    if (!nodes.length) {
+      setNotebookCells([]);
+      setNotebookMetadata({});
+      setNotebookError(null);
+      setViewMode("notebook");
+      setMessage("当前是空白流程，Notebook 中没有残留单元格");
+      return;
+    }
+    const expanded = flattenWorkflowGroups(nodes, edges);
+    setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements));
+    setNotebookCellResults({});
+    setNotebookMetadata(workflowNotebookMetadata(nodes));
+    setNotebookError(null);
+    setViewMode("notebook");
+    setMessage("已按 setup、节点和连线拆分为 Jupyter 单元格；每个节点可独立编辑");
+  };
+
+  const applyNotebook = () => {
+    try {
+      const source = joinNotebookCells(notebookCells);
+      const document = source.includes("# %% [node]")
+        ? parseWorkflowNotebook(source)
+        : notebookCellsToWorkflow("Jupyter 单元格工作流", notebookCells, notebookMetadata);
+      pushHistory();
+      setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+        const hydrated = hydrateNodeDefaults(node);
+        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
+      }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
+      setEdges(document.edges);
+      setRequirements(document.requirements ?? []);
+      setSelectedId(null);
+      setSelectedIds([]);
+      setCurrentCanvasId(null);
+      setResult(null);
+      setNotebookError(null);
+      setMessage(`已从 Notebook 应用 ${document.nodes.length} 个节点和 ${document.edges.length} 条连线；未识别代码以无损单元格节点保留`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Notebook 解析失败";
+      setNotebookError(message);
+      setMessage(`Notebook 应用失败：${message}`);
+    }
+  };
+
+  const runNotebook = async (throughIndex?: number) => {
+    if (notebookRunningCell !== null) return;
+    const lastIndex = throughIndex ?? notebookCells.length - 1;
+    const cells = notebookCells.slice(0, lastIndex + 1);
+    if (!cells.some((cell) => cell.cellType === "code" && cell.source.trim())) { setNotebookError("没有可运行的代码单元格"); return; }
+    setNotebookRunningCell(throughIndex ?? "all");
+    setNotebookError(null);
+    setExecutionError(null);
+    setErrorDetailOpen(false);
+    try {
+      const document = notebookCellsToWorkflow("Notebook 交互运行", cells, notebookMetadata);
+      const inputFiles = csvFiles.map((file) => ({ name: file.name, text: new TextDecoder("utf-8").decode(file.bytes) }));
+      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles);
+      setResult(nextResult);
+      setNotebookCellResults((current) => ({ ...current, ...Object.fromEntries(cells.map((cell, index) => [cell.id, nextResult.nodeResults[`notebook-cell-${index + 1}`]]).filter((entry): entry is [string, NodeExecutionPreview] => Boolean(entry[1]))) }));
+      setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
+      setMessage(throughIndex === undefined ? `Notebook 已运行 ${cells.filter((cell) => cell.cellType === "code").length} 个代码单元格` : `已运行到第 ${throughIndex + 1} 个单元格`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Notebook 运行失败";
+      const nodeId = error instanceof WorkflowExecutionError ? error.nodeId : undefined;
+      const cellNumber = nodeId?.match(/notebook-cell-(\d+)/)?.[1];
+      const message = `${cellNumber ? `第 ${cellNumber} 个单元格：` : ""}${detail}`;
+      setNotebookError(message);
+      setExecutionError({ title: "Notebook 运行失败", message, nodeId, nodeType: error instanceof WorkflowExecutionError ? error.nodeType : undefined });
+    } finally { setNotebookRunningCell(null); }
+  };
+
+  const importNotebook = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const imported = parseJupyterNotebook(await file.text());
+      setNotebookCells(imported.cells);
+      setNotebookCellResults({});
+      setNotebookMetadata(imported.metadata);
+      const source = joinNotebookCells(imported.cells);
+      const analyses = source.includes("# %% [node]") ? [] : await analyzeNotebook(serializeJupyterNotebookCells(imported.name, imported.cells, imported.metadata));
+      const document = source.includes("# %% [node]") ? parseWorkflowNotebook(source, imported.name)
+        : analyses.some((analysis) => analysis.recognized)
+          ? analyzedNotebookToWorkflow(imported.name, imported.cells, analyses, imported.metadata)
+          : notebookCellsToWorkflow(imported.name, imported.cells, imported.metadata);
+      pushHistory();
+      setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+        const hydrated = hydrateNodeDefaults(node);
+        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
+      }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
+      setEdges(document.edges);
+      setRequirements(document.requirements ?? []);
+      setSelectedId(null);
+      setSelectedIds([]);
+      setCurrentCanvasId(null);
+      setResult(null);
+      setNotebookError(null);
+      setViewMode("nodes");
+      const recognizedCount = analyses.filter((analysis) => analysis.recognized).length;
+      setMessage(source.includes("# %% [node]")
+        ? `已自动识别并恢复 ${document.nodes.length} 个功能节点`
+        : `已转换 ${imported.cells.length} 个 Jupyter 单元格：识别 ${recognizedCount} 个功能节点，其余以无损代码/Markdown 节点保留`);
+    } catch (error) {
+      setMessage(error instanceof Error ? `Jupyter 导入失败：${error.message}` : "Jupyter 导入失败");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const newWorkflow = () => {
+    if ((nodes.length || edges.length) && !window.confirm("新建流程会清空当前画布；未导出的修改仍可通过撤销恢复。继续吗？")) return;
+    pushHistory();
+    setNodes([]);
+    setEdges([]);
+    setRequirements([]);
+    setSelectedId(null);
+    setSelectedIds([]);
+    setCurrentCanvasId(null);
+    setResult(null);
+    setViewMode("nodes");
+    setNotebookCells([]);
+    setNotebookCellResults({});
+    setNotebookMetadata({});
+    setNotebookError(null);
+    setExecutionError(null);
+    setErrorDetailOpen(false);
+    setMessage("已新建空白流程");
+  };
+
+  const addPackageRequirement = () => {
+    const requirement = packageRequirement.trim();
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[A-Za-z0-9_,.-]+\])?(?:(?:==|>=|<=|~=|>|<)[A-Za-z0-9.*+!_-]+)?$/.test(requirement)) {
+      setMessage("依赖格式无效；例如 scipy==1.12.0 或 openpyxl>=3.1");
+      return;
+    }
+    const packageName = requirement.split(/[<>=~![]/, 1)[0].toLocaleLowerCase();
+    if (BUNDLED_PACKAGES.some((item) => item.name === packageName)) {
+      setMessage(`${packageName} 已由应用内置，无需重复添加`);
+      return;
+    }
+    setRequirements((current) => [...current.filter((item) => item.split(/[<>=~![]/, 1)[0].toLocaleLowerCase() !== packageName), requirement]);
+    setPackageRequirement("");
+    setMessage(`已将 ${requirement} 加入工作流依赖清单`);
+  };
+
+  const openPackageManager = async () => {
+    setPackageManagerOpen(true);
+    setEnvironmentLoading(true);
+    try {
+      setPythonEnvironment(await getPythonEnvironment());
+    } catch (error) {
+      setMessage(error instanceof Error ? `读取 Python 环境失败：${error.message}` : "读取 Python 环境失败");
+    } finally {
+      setEnvironmentLoading(false);
+    }
+  };
+
+  const copyPipCommand = async () => {
+    const command = requirements.length ? `python -m pip install ${requirements.join(" ")}` : "# 当前没有额外依赖";
+    try {
+      await navigator.clipboard.writeText(command);
+      setMessage("pip 命令已复制");
+    } catch {
+      setMessage(command);
+    }
+  };
+
+  const saveWorkflow = () => {
+    const json = JSON.stringify(serializeWorkflow("PyDroid Flow 工作流", nodes, edges, requirements), null, 2);
+    downloadText(json, "pydroid-flow.workflow.json", "application/json");
+    const entry: FlowLibraryEntry = { id: `flow-${Date.now()}`, name: `流程 ${new Date().toLocaleString()}`, savedAt: new Date().toISOString(), document: json };
+    setFlowLibrary((current) => [entry, ...current].slice(0, 40));
+    void saveUserProfileFile(`workflows/${entry.id}.workflow.json`, json);
+    setMessage("工作流 JSON 已导出");
+  };
+
+  const openLibraryFlow = (entry: FlowLibraryEntry) => {
+    try {
+      const document = parseWorkflow(entry.document);
+      pushHistory();
+      const nextNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => ({ ...hydrateNodeDefaults(node), type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrateNodeDefaults(node).data, status: "idle" as const } })), document.edges);
+      setNodes(nextNodes);
+      window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
+      setEdges(document.edges);
+      setRequirements(document.requirements ?? []);
+      setSelectedId(null); setSelectedIds([]); setCurrentCanvasId(null); setResult(null);
+      setMessage(`已打开流程“${entry.name}”`);
+    } catch { setMessage("流程库条目已损坏，无法打开"); }
+  };
+
+  const dropPaletteResource = (resource: PaletteResource, clientX: number, clientY: number) => {
+    if (resource.kind === "node") {
+      if (getNodeSpec(resource.id)) addNodeFromCatalog(resource.id, paletteDropPosition(resource.id, clientX, clientY));
+      return;
+    }
+    if (resource.kind === "saved-node") {
+      const template = savedNodeLibrary.find((entry) => entry.id === resource.id);
+      if (template) insertSavedNode(template);
+      return;
+    }
+    if (resource.kind === "group") {
+      const template = groupLibrary.find((entry) => entry.id === resource.id);
+      if (template) insertGroupTemplate(template, reactFlow.screenToFlowPosition({ x: clientX, y: clientY }));
+      return;
+    }
+    const flow = flowLibrary.find((entry) => entry.id === resource.id);
+    if (flow) openLibraryFlow(flow);
+  };
+
+  const openFlowMenu = (entry: FlowLibraryEntry, x: number, y: number) => {
+    setFlowMenu({ entryId: entry.id, x, y });
+  };
+
+  const clearFlowLongPress = () => {
+    if (flowLongPressTimer.current !== null) window.clearTimeout(flowLongPressTimer.current);
+    flowLongPressTimer.current = null;
+  };
+
+  const startFlowLongPress = (event: ReactPointerEvent<HTMLButtonElement>, entry: FlowLibraryEntry) => {
+    if (event.pointerType === "mouse") return;
+    clearFlowLongPress();
+    flowLongPressHandled.current = false;
+    flowLongPressTimer.current = window.setTimeout(() => {
+      flowLongPressHandled.current = true;
+      openFlowMenu(entry, Math.min(event.clientX, window.innerWidth - 210), Math.min(event.clientY, window.innerHeight - 250));
+      navigator.vibrate?.(12);
+    }, 520);
+  };
+
+  const beginRenameFlow = (entry: FlowLibraryEntry) => {
+    setFlowMenu(null);
+    if (entry.locked) { setMessage("该流程已锁定，请先解除锁定"); return; }
+    setRenameFlow(entry);
+    setRenameFlowValue(entry.name.replace(/\.workflow\.json$/i, "").replace(/\.json$/i, ""));
+  };
+
+  const confirmRenameFlow = async () => {
+    if (!renameFlow) return;
+    const name = renameFlowValue.trim();
+    if (!name || /[\\/]/.test(name)) { setMessage("流程名称不能为空，且不能包含斜杠"); return; }
+    try {
+      let nextName = name;
+      let nextUri = renameFlow.uri;
+      if (renameFlow.external && renameFlow.uri) {
+        const extension = /\.workflow\.json$/i.test(renameFlow.name) ? ".workflow.json" : /\.json$/i.test(renameFlow.name) ? ".json" : ".workflow.json";
+        const renamed = await renameWorkflowFile(renameFlow.uri, `${name}${extension}`);
+        nextName = renamed.name;
+        nextUri = renamed.uri;
+      }
+      setFlowLibrary((current) => current.map((entry) => entry.id === renameFlow.id ? { ...entry, name: nextName, uri: nextUri, id: nextUri && entry.external ? `external-${nextUri}` : entry.id } : entry));
+      setRenameFlow(null);
+      setMessage(`已重命名流程为“${nextName}”`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "无法重命名流程"); }
+  };
+
+  const deleteFlow = async (entry: FlowLibraryEntry) => {
+    setFlowMenu(null);
+    if (entry.locked) { setMessage("该流程已锁定，请先解除锁定"); return; }
+    if (!window.confirm(`删除流程“${entry.name}”？此操作无法恢复。`)) return;
+    try {
+      if (entry.external && entry.uri) await deleteWorkflowFile(entry.uri);
+      setFlowLibrary((current) => current.filter((item) => item.id !== entry.id));
+      setMessage(`已删除流程“${entry.name}”`);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "无法删除流程"); }
+  };
+
+  const toggleFlowLock = (entry: FlowLibraryEntry) => {
+    setFlowMenu(null);
+    setFlowLibrary((current) => current.map((item) => item.id === entry.id ? { ...item, locked: !item.locked } : item));
+    setMessage(entry.locked ? `已解除流程“${entry.name}”的锁定` : `已锁定流程“${entry.name}”，不会允许改名或删除`);
+  };
+
+  const jumpToWorkflowFolder = async () => {
+    setFlowMenu(null);
+    try {
+      if (!userProfile?.workspaceUri) { await configureWorkflowFolder(); return; }
+      await openWorkflowFolder();
+      setMessage("已在文件管理器中打开用户流程文件夹");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "无法打开用户流程文件夹"); }
+  };
+
+  const configureWorkflowFolder = async () => {
+    try {
+      setUserProfile(await chooseWorkflowFolder());
+      await refreshExternalWorkflowLibrary();
+      setMessage("已连接用户流程文件夹；“流程”抽屉会自动扫描其中的 JSON 工作流");
+    } catch (error) { setMessage(error instanceof Error ? error.message : "未设置流程文件夹"); }
+  };
+
+  const loadWorkflowFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      if (file.name.toLocaleLowerCase().endsWith(".ipynb")) {
+        const imported = parseJupyterNotebook(text);
+        const source = joinNotebookCells(imported.cells);
+        const analyses = source.includes("# %% [node]") ? [] : await analyzeNotebook(serializeJupyterNotebookCells(imported.name, imported.cells, imported.metadata));
+        const document = source.includes("# %% [node]") ? parseWorkflowNotebook(source, imported.name)
+          : analyses.some((analysis) => analysis.recognized)
+            ? analyzedNotebookToWorkflow(imported.name, imported.cells, analyses, imported.metadata)
+            : notebookCellsToWorkflow(imported.name, imported.cells, imported.metadata);
+        pushHistory();
+        setNotebookCells(imported.cells);
+        setNotebookMetadata(imported.metadata);
+        setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+          const hydrated = hydrateNodeDefaults(node);
+          return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
+        }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
+        setEdges(document.edges);
+        setRequirements(document.requirements ?? []);
+        setSelectedId(null);
+        setSelectedIds([]);
+        setCurrentCanvasId(null);
+        setResult(null);
+        setViewMode("nodes");
+        const recognizedCount = analyses.filter((analysis) => analysis.recognized).length;
+        setMessage(source.includes("# %% [node]")
+          ? `已从 Jupyter 自动恢复 ${document.nodes.length} 个功能节点`
+          : `已转换 ${imported.cells.length} 个单元格：识别 ${recognizedCount} 个功能节点，其余无损保留`);
+        return;
+      }
+      const document = parseWorkflow(text);
+      pushHistory();
+      setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+        const hydrated = hydrateNodeDefaults(node);
+        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
+      }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
+      setEdges(document.edges);
+      setRequirements(document.requirements ?? []);
+      setSelectedId(null);
+      setSelectedIds([]);
+      setCurrentCanvasId(null);
+      setResult(null);
+      setMessage(`已导入流程“${document.name}”`);
+    } catch (error) {
+      setMessage(error instanceof Error ? `导入失败：${error.message}` : "工作流导入失败");
+    }
+  };
+
+  const importWorkflow = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) await loadWorkflowFile(file);
+    event.target.value = "";
+  };
+
+  const loadCsvSelection = async (selectedFiles: File[]) => {
+    const loaded = await Promise.all(selectedFiles.filter((file) => /\.(csv|tsv|txt|dat|json|png|jpe?g)$/i.test(file.name) || /^(text|image)\//.test(file.type)).map(async (file) => ({ name: file.webkitRelativePath || file.name, bytes: new Uint8Array(await file.arrayBuffer()) })));
+    if (!loaded.length) {
+      setMessage("所选位置没有受支持的数据文件");
+      return;
+    }
+    const [{ name, bytes }] = loaded;
+    setCsvFiles(loaded);
+    setFileName(loaded.length === 1 ? name : `${loaded.length} 个文件`);
+    setCsvBytes(bytes);
+    setCsvText(new TextDecoder("utf-8").decode(bytes));
+    setResult(null);
+    setMessage(`已载入 ${loaded.length} 个文件：${loaded.map((file) => file.name).join("、")}`);
+  };
+
+  const applyPickedCsvFiles = (loaded: Array<{ name: string; bytes: Uint8Array }>, source: string) => {
+    if (!loaded.length) { setMessage(`${source}中没有可读取的数据文件`); return; }
+    const [{ name, bytes }] = loaded;
+    setCsvFiles(loaded); setFileName(loaded.length === 1 ? name : `${loaded.length} 个文件`);
+    setCsvBytes(bytes); setCsvText(new TextDecoder("utf-8").decode(bytes)); setResult(null);
+    setMessage(`已从${source}载入 ${loaded.length} 个文件`);
+  };
+
+  const effectiveSmbConnection = (): SmbConnection => smbGuest
+    ? { ...smbConnection, domain: "", username: "", password: "" }
+    : smbConnection;
+
+  const browseSmb = async (path = smbPath) => {
+    setSmbLoading(true); setSmbError(null);
+    try { setSmbEntries(await listSmbDirectory(effectiveSmbConnection(), path)); setSmbPath(path); setSmbSelected([]); }
+    catch (error) { setSmbError(readableError(error, "无法访问 SMB，请检查共享名、凭据和访问权限")); }
+    finally { setSmbLoading(false); }
+  };
+
+  const scanConfiguredSmb = async () => {
+    setSmbLoading(true); setSmbError(null);
+    try {
+      const shares = await scanSmbShares(effectiveSmbConnection());
+      setSmbScannedShares(shares);
+      setSmbServers((current) => current.map((server) => server.address === smbConnection.server ? { ...server, shares } : server));
+      if (!smbConnection.share && shares.length === 1) setSmbConnection((current) => ({ ...current, share: shares[0] }));
+      setMessage(`已发现 ${shares.length} 个 SMB 共享`);
+    } catch (error) { setSmbError(readableError(error, smbGuest ? "访客访问被服务器拒绝，请改用账号登录" : "无法读取共享，请检查账号和密码")); }
+    finally { setSmbLoading(false); }
+  };
+
+  const discoverConfiguredSmb = async () => {
+    setSmbLoading(true); setSmbError(null); setSmbServers([]);
+    try {
+      const servers = await discoverSmbServers();
+      setSmbServers(servers);
+      setMessage(servers.length ? `已发现 ${servers.length} 台提供 SMB 的设备` : "当前网络没有发现开放 SMB 端口的设备");
+    } catch (error) { setSmbError(readableError(error, "无法扫描局域网 SMB 设备")); }
+    finally { setSmbLoading(false); }
+  };
+
+  const importSmbSelection = async (allInFolder = false) => {
+    const paths = allInFolder ? smbEntries.filter((entry) => !entry.directory).map((entry) => entry.path) : smbSelected;
+    if (!paths.length) { setSmbError("请选择数据文件，或使用“导入当前文件夹”"); return; }
+    setSmbLoading(true); setSmbError(null);
+    try { const files = await readSmbCsvFiles(effectiveSmbConnection(), paths); applyPickedCsvFiles(files, "SMB"); setSmbOpen(false); }
+    catch (error) { setSmbError(readableError(error, "无法读取 SMB 文件")); }
+    finally { setSmbLoading(false); }
+  };
+
+  const chooseCsv = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = [...(event.target.files ?? [])];
+    if (!selectedFiles.length) return;
+    await loadCsvSelection(selectedFiles);
+    event.target.value = "";
+  };
+
+  const handleFileDrop = async (event: ReactDragEvent<HTMLDivElement>) => {
+    if (!event.dataTransfer.types.includes("Files")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const files = [...event.dataTransfer.files];
+    const workflow = files.find((file) => /\.ipynb$/i.test(file.name) || /(?:workflow|pydroid).*\.json$/i.test(file.name));
+    if (workflow) await loadWorkflowFile(workflow);
+    const dataFiles = files.filter((file) => file !== workflow);
+    if (dataFiles.length) await loadCsvSelection(dataFiles);
+    if (!dataFiles.length && !workflow) setMessage("可拖入 CSV、TXT、DAT、JSON、图片、工作流 JSON 或 Jupyter 文件");
+  };
+
+  const toggleRemoteServer = async () => {
+    if (!remoteServer) { setRemoteAccessDialog(true); return; }
+    try {
+      await stopRemoteServer();
+      setRemoteServer(null);
+      setMessage("局域网网页服务已关闭");
+    } catch (error) {
+      setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务关闭失败");
+    }
+  };
+
+  const startConfiguredRemoteServer = async () => {
+    try {
+      const info = await startRemoteServer(remoteRequirePin);
+      setRemoteServer(info);
+      setRemoteAccessDialog(false);
+      setMessage(info.requiresPin ? "局域网网页服务已开启；请告知电脑端四位校验码" : "局域网网页服务已开启；当前不要求校验码");
+    } catch (error) {
+      setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务启动失败");
+    }
+  };
+
+  const submitRemotePin = async () => {
+    if (!/^\d{4}$/.test(remotePinInput)) { setRemoteAccessError("请输入四位数字校验码"); return; }
+    try {
+      await pairRemoteRuntime(remotePinInput);
+      setRemotePaired(true);
+      setRemoteAccessError(null);
+      setMessage("已连接 Android 计算服务");
+    } catch (error) {
+      setRemoteAccessError(error instanceof Error ? error.message : "校验失败");
+    }
+  };
+
+  const copyRemoteUrl = async () => {
+    if (!remoteServer) return;
+    try {
+      await navigator.clipboard.writeText(remoteServer.url);
+      setMessage("网页访问地址已复制；请确保电脑与手机在同一局域网");
+    } catch {
+      setMessage(`请在电脑浏览器打开：${remoteServer.url}`);
+    }
+  };
+
+  const chooseCsvSource = async (mode: "files" | "files_external" | "directory" | "directory_external") => {
+    try {
+      const nativeFiles = await pickCsvFiles(mode);
+      if (nativeFiles) {
+      const loaded = nativeFiles;
+      if (!loaded.length) {
+        setMessage(mode.startsWith("directory") ? "文件夹中没有受支持的数据文件，或已取消选择" : "未选择数据文件");
+        return;
+      }
+      setCsvFiles(loaded);
+      setFileName(loaded.length === 1 ? loaded[0].name : `${loaded.length} 个文件`);
+      setCsvBytes(loaded[0].bytes);
+      setCsvText(new TextDecoder().decode(loaded[0].bytes));
+      setResult(null);
+      setMessage(`已载入 ${loaded.length} 个文件：${loaded.map((file) => file.name).join("、")}`);
+        return;
+      }
+      (mode.startsWith("directory") ? directoryInput : fileInput).current?.click();
+    } catch (error) {
+      setMessage(error instanceof Error ? `选择文件失败：${error.message}` : "选择文件失败");
+    }
+  };
+
+  const submitInputDialog = async () => {
+    if (!inputDialogNode) return;
+    const kind = String(inputDialogNode.data.parameters.inputKind ?? "text");
+    if (kind === "number" && !Number.isFinite(Number(inputDialogValue))) {
+      setMessage("请输入有效数值");
+      return;
+    }
+    const context = interactiveRunContext.current ?? { nodes, edges, completed: new Set<string>() };
+    const nextNodes = context.nodes.map((node) => node.id === inputDialogNode.id ? { ...node, data: { ...node.data, parameters: { ...node.data.parameters, value: inputDialogValue } } } : node);
+    const completed = new Set(context.completed).add(inputDialogNode.id);
+    setNodes(nextNodes);
+    setInputDialogNode(null);
+    await runPrototype(nextNodes, context.edges, completed);
+  };
+
+  const submitAlertDialog = async (response: boolean | null) => {
+    if (!alertDialogNode) return;
+    const context = interactiveRunContext.current ?? { nodes, edges, completed: new Set<string>() };
+    const nextNodes = context.nodes.map((node) => node.id === alertDialogNode.id ? { ...node, data: { ...node.data, parameters: { ...node.data.parameters, response } } } : node);
+    const completed = new Set(context.completed).add(alertDialogNode.id);
+    setNodes(nextNodes);
+    setAlertDialogNode(null);
+    await runPrototype(nextNodes, context.edges, completed);
+  };
+
+  async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string) {
+    if (isRunningRef.current) return;
+    const fullOrder = nodesInExecutionOrder(workflowNodes, workflowEdges);
+    const stopAt = requestedStopAt ?? (debugMode ? fullOrder.find((node) => debugBreakpoints.has(node.id))?.id : undefined);
+    if (stopAt) {
+      const included = new Set<string>([stopAt]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const edge of workflowEdges) if (included.has(edge.target) && !included.has(edge.source)) { included.add(edge.source); changed = true; }
+      }
+      for (const node of workflowNodes) if ((node.parentId && included.has(node.parentId)) || (node.data.canvasParentId && included.has(node.data.canvasParentId))) included.add(node.id);
+      workflowNodes = workflowNodes.filter((node) => included.has(node.id));
+      workflowEdges = workflowEdges.filter((edge) => included.has(edge.source) && included.has(edge.target));
+    }
+    const interactiveNode = nodesInExecutionOrder(workflowNodes, workflowEdges).find((node) =>
+      ["ui.input_dialog", "ui.alert"].includes(node.data.nodeType) && !completedInteractiveNodes.has(node.id));
+    if (interactiveNode) {
+      interactiveRunContext.current = { nodes: workflowNodes, edges: workflowEdges, completed: completedInteractiveNodes };
+      if (interactiveNode.data.nodeType === "ui.input_dialog") {
+        setInputDialogNode(interactiveNode);
+        setInputDialogValue(String(interactiveNode.data.parameters.value ?? ""));
+      } else {
+        setAlertDialogNode(interactiveNode);
+      }
+      return;
+    }
+    const requiresFiles = workflowNodes.some((node) => ["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(node.data.nodeType));
+    if (requiresFiles && !csvText && !csvBytes && !csvFiles.length) {
+      void chooseCsvSource(workflowNodes.some((node) => node.data.nodeType === "io.read_csv_batch") ? "files" : "files");
+      setMessage("请先选择数据文件");
+      return;
+    }
+    isRunningRef.current = true;
+    const runStartedAt = performance.now();
+    setIsRunning(true);
+    setMessage("正在执行 Python 工作流…");
+    setExecutionError(null);
+    setErrorDetailOpen(false);
+    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
+    try {
+      let effectiveCsvText = csvText;
+      let effectiveInputFiles: Array<{ name: string; text: string; base64?: string }> = [];
+      if (csvBytes) {
+        const reader = workflowNodes.find((node) => ["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json"].includes(node.data.nodeType));
+        const requestedEncoding = String(reader?.data.parameters.encoding ?? "utf-8");
+        const encoding = requestedEncoding === "utf-8-sig" ? "utf-8" : requestedEncoding;
+        const errors = String(reader?.data.parameters.encodingErrors ?? "strict");
+        effectiveCsvText = reader ? new TextDecoder(encoding, { fatal: errors === "strict" }).decode(csvBytes) : "";
+        if (errors === "ignore") effectiveCsvText = effectiveCsvText.replaceAll("�", "");
+        effectiveInputFiles = csvFiles.map((file) => {
+          let text = "";
+          try { text = new TextDecoder(encoding, { fatal: errors === "strict" }).decode(file.bytes); } catch { if (reader) throw new Error(`${file.name} 无法按 ${encoding} 解码`); }
+          if (errors === "ignore") text = text.replaceAll("�", "");
+          return { name: file.name, text, base64: bytesToBase64(file.bytes) };
+        });
+      }
+      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles);
+      setResult(nextResult);
+      setExecutionError(null);
+      setDebugPausedAt(stopAt ?? null);
+      setMessage(stopAt ? `调试已暂停在 ${nodes.find((node) => node.id === stopAt)?.data.label ?? stopAt}` : `执行完成：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
+      const completed = new Set(nextResult.executionOrder ?? workflowNodes.map((node) => node.id));
+      setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: completed.has(node.id) ? "success" : "idle" } })));
+    } catch (error) {
+      if (error instanceof WorkflowExecutionError) {
+        const failingNodeExists = nodes.some((node) => node.id === error.nodeId);
+        if (failingNodeExists) setSelectedId(error.nodeId);
+        setMessage(`${error.nodeType}：${error.message}`);
+        setExecutionError({ title: failingNodeExists ? "节点执行失败" : "工作流执行失败", message: error.message, nodeId: failingNodeExists ? error.nodeId : undefined, nodeType: error.nodeType, traceback: error.details?.debugTraceback });
+        const partialResults = error.details?.nodeResults ?? {};
+        const partialPreview = error.details?.preview;
+        if (partialPreview || Object.keys(partialResults).length) setResult({ status: "success", preview: partialPreview ?? { columns: [], rows: [], totalRows: 0, totalColumns: 0 }, plotPngBase64: null, exportCsv: null, exports: [], nodeResults: partialResults, nodeTimingsMs: error.details?.nodeTimingsMs, executionOrder: error.details?.executionOrder });
+        const completed = new Set(error.details?.executionOrder ?? []);
+        setNodes((current) => current.map((node) => ({
+          ...node,
+          data: { ...node.data, status: node.id === error.nodeId ? "error" : completed.has(node.id) ? "success" : "idle" },
+        })));
+      } else {
+        const detail = error instanceof Error ? error.message : "执行失败";
+        setMessage(detail);
+        setExecutionError({ title: "工作流执行失败", message: detail });
+        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+      }
+    } finally {
+      setLastRunDurationMs(performance.now() - runStartedAt);
+      isRunningRef.current = false;
+      setIsRunning(false);
+    }
+  }
+
+  const requestPlanFromAgent = async () => {
+    setAgentRequesting(true);
+    try {
+      const nextPlan = await requestAgentPlan(agentSettings, agentApiKey, agentInstruction, NODE_CATALOG.map((spec) => ({
+        nodeType: spec.nodeType,
+        label: spec.label,
+        description: spec.description,
+        parameters: spec.parameters.map((parameter) => ({ key: parameter.key, kind: parameter.kind, required: parameter.required })),
+        inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
+        outputPorts: spec.outputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
+      })), {
+        nodes: nodes.map((node) => ({ id: node.id, label: node.data.label, nodeType: node.data.nodeType, parentId: node.parentId ?? node.data.canvasParentId, branch: node.data.branch, parameterKeys: nodeSpecFor(node)?.parameters.map((parameter) => parameter.key) ?? [], inputs: nodeSpecFor(node)?.inputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [], outputs: nodeSpecFor(node)?.outputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [] })),
+        edges: edges.map((edge) => ({ source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle ?? "output", targetHandle: edge.targetHandle ?? "input" })),
+      });
+      setAgentPlanText(JSON.stringify(nextPlan, null, 2));
+      setAgentPlan(nextPlan);
+      setAgentPlanError(null);
+      setMessage(`AI 已提出 ${nextPlan.operations.length} 项操作，等待你的确认`);
+    } catch (error) {
+      setAgentPlan(null);
+      setAgentPlanError(error instanceof Error ? error.message : "AI 请求失败");
+    } finally {
+      setAgentRequesting(false);
+    }
+  };
+
+  const testCurrentAgentConnection = async () => {
+    setAgentTesting(true);
+    setAgentConnectionStatus(null);
+    try {
+      const result = await testAgentConnection(agentSettings, agentApiKey);
+      setAgentConnectionStatus(result.message);
+    } catch (error) {
+      setAgentConnectionStatus(error instanceof Error ? error.message : "连接测试失败");
+    } finally {
+      setAgentTesting(false);
+    }
+  };
+
+  const selectAgentPreset = (presetId: string) => {
+    const preset = presetById(presetId);
+    setAgentSettings((current) => ({ ...current, presetId: preset.id, provider: preset.provider, endpoint: preset.endpoint, model: preset.models.includes(current.model) ? current.model : preset.models[0] ?? "" }));
+    setAgentConnectionStatus(null);
+  };
+
+  const reviewAgentPlan = () => {
+    try {
+      const nextPlan = parseAgentPlan(agentPlanText);
+      for (const operation of nextPlan.operations) {
+        const permission = agentPermissionFor(operation);
+        if (!agentSettings.permissions[permission]) throw new Error(`未授权 AI 执行：${permission}`);
+      }
+      setAgentPlan(nextPlan);
+      setAgentPlanError(null);
+      setMessage(`AI 计划已检查：${nextPlan.operations.length} 项操作等待确认`);
+    } catch (error) {
+      setAgentPlan(null);
+      setAgentPlanError(error instanceof Error ? error.message : "AI 计划无法解析");
+    }
+  };
+
+  const applyAgentPlan = async () => {
+    if (!agentPlan) return;
+    try {
+      let draftNodes = nodes.map((node) => ({ ...node, data: { ...node.data, parameters: { ...node.data.parameters } } }));
+      let draftEdges = edges.map((edge) => ({ ...edge }));
+      let runRequested = false;
+      let requestedDirection: "horizontal" | "vertical" | null = null;
+      for (const operation of agentPlan.operations) {
+        const permission = agentPermissionFor(operation);
+        if (!agentSettings.permissions[permission]) throw new Error(`未授权 AI 执行：${permission}`);
+        if (operation.type === "add_node") {
+          if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(operation.id)) throw new Error(`节点 ID 不安全：${operation.id}`);
+          if (draftNodes.some((node) => node.id === operation.id)) throw new Error(`节点 ID 已存在：${operation.id}`);
+          const spec = getNodeSpec(operation.nodeType);
+          if (!spec) throw new Error(`未知节点类型：${operation.nodeType}`);
+          const parameters = operation.parameters ?? {};
+          for (const [key, value] of Object.entries(parameters)) {
+            if (!spec.parameters.some((parameter) => parameter.key === key) || !isAgentValue(value)) throw new Error(`节点 ${operation.id} 的参数无效：${key}`);
+          }
+          const x = Number.isFinite(operation.x) ? Math.max(-10000, Math.min(10000, Number(operation.x))) : 80 + (draftNodes.length % 5) * 210;
+          const y = Number.isFinite(operation.y) ? Math.max(-10000, Math.min(10000, Number(operation.y))) : 80 + Math.floor(draftNodes.length / 5) * 140;
+          const node = createNode(operation.id, operation.nodeType, x, y, parameters);
+          node.data.canvasParentId = currentCanvasId ?? undefined;
+          draftNodes.push(node);
+        } else if (operation.type === "set_parameter") {
+          if (!isAgentValue(operation.value)) throw new Error(`参数值无效：${operation.key}`);
+          const nodeIndex = draftNodes.findIndex((node) => node.id === operation.nodeId);
+          if (nodeIndex < 0) throw new Error(`找不到节点：${operation.nodeId}`);
+          const spec = nodeSpecFor(draftNodes[nodeIndex]);
+          if (!spec?.parameters.some((parameter) => parameter.key === operation.key)) throw new Error(`节点 ${operation.nodeId} 不支持参数：${operation.key}`);
+          draftNodes[nodeIndex] = { ...draftNodes[nodeIndex], data: { ...draftNodes[nodeIndex].data, parameters: { ...draftNodes[nodeIndex].data.parameters, [operation.key]: operation.value } } };
+        } else if (operation.type === "connect") {
+          const source = draftNodes.find((node) => node.id === operation.source);
+          const target = draftNodes.find((node) => node.id === operation.target);
+          if (!source || !target) throw new Error(`连线节点不存在：${operation.source} → ${operation.target}`);
+          const connection: Connection = { source: operation.source, target: operation.target, sourceHandle: operation.sourceHandle ?? "output", targetHandle: operation.targetHandle ?? "input" };
+          const sourcePort = nodeSpecFor(source)?.outputPorts.find((port) => port.id === connection.sourceHandle);
+          const targetSpec = nodeSpecFor(target);
+          const targetPort = targetSpec?.inputPorts.find((port) => port.id === connection.targetHandle);
+          const loopBack = ["logic.for_each_subflow", "logic.while_subflow"].includes(target.data.nodeType) && connection.targetHandle === "continue";
+          if (!sourcePort || !targetPort || !areValueTypesCompatible(sourcePort.valueType, targetPort.valueType) || (createsCycle(connection, draftEdges) && !loopBack)) throw new Error(`不兼容或循环连线：${operation.source} → ${operation.target}`);
+          const multiInput = (targetSpec?.inputPorts.length ?? 1) > 1;
+          draftEdges = addEdge(connection, draftEdges.filter((edge) => edge.target !== operation.target || (multiInput && edge.targetHandle !== connection.targetHandle)));
+        } else if (operation.type === "disconnect") {
+          const before = draftEdges.length;
+          draftEdges = draftEdges.filter((edge) => operation.nodeId ? edge.source !== operation.nodeId && edge.target !== operation.nodeId : !((!operation.source || edge.source === operation.source) && (!operation.target || edge.target === operation.target)));
+          if (draftEdges.length === before) throw new Error("没有找到 AI 要断开的连线");
+        } else if (operation.type === "group_nodes") {
+          if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(operation.id) || draftNodes.some((node) => node.id === operation.id)) throw new Error(`组合 ID 无效或已存在：${operation.id}`);
+          const memberIds = new Set(operation.nodeIds);
+          const members = draftNodes.filter((node) => memberIds.has(node.id));
+          if (members.length < 2 || members.length !== memberIds.size) throw new Error("组合至少需要两个存在的节点");
+          const parentIds = new Set(members.map((node) => node.data.canvasParentId ?? null));
+          if (parentIds.size !== 1) throw new Error("组合成员必须位于同一画布层级");
+          const incoming = draftEdges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
+          const outgoing = draftEdges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
+          const groupInputs = incoming.map((edge, index) => { const target = draftNodes.find((node) => node.id === edge.target); const port = nodeSpecFor(target)?.inputPorts.find((item) => item.id === (edge.targetHandle ?? "input")); return { id: `input-${index + 1}`, label: port?.label || `输入 ${index + 1}`, valueType: port?.valueType ?? "any" as const, internalNodeId: edge.target, internalHandle: edge.targetHandle }; });
+          const groupOutputs = outgoing.map((edge, index) => { const source = draftNodes.find((node) => node.id === edge.source); const port = nodeSpecFor(source)?.outputPorts.find((item) => item.id === (edge.sourceHandle ?? "output")); return { id: `output-${index + 1}`, label: port?.label || `输出 ${index + 1}`, valueType: port?.valueType ?? "any" as const, internalNodeId: edge.source, internalHandle: edge.sourceHandle }; });
+          draftNodes = [...draftNodes.map((node) => memberIds.has(node.id) ? { ...node, selected: false, data: { ...node.data, canvasParentId: operation.id } } : node), { id: operation.id, type: "workflow", position: { x: Math.min(...members.map((node) => node.position.x)), y: Math.min(...members.map((node) => node.position.y)) }, data: { label: operation.label.trim() || "AI 组合", nodeType: "workflow.group", nodeVersion: 1, status: "idle", parameters: { description: "由 AI 使用基础节点组成" }, canvasParentId: members[0].data.canvasParentId, groupInputs, groupOutputs } }];
+          draftEdges = draftEdges.map((edge) => { const inputIndex = incoming.findIndex((item) => item.id === edge.id); if (inputIndex >= 0) return { ...edge, target: operation.id, targetHandle: groupInputs[inputIndex].id }; const outputIndex = outgoing.findIndex((item) => item.id === edge.id); if (outputIndex >= 0) return { ...edge, source: operation.id, sourceHandle: groupOutputs[outputIndex].id }; return edge; });
+        } else if (operation.type === "arrange") {
+          requestedDirection = operation.direction;
+        } else if (operation.type === "delete_node") {
+          const removed = new Set<string>([operation.nodeId]);
+          if (!draftNodes.some((node) => node.id === operation.nodeId)) throw new Error(`找不到节点：${operation.nodeId}`);
+          for (let changed = true; changed;) {
+            changed = false;
+            for (const node of draftNodes) if ((node.parentId && removed.has(node.parentId) || node.data.canvasParentId && removed.has(node.data.canvasParentId)) && !removed.has(node.id)) { removed.add(node.id); changed = true; }
+          }
+          draftNodes = draftNodes.filter((node) => !removed.has(node.id));
+          draftEdges = draftEdges.filter((edge) => !removed.has(edge.source) && !removed.has(edge.target));
+        } else if (operation.type === "run_workflow") {
+          runRequested = true;
+        }
+      }
+      if (requestedDirection) {
+        const layer = draftNodes.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId);
+        const arranged = new Map(compactNodeLayout(layer, viewportWidth, requestedDirection, draftEdges).map((node) => [node.id, node]));
+        draftNodes = arrangeStructureChildren(draftNodes.map((node) => arranged.get(node.id) ?? node), requestedDirection);
+        setLayoutMode(requestedDirection);
+      }
+      pushHistory();
+      setNodes(draftNodes);
+      setEdges(draftEdges);
+      setSelectedId(null);
+      setSelectedIds([]);
+      setResult(null);
+      setAgentAudit((current) => [{ at: new Date().toISOString(), summary: agentPlan.summary, result: `已应用 ${agentPlan.operations.length} 项操作${runRequested ? "，并请求运行" : ""}` }, ...current].slice(0, 30));
+      setMessage(`AI 计划已应用：${agentPlan.operations.length} 项操作`);
+      if (runRequested) await runPrototype(draftNodes, draftEdges);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "AI 计划应用失败";
+      setAgentPlanError(detail);
+      setAgentAudit((current) => [{ at: new Date().toISOString(), summary: agentPlan.summary, result: `已拒绝：${detail}` }, ...current].slice(0, 30));
+    }
+  };
+
+  const renderParameterFields = (parameters: ParameterSpec[]) => parameters.map((parameter) => (
+    <ParameterField
+      key={parameter.key}
+      spec={parameter}
+      value={selectedNode?.data.parameters[parameter.key] ?? selectedSpec?.defaults[parameter.key]}
+      onChange={(value) => updateParameter(parameter.key, value)}
+      onExpand={parameter.key === "code" ? () => setCodeEditorOpen(true) : undefined}
+    />
+  ));
+  const basicParameters = selectedSpec?.parameters.filter((parameter) => !parameter.advanced) ?? [];
+  const advancedParameters = selectedSpec?.parameters.filter((parameter) => parameter.advanced) ?? [];
+  const rememberedParameterCount = selectedSpec?.parameters.filter((parameter) => parameter.rememberDefault).length ?? 0;
+  const resultPanel = result ? (
+    <section className={`result-panel ${resultDock === "bottom" ? "result-panel--bottom" : ""}`}>
+      {resultDock === "bottom" && <div className="result-resizer" role="separator" aria-orientation="horizontal" aria-label="调整底部结果区高度" onPointerDown={startResultResize} />}
+      <div className="result-panel__heading">
+        <h3>结果预览</h3>
+        <div className="result-actions">
+          <label><input type="checkbox" checked={livePreview} onChange={(event) => setLivePreview(event.target.checked)} />实时预览</label>
+          <div className="result-dock-switch" role="group" aria-label="结果区域位置">
+            <button className={resultDock === "right" ? "active" : ""} title="结果显示在参数栏右侧" aria-label="结果显示在右侧" onClick={() => { setResultDock("right"); setInspectorCollapsed(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+            <button className={resultDock === "bottom" ? "active" : ""} title="结果显示在画布底部" aria-label="结果显示在底部" onClick={() => setResultDock("bottom")}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></svg></button>
+          </div>
+          {(result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : []).map((item) => <button className="download-link" key={item.nodeId} onClick={() => downloadText(item.content, item.fileName, "text/csv;charset=utf-8")}>下载 {item.fileName}</button>)}
+        </div>
+      </div>
+      <p className="result-summary">{result.preview.totalRows} 行 × {result.preview.totalColumns} 列</p>
+      {Object.entries(result.nodeResults).filter(([nodeId]) => nodes.find((node) => node.id === nodeId)?.data.nodeType === "python.print").length > 0 && <section className="print-results" aria-label="打印结果"><strong>打印结果</strong>{Object.entries(result.nodeResults).filter(([nodeId]) => nodes.find((node) => node.id === nodeId)?.data.nodeType === "python.print").map(([nodeId, preview]) => <article key={nodeId}><span>{nodes.find((node) => node.id === nodeId)?.data.label ?? "打印输出"}</span><code>{preview.kind === "value" ? preview.text : ""}</code></article>)}</section>}
+      <div className="result-content">
+        <DataGrid preview={result.preview} onExpand={() => setResultDetail({ title: "工作流结果", text: JSON.stringify(result.preview, null, 2), preview: result.preview })} />
+        {result.plotPngBase64 && <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpanded(true); }}><img className="plot-preview" src={`data:image/png;base64,${result.plotPngBase64}`} alt="Python 绘图结果；点击放大" /></button>}
+      </div>
+    </section>
+  ) : null;
+  const workspaceStyle = {
+    "--inspector-width": `${inspectorWidth}px`,
+    "--inspector-height": `${inspectorHeight}px`,
+    "--palette-width": `${paletteWidth}px`,
+    "--result-height": `${resultHeight}px`,
+    "--edge-width": `${edgeWidth}px`,
+  } as CSSProperties;
+
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme}
+      onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
+      onDrop={(event) => void handleFileDrop(event)}>
       <header className="topbar">
-        <div className="brand"><strong>PyDroid Flow</strong><span>节点式 Python 数据处理</span></div>
+        <div className="brand"><strong>PyDroid Flow</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式 Python 数据处理"}</span></div>
         <div className="topbar__actions">
-          <input ref={fileInput} className="file-input" type="file" accept=".csv,text/csv,text/plain" onChange={chooseCsv} />
-          <input ref={workflowInput} className="file-input" type="file" accept=".json,application/json" onChange={importWorkflow} />
-          <button className="button secondary compact" disabled={history.current.length === 0} onClick={undo}>撤销</button>
-          <button className="button secondary compact" disabled={future.current.length === 0} onClick={redo}>重做</button>
-          <button className="button secondary" onClick={() => fileInput.current?.click()}>{fileName ?? "选择 CSV"}</button>
-          <button className="button secondary optional-action" onClick={() => workflowInput.current?.click()}>导入流程</button>
-          <button className="button secondary optional-action" onClick={saveWorkflow}>保存流程</button>
-          <button className="button primary" onClick={runPrototype}>运行</button>
+          <input ref={fileInput} className="file-input" type="file" accept=".csv,.tsv,.txt,.dat,.json,.png,.jpg,.jpeg,text/*,application/json,image/*" multiple onChange={chooseCsv} />
+          <input ref={(element) => { directoryInput.current = element; if (element) { element.setAttribute("webkitdirectory", ""); element.setAttribute("directory", ""); } }} className="file-input" type="file" multiple onChange={chooseCsv} />
+          <input ref={workflowInput} className="file-input" type="file" accept=".json,.ipynb,application/json,application/x-ipynb+json" onChange={importWorkflow} />
+          <input ref={notebookInput} className="file-input" type="file" accept=".ipynb,application/x-ipynb+json,application/json" onChange={importNotebook} />
+          <input ref={templateInput} className="file-input" type="file" accept=".json,application/json" onChange={importCustomTemplate} />
+          <input ref={settingsInput} className="file-input" type="file" accept=".json,application/json" onChange={importSettings} />
+          <button className="button secondary icon-button" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={history.current.length === 0} onClick={undo}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5" /><path d="M4 12h9a7 7 0 0 1 7 7" /></svg>
+          </button>
+          <button className="button secondary icon-button" title="重做（Ctrl+Y）" aria-label="重做" disabled={future.current.length === 0} onClick={redo}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M20 12h-9a7 7 0 0 0-7 7" /></svg>
+          </button>
+          <button className="button secondary icon-button" title="AI Agent" aria-label="AI Agent" onClick={() => setAgentPanelOpen(true)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.5 5.3L19 10l-5.5 1.7L12 17l-1.5-5.3L5 10l5.5-1.7L12 3Z" /><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z" /></svg>
+          </button>
+          <button className="button secondary icon-button" title="设置" aria-label="设置" onClick={() => setSettingsOpen(true)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14" /><circle cx="9" cy="6" r="1.7" /><circle cx="15" cy="12" r="1.7" /><circle cx="11" cy="18" r="1.7" /></svg>
+          </button>
+          {canHostRemoteServer() && <button className={`button ${remoteServer ? "primary" : "secondary"} icon-button optional-action`} title={remoteServer ? "关闭局域网网页服务" : "开启局域网网页服务：其他设备通过浏览器操作，本机完成计算"} aria-label={remoteServer ? "关闭局域网网页服务" : "开启局域网网页服务"} onClick={() => void toggleRemoteServer()}>
+            <svg className="airdrop-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2" /><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4" /><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6" /></svg>
+          </button>}
+          <button className="button secondary icon-button" title="Python 包管理" aria-label="Python 包管理" onClick={() => void openPackageManager()}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z" /><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z" /><path d="M12 12v9" /></svg>
+          </button>
+          <i className="topbar-divider" aria-hidden="true" />
+          <button className="button secondary optional-action" onClick={newWorkflow}>新建</button>
+          <button className="button secondary optional-action" onClick={() => workflowInput.current?.click()}>导入</button>
+          <button className="button secondary optional-action" onClick={saveWorkflow}>保存</button>
+          <button className="button primary topbar-run" disabled={isRunning} onClick={() => runPrototype()}>{isRunning ? "运行中…" : "运行"}</button>
         </div>
       </header>
 
-      <main className="workspace">
+      {remoteServer && <aside className="remote-server-banner" role="status"><strong>局域网计算服务已开启</strong><code>{remoteServer.url}</code><button onClick={() => void copyRemoteUrl()}>复制地址</button><span>{remoteServer.requiresPin ? `网页端输入校验码：${remoteServer.pin}` : "访问设备与本机需在同一局域网；当前无需校验码。"}</span></aside>}
+
+      <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
         <aside className="node-palette">
-          <h2>节点</h2>
-          {[...catalogGroups.entries()].map(([category, specs]) => (
-            <section className="palette-group" key={category}>
-              <h3>{category}</h3>
-              {specs.map((spec) => <button key={spec.nodeType} onClick={() => addNodeFromCatalog(spec.nodeType)}>＋ {spec.label}</button>)}
-            </section>
-          ))}
+          <div className="sidebar-resizer sidebar-resizer--palette" role="separator" aria-orientation="vertical" aria-label="调整节点列表宽度" onPointerDown={(event) => startSidebarResize("palette", event)} />
+          <div className="palette-fixed">
+            <div className="palette-heading"><h2>资源</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>收起</button></div>
+            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span aria-hidden="true">◆</span>节点</button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span aria-hidden="true">⧉</span>组合</button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span aria-hidden="true">◇</span>流程</button></nav>
+            <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder="搜索内置或导入节点" /><span>{matchedCatalog.length}</span></label>
+          </div>
+          <div className="palette-content">
+            {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length}</small></h3>{savedNodeLibrary.map((entry) => { const resource: PaletteResource = { kind: "saved-node", id: entry.id, label: entry.name }; return <button draggable key={entry.id} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "saved-node", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onClick={() => insertSavedNode(entry)} title="加入保存的节点与参数"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
+            {[...catalogGroups.entries()].map(([category, specs]) => (
+              <section className="palette-group" key={category}>
+                <h3>{category}</h3>
+                {specs.map((spec) => { const resource: PaletteResource = { kind: "node", id: spec.nodeType, label: spec.label }; return <button draggable key={spec.nodeType} title={`按住后拖到画布添加 · ${spec.pythonCallable ?? spec.nodeType}${spec.description ? ` · ${spec.description}` : ""}`} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={() => setPaletteDragPreview(null)} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "catalog-node", entryId: spec.nodeType, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag}>⠿ <strong>{spec.label}</strong>{nodeSearch && <small>{spec.pythonCallable ?? spec.nodeType}</small>}</button>; })}
+              </section>
+            ))}
+            {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
+            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "group", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onClick={() => insertGroupTemplate(entry)} title={entry.description || "拖到画布加入完整组合并保留内部连线"}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small><span className="group-resource-tooltip">{entry.description || "可编辑、可复用的节点组合"}</span></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); openFlowMenu(entry, event.clientX, event.clientY); }} onPointerDown={(event) => { startFlowLongPress(event, entry); onPalettePointerDown(event, resource); }} onPointerMove={onPalettePointerMove} onPointerUp={(event) => { clearFlowLongPress(); onPalettePointerUp(event); }} onPointerCancel={() => { clearFlowLongPress(); clearPaletteDrag(); }} onPointerLeave={clearFlowLongPress} onClick={() => { if (flowLongPressHandled.current) { flowLongPressHandled.current = false; return; } openLibraryFlow(entry); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
+          </div>
         </aside>
 
-        <section className="canvas-panel">
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
+        <section
+          className="canvas-panel"
+          onPointerDownCapture={onCanvasPointerDown}
+          onPointerMoveCapture={onCanvasPointerMove}
+          onPointerUpCapture={clearLongPress}
+          onPointerCancelCapture={clearLongPress}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
+          onDrop={onCanvasDrop}
+        >
+          {viewMode === "nodes" ? <NodeLayoutContext.Provider value={resolvedLayoutDirection}><NodeAppearanceContext.Provider value={{ nodeScale, endpointScale }}><NodeSelectionContext.Provider value={{ active: selectionMode, toggle: toggleNodeSelection, remove: (nodeId) => deleteNodes([nodeId]) }}><NodeInsightContext.Provider value={{ visible: showNodeInsights, results: result?.nodeResults ?? {} }}><EdgeActionsContext.Provider value={{ disconnect: (ids) => disconnectEdges(ids) }}><ReactFlow
+            nodes={visibleNodes}
+            edges={visibleEdges}
             nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
+            edgeTypes={edgeTypes}
+            onNodesChange={onWorkflowNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            edgesReconnectable={finePointer}
+            onReconnectStart={() => { reconnectSucceeded.current = false; setMessage("拖动连线端点到空白处可断开，拖到其他兼容端口可改接"); }}
+            onReconnect={onReconnect}
+            onReconnectEnd={(_event, edge, _handleType, connectionState) => { if (!reconnectSucceeded.current && !connectionState.toNode) disconnectEdges([edge.id]); reconnectSucceeded.current = false; }}
+            onEdgeDoubleClick={(event, edge) => { event.preventDefault(); event.stopPropagation(); disconnectEdges([edge.id]); }}
+            onEdgeContextMenu={(event, edge) => { event.preventDefault(); setEdges((current) => current.map((item) => ({ ...item, selected: item.id === edge.id }))); setMessage("已选中连线；按 Delete / Backspace 断开，或双击直接断开"); }}
+            connectionLineType={ConnectionLineType.Bezier}
+            defaultEdgeOptions={{ type: "default" }}
+            isValidConnection={isValidConnection}
+            onError={(code, detail) => setMessage(`画布连线提示 ${code}：${detail}`)}
             onNodeDragStart={pushHistory}
-            onNodeClick={(_, node) => setSelectedId(node.id)}
-            onPaneClick={() => setSelectedId(null)}
+            onNodeDragStop={onNodeDragStop}
+            onNodeClick={(_, node) => {
+              if (suppressNextNodeClick.current) { suppressNextNodeClick.current = false; return; }
+              if (selectionMode) toggleNodeSelection(node.id); else setSelectedId(node.id);
+            }}
+            onNodeDoubleClick={(event, node) => { event.preventDefault(); openNodeMenu(node.id, event.clientX, event.clientY); }}
+            onSelectionChange={onSelectionChange}
+            onNodeContextMenu={(event, node) => {
+              event.preventDefault();
+              if (finePointer && node.selected && selectedIds.length > 1) openSelectionMenu(event.clientX, event.clientY);
+              else openNodeMenu(node.id, event.clientX, event.clientY);
+            }}
+            onSelectionContextMenu={(event, selected) => {
+              event.preventDefault();
+              const ids = selected.map((node) => node.id);
+              setSelectedIds(ids);
+              setSelectedId(ids.length === 1 ? ids[0] : null);
+              openSelectionMenu(event.clientX, event.clientY);
+            }}
+            onPaneContextMenu={(event) => {
+              if (!finePointer || !selectedIds.length) return;
+              event.preventDefault();
+              openSelectionMenu(event.clientX, event.clientY);
+            }}
+            onPaneClick={() => { if (!selectionMode) { setSelectedId(null); setSelectedIds([]); } }}
+            selectionOnDrag={finePointer && pointerMode === "mouse"}
+            panOnDrag={finePointer && pointerMode === "mouse" ? [1, 2] : true}
             deleteKeyCode={null}
+            proOptions={{ hideAttribution: true }}
             fitView
             minZoom={0.25}
           >
             <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} />
-            <MiniMap pannable zoomable />
+            {showMiniMap && <MiniMap pannable zoomable />}
             <Controls />
-          </ReactFlow>
+          </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
+            <header>
+              <div><strong>Python Notebook</strong><span>可运行的 pandas / NumPy / Matplotlib 代码 · # %% 单元格</span></div>
+              <div>
+                <button className="primary" disabled={notebookRunningCell !== null} onClick={() => void runNotebook()}>{notebookRunningCell === "all" ? "运行中…" : "▶ 运行全部"}</button>
+                <button onClick={() => notebookInput.current?.click()}>导入 .ipynb</button>
+                <button onClick={() => setNotebookCells((current) => [...current, { id: `cell-${Date.now()}`, cellType: "code", source: "# 新代码单元格\n" }])}>＋代码</button>
+                <button onClick={() => setNotebookCells((current) => [...current, { id: `cell-${Date.now()}`, cellType: "markdown", source: "## 新说明\n" }])}>＋文本</button>
+                <button onClick={() => { const expanded = flattenWorkflowGroups(nodes, edges); setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements)); setNotebookMetadata({}); }}>从节点刷新</button>
+                <button onClick={() => downloadText(serializeJupyterNotebookCells("PyDroid Flow 工作流", notebookCells, notebookMetadata), "pydroid-flow.ipynb", "application/x-ipynb+json")}>导出 .ipynb</button>
+                <button className="primary" onClick={applyNotebook}>应用到节点视图</button>
+              </div>
+            </header>
+            {notebookError && <p className="notebook-error">{notebookError}</p>}
+            <div className="notebook-cells">
+              {notebookCells.map((cell, index) => <div className={`notebook-cell notebook-cell--${cell.cellType}`} key={cell.id}>
+                <div className="notebook-prompt"><span>{cell.cellType === "code" ? `In [${cell.executionCount ?? " "}]` : "文本"}</span>{cell.cellType === "code" && <button className="notebook-run-cell" title="运行到此单元格" disabled={notebookRunningCell !== null} onClick={() => void runNotebook(index)}>{notebookRunningCell === index ? "…" : "▶"}</button>}<button title="切换代码/文本单元格" onClick={() => setNotebookCells((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, cellType: item.cellType === "code" ? "markdown" : "code" } : item))}>↔</button><button title="删除单元格" onClick={() => setNotebookCells((current) => current.filter((_, itemIndex) => itemIndex !== index))}>×</button></div>
+                <div className="notebook-cell__content"><NotebookEditor value={cell.source} rows={notebookCellRows(cell.source)} onChange={(source) => {
+                    setNotebookCells((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, source } : item));
+                    setNotebookCellResults((current) => { const next = { ...current }; delete next[cell.id]; return next; });
+                    setNotebookError(null);
+                  }} />{notebookCellResults[cell.id] && <div className="notebook-cell__output"><span>Out [{cell.executionCount ?? " "}]</span>{(() => { const preview = notebookCellResults[cell.id]; return preview.kind === "table" ? <DataGrid preview={preview.preview} /> : preview.kind === "plot" ? <img src={`data:image/png;base64,${preview.plotPngBase64}`} alt={`单元格 ${index + 1} 图形输出`}/> : <pre>{preview.text}</pre>; })()}</div>}</div>
+              </div>)}
+            </div>
+          </div>}
+          <nav className="canvas-toolbar" aria-label="画布工具">
+            <button className={viewMode === "nodes" ? "active" : ""} title="节点视图" aria-label="节点视图" onClick={() => setViewMode("nodes")}>⌘</button>
+            <button className={viewMode === "notebook" ? "active canvas-toolbar__code" : "canvas-toolbar__code"} title="Notebook 代码视图" aria-label="Notebook 代码视图" onClick={openNotebookView}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16"/></svg></button>
+            {viewMode === "nodes" && <><i /><button className={`canvas-toolbar__labeled ${selectionMode ? "active" : ""}`} title="选择多个节点并折叠为可复用子流程" onClick={createSubflowGroup}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="7" rx="2"/><rect x="14" y="13" width="7" height="7" rx="2"/><path d="M10 7.5h4M17.5 13v-2a3.5 3.5 0 0 0-3.5-3.5"/></svg><span>{selectionMode ? `完成组合 · ${selectedIds.length}` : "组合"}</span></button>{selectionMode && selectedIds.length === 1 && (selectedNode?.data.nodeType === "workflow.group" ? <button className="canvas-toolbar__labeled" title="保存当前组合资源" onClick={saveSelectedGroupToLibrary}><span>保存组合</span></button> : <button className="canvas-toolbar__labeled" title="保存当前节点及参数" onClick={saveSelectedNodeToLibrary}><span>保存节点</span></button>)}{selectionMode && <button className="canvas-toolbar__labeled" title="退出多选" onClick={() => { setSelectionMode(false); setNodes((current) => current.map((node) => ({ ...node, selected: false }))); setSelectedIds([]); }}><span>取消</span></button>}<button className="canvas-toolbar__labeled" title="按屏幕宽度自动整理节点" aria-label="整理布局" onClick={arrangeNodes}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="7" height="6" rx="1" /><rect x="14" y="4" width="7" height="6" rx="1" /><rect x="3" y="14" width="7" height="6" rx="1" /><rect x="14" y="14" width="7" height="6" rx="1" /></svg><span>整理</span>
+            </button>
+            <button className={`canvas-toolbar__labeled ${showNodeInsights ? "active" : ""}`} title={showNodeInsights ? "隐藏节点上方的运行结果" : "显示节点上方的运行结果"} aria-label={showNodeInsights ? "隐藏节点结果" : "显示节点结果"} onClick={() => setShowNodeInsights((visible) => !visible)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" /><circle cx="12" cy="12" r="2.7" />{!showNodeInsights && <path d="m4 4 16 16" />}</svg><span>结果</span>
+            </button><div className="canvas-menu">
+            <button className="canvas-toolbar__labeled canvas-menu__trigger" title="点击切换自动、横向、纵向布局方向" aria-label="切换布局方向" onClick={cycleLayoutMode}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={resolvedLayoutDirection === "vertical" ? "M12 3v18m-4-4 4 4 4-4" : "M3 12h18m-4-4 4 4-4 4"} /></svg><span>{layoutMode === "auto" ? "自动" : layoutMode === "vertical" ? "纵向" : "横向"}</span>
+            </button>
+            </div>
+            <button className={`canvas-toolbar__labeled ${showMiniMap ? "active" : ""}`} title="切换缩略图显示方式" onClick={() => setMiniMapMode((mode) => mode === "auto" ? "show" : mode === "show" ? "hide" : "auto")}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m6 15 3-3 2 2 4-5 3 4" /></svg><span>缩略图</span></button></>}
+          </nav>
+          {viewMode === "nodes" && currentCanvasId && <nav className="canvas-breadcrumb" aria-label="画布层级"><button onClick={() => leaveSubflowGroup(null)}>← 返回主流程</button>{canvasTrail.map((group, index) => <span key={group.id}>› <button className={index === canvasTrail.length - 1 ? "active" : ""} onClick={() => leaveSubflowGroup(group.id)}>{group.data.label}</button></span>)}</nav>}
+          {paletteDragPreview && <div className={`palette-drag-preview palette-drag-preview--${paletteDragPreview.kind} ${paletteDragPreview.overCanvas ? "over-canvas" : ""}`} style={{ left: paletteDragPreview.x, top: paletteDragPreview.y }}><span>{paletteDragPreview.kind === "group" ? "⧉" : paletteDragPreview.kind === "flow" ? "◇" : "◆"}</span><div><strong>{paletteDragPreview.label}</strong><small>{paletteDragPreview.overCanvas ? "松开放置" : "拖到画布"}</small></div></div>}
+          {viewMode === "nodes" && currentCanvasId && (() => { const group = nodes.find((node) => node.id === currentCanvasId); return group ? <aside className="group-interface"><span>输入 {(group.data.groupInputs ?? []).map((port) => <b key={port.id}>{port.label} → {nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId}</b>)}</span><span>输出 {(group.data.groupOutputs ?? []).map((port) => <b key={port.id}>{nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId} → {port.label}</b>)}</span></aside> : null; })()}
+          {paletteCollapsed && <button className="palette-toggle" onClick={() => setPaletteCollapsed(false)}>显示节点</button>}
+          {inspectorCollapsed && <button className="inspector-toggle" onClick={() => setInspectorCollapsed(false)}>显示参数</button>}
+          {contextMenu && (
+            <div
+              className="context-menu"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+              role="menu"
+              aria-label="节点操作"
+              onContextMenu={(event) => event.preventDefault()}
+            >
+              <strong>{nodes.find((node) => node.id === contextMenu.nodeId)?.data.label ?? "节点"}</strong>
+              <button onClick={() => { setContextMenu(null); setInspectorCollapsed(false); document.querySelector<HTMLElement>(".inspector")?.focus(); }}>编辑参数</button>
+              {selectedNode?.data.nodeType === "workflow.group" && <button onClick={() => openSubflowGroup(selectedNode.id)}>打开子流程</button>}
+              {selectedNode?.data.nodeType === "workflow.group" && <button onClick={() => { saveSelectedGroupToLibrary(); setContextMenu(null); }}>保存为组合</button>}
+              {selectedNode?.data.nodeType === "workflow.group" && <button onClick={() => { dissolveSelectedGroup(); setContextMenu(null); }}>解除组合</button>}
+              {selectedNode?.data.nodeType !== "workflow.group" && <button onClick={() => { saveSelectedNodeToLibrary(); setContextMenu(null); }}>保存为我的节点</button>}
+              {selectedNode?.data.nodeType !== "workflow.group" && <button onClick={() => { duplicateSelectedNode(); setContextMenu(null); }}>复制节点</button>}
+              {selectedNode?.data.nodeType !== "workflow.group" && <button onClick={() => { setContextMenu(null); setReplacementOpen(true); setReplacementShowAll(false); setReplacementSearch(""); }}>替换功能…</button>}
+              <button onClick={() => { disconnectSelectedNode(); setContextMenu(null); }}>断开连线</button>
+              <button className="danger" onClick={() => { deleteSelectedNode(); setContextMenu(null); }}>删除节点</button>
+            </div>
+          )}
+          {selectionMenu && selectedIds.length > 0 && (
+            <div className="context-menu selection-context-menu" style={{ left: selectionMenu.x, top: selectionMenu.y }} role="menu" aria-label="所选节点操作" onContextMenu={(event) => event.preventDefault()}>
+              <strong>已选择 {selectedIds.length} 个节点</strong>
+              {selectedIds.length >= 2 && <button onClick={() => { setSelectionMenu(null); createSubflowGroup(); }}>组合所选节点</button>}
+              <button onClick={() => { disconnectNodes(selectedIds); setSelectionMenu(null); }}>断开所选连线</button>
+              <button className="danger" onClick={() => { deleteNodes(selectedIds); setSelectionMenu(null); }}>删除所选节点 <kbd>Delete</kbd></button>
+              <button onClick={() => { setNodes((current) => current.map((node) => node.selected ? { ...node, selected: false } : node)); setSelectedIds([]); setSelectedId(null); setSelectionMenu(null); }}>取消选择 <kbd>Esc</kbd></button>
+            </div>
+          )}
+          {resourceMenu && (() => {
+            const catalog = resourceMenu.kind === "catalog-node" ? getNodeSpec(resourceMenu.entryId) : undefined;
+            const saved = resourceMenu.kind === "saved-node" ? savedNodeLibrary.find((item) => item.id === resourceMenu.entryId) : undefined;
+            const group = resourceMenu.kind === "group" ? groupLibrary.find((item) => item.id === resourceMenu.entryId) : undefined;
+            const label = catalog?.label ?? saved?.name ?? group?.name ?? "资源";
+            return <div className="context-menu resource-context-menu" style={{ left: Math.min(resourceMenu.x, window.innerWidth - 210), top: Math.min(resourceMenu.y, window.innerHeight - 240) }} role="menu" aria-label="资源操作" onContextMenu={(event) => event.preventDefault()}><strong>{label}</strong>
+              <button onClick={() => { if (catalog) addNodeFromCatalog(catalog.nodeType); else if (saved) insertSavedNode(saved); else if (group) insertGroupTemplate(group); setResourceMenu(null); }}>添加到画布</button>
+              {saved && <button onClick={() => { const name = window.prompt("节点名称", saved.name)?.trim(); if (name) setSavedNodeLibrary((current) => current.map((item) => item.id === saved.id ? { ...item, name } : item)); setResourceMenu(null); }}>重命名</button>}
+              {group && !group.builtIn && <button onClick={() => { const name = window.prompt("组合名称", group.name)?.trim(); if (name) setGroupLibrary((current) => current.map((item) => item.id === group.id ? { ...item, name, nodes: item.nodes.map((node) => node.data.nodeType === "workflow.group" ? { ...node, data: { ...node.data, label: name } } : node) } : item)); setResourceMenu(null); }}>重命名</button>}
+              {saved && <button className="danger" onClick={() => { setSavedNodeLibrary((current) => current.filter((item) => item.id !== saved.id)); setResourceMenu(null); }}>删除我的节点</button>}
+              {group && !group.builtIn && <button className="danger" onClick={() => { setGroupLibrary((current) => current.filter((item) => item.id !== group.id)); setResourceMenu(null); }}>删除组合</button>}
+            </div>;
+          })()}
+          {flowMenu && (() => {
+            const entry = flowLibrary.find((item) => item.id === flowMenu.entryId);
+            return entry ? <div className="context-menu flow-context-menu" style={{ left: flowMenu.x, top: flowMenu.y }} role="menu" aria-label="流程资源操作" onContextMenu={(event) => event.preventDefault()}><strong>◇ {entry.name}</strong><button onClick={() => beginRenameFlow(entry)} disabled={entry.locked}>重命名</button><button onClick={() => toggleFlowLock(entry)}>{entry.locked ? "解除锁定" : "锁定流程"}</button><button onClick={() => void jumpToWorkflowFolder()}>跳转到文件夹</button><button className="danger" disabled={entry.locked} onClick={() => void deleteFlow(entry)}>删除流程</button></div> : null;
+          })()}
+          {replacementOpen && selectedNode && <div className="replacement-backdrop" role="dialog" aria-modal="true" aria-label="替换节点功能">
+            <section className="replacement-panel">
+              <header><div><strong>替换“{selectedNode.data.label}”</strong><span>节点 ID、位置和同名参数保持不变；不兼容连线会明确移除。</span></div><button onClick={() => setReplacementOpen(false)}>×</button></header>
+              <div className="replacement-tools"><input autoFocus value={replacementSearch} onChange={(event) => setReplacementSearch(event.target.value)} placeholder="搜索节点名称、类型或标签" /><label><input type="checkbox" checked={replacementShowAll} onChange={(event) => setReplacementShowAll(event.target.checked)} />显示任意节点</label></div>
+              {!replacementShowAll && <p>默认仅显示输入、输出数量和数据类型兼容的节点。</p>}
+              <div className="replacement-list">{replacementCandidates.map((candidate) => <button key={candidate.nodeType} onClick={() => replaceSelectedNode(candidate.nodeType)}><strong>{candidate.label}</strong><span>{candidate.nodeType}</span><small>{candidate.inputPorts.map((port) => port.valueType).join(" + ") || "无输入"} → {candidate.outputPorts.map((port) => port.valueType).join(" + ") || "无输出"}</small></button>)}</div>
+            </section>
+          </div>}
         </section>
 
         <aside className="inspector">
+          <div className="sidebar-resizer sidebar-resizer--inspector" role="separator" aria-orientation="vertical" aria-label="调整参数列表宽度" onPointerDown={(event) => startSidebarResize("inspector", event)} />
+          <div className="inspector-scroll">
           <div className="inspector__heading">
             <h2>参数</h2>
-            {selectedNode && <div className="inspector__actions"><button className="download-link" onClick={duplicateSelectedNode}>复制</button><button className="danger-link" onClick={deleteSelectedNode}>删除</button></div>}
+            <div className="inspector__actions">
+              {selectedNode && <>{selectedNode.data.nodeType !== "workflow.group" && <button className="download-link" onClick={duplicateSelectedNode}>复制</button>}<button className="danger-link" onClick={deleteSelectedNode}>删除</button></>}
+              <button className="download-link" onClick={() => setInspectorCollapsed(true)}>收起</button>
+            </div>
           </div>
           {selectedNode ? (
             <>
               <div className="inspector__node-type">{selectedNode.data.nodeType}</div>
-              {selectedSpec ? selectedSpec.parameters.map((parameter) => (
-                <ParameterField
-                  key={parameter.key}
-                  spec={parameter}
-                  value={selectedNode.data.parameters[parameter.key]}
-                  onChange={(value) => updateParameter(parameter.key, value)}
-                />
-              )) : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
+              {selectedNodeResult && <section className="node-result-inspector" title="双击展开、编辑和复制" tabIndex={0} onDoubleClick={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined })}><h3>本节点结果 <small>双击展开</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpanded(true); }}><img className="plot-preview" src={`data:image/png;base64,${preview.plotPngBase64}`} alt="节点图表结果" /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
+              {selectedNode.data.nodeType === "workflow.group" && <section className="group-settings">
+                <label>组名称<input value={selectedNode.data.label} onChange={(event) => updateSelectedGroupLabel(event.target.value)} /></label>
+                <button className="primary" onClick={() => openSubflowGroup(selectedNode.id)}>进入子流程画布</button>
+                <div><strong>公开输入</strong>{(selectedNode.data.groupInputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("input", port.id, event.target.value)} /></label>)}</div>
+                <div><strong>公开输出</strong>{(selectedNode.data.groupOutputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("output", port.id, event.target.value)} /></label>)}</div>
+                <small>端口由组合时跨越组边界的连线自动生成；内部连线和节点参数在子画布中编辑。</small>
+              </section>}
+              {["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{selectedNode.data.nodeType === "io.read_csv_batch" ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
+              {selectedNode.data.nodeType !== "workflow.group" && selectedSpec?.pythonCallable && (
+                <div className="callable-signature">
+                  <strong>{selectedSpec.pythonCallable}(…)</strong>
+                  <span>{selectedSpec.parameters.length} 个可执行参数由函数签名清单生成</span>
+                  {selectedSpec.docsUrl && <a href={selectedSpec.docsUrl} target="_blank" rel="noreferrer">查看官方文档</a>}
+                  {selectedSpec.excludedSignatureParameters?.length ? <small>未生成：{selectedSpec.excludedSignatureParameters.join(", ")}（浏览器文件输入、返回迭代器或可执行回调与表格节点模型不兼容）</small> : null}
+                </div>
+              )}
+              <div className="node-organization">
+                <label>节点标签<input value={(selectedNode.data.tags ?? []).join(",")} placeholder="清洗,关键步骤" onChange={(event) => updateSelectedTags(event.target.value)} /></label>
+                <label>加入分组<span><input value={groupName} placeholder="我的常用" onChange={(event) => setGroupName(event.target.value)} /><button onClick={addSelectedToGroup}>加入</button></span></label>
+              </div>
+              {rememberedParameterCount > 0 && (
+                <div className="node-default-actions">
+                  <button onClick={saveSelectedDefaults}>保存为默认</button>
+                  <button onClick={clearSelectedDefaults}>恢复内置默认</button>
+                  <small>仅保存 {rememberedParameterCount} 项偏好参数；不会保存列名、筛选条件或数据字段。</small>
+                </div>
+              )}
+              {selectedNode.data.nodeType === "custom.python_function" && (
+                <section className="custom-templates">
+                  <span>函数模板</span>
+                  <div>
+                    {customTemplates.map((template) => (
+                      <span className="template-chip" key={template.id}>
+                        <button title={template.description} onClick={() => applyCustomTemplate(template.code, template.label)}>{template.label}</button>
+                        {template.id.startsWith("personal-") && <button className="template-chip__delete" title="删除个人模板" onClick={() => deletePersonalTemplate(template.id, template.label)}>×</button>}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="template-manager">
+                    <input value={templateName} placeholder="模板名称（可选）" onChange={(event) => setTemplateName(event.target.value)} />
+                    <button onClick={savePersonalTemplate}>保存</button>
+                    <button onClick={() => templateInput.current?.click()}>导入</button>
+                    <button onClick={exportCurrentTemplate}>导出</button>
+                  </div>
+                </section>
+              )}
+              {selectedSignature && !selectedSignature.error && (
+                <p className="signature-summary">
+                  <strong>{selectedSignature.functionName}</strong>
+                  <span>{selectedSignature.inputPorts.length} 输入 · {selectedSignature.parameters.length} 参数 · {selectedSignature.outputPorts.length} 输出</span>
+                </p>
+              )}
+              {selectedSpec ? <>
+                {renderParameterFields(basicParameters)}
+                {advancedParameters.length > 0 && <details className="advanced-parameters"><summary>高级参数 <span>{advancedParameters.length}</span></summary>{renderParameterFields(advancedParameters)}</details>}
+              </> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
                 <label className="field" key={key}><span>{key}</span><input value={String(value ?? "")} onChange={(event) => updateParameter(key, event.target.value)} /></label>
               ))}
+              {selectedSignatureError && <p className="validation-error">签名错误：{selectedSignatureError}</p>}
               {selectedSpec?.parameters.length === 0 && <p className="muted">此节点没有可配置参数。</p>}
             </>
           ) : <p className="muted">从左侧添加节点，或选择画布中的节点编辑参数。</p>}
-          <div className="run-status"><span>状态 · 自动保存已开启</span><p>{message}</p></div>
-          {result && (
-            <section className="result-panel">
-              <div className="result-panel__heading">
-                <h3>结果预览</h3>
-                {result.exportCsv && <button className="download-link" onClick={() => downloadText(result.exportCsv!, "result.csv", "text/csv;charset=utf-8")}>下载 CSV</button>}
-              </div>
-              <p className="result-summary">{result.preview.totalRows} 行 × {result.preview.totalColumns} 列</p>
-              <div className="table-scroll">
-                <table>
-                  <thead><tr>{result.preview.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
-                  <tbody>{result.preview.rows.slice(0, 8).map((row, rowIndex) => <tr key={rowIndex}>{row.map((value, columnIndex) => <td key={columnIndex}>{String(value ?? "")}</td>)}</tr>)}</tbody>
-                </table>
-              </div>
-              {result.plotPngBase64 && <img className="plot-preview" src={`data:image/png;base64,${result.plotPngBase64}`} alt="Python 绘图结果" />}
-            </section>
-          )}
+          {resultDock === "right" && resultPanel}
+          </div>
         </aside>
+        {resultDock === "bottom" && resultPanel}
       </main>
+      <footer className="app-statusbar" aria-label="运行状态">
+        <span title="每秒刷新一次的应用内存"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /><path d="M9 3v4m3-4v4m3-4v4M9 17v4m3-4v4m3-4v4M3 9h4m-4 3h4m-4 3h4m10-6h4m-4 3h4m-4 3h4" /></svg>内存 {memoryMb === null ? "不可用" : `${memoryMb.toFixed(1)} MB`}</span>
+        <span title="最近一次工作流执行耗时"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 13V8m0 5 3 2M9 3h6" /></svg>计算 {lastRunDurationMs === null ? "—" : lastRunDurationMs < 1000 ? `${Math.round(lastRunDurationMs)} ms` : `${(lastRunDurationMs / 1000).toFixed(2)} s`}</span>
+        <span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /><path d="m10 7 4 10" /></svg>节点 {nodes.length}</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="m7.5 7.5 9 9" /></svg>连线 {edges.length}</span>{executionError ? <button className="app-statusbar__error" onClick={() => setErrorDetailOpen(true)} title="点击查看完整错误">⚠ {message}</button> : <span className="app-statusbar__message">{message}</span>}
+        {debugMode && <button className="statusbar-debug" title="调试面板" aria-label="调试面板" onClick={() => setDebugOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9h8v7a4 4 0 0 1-8 0V9Z"/><path d="m9 6-2-2m8 2 2-2M5 11H2m3 4H2m17-4h3m-3 4h3M12 9V5"/></svg></button>}
+        <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
+      </footer>
+      {debugOpen && <div className="settings-backdrop debug-backdrop" role="dialog" aria-modal="true" aria-label="调试面板"><section className="debug-dialog"><header><div><strong>工作流调试</strong><span>断点、单步、运行到节点、耗时、部分结果与错误上下文</span></div><button onClick={() => setDebugOpen(false)}>×</button></header><div className="debug-summary"><span>节点 {nodes.length}</span><span>断点 {debugBreakpoints.size}</span><span>已完成 {result?.executionOrder?.length ?? 0}</span><span>{debugPausedAt ? `暂停：${nodes.find((node) => node.id === debugPausedAt)?.data.label ?? debugPausedAt}` : "未暂停"}</span></div><div className="debug-controls"><button onClick={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)}>从首节点单步</button><button disabled={!debugPausedAt} onClick={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }}>下一节点</button><button onClick={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }}>清除断点</button></div><ol>{nodesInExecutionOrder(nodes, edges).map((node, index) => <li className={node.id === debugPausedAt ? "paused" : ""} key={node.id}><b>{index + 1}</b><label><input type="checkbox" checked={debugBreakpoints.has(node.id)} onChange={() => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(node.id)) next.delete(node.id); else next.add(node.id); return next; })}/><code>{node.data.nodeType}</code><small>{node.data.label}</small></label><span>{result?.nodeTimingsMs?.[node.id]?.toFixed(2) ?? "—"} ms</span><button onClick={() => void runPrototype(nodes, edges, new Set(), node.id)}>运行到此</button></li>)}</ol>{executionError && <pre className="debug-error">{executionError.traceback || executionError.message}</pre>}<footer><button onClick={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements), null, 2))}>复制工作流 JSON</button><button onClick={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))}>复制运行快照</button></footer></section></div>}
+      {historyOpen && <div className="settings-backdrop history-backdrop" role="dialog" aria-modal="true" aria-label="历史记录">
+        <section className="history-dialog">
+          <header><div><strong>历史记录</strong><span>最多保留最近 50 个画布状态</span></div><button aria-label="关闭历史记录" onClick={() => setHistoryOpen(false)}>×</button></header>
+          <div className="history-toolbar"><button disabled={!history.current.length} onClick={undo}>撤销</button><button disabled={!future.current.length} onClick={redo}>重做</button><button className="danger-link" disabled={!history.current.length && !future.current.length} onClick={clearHistory}>清空</button></div>
+          <div className="history-list">{history.current.length ? historyMeta.current.map((entry, index) => ({ entry, index })).reverse().map(({ entry, index }) => <button key={entry.id} onClick={() => restoreHistoryAt(index)}><span>{entry.at.toLocaleTimeString()}</span><strong>{entry.summary}</strong><small>恢复到此状态</small></button>) : <p className="muted">尚无可恢复的编辑记录。</p>}</div>
+        </section>
+      </div>}
+      {smbOpen && <div className="settings-backdrop smb-backdrop" role="dialog" aria-modal="true" aria-label="内置 SMB 文件浏览器"><section className="smb-dialog">
+        <header><div><strong>局域网 SMB 文件选择</strong><span>选择设备和共享，登录后像文件管理器一样浏览文件</span></div><button aria-label="关闭 SMB 文件选择" onClick={() => setSmbOpen(false)}>×</button></header>
+        <section className="smb-discovery"><div className="smb-section-title"><div><strong>1 · 选择设备</strong><small>扫描设备会查找局域网中提供 SMB 服务的 IP；可读取的共享显示在设备卡片上。</small></div><button className="button secondary" disabled={smbLoading} onClick={() => void discoverConfiguredSmb()}>{smbLoading ? "正在扫描…" : "扫描设备"}</button></div><div className="smb-server-grid">{smbServers.map((server) => <button key={server.address} className={smbConnection.server === server.address ? "active" : ""} onClick={() => { setSmbConnection((current) => ({ ...current, server: server.address, share: server.shares?.length === 1 ? server.shares[0] : "" })); setSmbScannedShares(server.shares ?? []); setSmbEntries([]); setSmbPath(""); }}><span>▣</span><strong>{server.shares?.length ? server.shares.join("、") : "共享待登录后读取"}</strong><small>IP · {server.address}</small>{server.name !== server.address && <em>{server.name}</em>}</button>)}</div></section>
+        <section className="smb-login"><div className="smb-section-title"><div><strong>2 · 登录并选择共享</strong><small>访客登录不发送用户名和密码；若服务器不允许访客，请切换为账号登录。</small></div></div><div className="smb-connection"><label>服务器<input placeholder="192.168.1.10 或 NAS 名称" value={smbConnection.server} onChange={(event) => setSmbConnection((current) => ({ ...current, server: event.target.value }))} /></label><label>共享名<input list="smb-shares" placeholder="例如 data" value={smbConnection.share} onChange={(event) => setSmbConnection((current) => ({ ...current, share: event.target.value }))} /><datalist id="smb-shares">{smbScannedShares.map((share) => <option key={share} value={share} />)}</datalist></label><label className="smb-guest"><input type="checkbox" checked={smbGuest} onChange={(event) => { setSmbGuest(event.target.checked); if (event.target.checked) setSmbRememberPassword(false); }} />访客登录</label>{!smbGuest && <><label>域（可选）<input value={smbConnection.domain} onChange={(event) => setSmbConnection((current) => ({ ...current, domain: event.target.value }))} /></label><label>用户名<input autoComplete="username" value={smbConnection.username} onChange={(event) => setSmbConnection((current) => ({ ...current, username: event.target.value }))} /></label><label>密码<span className="password-field"><input type={smbPasswordVisible ? "text" : "password"} autoComplete="current-password" value={smbConnection.password} onChange={(event) => setSmbConnection((current) => ({ ...current, password: event.target.value }))} /><button type="button" aria-label={smbPasswordVisible ? "隐藏密码" : "显示密码"} title={smbPasswordVisible ? "隐藏密码" : "显示密码"} onClick={() => setSmbPasswordVisible((current) => !current)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/>{smbPasswordVisible && <path d="m4 4 16 16"/>}</svg></button></span></label></>}<div className="smb-login-actions"><button disabled={smbLoading || !smbConnection.server.trim()} onClick={() => void scanConfiguredSmb()}>{smbLoading ? "读取中…" : "读取共享列表"}</button><button className="primary" disabled={smbLoading || !smbConnection.server.trim() || !smbConnection.share.trim()} onClick={() => void browseSmb("")}>{smbLoading ? "连接中…" : "进入所选共享"}</button></div></div></section>
+        <div className="smb-path"><button disabled={!smbPath || smbLoading} onClick={() => void browseSmb(smbPath.split("/").slice(0, -1).join("/"))}>上一级</button><code>/{smbPath}</code><button disabled={smbLoading || !smbEntries.some((entry) => !entry.directory)} onClick={() => void importSmbSelection(true)}>导入当前文件夹</button></div>
+        {smbError && <p className="validation-error">{smbError}</p>}
+        <div className="smb-list">{smbEntries.map((entry) => entry.directory ? <button className="smb-folder" key={entry.path} onClick={() => void browseSmb(entry.path)}><span>▸</span><strong>{entry.name}</strong><small>文件夹</small></button> : <label key={entry.path}><input type="checkbox" checked={smbSelected.includes(entry.path)} onChange={(event) => setSmbSelected((current) => event.target.checked ? [...current, entry.path] : current.filter((path) => path !== entry.path))} /><strong>{entry.name}</strong><small>{entry.size > 1024 * 1024 ? `${(entry.size / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(entry.size / 1024)} KB`}</small></label>)}</div>
+        <footer>{!smbGuest && <label className="smb-remember"><input type="checkbox" checked={smbRememberPassword} onChange={(event) => setSmbRememberPassword(event.target.checked)} />使用系统安全存储保存密码</label>}<span>已选择 {smbSelected.length} 个文件</span><button className="button secondary" onClick={() => setSmbOpen(false)}>取消</button><button className="button primary" disabled={smbLoading || !smbSelected.length} onClick={() => void importSmbSelection(false)}>导入所选</button></footer>
+      </section></div>}
+      {remoteAccessDialog && <div className="remote-access-backdrop" role="dialog" aria-modal="true" aria-label="局域网网页设置"><section className="remote-access-dialog"><header><strong>局域网网页</strong><button aria-label="关闭" onClick={() => setRemoteAccessDialog(false)}>×</button></header><p>访问设备与当前计算设备连接同一局域网；工作流由当前设备的 Python 内核执行。</p><label className="remote-access-option"><input type="checkbox" checked={remoteRequirePin} onChange={(event) => setRemoteRequirePin(event.target.checked)} />访问前要求随机四位数字校验码</label><small>关闭后，知道局域网地址的设备即可访问此服务。</small><footer><button className="button secondary" onClick={() => setRemoteAccessDialog(false)}>取消</button><button className="button primary" onClick={() => void startConfiguredRemoteServer()}>开启服务</button></footer></section></div>}
+      {remoteBrowser && !remotePaired && <div className="remote-access-backdrop" role="dialog" aria-modal="true" aria-label="Android 计算服务配对"><section className="remote-access-dialog"><header><strong>{remoteAccessPolicy?.requiresPin ? "输入四位校验码" : "连接 Android 计算服务"}</strong></header>{remoteAccessError ? <p className="validation-error">{remoteAccessError}</p> : <p>{remoteAccessPolicy ? remoteAccessPolicy.requiresPin ? "请输入 Android 应用显示的四位数字。" : "正在建立局域网连接…" : "正在检查 Android 服务…"}</p>}{remoteAccessPolicy?.requiresPin && <><input className="remote-pin-input" autoFocus inputMode="numeric" maxLength={4} value={remotePinInput} onChange={(event) => { setRemotePinInput(event.target.value.replace(/\D/g, "").slice(0, 4)); setRemoteAccessError(null); }} onKeyDown={(event) => { if (event.key === "Enter") void submitRemotePin(); }} placeholder="0000" /><footer><button className="button primary" onClick={() => void submitRemotePin()}>验证并进入</button></footer></>}</section></div>}
+      {inputDialogNode && (() => { const kind = String(inputDialogNode.data.parameters.inputKind ?? "text"); return <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label={String(inputDialogNode.data.parameters.title ?? "输入")}><section className="interaction-dialog"><header><span className="interaction-dialog__icon" aria-hidden="true">⌁</span><div><strong>{String(inputDialogNode.data.parameters.title ?? "输入")}</strong><small>流程正在等待你的输入 · {kind}</small></div></header><div className="interaction-dialog__content"><p>{String(inputDialogNode.data.parameters.prompt ?? "请输入值")}</p>{kind === "select" ? <select autoFocus value={inputDialogValue} onChange={(event) => setInputDialogValue(event.target.value)}>{String(inputDialogNode.data.parameters.options ?? "").split(",").map((item) => item.trim()).filter(Boolean).map((item) => <option key={item} value={item}>{item}</option>)}</select> : kind === "multiline" || kind === "json" || kind === "table" ? <textarea autoFocus rows={kind === "table" ? 9 : 6} value={inputDialogValue} placeholder={kind === "table" ? "粘贴 CSV 或 JSON 记录数组" : kind === "json" ? "输入 JSON 对象或数组" : "输入多行文本"} onChange={(event) => setInputDialogValue(event.target.value)} /> : kind === "boolean" ? <label className="interaction-dialog__boolean"><input autoFocus type="checkbox" checked={inputDialogValue === "true"} onChange={(event) => setInputDialogValue(String(event.target.checked))} />{inputDialogValue === "true" ? "True" : "False"}</label> : kind === "file" ? <><input autoFocus type="file" accept="image/*,.txt,.json,.csv" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => setInputDialogValue(String(reader.result ?? "")); reader.readAsDataURL(file); }} />{inputDialogValue.startsWith("data:image/") && <img className="interaction-dialog__image-preview" src={inputDialogValue} alt="输入图片预览" />}</> : <input autoFocus type={["number", "date", "time", "datetime-local"].includes(kind) ? kind : "text"} value={inputDialogValue} onChange={(event) => setInputDialogValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void submitInputDialog(); }} />}</div><footer><button className="button secondary" onClick={() => setInputDialogNode(null)}>取消</button><button className="button primary" onClick={() => void submitInputDialog()}>确定并运行</button></footer></section></div>; })()}
+      {alertDialogNode && <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label={String(alertDialogNode.data.parameters.title ?? "提示")} onKeyDown={(event) => { if (event.key === "Escape" && String(alertDialogNode.data.parameters.cancelLabel ?? "取消").trim()) void submitAlertDialog(null); }}><section className="interaction-dialog interaction-dialog--alert"><header><span className="interaction-dialog__icon" aria-hidden="true">!</span><div><strong>{String(alertDialogNode.data.parameters.title ?? "提示")}</strong><small>“内容”端口支持文本、表格、图片、时间及任意可预览值</small></div></header><div className="interaction-dialog__content"><p>{String(alertDialogNode.data.parameters.message ?? "流程正在执行。")}</p>{alertInputPreview?.kind === "table" ? <DataGrid preview={alertInputPreview.preview} /> : alertInputPreview?.kind === "plot" ? <img className="interaction-dialog__image-preview" src={`data:image/png;base64,${alertInputPreview.plotPngBase64}`} alt="弹窗输入图像" /> : alertInputPreview?.kind === "value" ? <pre className="interaction-dialog__value">{alertInputPreview.text}</pre> : <small>首次运行时先执行上游后即可在此自适应显示内容；选择结果仍由 output 端口输出。</small>}</div><footer className="interaction-dialog__choices">{String(alertDialogNode.data.parameters.cancelLabel ?? "取消").trim() && <button className="button secondary" onClick={() => void submitAlertDialog(null)}>{String(alertDialogNode.data.parameters.cancelLabel)}</button>}{String(alertDialogNode.data.parameters.exitLabel ?? "退出").trim() && <button className="button alert-false" onClick={() => void submitAlertDialog(false)}>{String(alertDialogNode.data.parameters.exitLabel)}</button>}{String(alertDialogNode.data.parameters.confirmLabel ?? "确认").trim() && <button autoFocus className="button primary" onClick={() => void submitAlertDialog(true)}>{String(alertDialogNode.data.parameters.confirmLabel)}</button>}{!["cancelLabel", "exitLabel", "confirmLabel"].some((key) => String(alertDialogNode.data.parameters[key] ?? "").trim()) && <button autoFocus className="button secondary" onClick={() => void submitAlertDialog(null)}>关闭</button>}</footer><div className="interaction-dialog__result-legend"><span><b>true</b> 确认</span><span><b>false</b> 退出</span><span><b>None</b> 取消</span></div></section></div>}
+      {renameFlow && <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label="重命名流程"><section className="interaction-dialog"><header><span className="interaction-dialog__icon" aria-hidden="true">◇</span><div><strong>重命名流程</strong><small>名称将显示在流程资源列表中</small></div></header><div className="interaction-dialog__content"><p>为“{renameFlow.name}”设置一个清晰的名称。</p><input autoFocus value={renameFlowValue} onChange={(event) => setRenameFlowValue(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void confirmRenameFlow(); }} /></div><footer><button className="button secondary" onClick={() => setRenameFlow(null)}>取消</button><button className="button primary" onClick={() => void confirmRenameFlow()}>保存名称</button></footer></section></div>}
+      {agentPanelOpen && <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="AI Agent 设置">
+        <section className="settings-dialog agent-dialog">
+          <header><div><strong>AI Agent 设置</strong><span>AI 只提出计划；画布变更仍需确认</span></div><button aria-label="关闭 AI Agent" onClick={() => setAgentPanelOpen(false)}>×</button></header>
+          <div className="settings-dialog__body">
+            <section><h3>模型与连接</h3>
+              <label>供应商<select value={agentSettings.presetId} onChange={(event) => selectAgentPreset(event.target.value)}>{AGENT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
+              <label>协议<select value={agentSettings.provider} onChange={(event) => setAgentSettings((current) => ({ ...current, provider: event.target.value as AgentSettings["provider"], presetId: "custom" }))}><option value="openai-responses">OpenAI Responses</option><option value="openai-compatible">OpenAI 兼容 Chat</option><option value="anthropic-messages">Anthropic Messages</option></select></label>
+              <label>接口地址<input value={agentSettings.endpoint} onChange={(event) => setAgentSettings((current) => ({ ...current, endpoint: event.target.value, presetId: "custom" }))} /></label>
+              <label>模型<select value={agentSettings.model} onChange={(event) => setAgentSettings((current) => ({ ...current, model: event.target.value }))}><option value="">选择或自定义模型</option>{presetById(agentSettings.presetId).models.map((model) => <option key={model} value={model}>{model}</option>)}</select></label>
+              <label>自定义模型<input value={agentSettings.model} placeholder="模型 ID，例如 deepseek-chat" onChange={(event) => setAgentSettings((current) => ({ ...current, model: event.target.value }))} /></label>
+              <label>API 密钥<input type="password" autoComplete="off" value={agentApiKey} placeholder={Capacitor.isNativePlatform() && !remoteBrowser ? "保存在 Android 加密密钥库" : remoteBrowser ? "已从 Android 加密密钥库同步" : "仅当前桌面会话"} onChange={(event) => setAgentApiKey(event.target.value)} /></label>
+              <label>规划语言<select value={language} onChange={(event) => { const next = event.target.value as "zh-CN" | "en"; setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
+              <div className="agent-inline-actions"><button className="button secondary" disabled={agentTesting} onClick={() => void testCurrentAgentConnection()}>{agentTesting ? "测试中…" : "尝试连接"}</button>{agentConnectionStatus && <small className={agentConnectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{agentConnectionStatus}</small>}</div>
+              <small>{Capacitor.isNativePlatform() && !remoteBrowser ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : remoteBrowser ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
+            </section>
+            <section><h3>AI 权限</h3>
+              <label className="settings-check"><input type="checkbox" checked={agentSettings.permissions.createNodes} onChange={(event) => setAgentSettings((current) => ({ ...current, permissions: { ...current.permissions, createNodes: event.target.checked } }))} />创建节点</label>
+              <label className="settings-check"><input type="checkbox" checked={agentSettings.permissions.updateParameters} onChange={(event) => setAgentSettings((current) => ({ ...current, permissions: { ...current.permissions, updateParameters: event.target.checked } }))} />修改参数与布局</label>
+              <label className="settings-check"><input type="checkbox" checked={agentSettings.permissions.connectNodes} onChange={(event) => setAgentSettings((current) => ({ ...current, permissions: { ...current.permissions, connectNodes: event.target.checked } }))} />创建连线</label>
+              <label className="settings-check"><input type="checkbox" checked={agentSettings.permissions.deleteNodes} onChange={(event) => setAgentSettings((current) => ({ ...current, permissions: { ...current.permissions, deleteNodes: event.target.checked } }))} />删除节点</label>
+              <label className="settings-check"><input type="checkbox" checked={agentSettings.permissions.runWorkflow} onChange={(event) => setAgentSettings((current) => ({ ...current, permissions: { ...current.permissions, runWorkflow: event.target.checked } }))} />执行工作流</label>
+            </section>
+            <section className="agent-request"><h3>创建计划</h3><textarea value={agentInstruction} placeholder="例如：读取两个 CSV，按日期合并后绘制销售额折线图" onChange={(event) => setAgentInstruction(event.target.value)} /><button className="button primary" disabled={agentRequesting} onClick={() => void requestPlanFromAgent()}>{agentRequesting ? "AI 正在规划…" : "请求 AI 计划"}</button><small>模型不能直接执行 Python、访问文件或改写工作流 JSON。</small></section>
+            <section className="agent-plan"><h3>计划预览</h3><textarea spellCheck={false} value={agentPlanText} placeholder={'可粘贴或检查 AI 返回的 JSON 计划，例如：\n{"summary":"添加读取节点","operations":[]}' } onChange={(event) => { setAgentPlanText(event.target.value); setAgentPlan(null); setAgentPlanError(null); }} /><div><button className="button secondary" onClick={reviewAgentPlan}>检查计划</button><button className="button primary" disabled={!agentPlan || agentRequesting} onClick={() => void applyAgentPlan()}>确认并应用</button></div>{agentPlanError && <p className="validation-error">{agentPlanError}</p>}{agentPlan && <p>将执行：{agentPlan.summary}（{agentPlan.operations.length} 项操作）</p>}</section>
+            <section><h3>审计</h3>{agentAudit.length ? <ol className="agent-audit">{agentAudit.slice(0, 5).map((entry) => <li key={`${entry.at}-${entry.summary}`}><strong>{entry.summary}</strong><span>{entry.result}</span></li>)}</ol> : <p className="muted">尚无 AI 操作记录。</p>}</section>
+          </div>
+        </section>
+      </div>}
+      {settingsOpen && <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="设置">
+        <section className="settings-dialog">
+          <header><div><strong>设置</strong><span>设置会保存在本机用户配置中</span></div><button aria-label="关闭设置" onClick={() => setSettingsOpen(false)}>×</button></header>
+          <div className="settings-dialog__body">
+            <section><h3>外观</h3><label>主题<select value={themeMode} onChange={(event) => setThemeMode(event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="dark">暗色模式</option><option value="light">亮色模式</option></select></label><label>界面语言<select value={language} onChange={(event) => { const next = event.target.value as "zh-CN" | "en"; setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }}><option value="zh-CN">中文</option><option value="en">English</option></select></label><small>当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}。</small></section>
+            <section><h3>画布</h3><label>节点尺寸 <output>{Math.round(nodeScale * 100)}%</output><input type="range" min="0.75" max="1.4" step="0.05" value={nodeScale} onChange={(event) => setNodeScale(Number(event.target.value))} /></label><label>端点大小 <output>{Math.round(endpointScale * 100)}%</output><input type="range" min="0.7" max="1.8" step="0.1" value={endpointScale} onChange={(event) => setEndpointScale(Number(event.target.value))} /></label><label>连线粗细 <output>{edgeWidth.toFixed(1)} px</output><input type="range" min="1" max="5" step="0.5" value={edgeWidth} onChange={(event) => setEdgeWidth(Number(event.target.value))} /></label><label>左侧节点栏 <output>{Math.round(paletteWidth)} px</output><input type="range" min="132" max="360" step="4" value={paletteWidth} onChange={(event) => setPaletteWidth(Number(event.target.value))} /></label><label>右侧参数栏 <output>{Math.round(inspectorWidth)} px</output><input type="range" min="250" max="560" step="4" value={inspectorWidth} onChange={(event) => setInspectorWidth(Number(event.target.value))} /></label><label>横屏参数栏高度 <output>{Math.round(inspectorHeight)} px</output><input type="range" min="140" max="440" step="4" value={inspectorHeight} onChange={(event) => setInspectorHeight(Number(event.target.value))} /></label><label>结果区高度 <output>{Math.round(resultHeight)} px</output><input type="range" min="180" max="520" step="4" value={resultHeight} onChange={(event) => setResultHeight(Number(event.target.value))} /></label><label>缩略图<select value={miniMapMode} onChange={(event) => setMiniMapMode(event.target.value as "auto" | "show" | "hide")}><option value="hide">默认隐藏</option><option value="auto">自动显示</option><option value="show">始终显示</option></select></label><label className="settings-check"><input type="checkbox" checked={showNodeInsights} onChange={(event) => setShowNodeInsights(event.target.checked)} />显示节点运行结果</label></section>
+            <section className="settings-smb-summary"><h3>局域网 SMB</h3><p>设备发现、账号或访客登录、共享选择和文件浏览集中在同一个文件选择器中。密码由 Android Keystore 或 Windows 系统安全存储加密保存。</p><dl><dt>当前设备</dt><dd>{smbConnection.server || "尚未选择"}</dd><dt>当前共享</dt><dd>{smbConnection.share || "尚未选择"}</dd><dt>登录方式</dt><dd>{smbGuest ? "访客" : smbConnection.username || "账号未填写"}</dd></dl><button className="button secondary" disabled={remoteBrowser} onClick={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }}>选择 SMB 文件</button></section>
+            <section><h3>AI Agent</h3><p>通过顶部星形按钮设置模型、加密密钥及 AI 的画布权限。每次变更都需要在计划预览中确认。</p><button onClick={() => { setSettingsOpen(false); setAgentPanelOpen(true); }}>AI 模型与密钥</button></section>
+            <section><h3>调试与热更新</h3><label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => setDebugMode(event.target.checked)} />启用调试模式</label><p>调试模式保留节点执行顺序、单节点耗时、部分结果和 Python 堆栈；底部虫形按钮可打开调试面板。</p><p>当前前端热更新：{import.meta.hot ? "已连接 HMR" : "未启用（当前为构建版）"}</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div><small>React、CSS 和 TypeScript 可即时更新；Electron 主进程需重启 desktop:dev，Android Java、Manifest、Gradle 和内置 Python 需要重新安装。</small></section>
+            <section className="settings-profile-section"><h3>配置文件</h3><p>设置、自动保存、个人节点模板和用户代码会保存到应用用户配置目录。</p><dl><dt>应用配置目录</dt><dd>{userProfile?.path ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{userProfile?.workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={() => void configureWorkflowFolder()}>选择 / 跳转文件夹</button><button onClick={exportSettings}>导出设置</button><button onClick={() => settingsInput.current?.click()}>导入设置</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
+          </div>
+        </section>
+      </div>}
+      {packageManagerOpen && (
+        <div className="package-manager-backdrop" role="dialog" aria-modal="true" aria-label="Python 包管理">
+          <section className="package-manager">
+            <header>
+              <div><strong>Python 包管理</strong><span>{environmentLoading ? "正在读取环境…" : pythonEnvironment ? `Python ${pythonEnvironment.pythonVersion} · 应用功能包 ${BUNDLED_PACKAGES.length} 个 · 运行时发行包 ${pythonEnvironment.packages.length} 个` : "工作流依赖会随 Notebook 一起保存"}</span></div>
+              <button aria-label="关闭包管理" onClick={() => setPackageManagerOpen(false)}>×</button>
+            </header>
+            <div className="package-manager__body">
+              <section>
+                <h3>应用内置</h3>
+                <div className="package-list">{BUNDLED_PACKAGES.map((item) => {
+                  const installed = pythonEnvironment?.packages.find((candidate) => candidate.name.toLocaleLowerCase() === item.name);
+                  return <article key={item.name}><div><strong>{item.name}</strong><span>{item.purpose}</span></div><code>{installed?.version ?? item.version}</code><em>{installed || !pythonEnvironment ? "可用" : "缺失"}</em></article>;
+                })}</div>
+                {pythonEnvironment && <details className="runtime-packages"><summary>查看 {pythonEnvironment.packages.length} 个运行时发行包</summary><div>{pythonEnvironment.packages.map((item) => <code key={item.name}>{item.name}=={item.version}</code>)}</div></details>}
+              </section>
+              <section>
+                <h3>工作流额外依赖</h3>
+                <div className="package-add"><input value={packageRequirement} onChange={(event) => setPackageRequirement(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") addPackageRequirement(); }} placeholder="例如 scipy==1.12.0" /><button onClick={addPackageRequirement}>加入</button></div>
+                {requirements.length ? <div className="package-list">{requirements.map((item) => {
+                  const name = item.split(/[<>=~![]/, 1)[0].toLocaleLowerCase();
+                  const installed = pythonEnvironment?.packages.find((candidate) => candidate.name.toLocaleLowerCase() === name);
+                  return <article key={item}><div><strong>{item}</strong><span>{installed ? `当前环境 ${installed.version}` : "需要在目标平台准备"}</span></div><em className={installed ? "" : "pending"}>{installed ? "已安装" : "待配置"}</em><button aria-label={`删除 ${item}`} onClick={() => setRequirements((current) => current.filter((value) => value !== item))}>×</button></article>;
+                })}</div> : <p className="muted">当前工作流没有额外依赖。</p>}
+              </section>
+              <section className="pip-console">
+                <h3>pip 命令预览</h3>
+                <code>$ {requirements.length ? `python -m pip install ${requirements.join(" ")}` : "# 当前没有额外依赖"}</code>
+                <div><button onClick={copyPipCommand}>复制命令</button><button onClick={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")}>导出 requirements.txt</button></div>
+                <p>桌面端动态安装和 Android 构建依赖同步将在下一阶段接入。Android 包不能直接复用桌面 wheel，安装前会先检查平台兼容性。</p>
+              </section>
+            </div>
+          </section>
+        </div>
+      )}
+      {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && (
+        <div className="code-editor-modal" role="dialog" aria-modal="true" aria-label="Python 函数全屏编辑器">
+          <header>
+            <div>
+              <strong>Python 函数编辑器</strong>
+              <span className={selectedSignatureError ? "error" : "valid"}>{selectedSignatureError ?? `${selectedSignature?.inputPorts.length ?? 0} 输入 · ${selectedSignature?.outputPorts.length ?? 0} 输出`}</span>
+            </div>
+            <button onClick={() => setCodeEditorOpen(false)}>完成</button>
+          </header>
+          <textarea
+            autoFocus
+            spellCheck={false}
+            value={String(selectedNode.data.parameters.code ?? "")}
+            onChange={(event) => updateParameter("code", event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Tab") return;
+              event.preventDefault();
+              const input = event.currentTarget;
+              const start = input.selectionStart;
+              updateParameter("code", `${input.value.slice(0, start)}    ${input.value.slice(input.selectionEnd)}`);
+              window.requestAnimationFrame(() => input.setSelectionRange(start + 4, start + 4));
+            }}
+          />
+        </div>
+      )}
+      {plotExpanded && result?.plotPngBase64 && (
+        <div className="plot-lightbox" role="dialog" aria-modal="true" aria-label="图表放大预览">
+          <header>
+            <strong>图表预览</strong>
+            <div>
+              <button onClick={() => setPlotZoom((value) => Math.max(.5, value - .25))}>−</button>
+              <button onClick={() => setPlotZoom(1)}>{Math.round(plotZoom * 100)}%</button>
+              <button onClick={() => setPlotZoom((value) => Math.min(4, value + .25))}>＋</button>
+              <button onClick={() => setPlotExpanded(false)}>关闭</button>
+            </div>
+          </header>
+          <div className="plot-lightbox__body"><img style={{ width: plotZoom === 1 ? "auto" : `${plotZoom * 100}%`, maxWidth: plotZoom === 1 ? "100%" : "none" }} src={`data:image/png;base64,${result.plotPngBase64}`} alt="放大的 Python 绘图结果" /></div>
+        </div>
+      )}
+      {resultDetail && <div className="code-editor-modal result-detail-modal" role="dialog" aria-modal="true" aria-label="节点结果编辑器">
+        <header><div><strong>{resultDetail.title}</strong><span>内容可编辑；修改只影响当前查看副本，不会改写节点输出</span></div><div><button onClick={() => void navigator.clipboard.writeText(resultDetail.text).then(() => setMessage("节点结果已复制"))}>复制</button><button onClick={() => setResultDetail(null)}>关闭</button></div></header>
+        {resultDetail.preview ? <div className="result-detail-table"><DataGrid preview={resultDetail.preview} /><details><summary>查看 / 编辑原始 JSON</summary><textarea spellCheck={false} value={resultDetail.text} onChange={(event) => setResultDetail((current) => current ? { ...current, text: event.target.value } : null)} /></details></div> : <textarea autoFocus spellCheck={false} value={resultDetail.text} onChange={(event) => setResultDetail((current) => current ? { ...current, text: event.target.value } : null)} />}
+      </div>}
+      {executionError && errorDetailOpen && <div className="settings-backdrop error-detail-backdrop" role="dialog" aria-modal="true" aria-label="执行错误详情"><section className="error-detail-dialog"><header><div><strong>{executionError.title}</strong><span>{executionError.nodeType ? `${executionError.nodeType} · ${executionError.nodeId ?? "工作流"}` : "工作流级错误"}</span></div><button onClick={() => setErrorDetailOpen(false)}>×</button></header><div><p>{executionError.message}</p>{executionError.traceback && <details><summary>Python 调试堆栈</summary><pre>{executionError.traceback}</pre></details>}{executionError.nodeId && nodes.some((node) => node.id === executionError.nodeId) && <button onClick={() => locateNode(executionError.nodeId!)}>定位错误节点</button>}<button onClick={() => void navigator.clipboard.writeText(`${executionError.nodeType ?? "workflow"} (${executionError.nodeId ?? "unknown"})\n${executionError.message}\n${executionError.traceback ?? ""}`)}>复制错误</button></div></section></div>}
     </div>
   );
 }
 
 export function App() {
-  return <ReactFlowProvider><FlowEditor /></ReactFlowProvider>;
+  return <AppErrorBoundary><ReactFlowProvider><FlowEditor /></ReactFlowProvider></AppErrorBoundary>;
 }

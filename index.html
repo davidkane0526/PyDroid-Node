@@ -8,6 +8,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.__pydroidStartupFailure = function (detail) {
+        var root = document.getElementById("root");
+        if (!root || root.childElementCount) return;
+        root.innerHTML = '<main style="display:grid;width:100%;height:100%;padding:24px;place-items:center;color:#e2e8f0;background:#0b1020;font:14px system-ui"><section style="max-width:620px;padding:24px;border:1px solid #475569;border-radius:12px;background:#111827"><h1 style="margin-top:0;font-size:18px">PyDroid Flow 界面加载失败</h1><p>桌面渲染器没有成功启动。请重新打开应用；诊断信息已写入用户配置目录的 logs/desktop.log。</p><pre style="overflow:auto;color:#fca5a5;white-space:pre-wrap">' + String(detail || '未知启动错误').replace(/[&<>]/g, function (value) { return ({'&':'&amp;','<':'&lt;','>':'&gt;'})[value]; }) + '</pre></section></main>';
+      };
+      window.addEventListener("error", function (event) { window.__pydroidStartupFailure(event.message); });
+      window.addEventListener("unhandledrejection", function (event) { window.__pydroidStartupFailure(event.reason && (event.reason.stack || event.reason.message) || event.reason); });
+      window.setTimeout(function () { window.__pydroidStartupFailure("界面启动超过 8 秒仍未完成"); }, 8000);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
