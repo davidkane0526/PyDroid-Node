@@ -1,8 +1,11 @@
 node_modules/
 dist/
 dist-desktop/
+desktop/package-renderer/
 release/
 .tools/
+.reasonix/
+reasonix.toml
 .vite/
 *.local
 *.tsbuildinfo

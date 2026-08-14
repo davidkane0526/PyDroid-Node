@@ -3,7 +3,7 @@
   "description": "Cross-platform visual Python data-processing workflow editor",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.4.8",
   "main": "desktop/main.cjs",
   "type": "module",
   "scripts": {
@@ -13,22 +13,30 @@
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
+    "audit:notebooks": "node scripts/python-run.mjs scripts/audit-notebooks.py",
     "env:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
     "preview": "vite preview",
+    "desktop": "pnpm desktop:quick",
+    "desktop:quick": "pnpm desktop:build && electron desktop/main.cjs",
     "desktop:build": "tsc --noEmit -p desktop/tsconfig.json && vite build --config desktop/vite.config.ts",
     "desktop:dev": "node desktop/dev.cjs",
     "desktop:start": "pnpm desktop:build && electron desktop/main.cjs",
     "desktop:smoke": "pnpm desktop:build && node scripts/desktop-smoke.mjs",
     "desktop:package": "node scripts/desktop-package.mjs",
     "android:live": "powershell -ExecutionPolicy Bypass -File scripts/android-live.ps1",
+    "android:live:lan": "powershell -ExecutionPolicy Bypass -File scripts/android-lan-live.ps1",
     "android:logs": "powershell -ExecutionPolicy Bypass -File scripts/android-logs.ps1",
     "android:sync": "pnpm build && cap sync android",
+    "android:package": "powershell -ExecutionPolicy Bypass -File scripts/android-package.ps1",
+    "android:emulator": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator.ps1",
+    "android:emulator:remove": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator-remove.ps1",
     "android:open": "cap open android"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
     "@capacitor/core": "^8.5.0",
     "@xyflow/react": "latest",
+    "node-smb2": "1.3.5",
     "react": "latest",
     "react-dom": "latest"
   },
@@ -51,9 +59,16 @@
       "output": "release"
     },
     "files": [
-      "dist-desktop/**/*",
+      "desktop/package-renderer/**/*",
       "desktop/main.cjs",
-      "desktop/preload.cjs"
+      "desktop/preload.cjs",
+      "node_modules/node-smb2/**/*",
+      "node_modules/des.js/**/*",
+      "node_modules/inherits/**/*",
+      "node_modules/js-md4/**/*",
+      "node_modules/minimalistic-assert/**/*",
+      "node_modules/moment/**/*",
+      "node_modules/moment-timezone/**/*"
     ],
     "extraResources": [
       {
@@ -66,7 +81,8 @@
       }
     ],
     "win": {
-      "target": "portable"
+      "target": "portable",
+      "icon": "android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png"
     }
   }
 }
