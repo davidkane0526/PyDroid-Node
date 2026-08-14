@@ -114,11 +114,16 @@ function loadAgentSettings(value: unknown): AgentSettings {
   const saved = value && typeof value === "object" ? value as Partial<AgentSettings> : {};
   const permissions = (saved.permissions && typeof saved.permissions === "object" ? saved.permissions : {}) as Partial<Record<AgentPermission, boolean>>;
   const permissionValue = (permission: AgentPermission) => typeof permissions[permission] === "boolean" ? permissions[permission] : DEFAULT_AGENT_SETTINGS.permissions[permission];
+  // DeepSeek 旧模型名 deepseek-chat / deepseek-reasoner 已于 2026-07-24 停用，自动迁移到 V4
+  const rawModel = typeof saved.model === "string" ? saved.model : DEFAULT_AGENT_SETTINGS.model;
+  const model = saved.presetId === "deepseek"
+    ? rawModel === "deepseek-reasoner" ? "deepseek-v4-pro" : rawModel === "deepseek-chat" ? "deepseek-v4-flash" : rawModel
+    : rawModel;
   return {
     presetId: typeof saved.presetId === "string" ? saved.presetId : DEFAULT_AGENT_SETTINGS.presetId,
     provider: saved.provider === "anthropic-messages" || saved.provider === "openai-compatible" ? saved.provider : "openai-responses",
     endpoint: typeof saved.endpoint === "string" && saved.endpoint.trim() ? saved.endpoint : DEFAULT_AGENT_SETTINGS.endpoint,
-    model: typeof saved.model === "string" ? saved.model : DEFAULT_AGENT_SETTINGS.model,
+    model,
     language: saved.language === "en" ? "en" : "zh-CN",
     permissions: {
       createNodes: permissionValue("createNodes"),
