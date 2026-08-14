@@ -85,6 +85,126 @@ def _constant_int(node: ast.AST | None) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def _modulo_equals(node: ast.AST, index_name: str, divisor: int, remainder: int = 0) -> bool:
+    """匹配 `index % divisor == remainder`（含加括号形式）。"""
+    if not (isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq) and len(node.comparators) == 1):
+        return False
+    binop = node.left
+    if not (isinstance(binop, ast.BinOp) and isinstance(binop.op, ast.Mod) and isinstance(binop.left, ast.Name) and binop.left.id == index_name):
+        return False
+    return _constant_int(binop.right) == divisor and _literal(node.comparators[0]) == remainder
+
+
+def _is_append(statement: ast.stmt, target_name: str) -> bool:
+    """匹配 `target.append(value)` 表达式语句。"""
+    return (isinstance(statement, ast.Expr) and isinstance(statement.value, ast.Call)
+            and isinstance(statement.value.func, ast.Attribute)
+            and isinstance(statement.value.func.value, ast.Name)
+            and statement.value.func.value.id == target_name
+            and statement.value.func.attr == "append")
+
+
+def _detect_oscillating_pulse(tree: ast.Module, assignment_values: dict[str, Any], source: str) -> dict[str, Any] | None:
+    """结构化识别周期震荡脉冲代码：常量赋值 → np.arange 时间轴 → 双通道列表 → 振荡 for → zip 打印。
+
+    替代旧的“名称集合 + 源码子串”启发式（`"i % 4" in source`），只接受真实的 AST
+    结构匹配，避免把任意含相同名称或子串的代码误识别为脉冲生成器。
+    """
+    # 1) 时间轴赋值：time_points = np.arange(duration, total, duration)
+    time_name: str | None = None
+    for statement in tree.body:
+        if (isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name)
+                and isinstance(statement.value, ast.Call) and isinstance(statement.value.func, ast.Attribute)
+                and isinstance(statement.value.func.value, ast.Name) and statement.value.func.value.id in {"np", "numpy"}
+                and statement.value.func.attr == "arange" and len(statement.value.args) == 3):
+            time_name = statement.targets[0].id
+            break
+    if time_name is None:
+        return None
+    # 2) 双通道列表初始化：port1, port2 = [], []
+    pair: list[str] | None = None
+    for statement in tree.body:
+        if (isinstance(statement, ast.Assign) and len(statement.targets) == 1
+                and isinstance(statement.targets[0], ast.Tuple) and len(statement.targets[0].elts) == 2
+                and all(isinstance(target, ast.Name) for target in statement.targets[0].elts)
+                and isinstance(statement.value, (ast.List, ast.Tuple)) and len(statement.value.elts) == 2
+                and all(isinstance(element, ast.List) and not element.elts for element in statement.value.elts)):
+            pair = [target.id for target in statement.targets[0].elts if isinstance(target, ast.Name)]
+            break
+    if not pair:
+        return None
+    # 3) 振荡循环：for i, t in enumerate(time_points):
+    loop: ast.For | None = None
+    for statement in tree.body:
+        if (isinstance(statement, ast.For) and isinstance(statement.target, ast.Tuple) and len(statement.target.elts) == 2
+                and isinstance(statement.iter, ast.Call) and isinstance(statement.iter.func, ast.Name)
+                and statement.iter.func.id == "enumerate" and len(statement.iter.args) == 1
+                and isinstance(statement.iter.args[0], ast.Name) and statement.iter.args[0].id == time_name):
+            loop = statement
+            break
+    if not loop or len(loop.body) != 1 or not isinstance(loop.body[0], ast.If):
+        return None
+    index_name = loop.target.elts[0].id if isinstance(loop.target.elts[0], ast.Name) else None
+    if not index_name:
+        return None
+    main_if = loop.body[0]
+    if not _modulo_equals(main_if.test, index_name, 2, 0):
+        return None
+    # 偶数分支：a.append(0); b.append(常量)
+    if not (len(main_if.body) == 2 and _is_append(main_if.body[0], pair[0]) and _is_append(main_if.body[1], pair[1])):
+        return None
+    # 奇数分支（else 平铺 4 条）：a.append(amp); b.append(0); amp = -amp; if i % 4 == 1: amp -= step
+    if len(main_if.orelse) != 4 or not _is_append(main_if.orelse[0], pair[0]) or not _is_append(main_if.orelse[1], pair[1]):
+        return None
+    invert = main_if.orelse[2]
+    if not (isinstance(invert, ast.Assign) and len(invert.targets) == 1 and isinstance(invert.targets[0], ast.Name)
+            and isinstance(invert.value, ast.UnaryOp) and isinstance(invert.value.op, ast.USub)):
+        return None
+    amplitude_name = invert.targets[0].id
+    step_if = main_if.orelse[3]
+    if not (isinstance(step_if, ast.If) and _modulo_equals(step_if.test, index_name, 4, 1) and len(step_if.body) == 1):
+        return None
+    step_assign = step_if.body[0]
+    is_step_assign = False
+    if isinstance(step_assign, ast.Assign) and len(step_assign.targets) == 1:
+        is_step_assign = (isinstance(step_assign.targets[0], ast.Name) and step_assign.targets[0].id == amplitude_name
+                          and isinstance(step_assign.value, ast.BinOp) and isinstance(step_assign.value.op, ast.Sub)
+                          and isinstance(step_assign.value.left, ast.Name) and step_assign.value.left.id == amplitude_name)
+    elif isinstance(step_assign, ast.AugAssign):
+        is_step_assign = (isinstance(step_assign.target, ast.Name) and step_assign.target.id == amplitude_name
+                          and isinstance(step_assign.op, ast.Sub) and isinstance(step_assign.value, ast.Name))
+    if not is_step_assign:
+        return None
+    # 4) 打印循环：for row in zip(time_points, ...): print(row)
+    printed = any(
+        isinstance(statement, ast.For) and isinstance(statement.iter, ast.Call)
+        and isinstance(statement.iter.func, ast.Name) and statement.iter.func.id == "zip"
+        and any(isinstance(arg, ast.Name) and arg.id == time_name for arg in statement.iter.args)
+        and len(statement.body) == 1 and isinstance(statement.body[0], ast.Expr)
+        and isinstance(statement.body[0].value, ast.Call) and isinstance(statement.body[0].value.func, ast.Name)
+        and statement.body[0].value.func.id == "print"
+        for statement in tree.body
+    )
+    if not printed:
+        return None
+    return {
+        "recognized": True, "semantic": True, "kind": "compound", "nodeType": "notebook.code_cell",
+        "label": "周期震荡脉冲 · 2 步",
+        "parameters": {"source": source, "astKind": "Module"},
+        "defines": ["pulse_waveform"], "uses": [],
+        "operations": [
+            {"index": 0, "recognized": True, "semantic": True, "kind": "pulse-pattern",
+             "nodeType": "pulse.generate_oscillating_ramp", "label": "生成周期震荡脉冲",
+             "parameters": {"interval": assignment_values.get("pulse_duration", 0.005), "totalTime": assignment_values.get("total_time", 10),
+                            "amplitudeStep": assignment_values.get("voltage_amplitude", 0.2), "fixedVoltage": assignment_values.get("fixed_voltage", 0.6), "gateVoltage": 0},
+             "defines": ["pulse_waveform"], "uses": [], "outputVariable": "pulse_waveform", "source": source},
+            {"index": 1, "recognized": True, "semantic": True, "kind": "call", "nodeType": "python.print",
+             "label": "打印脉冲表", "parameters": {}, "defines": [], "uses": ["pulse_waveform"],
+             "inputVariable": "pulse_waveform", "outputVariable": "pulse_waveform", "source": "print(pulse_waveform)"},
+        ],
+    }
+
+
 def _analyze_statement(statement: ast.stmt, source: str) -> dict[str, Any]:
     definitions = sorted({node.id for node in ast.walk(statement) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)})
     uses = sorted({node.id for node in ast.walk(statement) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)})
@@ -234,11 +354,9 @@ def analyze_python_cell(source: str) -> dict[str, Any]:
         if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
             value = _literal(statement.value)
             if value is not None: assignment_values[statement.targets[0].id] = value
-    oscillating_names = {"pulse_duration", "total_time", "voltage_amplitude", "fixed_voltage", "time_points", "port1_voltages", "port2_voltages", "port3_voltages"}
-    if oscillating_names.issubset({node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}) and "current_amplitude" in source and "i % 4" in source:
-        generator = {"index": 0, "recognized": True, "semantic": True, "kind": "pulse-pattern", "nodeType": "pulse.generate_oscillating_ramp", "label": "生成周期震荡脉冲", "parameters": {"interval": assignment_values.get("pulse_duration", 0.005), "totalTime": assignment_values.get("total_time", 10), "amplitudeStep": assignment_values.get("voltage_amplitude", 0.2), "fixedVoltage": assignment_values.get("fixed_voltage", 0.6), "gateVoltage": 0}, "defines": ["pulse_waveform"], "uses": [], "outputVariable": "pulse_waveform", "source": source}
-        printer = {"index": 1, "recognized": True, "semantic": True, "kind": "call", "nodeType": "python.print", "label": "打印脉冲表", "parameters": {}, "defines": [], "uses": ["pulse_waveform"], "inputVariable": "pulse_waveform", "outputVariable": "pulse_waveform", "source": "print(pulse_waveform)"}
-        return {"recognized": True, "semantic": True, "kind": "compound", "nodeType": "notebook.code_cell", "label": "周期震荡脉冲 · 2 步", "parameters": {"source": source, "astKind": "Module"}, "defines": ["pulse_waveform"], "uses": [], "operations": [generator, printer]}
+    pulse = _detect_oscillating_pulse(tree, assignment_values, source)
+    if pulse is not None:
+        return pulse
     operations = []
     for index, statement in enumerate(tree.body):
         # _analyze_statement walks only this statement, while retaining its exact source fragment.
