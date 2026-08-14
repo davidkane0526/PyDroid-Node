@@ -29,7 +29,7 @@ PyDroid Flow 的 AI Agent 只能操作版本化的节点流程，不把 Python�
 
 ## 可用操作
 
-- `add_node`：从节点目录添加节点（含组合 `group_nodes` 与逻辑结构）。
+- `add_node`：从节点目录添加节点（含逻辑结构）。
 - `set_parameter`：只修改该节点已声明的参数。
 - `connect` / `disconnect`：连接或断开兼容的类型化端口。
 - `group_nodes`：把已有节点和内部连线保存为真正的组合，并重写组合边界端口。
@@ -47,7 +47,8 @@ AI 权限可在设置中逐项开关，默认开启创建/修改/连线/断线/�
 
 | 权限 | 控制的操作 | 默认 |
 | --- | --- | --- |
-| `createNodes` | `add_node`、`group_nodes` | 开 |
+| `createNodes` | `add_node`（创建节点） | 开 |
+| `groupNodes` | `group_nodes`（组合节点） | 开 |
 | `updateParameters` | `set_parameter` | 开 |
 | `connectNodes` | `connect` | 开 |
 | `disconnectNodes` | `disconnect` | 开 |

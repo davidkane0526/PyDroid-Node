@@ -1,4 +1,4 @@
-export type AgentPermission = "createNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";
+export type AgentPermission = "createNodes" | "groupNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";
 export type AgentProvider = "openai-responses" | "openai-compatible" | "anthropic-messages";
 
 export type AgentPreset = { id: string; label: string; provider: AgentProvider; endpoint: string; models: string[]; note?: string };
@@ -25,7 +25,7 @@ export type AgentSettings = {
 export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
   presetId: "openai", provider: "openai-responses", endpoint: "https://api.openai.com/v1/responses", model: "",
   language: "zh-CN",
-  permissions: { createNodes: true, updateParameters: true, connectNodes: true, disconnectNodes: true, deleteNodes: false, arrangeLayout: true, runWorkflow: false },
+  permissions: { createNodes: true, groupNodes: true, updateParameters: true, connectNodes: true, disconnectNodes: true, deleteNodes: false, arrangeLayout: true, runWorkflow: false },
 };
 
 export function presetById(id: string): AgentPreset { return AGENT_PRESETS.find((preset) => preset.id === id) ?? AGENT_PRESETS[AGENT_PRESETS.length - 1]; }
