@@ -87,15 +87,65 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     }
     return [];
   });
-  const nodes: WorkflowNode[] = entries.map(({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch }, flatIndex) => {
+  // 布局常量：结构容器按子节点数自适应高度，顶层按容器占位流式排布，避免与既有节点重叠
+  const STRUCTURE_MIN_WIDTH = 520;
+  const STRUCTURE_MIN_HEIGHT = 300;
+  const CHILD_COLUMN_X = 275;   // 容器内第二列（false/body 分支）x 偏移
+  const CHILD_ROW_H = 78;       // 容器内垂直间距
+  const STRUCTURE_TOP = 92;     // 容器头部高度
+  const STRUCTURE_PAD = 30;     // 容器底部留白
+  const TOP_COL_W = 275;        // 顶层每列宽度
+  const TOP_ROW_H = 155;        // 顶层每行高度
+  const TOP_LEFT = 70;
+  const TOP_TOP = 65;
+  const MAX_TOP_COLUMNS = 4;    // 顶层每行最多列单位
+  const isStructureType = (nodeType: string | undefined) => nodeType === "logic.if_subflow" || nodeType === "logic.for_each_subflow" || nodeType === "logic.while_subflow";
+  const entryId = (entry: Entry) => `notebook-cell-${entry.cellIndex + 1}-step-${entry.operationIndex + 1}`;
+  const structureSizes = new Map<string, { width: number; height: number }>();
+  const childPositions = new Map<string, { x: number; y: number }>();
+  for (const parent of entries) {
+    if (!isStructureType(parent.operation?.nodeType)) continue;
+    const children = entries.filter((entry) => entry.parentOperationIndex !== undefined && entry.cellIndex === parent.cellIndex && entry.parentOperationIndex === parent.operationIndex);
+    const groups = new Map<string, { x: number; count: number }>();
+    for (const child of children) {
+      const branch = child.branch ?? "body";
+      if (!groups.has(branch)) groups.set(branch, { x: branch === "false" ? 35 + CHILD_COLUMN_X : 35, count: 0 });
+      groups.get(branch)!.count += 1;
+    }
+    const rows = Math.max(...[...groups.values()].map((group) => group.count), 1);
+    structureSizes.set(entryId(parent), { width: STRUCTURE_MIN_WIDTH, height: Math.max(STRUCTURE_MIN_HEIGHT, STRUCTURE_TOP + rows * CHILD_ROW_H + STRUCTURE_PAD) });
+    const cursor = new Map<string, number>();
+    for (const child of children) {
+      const branch = child.branch ?? "body";
+      const group = groups.get(branch)!;
+      childPositions.set(entryId(child), { x: group.x, y: STRUCTURE_TOP + (cursor.get(branch) ?? 0) * CHILD_ROW_H });
+      cursor.set(branch, (cursor.get(branch) ?? 0) + 1);
+    }
+  }
+  const topLevelPosition = (() => {
+    let x = TOP_LEFT, y = TOP_TOP, colUsed = 0, rowHeight = 0;
+    return (entry: Entry): { x: number; y: number } => {
+      const size = structureSizes.get(entryId(entry));
+      const cols = size ? Math.max(2, Math.ceil((size.width + 20) / TOP_COL_W)) : 1;
+      const rows = size ? Math.max(2, Math.ceil((size.height + 20) / TOP_ROW_H)) : 1;
+      if (colUsed > 0 && colUsed + cols > MAX_TOP_COLUMNS) { x = TOP_LEFT; y += rowHeight; colUsed = 0; rowHeight = 0; }
+      const position = { x, y };
+      x += cols * TOP_COL_W;
+      colUsed += cols;
+      rowHeight = Math.max(rowHeight, rows * TOP_ROW_H);
+      return position;
+    };
+  })();
+  const nodes: WorkflowNode[] = entries.map(({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch }) => {
     const recognized = Boolean(cell.cellType === "code" && operation?.semantic && operation.nodeType);
     const resolvedNodeType = operation!.nodeType!;
-    const id = `notebook-cell-${cellIndex + 1}-step-${operationIndex + 1}`;
+    const id = entryId({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch });
     const parentId = parentOperationIndex === undefined ? undefined : `notebook-cell-${cellIndex + 1}-step-${parentOperationIndex + 1}`;
-    const childOffset = branch === "false" ? 275 : 35;
-    const structure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(resolvedNodeType);
+    const structure = isStructureType(resolvedNodeType);
+    const size = structure ? (structureSizes.get(id) ?? { width: STRUCTURE_MIN_WIDTH, height: STRUCTURE_MIN_HEIGHT }) : undefined;
+    const position = parentId ? (childPositions.get(id) ?? { x: 35, y: STRUCTURE_TOP }) : topLevelPosition({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch });
     return {
-      id, type: "workflow", parentId, extent: parentId ? "parent" : undefined, style: structure ? { width: 520, height: 300 } : undefined, position: parentId ? { x: childOffset, y: 92 + (operationIndex % 100) * 78 } : { x: 70 + (flatIndex % 4) * 275, y: 65 + Math.floor(flatIndex / 4) * 155 },
+      id, type: "workflow", parentId, extent: parentId ? "parent" : undefined, style: size ? { width: size.width, height: size.height } : undefined, position,
       data: {
         label: operation?.label || operation?.nodeType!,
         nodeType: resolvedNodeType, nodeVersion: 1,
