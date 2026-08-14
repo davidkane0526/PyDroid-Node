@@ -1,6 +1,7 @@
-import type { ExecutionResult, TablePreview } from "./execution";
+import { AGENT_PRESETS, presetById, type AgentPlan, type AgentSettings } from "./agent";
+import type { ExecutionResult, NodeExecutionPreview, TablePreview } from "./execution";
 import type { WorkflowNode } from "./workflow";
-import { DataGrid } from "./components";
+import { DataGrid, resultPreviewText } from "./components";
 
 export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };
@@ -234,6 +235,167 @@ export function ReplacementPanel({ node, search, showAll, candidates, onSearch, 
       <div className="replacement-tools"><input autoFocus value={search} onChange={(event) => onSearch(event.target.value)} placeholder="搜索节点名称、类型或标签" /><label><input type="checkbox" checked={showAll} onChange={(event) => onToggleShowAll(event.target.checked)} />显示任意节点</label></div>
       {!showAll && <p>默认仅显示输入、输出数量和数据类型兼容的节点。</p>}
       <div className="replacement-list">{candidates.map((candidate) => <button key={candidate.nodeType} onClick={() => onSelect(candidate.nodeType)}><strong>{candidate.label}</strong><span>{candidate.nodeType}</span><small>{candidate.inputPorts.map((port) => port.valueType).join(" + ") || "无输入"} → {candidate.outputPorts.map((port) => port.valueType).join(" + ") || "无输出"}</small></button>)}</div>
+    </section>
+  </div>;
+}
+
+export function InputDialog({ node, value, onValueChange, onSubmit, onCancel }: {
+  node: { data: { parameters: Record<string, unknown> } } | null;
+  value: string;
+  onValueChange: (value: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}) {
+  if (!node) return null;
+  const kind = String(node.data.parameters.inputKind ?? "text");
+  return <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label={String(node.data.parameters.title ?? "输入")}><section className="interaction-dialog"><header><span className="interaction-dialog__icon" aria-hidden="true">⌁</span><div><strong>{String(node.data.parameters.title ?? "输入")}</strong><small>流程正在等待你的输入 · {kind}</small></div></header><div className="interaction-dialog__content"><p>{String(node.data.parameters.prompt ?? "请输入值")}</p>{kind === "select" ? <select autoFocus value={value} onChange={(event) => onValueChange(event.target.value)}>{String(node.data.parameters.options ?? "").split(",").map((item) => item.trim()).filter(Boolean).map((item) => <option key={item} value={item}>{item}</option>)}</select> : kind === "multiline" || kind === "json" || kind === "table" ? <textarea autoFocus rows={kind === "table" ? 9 : 6} value={value} placeholder={kind === "table" ? "粘贴 CSV 或 JSON 记录数组" : kind === "json" ? "输入 JSON 对象或数组" : "输入多行文本"} onChange={(event) => onValueChange(event.target.value)} /> : kind === "boolean" ? <label className="interaction-dialog__boolean"><input autoFocus type="checkbox" checked={value === "true"} onChange={(event) => onValueChange(String(event.target.checked))} />{value === "true" ? "True" : "False"}</label> : kind === "file" ? <><input autoFocus type="file" accept="image/*,.txt,.json,.csv" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = () => onValueChange(String(reader.result ?? "")); reader.readAsDataURL(file); }} />{value.startsWith("data:image/") && <img className="interaction-dialog__image-preview" src={value} alt="输入图片预览" />}</> : <input autoFocus type={["number", "date", "time", "datetime-local"].includes(kind) ? kind : "text"} value={value} onChange={(event) => onValueChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onSubmit(); }} />}</div><footer><button className="button secondary" onClick={onCancel}>取消</button><button className="button primary" onClick={onSubmit}>确定并运行</button></footer></section></div>;
+}
+
+export function AlertDialog({ node, preview, onSubmit }: {
+  node: { data: { parameters: Record<string, unknown> } } | null;
+  preview: NodeExecutionPreview | undefined;
+  onSubmit: (response: boolean | null) => void;
+}) {
+  if (!node) return null;
+  return <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label={String(node.data.parameters.title ?? "提示")} onKeyDown={(event) => { if (event.key === "Escape" && String(node.data.parameters.cancelLabel ?? "取消").trim()) onSubmit(null); }}><section className="interaction-dialog interaction-dialog--alert"><header><span className="interaction-dialog__icon" aria-hidden="true">!</span><div><strong>{String(node.data.parameters.title ?? "提示")}</strong><small>“内容”端口支持文本、表格、图片、时间及任意可预览值</small></div></header><div className="interaction-dialog__content"><p>{String(node.data.parameters.message ?? "流程正在执行。")}</p>{preview?.kind === "table" ? <DataGrid preview={preview.preview} /> : preview?.kind === "plot" ? <img className="interaction-dialog__image-preview" src={`data:image/png;base64,${preview.plotPngBase64}`} alt="弹窗输入图像" /> : preview?.kind === "value" ? <pre className="interaction-dialog__value">{preview.text}</pre> : <small>首次运行时先执行上游后即可在此自适应显示内容；选择结果仍由 output 端口输出。</small>}</div><footer className="interaction-dialog__choices">{String(node.data.parameters.cancelLabel ?? "取消").trim() && <button className="button secondary" onClick={() => onSubmit(null)}>{String(node.data.parameters.cancelLabel)}</button>}{String(node.data.parameters.exitLabel ?? "退出").trim() && <button className="button alert-false" onClick={() => onSubmit(false)}>{String(node.data.parameters.exitLabel)}</button>}{String(node.data.parameters.confirmLabel ?? "确认").trim() && <button autoFocus className="button primary" onClick={() => onSubmit(true)}>{String(node.data.parameters.confirmLabel)}</button>}{!["cancelLabel", "exitLabel", "confirmLabel"].some((key) => String(node.data.parameters[key] ?? "").trim()) && <button autoFocus className="button secondary" onClick={() => onSubmit(null)}>关闭</button>}</footer><div className="interaction-dialog__result-legend"><span><b>true</b> 确认</span><span><b>false</b> 退出</span><span><b>None</b> 取消</span></div></section></div>;
+}
+
+export function CodeEditorModal({ open, code, summary, error, onClose, onCodeChange }: {
+  open: boolean;
+  code: string;
+  summary: string;
+  error: string | null | undefined;
+  onClose: () => void;
+  onCodeChange: (code: string) => void;
+}) {
+  if (!open) return null;
+  return (
+    <div className="code-editor-modal" role="dialog" aria-modal="true" aria-label="Python 函数全屏编辑器">
+      <header>
+        <div>
+          <strong>Python 函数编辑器</strong>
+          <span className={error ? "error" : "valid"}>{error ?? summary}</span>
+        </div>
+        <button onClick={onClose}>完成</button>
+      </header>
+      <textarea
+        autoFocus
+        spellCheck={false}
+        value={code}
+        onChange={(event) => onCodeChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          event.preventDefault();
+          const input = event.currentTarget;
+          const start = input.selectionStart;
+          onCodeChange(`${input.value.slice(0, start)}    ${input.value.slice(input.selectionEnd)}`);
+          window.requestAnimationFrame(() => input.setSelectionRange(start + 4, start + 4));
+        }}
+      />
+    </div>
+  );
+}
+
+export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, connectionStatus, language, instruction, requesting, planText, plan, planError, audit, onClose, onPresetSelect, onSettingsChange, onApiKeyChange, onLanguageChange, onTestConnection, onInstructionChange, onRequestPlan, onPlanTextChange, onReviewPlan, onApplyPlan }: {
+  open: boolean;
+  settings: AgentSettings;
+  apiKey: string;
+  keyStorageHint: string;
+  testing: boolean;
+  connectionStatus: string | null;
+  language: string;
+  instruction: string;
+  requesting: boolean;
+  planText: string;
+  plan: AgentPlan | null;
+  planError: string | null;
+  audit: { at: string; summary: string; result: string }[];
+  onClose: () => void;
+  onPresetSelect: (presetId: string) => void;
+  onSettingsChange: (patch: Partial<AgentSettings>) => void;
+  onApiKeyChange: (value: string) => void;
+  onLanguageChange: (value: "zh-CN" | "en") => void;
+  onTestConnection: () => void;
+  onInstructionChange: (value: string) => void;
+  onRequestPlan: () => void;
+  onPlanTextChange: (value: string) => void;
+  onReviewPlan: () => void;
+  onApplyPlan: () => void;
+}) {
+  if (!open) return null;
+  const permissions = settings.permissions;
+  return <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="AI Agent 设置">
+    <section className="settings-dialog agent-dialog">
+      <header><div><strong>AI Agent 设置</strong><span>AI 只提出计划；画布变更仍需确认</span></div><button aria-label="关闭 AI Agent" onClick={onClose}>×</button></header>
+      <div className="settings-dialog__body">
+        <section><h3>模型与连接</h3>
+          <label>供应商<select value={settings.presetId} onChange={(event) => onPresetSelect(event.target.value)}>{AGENT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
+          <label>协议<select value={settings.provider} onChange={(event) => onSettingsChange({ provider: event.target.value as AgentSettings["provider"], presetId: "custom" })}><option value="openai-responses">OpenAI Responses</option><option value="openai-compatible">OpenAI 兼容 Chat</option><option value="anthropic-messages">Anthropic Messages</option></select></label>
+          <label>接口地址<input value={settings.endpoint} onChange={(event) => onSettingsChange({ endpoint: event.target.value, presetId: "custom" })} /></label>
+          <label>模型<select value={settings.model} onChange={(event) => onSettingsChange({ model: event.target.value })}><option value="">选择或自定义模型</option>{presetById(settings.presetId).models.map((model) => <option key={model} value={model}>{model}</option>)}</select></label>
+          <label>自定义模型<input value={settings.model} placeholder="模型 ID，例如 deepseek-chat" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>
+          <label>API 密钥<input type="password" autoComplete="off" value={apiKey} placeholder={keyStorageHint} onChange={(event) => onApiKeyChange(event.target.value)} /></label>
+          <label>规划语言<select value={language} onChange={(event) => onLanguageChange(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
+          <div className="agent-inline-actions"><button className="button secondary" disabled={testing} onClick={onTestConnection}>{testing ? "测试中…" : "尝试连接"}</button>{connectionStatus && <small className={connectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{connectionStatus}</small>}</div>
+          <small>{keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : keyStorageHint === "synced" ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
+        </section>
+        <section><h3>AI 权限</h3>
+          <label className="settings-check"><input type="checkbox" checked={permissions.createNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, createNodes: event.target.checked } })} />创建节点</label>
+          <label className="settings-check"><input type="checkbox" checked={permissions.updateParameters} onChange={(event) => onSettingsChange({ permissions: { ...permissions, updateParameters: event.target.checked } })} />修改参数与布局</label>
+          <label className="settings-check"><input type="checkbox" checked={permissions.connectNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, connectNodes: event.target.checked } })} />创建连线</label>
+          <label className="settings-check"><input type="checkbox" checked={permissions.deleteNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, deleteNodes: event.target.checked } })} />删除节点</label>
+          <label className="settings-check"><input type="checkbox" checked={permissions.runWorkflow} onChange={(event) => onSettingsChange({ permissions: { ...permissions, runWorkflow: event.target.checked } })} />执行工作流</label>
+        </section>
+        <section className="agent-request"><h3>创建计划</h3><textarea value={instruction} placeholder="例如：读取两个 CSV，按日期合并后绘制销售额折线图" onChange={(event) => onInstructionChange(event.target.value)} /><button className="button primary" disabled={requesting} onClick={onRequestPlan}>{requesting ? "AI 正在规划…" : "请求 AI 计划"}</button><small>模型不能直接执行 Python、访问文件或改写工作流 JSON。</small></section>
+        <section className="agent-plan"><h3>计划预览</h3><textarea spellCheck={false} value={planText} placeholder={"可粘贴或检查 AI 返回的 JSON 计划，例如：\n{\"summary\":\"添加读取节点\",\"operations\":[]}"} onChange={(event) => onPlanTextChange(event.target.value)} /><div><button className="button secondary" onClick={onReviewPlan}>检查计划</button><button className="button primary" disabled={!plan || requesting} onClick={onApplyPlan}>确认并应用</button></div>{planError && <p className="validation-error">{planError}</p>}{plan && <p>将执行：{plan.summary}（{plan.operations.length} 项操作）</p>}</section>
+        <section><h3>审计</h3>{audit.length ? <ol className="agent-audit">{audit.slice(0, 5).map((entry) => <li key={`${entry.at}-${entry.summary}`}><strong>{entry.summary}</strong><span>{entry.result}</span></li>)}</ol> : <p className="muted">尚无 AI 操作记录。</p>}</section>
+      </div>
+    </section>
+  </div>;
+}
+
+type ThemeMode = "system" | "dark" | "light";
+type CanvasSettings = { nodeScale: number; endpointScale: number; edgeWidth: number; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; miniMapMode: "auto" | "show" | "hide"; showNodeInsights: boolean };
+
+export function SettingsDialog({ open, themeMode, language, resolvedTheme, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, hotReloadEnabled, profilePath, workspaceUri, onClose, onThemeModeChange, onLanguageChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onConfigureFolder, onExportSettings, onImportSettings }: {
+  open: boolean;
+  themeMode: ThemeMode;
+  language: string;
+  resolvedTheme: "dark" | "light";
+  canvas: CanvasSettings;
+  smbServer: string;
+  smbShare: string;
+  smbGuest: boolean;
+  smbUsername: string;
+  smbDisabled: boolean;
+  debugMode: boolean;
+  hotReloadEnabled: boolean;
+  profilePath: string | null;
+  workspaceUri: string | null;
+  onClose: () => void;
+  onThemeModeChange: (value: ThemeMode) => void;
+  onLanguageChange: (value: "zh-CN" | "en") => void;
+  onCanvasChange: (patch: Partial<CanvasSettings>) => void;
+  onOpenSmb: () => void;
+  onOpenAgent: () => void;
+  onDebugModeChange: (checked: boolean) => void;
+  onConfigureFolder: () => void;
+  onExportSettings: () => void;
+  onImportSettings: () => void;
+}) {
+  if (!open) return null;
+  const range = (label: string, output: string, value: number, min: number, max: number, step: number, key: keyof CanvasSettings) => <label>{label} <output>{output}</output><input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onCanvasChange({ [key]: Number(event.target.value) } as Partial<CanvasSettings>)} /></label>;
+  return <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="设置">
+    <section className="settings-dialog">
+      <header><div><strong>设置</strong><span>设置会保存在本机用户配置中</span></div><button aria-label="关闭设置" onClick={onClose}>×</button></header>
+      <div className="settings-dialog__body">
+        <section><h3>外观</h3><label>主题<select value={themeMode} onChange={(event) => onThemeModeChange(event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="dark">暗色模式</option><option value="light">亮色模式</option></select></label><label>界面语言<select value={language} onChange={(event) => onLanguageChange(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label><small>当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}。</small></section>
+        <section><h3>画布</h3>{range("节点尺寸", `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range("端点大小", `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range("连线粗细", `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range("左侧节点栏", `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 132, 360, 4, "paletteWidth")}{range("右侧参数栏", `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range("横屏参数栏高度", `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}{range("结果区高度", `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label>缩略图<select value={canvas.miniMapMode} onChange={(event) => onCanvasChange({ miniMapMode: event.target.value as CanvasSettings["miniMapMode"] })}><option value="hide">默认隐藏</option><option value="auto">自动显示</option><option value="show">始终显示</option></select></label><label className="settings-check"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />显示节点运行结果</label></section>
+        <section className="settings-smb-summary"><h3>局域网 SMB</h3><p>设备发现、账号或访客登录、共享选择和文件浏览集中在同一个文件选择器中。密码由 Android Keystore 或 Windows 系统安全存储加密保存。</p><dl><dt>当前设备</dt><dd>{smbServer || "尚未选择"}</dd><dt>当前共享</dt><dd>{smbShare || "尚未选择"}</dd><dt>登录方式</dt><dd>{smbGuest ? "访客" : smbUsername || "账号未填写"}</dd></dl><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>选择 SMB 文件</button></section>
+        <section><h3>AI Agent</h3><p>通过顶部星形按钮设置模型、加密密钥及 AI 的画布权限。每次变更都需要在计划预览中确认。</p><button onClick={onOpenAgent}>AI 模型与密钥</button></section>
+        <section><h3>调试与热更新</h3><label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />启用调试模式</label><p>调试模式保留节点执行顺序、单节点耗时、部分结果和 Python 堆栈；底部虫形按钮可打开调试面板。</p><p>当前前端热更新：{hotReloadEnabled ? "已连接 HMR" : "未启用（当前为构建版）"}</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div><small>React、CSS 和 TypeScript 可即时更新；Electron 主进程需重启 desktop:dev，Android Java、Manifest、Gradle 和内置 Python 需要重新安装。</small></section>
+        <section className="settings-profile-section"><h3>配置文件</h3><p>设置、自动保存、个人节点模板和用户代码会保存到应用用户配置目录。</p><dl><dt>应用配置目录</dt><dd>{profilePath ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={onConfigureFolder}>选择 / 跳转文件夹</button><button onClick={onExportSettings}>导出设置</button><button onClick={onImportSettings}>导入设置</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
+      </div>
     </section>
   </div>;
 }
