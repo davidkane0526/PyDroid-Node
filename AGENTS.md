@@ -26,6 +26,21 @@ These rules apply to every developer and coding agent on every device.
 
 ## Validation
 
+## Build-mode defaults
+
+- Unless the user explicitly asks for a "正式便携包", do not run the full
+  `pnpm desktop:package` compression pipeline.
+- For ordinary Windows UI and shared-logic development, prefer
+  `pnpm desktop:dev` with Vite hot reload. Use `pnpm desktop` for an immediately
+  operable quick test window that reuses the local Python runtime. When the user
+  needs a file to test, provide a fast unpacked/test build that reuses that runtime.
+- Build the self-contained portable EXE only for an explicit formal portable
+  package/release request. A generic request to test the desktop version does
+  not authorize the slow portable-package path.
+- For Android Web UI changes, prefer `pnpm android:live` and Capacitor/Vite live
+  reload. Rebuild/reinstall the APK when Python, Java, Android resources,
+  manifest, Gradle configuration, or native bridge code changes.
+
 Run the portable validation suite with:
 
 ```bash
