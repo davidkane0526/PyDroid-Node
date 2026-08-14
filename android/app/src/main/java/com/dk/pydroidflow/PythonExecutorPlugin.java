@@ -107,9 +107,11 @@ public class PythonExecutorPlugin extends Plugin {
         if (!server.matches("[A-Za-z0-9._:-]+") || share.isEmpty() || share.contains("/") || share.contains("\\")) throw new IllegalArgumentException("SMB 服务器或共享名称无效");
         String clean = relativePath == null ? "" : relativePath.replace('\\', '/');
         if (clean.startsWith("/") || clean.contains("../") || clean.equals("..")) throw new IllegalArgumentException("SMB 路径无效");
-        StringBuilder encoded = new StringBuilder();
-        for (String part : clean.split("/")) if (!part.isEmpty()) encoded.append(Uri.encode(part)).append('/');
-        return "smb://" + server + "/" + Uri.encode(share) + "/" + encoded;
+        // jcifs-ng 的 URL 解析不做百分号解码（SmbResourceLocatorImpl 直接 split("/") 取字面量），
+        // 因此共享名与路径段必须原样拼接；特殊字符（空格、#、? 等）也会按字面量处理。
+        StringBuilder path = new StringBuilder();
+        for (String part : clean.split("/")) if (!part.isEmpty()) path.append(part).append('/');
+        return "smb://" + server + "/" + share + "/" + path;
     }
 
     @PluginMethod
