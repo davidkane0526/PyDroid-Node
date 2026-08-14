@@ -25,7 +25,49 @@ function probeSmbHost(address, timeout = 380) {
   });
 }
 
-async function discoverSmbServers() {
+async function netViewListHosts() {
+  // Windows 原生 `net view` 列出局域网 SMB 主机（含主机名），作为设备发现的权威来源。
+  return new Promise((resolve) => {
+    const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); net view`], { windowsHide: true });
+    const chunks = [];
+    let settled = false;
+    const finish = (hosts = []) => { if (settled) return; settled = true; clearTimeout(timer); resolve(hosts); };
+    const timer = setTimeout(() => { child.kill(); finish([]); }, 6000);
+    child.stdout.on("data", (chunk) => chunks.push(chunk));
+    child.once("error", () => finish([]));
+    child.once("close", () => {
+      const lines = Buffer.concat(chunks).toString("utf8").split(/\r?\n/);
+      const hosts = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        const share = trimmed.match(/^\\\\?([A-Za-z0-9_.-]{1,15})(\s{2,}|$)/);
+        if (share) { hosts.push(share[1]); continue; }
+      }
+      resolve([...new Set(hosts)]);
+    });
+  });
+}
+
+function netbiosName(address) {
+  // nbtstat -A 通过 NetBIOS 查询主机名；局域网没有反向 DNS 时的兜底。
+  if (!/^[0-9.]+$/.test(String(address || ""))) return Promise.resolve("");
+  return new Promise((resolve) => {
+    const child = spawn("nbtstat.exe", ["-A", address], { windowsHide: true });
+    const chunks = [];
+    let settled = false;
+    const finish = (name = "") => { if (settled) return; settled = true; clearTimeout(timer); resolve(name); };
+    const timer = setTimeout(() => { child.kill(); finish(""); }, 3000);
+    child.stdout.on("data", (chunk) => chunks.push(chunk));
+    child.once("error", () => finish(""));
+    child.once("close", () => {
+      const text = Buffer.concat(chunks).toString("utf8");
+      const match = text.match(/<00>\s+UNIQUE\s+Registered\s+([A-Za-z0-9_.-]+)/);
+      finish(match ? match[1] : "");
+    });
+  });
+}
+
+async function scanSubnetForSmb() {
   const candidates = new Set();
   for (const entries of Object.values(os.networkInterfaces())) for (const entry of entries ?? []) {
     if (entry.family !== "IPv4" || entry.internal) continue;
@@ -39,12 +81,30 @@ async function discoverSmbServers() {
     const batch = await Promise.all(addresses.slice(offset, offset + 48).map((address) => probeSmbHost(address)));
     found.push(...batch.filter(Boolean));
   }
-  return Promise.all(found.map(async (address) => {
+  return found;
+}
+
+async function discoverSmbServers() {
+  // 1) `net view` 权威发现：返回真实主机名，共享枚举由 netViewShares 完成
+  const found = [];
+  const seen = new Set();
+  for (const host of await netViewListHosts()) {
+    if (seen.has(host.toLocaleLowerCase())) continue;
+    seen.add(host.toLocaleLowerCase());
+    const shares = await netViewShares(host).catch(() => []);
+    found.push({ address: host, name: host, shares });
+  }
+  // 2) 445 端口扫描补充：net view 可能因权限/广播域看不到的设备
+  for (const address of await scanSubnetForSmb()) {
+    if (seen.has(address)) continue;
+    seen.add(address);
     let name = address;
     try { name = (await dns.reverse(address))[0] || address; } catch {}
+    if (name === address) name = (await netbiosName(address)) || address;
     const shares = await netViewShares(address).catch(() => []);
-    return { address, name, shares };
-  }));
+    found.push({ address, name, shares });
+  }
+  return found;
 }
 
 function smbErrorMessage(error, fallback = "SMB 操作失败") {
@@ -95,6 +155,8 @@ async function readDesktopSmb(connection, paths) {
 }
 
 function netViewShares(server) {
+  // server 会拼入 PowerShell 命令，必须先校验，避免注入。
+  if (!/^[A-Za-z0-9._:-]+$/.test(String(server || ""))) return Promise.resolve([]);
   return new Promise((resolve) => {
     const child = spawn("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `[Console]::OutputEncoding=[Text.UTF8Encoding]::new(); net view \\\\${server}`], { windowsHide: true });
     const chunks = [];
