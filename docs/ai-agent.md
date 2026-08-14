@@ -2,11 +2,31 @@
 
 PyDroid Flow 的 AI Agent 只能操作版本化的节点流程，不把 Python、JavaScript 或 Notebook
 代码藏进节点。Android、Windows 桌面端和局域网网页使用同一套节点目录、端口类型、权限检查
-和计划执行器。
+和计划执行器。AI 只提出计划，画布变更仍需用户在“计划预览”中点击“确认并应用”。
+
+## 快速开始
+
+1. 点击顶部星形按钮打开 “AI Agent 设置”。
+2. 选择供应商预设（内置 OpenAI、Anthropic Claude、DeepSeek、Moonshot Kimi、
+   智谱 GLM、通义千问和自定义 OpenAI 兼容接口），或改写接口地址与模型名。
+3. 填写**仅本次会话**的 API 密钥（不写入设置、工作流或导出文件；Android 使用
+   系统 Keystore 加密，桌面端驻留当前会话，网页端仅与已配对 Android 内存同步）。
+4. 点击“尝试连接”发送最小测试请求；成功后描述需求，例如：
+   “读取两个 CSV，按日期合并后绘制销售额折线图”，然后点击“请求 AI 计划”。
+5. 在“计划预览”中检查 AI 返回的操作清单，点击“确认并应用”。
+
+### 模型兼容性提示
+
+- OpenAI 使用 Responses 接口，Anthropic 使用 Messages 接口，其余供应商使用
+  OpenAI 兼容 Chat Completions 接口，均由预设自动配置。
+- **DeepSeek：`deepseek-reasoner` 不支持工具调用**，节点规划必须选择
+  `deepseek-chat`；界面会在选择 DeepSeek 预设时显示该提示。
+- 若“请求 AI 计划”返回“没有返回工作流计划工具调用”，优先确认所选模型支持
+  function calling / tool use，并检查接口地址与密钥是否正确。
 
 ## 可用操作
 
-- `add_node`：从节点目录添加节点。
+- `add_node`：从节点目录添加节点（含组合 `group_nodes` 与逻辑结构）。
 - `set_parameter`：只修改该节点已声明的参数。
 - `connect` / `disconnect`：连接或断开兼容的类型化端口。
 - `group_nodes`：把已有节点和内部连线保存为真正的组合，并重写组合边界端口。
@@ -15,21 +35,36 @@ PyDroid Flow 的 AI Agent 只能操作版本化的节点流程，不把 Python�
 - `run_workflow`：在用户授权后执行当前流程。
 
 条件、遍历和循环必须使用 `logic.if_subflow`、`logic.for_each_subflow`、
-`logic.while_subflow` 等可视化结构；组合必须由基础节点组成。若目录缺少必要能力，Agent 应报告
-缺少的基础节点，而不是生成任意代码块规避限制。
+`logic.while_subflow` 等可视化结构；组合必须由基础节点组成。若目录缺少必要能力，
+Agent 应报告缺少的基础节点，而不是生成任意代码块规避限制。
+
+## 权限
+
+AI 权限可在设置中逐项开关，默认开启创建/修改/连线/断线/整理，默认关闭删除与执行：
+
+| 权限 | 控制的操作 | 默认 |
+| --- | --- | --- |
+| `createNodes` | `add_node`、`group_nodes` | 开 |
+| `updateParameters` | `set_parameter` | 开 |
+| `connectNodes` | `connect` | 开 |
+| `disconnectNodes` | `disconnect` | 开 |
+| `arrangeLayout` | `arrange` | 开 |
+| `deleteNodes` | `delete_node` | 关 |
+| `runWorkflow` | `run_workflow` | 关 |
 
 ## 上下文与安全边界
 
-发送给模型的上下文包括节点 ID、标签、类型、父结构、分支、输入/输出端口类型、可配置参数键
-和连线，不包括参数值、文件内容或用户代码。模型返回结构化计划，应用再次校验节点类型、参数键、
-端口兼容、环路和逐项权限，并要求用户确认。审计结果写入用户配置目录的
+发送给模型的上下文包括节点 ID、标签、类型、父结构、分支、输入/输出端口类型、可配置
+参数键和连线，不包括参数值、文件内容或用户代码。模型返回结构化计划，应用再次校验节点
+类型、参数键、端口兼容、环路和逐项权限，并要求用户确认。审计结果写入用户配置目录的
 `logs/agent-audit.json`。
 
-Android 密钥由系统 Keystore 加密保存；桌面端按本机安全存储能力处理；网页端只在已配对会话中
-同步，不把密钥写入流程或导出的设置文件。
+Android 密钥由系统 Keystore 加密保存；桌面端按本机安全存储能力处理；网页端只在已配对
+会话中同步，不把密钥写入流程或导出的设置文件。
 
 ## 维护要求
 
-新增节点或结构操作时，应同步更新节点目录、Python 执行核心、Notebook 导出/导入、Agent 工具
-schema、权限映射和自动化测试。跨平台导出的工作流必须继续使用共享 schema，并在另一平台可导入
-执行。
+新增节点或结构操作时，应同步更新节点目录、Python 执行核心、Notebook 导出/导入、Agent
+工具 schema、权限映射（`src/agent.ts` 的 `AgentPermission` 与
+`src/App.tsx` 的 `agentPermissionFor`）和自动化测试。跨平台导出的工作流必须继续使用
+共享 schema，并在另一平台可导入执行。
