@@ -1480,12 +1480,22 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const onPaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, resource: PaletteResource) => {
     event.dataTransfer.setData("application/pydroid-resource", JSON.stringify(resource));
     event.dataTransfer.effectAllowed = "copy";
-    // 隐藏浏览器默认的半透明拖拽 ghost（与自定义预览叠加会形成“双影子”），只保留自定义预览
-    const ghost = document.createElement("canvas");
-    ghost.width = 1;
-    ghost.height = 1;
-    event.dataTransfer.setDragImage(ghost, 0, 0);
-    setPaletteDragPreview({ kind: resource.kind, label: resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
+    // 用原生 drag image（元素快照）替代浏览器默认 ghost 与自定义预览：
+    // 快照始终跟随光标、可靠显示，避免“双影子”或预览丢失。
+    const card = document.createElement("div");
+    card.className = `palette-drag-preview palette-drag-preview--${resource.kind}`;
+    const icon = document.createElement("span");
+    icon.textContent = resource.kind === "group" ? "⧉" : resource.kind === "flow" ? "◇" : "⠿";
+    const body = document.createElement("div");
+    const label = document.createElement("strong");
+    label.textContent = resource.label;
+    body.appendChild(label);
+    card.appendChild(icon);
+    card.appendChild(body);
+    document.body.appendChild(card);
+    event.dataTransfer.setDragImage(card, 16, 12);
+    // 延迟移除，确保浏览器已捕获快照（rAF 在部分平台可能过早）
+    window.setTimeout(() => card.remove(), 120);
   };
 
   const updatePaletteDragPreview = (event: ReactDragEvent<HTMLButtonElement>) => {

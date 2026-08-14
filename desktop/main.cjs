@@ -158,6 +158,17 @@ function runPowerShell(script, timeoutMs = 20000, extraEnv = {}) {
   });
 }
 
+// 脚本统一用 UTF-8 输出错误并经 try/catch 报告，避免 PowerShell 5.1 的 GBK 乱码。
+function psWrap(body) {
+  return [
+    "[Console]::OutputEncoding=[Text.UTF8Encoding]::new()",
+    "$ErrorActionPreference='Stop'",
+    "try {",
+    body,
+    "} catch { Write-Output ('SMB 操作失败：' + $_.Exception.Message); exit 1 }",
+  ].join("\n");
+}
+
 // 错误信息可能回显脚本行（含 Base64 凭据/路径），脱敏后只保留末尾可读片段。
 function sanitizeSmbError(output, script) {
   let safe = String(output || "");
@@ -182,19 +193,26 @@ function smbB64(text) { return Buffer.from(String(text), "utf8").toString("base6
 
 async function ensureSmbSession(connection) {
   // net use 建立凭据会话；密码通过子进程环境变量传入（不进入任何进程的命令行）。
-  const script = [
-    "$ErrorActionPreference='Stop'",
+  // net use 的原生 stderr（系统 OEM 编码）用 2>$null 丢弃，仅依据退出码生成清晰中文错误。
+  const body = [
     `$unc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc(connection, ""))}'))`,
     `$dom = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(connection.domain || "")}'))`,
     `$usr = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(connection.username || "")}'))`,
+    "$ErrorActionPreference='Continue'",
     "if ($dom -ne '' -or $usr -ne '') {",
     "  $who = if ($dom -ne '') { \"$dom`\\$usr\" } else { $usr }",
-    "  net use $unc /user:$who $env:SMB_PWD 2>&1 | Out-Null",
-    "  if ($LASTEXITCODE -ne 0) { net use $unc /delete 2>&1 | Out-Null; net use $unc /user:$who $env:SMB_PWD 2>&1 | Out-Null }",
-    "} else { net use $unc 2>&1 | Out-Null }",
-    "if ($LASTEXITCODE -ne 0) { throw \"SMB 登录失败（net use 退出码 $LASTEXITCODE）\" }",
+    "  net use $unc /user:$who $env:SMB_PWD 2>$null | Out-Null",
+    "  $code = $LASTEXITCODE",
+    "  if ($code -ne 0) { net use $unc /delete 2>$null | Out-Null; net use $unc /user:$who $env:SMB_PWD 2>$null | Out-Null; $code = $LASTEXITCODE }",
+    "} else { net use $unc 2>$null | Out-Null; $code = $LASTEXITCODE }",
+    "$ErrorActionPreference='Stop'",
+    "if ($code -ne 0) {",
+    "  $map = @{ 2='系统找不到指定的文件或路径'; 53='找不到网络路径（主机不可达或名称无法解析）'; 64='网络名不存在'; 67='网络名或共享名不存在，请检查服务器与共享名'; 5='拒绝访问'; 1326='用户名或密码错误'; 1219='已有其他连接占用该共享，请断开重试'; 85='本地设备名已被占用'; 86='指定的网络密码错误' }",
+    "  $why = if ($map.ContainsKey($code)) { $map[$code] } else { ('错误码 ' + $code) }",
+    "  throw ('无法连接共享：' + $why)",
+    "}",
   ].join("\n");
-  await runPowerShell(script, 15000, { SMB_PWD: connection.password || "" });
+  await runPowerShell(psWrap(body), 15000, { SMB_PWD: connection.password || "" });
   establishedSmbUncs.add(smbUnc(connection, ""));
 }
 
@@ -202,15 +220,14 @@ async function listDesktopSmb(connection, relativePath = "") {
   return enqueueSmb(async () => {
     await ensureSmbSession(connection);
     const clean = smbPathValidation(connection, relativePath);
-    const script = [
-      "$ErrorActionPreference='Stop'",
+    const body = [
       `$unc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc(connection, clean))}'))`,
       "$rows = Get-ChildItem -LiteralPath $unc -Force -ErrorAction Stop | ForEach-Object {",
       "  [pscustomobject]@{ name = $_.Name; directory = $_.PSIsContainer; size = if ($_.PSIsContainer) { 0 } else { $_.Length }; modifiedAt = if ($_.LastWriteTimeUtc) { $_.LastWriteTimeUtc.ToString('o') } else { $null } }",
       "}",
       "$rows | ConvertTo-Json -Compress -Depth 2",
     ].join("\n");
-    const output = await runPowerShell(script);
+    const output = await runPowerShell(psWrap(body));
     const parsed = JSON.parse(output || "[]");
     const rows = Array.isArray(parsed) ? parsed : [parsed].filter(Boolean);
     return rows
@@ -227,13 +244,12 @@ async function readDesktopSmb(connection, paths) {
     for (const relativePath of paths.slice(0, 100)) {
       const clean = String(relativePath).replaceAll("\\", "/").replace(/^\/+/, "");
       if (clean.split("/").includes("..") || !SMB_FILE_PATTERN.test(clean)) throw new Error(`不支持的 SMB 文件：${clean}`);
-      const script = [
-        "$ErrorActionPreference='Stop'",
+      const body = [
         `$p = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc(connection, clean))}'))`,
         "if ((Get-Item -LiteralPath $p -Force).Length -gt 67108864) { throw '文件超过 64 MiB 限制' }",
         "[Convert]::ToBase64String([IO.File]::ReadAllBytes($p))",
       ].join("\n");
-      const base64 = (await runPowerShell(script)).trim();
+      const base64 = (await runPowerShell(psWrap(body))).trim();
       totalBytes += Math.floor((base64.length * 3) / 4);
       if (totalBytes > SMB_MAX_TOTAL_BYTES) throw new Error("SMB 导入总量超过 128 MiB 限制");
       results.push({ name: clean, base64 });
@@ -269,11 +285,10 @@ async function scanDesktopSmbShares(connection) {
     try {
       await enqueueSmb(async () => {
         await ensureSmbSession({ ...connection, share });
-        await runPowerShell([
-          "$ErrorActionPreference='Stop'",
+        await runPowerShell(psWrap([
           `$unc = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${smbB64(smbUnc({ ...connection, share }, ""))}'))`,
           "Get-ChildItem -LiteralPath $unc -Force -ErrorAction Stop | Out-Null",
-        ].join("\n"), 10000);
+        ].join("\n")), 10000);
       });
       available.push(share);
     } catch {}

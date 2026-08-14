@@ -86,7 +86,12 @@ export async function requestAgentPlan(settings: AgentSettings, apiKey: string, 
     const call = payload.content?.find((item) => item.type === "tool_use" && item.name === "propose_workflow_plan");
     if (call?.input) argumentsText = JSON.stringify(call.input);
   } else if (settings.provider === "openai-responses") {
-    const payload = await post(settings, apiKey, { model: settings.model, instructions: plannerInstructions, input, tools: [{ type: "function", name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema }], tool_choice: { type: "function", name: "propose_workflow_plan" }, store: false }) as { output?: Array<{ type?: string; name?: string; arguments?: string }> };
+    // DeepSeek 的 thinking 模式不接受强制指定 function 的 tool_choice（会报 400）；
+    // 它只有一个工具，改用 "required"（必须调用工具，由模型自行选择）即可兼容。
+    const toolChoice = settings.endpoint.includes("deepseek.com")
+      ? "required"
+      : { type: "function", name: "propose_workflow_plan" };
+    const payload = await post(settings, apiKey, { model: settings.model, instructions: plannerInstructions, input, tools: [{ type: "function", name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema }], tool_choice: toolChoice, store: false }) as { output?: Array<{ type?: string; name?: string; arguments?: string }> };
     argumentsText = payload.output?.find((item) => item.type === "function_call" && item.name === "propose_workflow_plan")?.arguments;
   } else {
     const payload = await post(settings, apiKey, { model: settings.model, messages: [{ role: "system", content: plannerInstructions }, { role: "user", content: input }], tools: [{ type: "function", function: { name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema } }], tool_choice: { type: "function", function: { name: "propose_workflow_plan" } } }) as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };

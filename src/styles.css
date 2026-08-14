@@ -239,14 +239,12 @@ button, input, select, textarea { font: inherit; }
 .settings-dialog output { color: var(--info-soft); font: 12px ui-monospace, monospace; }
 .settings-dialog small, .settings-dialog p { margin: 0; color: var(--text-faint); font-size: 11px; line-height: 1.5; }
 .settings-dialog .settings-check { display: flex; gap: 7px; }
-.agent-permission-group { display: grid; gap: 4px; padding: 8px 9px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-overlay); }
-.agent-permission-group h4 { margin: 0 0 2px; color: var(--text-faint); font-size: var(--font-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
-.agent-permission-group .settings-check { align-items: flex-start; gap: 9px; padding: 5px 4px; border-radius: 6px; }
-.agent-permission-group .settings-check:hover { background: var(--surface-hover); }
-.agent-permission-group .settings-check input { margin-top: 3px; flex: none; }
-.agent-permission-group .settings-check > span { display: grid; min-width: 0; gap: 1px; }
-.agent-permission-group .settings-check strong { color: var(--text); font-size: 13px; font-weight: 500; }
-.agent-permission-group .settings-check small { color: var(--text-faint); font-size: var(--font-xs); }
+.agent-permission-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px 14px; }
+.agent-permission-grid h4 { grid-column: 1 / -1; margin: 8px 0 1px; color: var(--text-faint); font-size: var(--font-xs); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.agent-permission-grid h4:first-child { margin-top: 0; }
+.agent-permission-grid .settings-check { align-items: center; gap: 7px; padding: 2px 4px; border-radius: 6px; font-size: 13px; color: var(--text); }
+.agent-permission-grid .settings-check:hover { background: var(--surface-hover); }
+.agent-permission-grid .settings-check input { flex: none; }
 .settings-profile-card { position: fixed; z-index: 181; right: max(20px, calc(50% - 255px)); bottom: max(20px, calc(4vh)); display: grid; width: min(510px, calc(100vw - 40px)); gap: 7px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 0 0 9px 9px; color: #cbd5e1; background: var(--surface-raised); box-shadow: 0 18px 48px #0008; font-size: var(--font-xs); }.settings-profile-card label { display: flex; justify-content: space-between; gap: 8px; }.settings-profile-card select { border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text); background: var(--surface-overlay); font-size: var(--font-xs); }.settings-profile-card p { margin: 0; overflow: hidden; color: var(--text-muted); text-overflow: ellipsis; white-space: nowrap; }.settings-profile-card div { display: flex; gap: 6px; }.settings-profile-card button { padding: 5px 7px; border: 1px solid var(--border-strong); border-radius: 4px; color: var(--text-highlight); background: var(--surface-hover); cursor: pointer; font-size: var(--font-xs); }
 .startup-recovery { min-height: 100vh; display: grid; place-items: center; padding: 24px; color: var(--text); background: var(--surface-deep); }
 .startup-recovery section { width: min(420px, 100%); display: grid; gap: 12px; padding: 22px; border: 1px solid var(--border-strong); border-radius: 14px; background: var(--surface); box-shadow: 0 20px 60px #0008; }
@@ -255,8 +253,6 @@ button, input, select, textarea { font: inherit; }
 .agent-dialog .settings-dialog__body { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .agent-dialog .agent-request, .agent-dialog .agent-plan, .agent-dialog .agent-plan + section { grid-column: 1 / -1; }
 .agent-dialog .settings-dialog__body section:nth-child(2) { grid-column: 1 / -1; }
-.agent-permission-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.agent-permission-group:last-child { grid-column: 1 / -1; }
 .agent-dialog label { grid-template-columns: 100px minmax(0, 1fr); }
 .agent-dialog label input, .agent-dialog textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 7px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface-hover); font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .agent-dialog textarea { min-height: 86px; resize: vertical; }
