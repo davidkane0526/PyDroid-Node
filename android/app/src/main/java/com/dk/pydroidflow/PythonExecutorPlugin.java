@@ -38,9 +38,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import jcifs.CIFSContext;
 import jcifs.CloseableIterator;
+import jcifs.NameServiceClient;
+import jcifs.NetbiosAddress;
 import jcifs.SmbResource;
 import jcifs.config.PropertyConfiguration;
 import jcifs.context.BaseContext;
+import jcifs.context.SingletonContext;
+import jcifs.netbios.NameServiceClientImpl;
 import jcifs.smb.NtlmPasswordAuthenticator;
 
 @CapacitorPlugin(name = "PythonExecutor")
@@ -138,11 +142,24 @@ public class PythonExecutorPlugin extends Plugin {
                 CountDownLatch latch = new CountDownLatch(candidates.size());
                 ArrayList<JSObject> found = new ArrayList<>();
                 CIFSContext guestContext = smbContext(call);
+                // NetBIOS 节点状态查询（UDP 137）：局域网反向 DNS 基本不可用，用它获取真实主机名
+                NameServiceClient netbios = new NameServiceClientImpl(SingletonContext.getInstance());
                 for (String address : candidates) scanner.execute(() -> {
                     try (Socket socket = new Socket()) {
                         socket.connect(new InetSocketAddress(address, 445), 420);
                         JSObject server = new JSObject(); server.put("address", address);
-                        String name = InetAddress.getByName(address).getCanonicalHostName(); server.put("name", name.equals(address) ? address : name);
+                        String name = address;
+                        try {
+                            NetbiosAddress[] nbtNames = netbios.getNbtAllByAddress(address);
+                            if (nbtNames.length > 0) {
+                                String candidate = nbtNames[0].getHostName();
+                                if (candidate != null && !candidate.trim().isEmpty()) name = candidate.trim();
+                            }
+                        } catch (Exception ignored) { }
+                        if (name.equals(address)) { // NetBIOS 失败时的 DNS 兜底
+                            try { name = InetAddress.getByName(address).getCanonicalHostName(); } catch (Exception ignored) { }
+                        }
+                        server.put("name", name);
                         JSArray shares = new JSArray();
                         try (SmbResource root = guestContext.get("smb://" + address + "/"); CloseableIterator<SmbResource> children = root.children()) {
                             while (children.hasNext()) try (SmbResource item = children.next()) {
