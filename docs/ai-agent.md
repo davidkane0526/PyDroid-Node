@@ -19,8 +19,10 @@ PyDroid Flow 的 AI Agent 只能操作版本化的节点流程，不把 Python�
 
 - OpenAI 使用 Responses 接口，Anthropic 使用 Messages 接口，其余供应商使用
   OpenAI 兼容 Chat Completions 接口，均由预设自动配置。
-- **DeepSeek：`deepseek-reasoner` 不支持工具调用**，节点规划必须选择
-  `deepseek-chat`；界面会在选择 DeepSeek 预设时显示该提示。
+- **DeepSeek：旧模型名 `deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24
+  停用**，必须使用 `deepseek-v4-flash`（对应原非思考模式，默认）或
+  `deepseek-v4-pro`（更强推理）；DeepSeek V4 两个模型均支持工具调用。
+  界面会在选择 DeepSeek 预设时显示该提示。
 - 若“请求 AI 计划”返回“没有返回工作流计划工具调用”，优先确认所选模型支持
   function calling / tool use，并检查接口地址与密钥是否正确。
 

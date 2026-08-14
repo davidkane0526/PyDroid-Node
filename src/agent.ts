@@ -6,7 +6,7 @@ export type AgentPreset = { id: string; label: string; provider: AgentProvider; 
 export const AGENT_PRESETS: AgentPreset[] = [
   { id: "openai", label: "OpenAI", provider: "openai-responses", endpoint: "https://api.openai.com/v1/responses", models: ["gpt-5", "gpt-5-mini", "gpt-4.1", "gpt-4o"] },
   { id: "anthropic", label: "Anthropic Claude", provider: "anthropic-messages", endpoint: "https://api.anthropic.com/v1/messages", models: ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-5"] },
-  { id: "deepseek", label: "DeepSeek", provider: "openai-compatible", endpoint: "https://api.deepseek.com/chat/completions", models: ["deepseek-chat", "deepseek-reasoner"], note: "deepseek-reasoner 不支持工具调用，节点规划请选择 deepseek-chat" },
+  { id: "deepseek", label: "DeepSeek", provider: "openai-compatible", endpoint: "https://api.deepseek.com/chat/completions", models: ["deepseek-v4-flash", "deepseek-v4-pro"], note: "旧模型名 deepseek-chat / deepseek-reasoner 已于 2026-07-24 停用；deepseek-v4-flash 对应原 chat（非思考模式），deepseek-v4-pro 提供更强推理" },
   { id: "kimi", label: "Moonshot Kimi", provider: "openai-compatible", endpoint: "https://api.moonshot.cn/v1/chat/completions", models: ["kimi-k2-0905-preview", "moonshot-v1-8k", "moonshot-v1-32k"] },
   { id: "glm", label: "智谱 GLM", provider: "openai-compatible", endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions", models: ["glm-4.6", "glm-4.5-air", "glm-4-flash"] },
   { id: "qwen", label: "通义千问", provider: "openai-compatible", endpoint: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", models: ["qwen3-max", "qwen-plus", "qwen-turbo"] },
