@@ -171,6 +171,10 @@ final class RemoteWorkflowServer {
             String notebook = payload.optString("notebook", null);
             if (notebook == null) throw new IllegalArgumentException("notebook is required");
             sendJsonText(output, 200, callPython("pydroid_flow.notebook", "analyze_notebook_json", notebook));
+        } else if ("/api/analyze-signature".equals(request.path)) {
+            String code = payload.optString("code", null);
+            if (code == null) throw new IllegalArgumentException("code is required");
+            sendJsonText(output, 200, callPython("pydroid_flow.engine", "analyze_signature_json", code));
         } else if ("/api/app-configuration".equals(request.path)) {
             // The session token is required before returning any device configuration.
             // The API key is decrypted only in memory and sent over the user-authorized LAN session.

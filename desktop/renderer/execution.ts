@@ -41,6 +41,7 @@ type DesktopBridge = {
   getEnvironment(): Promise<string>;
   getRuntimeStats(): Promise<RuntimeStats>;
   analyzeNotebook(notebook: string): Promise<string>;
+  analyzeSignature(code: string): Promise<string>;
   pickCsvFiles(mode: "files" | "files_external" | "directory" | "directory_external"): Promise<Array<{ name: string; base64: string }>>;
   discoverSmbServers(): Promise<SmbServer[]>;
   scanSmbShares(connection: SmbConnection): Promise<string[]>;
@@ -143,6 +144,22 @@ export async function analyzeNotebook(notebook: string): Promise<NotebookCellAna
   const bridge = window.pyDroidDesktop;
   if (!bridge) throw new Error("Windows desktop bridge is unavailable");
   return (JSON.parse(await bridge.analyzeNotebook(notebook)) as { cells: NotebookCellAnalysis[] }).cells;
+}
+
+export type PythonSignatureAnalysis = {
+  functionName?: string;
+  inputPorts: Array<{ id: string; label: string; valueType: string; required?: boolean }>;
+  outputPorts: Array<{ id: string; label: string; valueType: string }>;
+  outputType?: string;
+  parameters: Array<{ key: string; label: string; kind: string; required?: boolean; defaultValue?: string | null }>;
+  error?: string;
+};
+
+export async function analyzePythonSignature(code: string): Promise<PythonSignatureAnalysis> {
+  if (isRemoteRuntime()) return remoteRequest<PythonSignatureAnalysis>("/api/analyze-signature", { code });
+  const bridge = window.pyDroidDesktop;
+  if (!bridge) return { inputPorts: [], outputPorts: [], parameters: [], error: "unavailable" };
+  return JSON.parse(await bridge.analyzeSignature(code)) as PythonSignatureAnalysis;
 }
 
 export async function executeWorkflow(

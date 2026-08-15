@@ -23,11 +23,28 @@ def test_classifies_every_statement_in_a_compound_cell_as_carrier_operations():
     assert [item["source"] for item in result["operations"]] == ["x = 1", "y = x + 2"]
 
 
-def test_marks_a_standalone_function_as_unmapped_instead_of_creating_a_code_node():
+def test_recognizes_fully_annotated_function_as_custom_node():
     result = analyze_python_cell("def scale(table: 'table', factor: float = 2) -> 'table':\n    return table * factor\n")
-    assert result["nodeType"] == "notebook.code_cell"
+    assert result["nodeType"] == "custom.python_function"
+    assert result["recognized"] is True
+    assert result["parameters"]["code"].startswith("def scale")
+    assert result["defines"] == ["scale"]
+
+
+def test_infers_annotations_for_unannotated_function():
+    result = analyze_python_cell("def clean(data, factor=2):\n    return data * factor\n")
+    assert result["nodeType"] == "custom.python_function"
+    assert result["recognized"] is True
+    code = result["parameters"]["code"]
+    assert "data: 'table'" in code
+    assert "factor: int" in code
+    assert "-> 'table'" in code
+
+
+def test_marks_uninferable_function_as_unmapped():
+    result = analyze_python_cell("def f(*args, **kwargs):\n    return args\n")
     assert result["recognized"] is False
-    assert result["reason"] == "需要可复用默认节点"
+    assert "无法自动转换" in result["reason"]
 
 
 def test_analyzes_ipynb_cells():
@@ -126,3 +143,74 @@ def test_ast_maps_if_body_to_visual_structure_children():
     table_condition = analyze_python_cell("if frame['voltage'] >= 0:\n    positive = frame.abs()\n")
     assert table_condition["inputVariable"] == "frame"
     assert table_condition["parameters"]["condition"] == "`voltage` >= 0"
+
+
+def test_maps_boolean_indexing_to_query_node():
+    result = analyze_python_cell("data = data[(data['v'] > 5) & (data['v'] < 8)]")
+    assert result["nodeType"] == "pandas.query"
+    assert result["parameters"]["expression"] == "(`v` > 5) & (`v` < 8)"
+    assert result["inputVariable"] == "data"
+
+
+def test_maps_column_list_selection_to_select_columns():
+    result = analyze_python_cell("subset = data[['time', 'voltage']]")
+    assert result["nodeType"] == "table.select_columns"
+    assert result["parameters"]["columns"] == "time,voltage"
+    single = analyze_python_cell("first = data['time']")
+    assert single["nodeType"] == "table.select_columns"
+    assert single["parameters"]["columns"] == "time"
+
+
+def test_maps_rename_to_rename_columns():
+    result = analyze_python_cell("renamed = data.rename(columns={'0': 'time', '1': 'voltage'})")
+    assert result["nodeType"] == "table.rename_columns"
+    assert json.loads(result["parameters"]["names"]) == {"0": "time", "1": "voltage"}
+
+
+def test_maps_plot_keyword_arguments():
+    result = analyze_python_cell("data.plot(logy=True, legend=False, marker='o', linestyle='none', xlabel='x')")
+    assert result["nodeType"] == "plot.line"
+    assert result["parameters"]["logY"] is True
+    assert result["parameters"]["legend"] is False
+    assert result["parameters"]["marker"] == "o"
+    assert result["parameters"]["lineStyle"] == "none"
+    assert result["parameters"]["xLabel"] == "x"
+
+
+def test_maps_groupby_chain_to_groupby_aggregate():
+    result = analyze_python_cell("means = data.groupby('Vg').mean()")
+    assert result["nodeType"] == "table.groupby_aggregate"
+    assert result["parameters"]["groupBy"] == "Vg"
+    assert result["parameters"]["method"] == "mean"
+
+
+def test_maps_linregress_to_linear_fit():
+    result = analyze_python_cell("fit = stats.linregress(data['x'], data['y'])")
+    assert result["nodeType"] == "analysis.linear_fit"
+    assert result["parameters"]["xColumn"] == "x"
+    assert result["parameters"]["yColumn"] == "y"
+
+
+def test_infers_file_path_parameter_as_str():
+    result = analyze_python_cell("def read_data(file_path):\n    return file_path\n")
+    assert result["nodeType"] == "custom.python_function"
+    assert "file_path: str" in result["parameters"]["code"]
+
+
+def test_classifies_config_assignments_explicitly():
+    assert "常量赋值" in analyze_python_cell("shift = 101")["reason"]
+    assert "参数列表" in analyze_python_cell("N_List = [0.02, 0.04]")["reason"]
+    assert "列表推导" in analyze_python_cell("Name = [f'{i}.csv' for i in N_List]")["reason"]
+    assert "路径常量" in analyze_python_cell('Folder = r"D:\\data"')["reason"]
+
+
+def test_marks_plt_show_as_plot_display_terminal():
+    result = analyze_python_cell("plt.show()")
+    assert result["recognized"] is False
+    assert "绘图显示终点" in result["reason"]
+
+
+def test_marks_multi_file_scan_loop():
+    result = analyze_python_cell("for i in Name:\n    data = pd.read_csv(i)\n")
+    assert result["recognized"] is False
+    assert "多文件扫描" in result["reason"]

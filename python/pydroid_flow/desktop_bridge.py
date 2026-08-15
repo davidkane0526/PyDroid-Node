@@ -9,8 +9,11 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from pydroid_flow.engine import environment_info_json, execute_workflow
+from pydroid_flow.engine import environment_info_json, execute_workflow, analyze_signature_json, allow_all_custom_imports
 from pydroid_flow.notebook import analyze_notebook_json
+
+# 桌面端 Python 可自由 pip 安装，放宽自定义节点的 import 白名单。
+allow_all_custom_imports()
 
 
 def execute_request(request: dict[str, Any]) -> str:
@@ -21,6 +24,11 @@ def execute_request(request: dict[str, Any]) -> str:
         if not isinstance(notebook, str):
             raise ValueError("notebook must be a JSON string")
         return analyze_notebook_json(notebook)
+    if request.get("action") == "analyze_signature":
+        code = request.get("code")
+        if not isinstance(code, str):
+            raise ValueError("code must be a string")
+        return analyze_signature_json(code)
     workflow = request.get("workflow")
     csv_text = request.get("csvText")
     input_files = request.get("inputFiles", "[]")

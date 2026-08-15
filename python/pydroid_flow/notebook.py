@@ -235,10 +235,86 @@ def _branch_children(statements: list[ast.stmt], source: str, branch: str) -> li
     return children
 
 
+def _infer_parameter_annotation(name: str, default_node: ast.AST | None) -> ast.AST:
+    """根据参数名和默认值启发式推断类型标注节点。"""
+    lowered = name.lower()
+    if any(token in lowered for token in ("table", "df", "data", "frame")):
+        return ast.Constant(value="table")
+    if any(token in lowered for token in ("file", "path", "filename")):
+        return ast.Name(id="str")
+    if any(token in lowered for token in ("config", "params", "options", "settings")):
+        return ast.Name(id="dict")
+    if default_node is not None:
+        default = _literal(default_node)
+        if isinstance(default, bool):
+            return ast.Name(id="bool")
+        if isinstance(default, int) and not isinstance(default, bool):
+            return ast.Name(id="int")
+        if isinstance(default, float):
+            return ast.Name(id="float")
+        if isinstance(default, str):
+            return ast.Name(id="str")
+        if isinstance(default, list):
+            return ast.Subscript(value=ast.Name(id="list"), slice=ast.Name(id="int"))
+    return ast.Name(id="float")
+
+
+def _infer_function_annotations(statement: ast.FunctionDef, source: str) -> str | None:
+    """给无标注的 def 参数和返回值补启发式标注，返回带标注的函数源码。"""
+    fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
+    try:
+        tree = ast.parse(fragment)
+        fn = tree.body[0] if tree.body and isinstance(tree.body[0], ast.FunctionDef) else None
+    except SyntaxError:
+        return None
+    if fn is None:
+        return None
+    args = list(fn.args.args)
+    defaults = [None] * (len(args) - len(fn.args.defaults)) + list(fn.args.defaults)
+    for arg, default in zip(args, defaults):
+        if arg.annotation is None:
+            arg.annotation = _infer_parameter_annotation(arg.arg, default)
+    if fn.returns is None:
+        fn.returns = ast.Constant(value="table")
+    return ast.unparse(fn)
+
+
+def _analyze_function_definition(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
+    """识别独立函数为 custom.python_function 节点；无标注时按启发式补全。"""
+    if not isinstance(statement, ast.FunctionDef):
+        return None
+    arguments = statement.args
+    if arguments.vararg is not None or arguments.kwarg is not None:
+        return None
+    parameters = list(arguments.posonlyargs) + list(arguments.args) + list(arguments.kwonlyargs)
+    if not parameters:
+        return None
+    if statement.returns is not None and all(parameter.annotation is not None for parameter in parameters):
+        fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
+    else:
+        fragment = _infer_function_annotations(statement, source)
+        if fragment is None:
+            return None
+    return {
+        **base,
+        "recognized": True, "semantic": True, "kind": "FunctionDef",
+        "nodeType": "custom.python_function",
+        "label": statement.name,
+        "parameters": {"code": fragment},
+        "defines": [statement.name],
+        "uses": [],
+    }
+
+
 def _analyze_control_flow(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
     """识别导入、If/For/While 及暂不支持的控制结构；非控制流语句返回 None。"""
     if isinstance(statement, (ast.Import, ast.ImportFrom)):
         return {**base, "recognized": False, "label": "导入模块", "reason": "导入语句由目标环境依赖处理"}
+    if isinstance(statement, ast.FunctionDef):
+        definition = _analyze_function_definition(statement, source, base)
+        if definition is not None:
+            return definition
+        return {**base, "recognized": False, "reason": "函数无法自动转换为自定义节点（含 *args/**kwargs 或无法解析）", "label": "函数定义"}
     if isinstance(statement, ast.If):
         table_variable, condition = _condition_table_variable(statement.test, base["uses"])
         children = _branch_children(statement.body, source, "true") + _branch_children(statement.orelse, source, "false")
@@ -248,6 +324,13 @@ def _analyze_control_flow(statement: ast.stmt, source: str, base: dict[str, Any]
         iterable = _root_name(statement.iter)
         children = _branch_children(statement.body, source, "body")
         if iterable:
+            body_has_read = any(
+                isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+                and node.func.attr in {"read_csv", "read_table", "read_json", "read_excel", "read_parquet"}
+                for node in ast.walk(statement)
+            )
+            if body_has_read:
+                return {**base, "recognized": False, "reason": "多文件扫描循环（建议改用批量读取节点，运行时传入文件）", "label": "多文件扫描"}
             return {**base, "recognized": True, "semantic": True, "nodeType": "logic.for_each_subflow", "label": "For 子流程", "parameters": {"maxIterations": 10000}, "inputVariable": iterable, "children": children}
     if isinstance(statement, ast.While):
         table_variable, condition = _condition_table_variable(statement.test, base["uses"])
@@ -257,26 +340,89 @@ def _analyze_control_flow(statement: ast.stmt, source: str, base: dict[str, Any]
     # A notebook function, arbitrary control flow, imports, and filesystem code are
     # deliberately not converted to a hidden code carrier. The importer records
     # them as unmapped, rather than pretending that a flow is executable.
-    if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.With, ast.Try, ast.For, ast.While)):
+    if isinstance(statement, (ast.AsyncFunctionDef, ast.With, ast.Try, ast.For, ast.While)):
         return {**base, "recognized": False, "reason": "需要可复用默认节点", "label": CONTROL_LABELS.get(base["kind"], base["kind"])}
     return None
 
 
+def _contains_comparison(node: ast.AST) -> bool:
+    return any(isinstance(item, ast.Compare) for item in ast.walk(node))
+
+
+def _rewrite_query_condition(node: ast.AST, root: str) -> str | None:
+    """把布尔索引条件重写为 pandas query 语法（列下标转反引号，~ 转 not）。"""
+    condition = ast.unparse(node)
+    if not condition:
+        return None
+    condition = re.sub(rf"\b{re.escape(root)}\[['\"]([^'\"]+)['\"]\]", r"`\1`", condition)
+    condition = re.sub(rf"\b{re.escape(root)}\.([A-Za-z_]\w*)", r"\1", condition)
+    condition = re.sub(r"~\s*", "not ", condition)
+    return condition
+
+
 def _analyze_assignment(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
-    """识别非调用的赋值模式：行列切片与转置。"""
-    slice_value = _slice_parameter(statement.value)
+    """识别非调用的赋值模式：布尔索引、列选择、行列切片与转置。"""
+    value = statement.value
+    target = _target_name(statement)
+    # 布尔索引 / 列选择：df = df[条件] / df[['a','b']] / df['col']（Name 下标，区别于 df.iloc[...]）
+    if isinstance(value, ast.Subscript) and isinstance(value.ctx, ast.Load) and isinstance(value.value, ast.Name):
+        root = _root_name(value.value)
+        if root:
+            if isinstance(value.slice, ast.List):
+                try:
+                    columns = [ast.literal_eval(element) for element in value.slice.elts]
+                except (ValueError, TypeError):
+                    columns = []
+                if columns and all(isinstance(column, (str, int)) for column in columns):
+                    return {**base, "semantic": True, "kind": "select", "nodeType": "table.select_columns", "label": target or "选择列", "parameters": {"columns": ",".join(str(column) for column in columns)}, "inputVariable": root, "outputVariable": target or root}
+            if isinstance(value.slice, ast.Constant) and isinstance(value.slice.value, str):
+                return {**base, "semantic": True, "kind": "select", "nodeType": "table.select_columns", "label": target or "选择列", "parameters": {"columns": value.slice.value}, "inputVariable": root, "outputVariable": target or root}
+            if _contains_comparison(value.slice):
+                condition = _rewrite_query_condition(value.slice, root)
+                if condition:
+                    return {**base, "semantic": True, "kind": "filter", "nodeType": "pandas.query", "label": target or "条件筛选", "parameters": {"expression": condition}, "inputVariable": root, "outputVariable": target or root}
+    slice_value = _slice_parameter(value)
     if slice_value:
         root, slice_parameters = slice_value
-        target = _target_name(statement)
         return {**base, "semantic": True, "kind": "slice", "nodeType": "table.slice", "label": target or "行列切片", "parameters": slice_parameters, "inputVariable": root, "outputVariable": target or root}
-    if isinstance(statement.value, ast.Attribute) and statement.value.attr == "T":
-        root = _root_name(statement.value.value); target = _target_name(statement)
+    if isinstance(value, ast.Attribute) and value.attr == "T":
+        root = _root_name(value.value)
         if root: return {**base, "semantic": True, "kind": "call", "nodeType": "table.transpose", "label": target or "转置", "parameters": {}, "inputVariable": root, "outputVariable": target or root}
+    # 配置/准备代码：给出明确分类，而非笼统的"Assign 未映射"
+    if isinstance(value, ast.ListComp):
+        return {**base, "recognized": False, "reason": "列表推导（参数或文件路径准备，建议用变量节点承载）"}
+    if isinstance(value, (ast.List, ast.Tuple, ast.Dict)):
+        return {**base, "recognized": False, "reason": "参数列表/字典（配置准备，可用变量节点承载）"}
+    if isinstance(value, ast.Constant):
+        if isinstance(value.value, str) and ("\\" in value.value or "/" in value.value):
+            return {**base, "recognized": False, "reason": "路径常量（运行时环境不可用，建议用运行时文件选择）"}
+        return {**base, "recognized": False, "reason": "常量赋值（配置准备，可用变量节点承载）"}
+    return None
+
+
+def _column_name(node: ast.AST) -> str | None:
+    """提取 df['col'] 或 df.col 的列名。"""
+    if isinstance(node, ast.Subscript):
+        if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+            return node.slice.value
+    elif isinstance(node, ast.Attribute):
+        return node.attr
     return None
 
 
 def _analyze_call(call: ast.Call, statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any]:
     """把调用语句映射到节点：内置函数、专用函数、pandas/numpy 方法与转换。"""
+    if isinstance(call.func, ast.Attribute) and call.func.attr == "linregress" and len(call.args) >= 2:
+        x_arg, y_arg = call.args[0], call.args[1]
+        x_root = _root_name(x_arg)
+        y_root = _root_name(y_arg)
+        x_col = _column_name(x_arg)
+        y_col = _column_name(y_arg)
+        if x_root and x_root == y_root and x_col and y_col:
+            target = _target_name(statement)
+            return {**base, "semantic": True, "kind": "call", "nodeType": "analysis.linear_fit", "label": target or "线性拟合", "parameters": {"xColumn": x_col, "yColumn": y_col}, "inputVariable": x_root, "outputVariable": target or x_root}
+    if isinstance(call.func, ast.Attribute) and call.func.attr == "show" and _root_name(call.func.value) in {"plt", "pyplot", "matplotlib"}:
+        return {**base, "recognized": False, "reason": "绘图显示终点（绘图节点已生成图像，可忽略）"}
     if isinstance(call.func, ast.Name) and call.func.id == "print":
         input_name = _root_name(call.args[0]) if call.args else None
         if input_name:
@@ -309,7 +455,7 @@ def _analyze_call(call: ast.Call, statement: ast.stmt, source: str, base: dict[s
     if not isinstance(call.func, ast.Attribute):
         return {**base, "recognized": False}
     target = _target_name(statement)
-    parameter_names = {"sep": "separator", "skiprows": "skipRows", "usecols": "useColumns", "nrows": "nRows", "ascending": "ascending", "by": "columns"}
+    parameter_names = {"sep": "separator", "skiprows": "skipRows", "usecols": "useColumns", "nrows": "nRows", "ascending": "ascending", "by": "columns", "logy": "logY", "logx": "logX", "xlabel": "xLabel", "ylabel": "yLabel", "linestyle": "lineStyle", "marker": "marker", "legend": "legend", "title": "title", "index": "includeIndex", "orient": "orient"}
     parameters = {parameter_names.get(keyword.arg, keyword.arg): _literal(keyword.value) for keyword in call.keywords if keyword.arg and _literal(keyword.value) is not None}
     receiver = call.func.value
     root = _root_name(receiver)
@@ -334,6 +480,32 @@ def _analyze_call(call: ast.Call, statement: ast.stmt, source: str, base: dict[s
         return {**base, "recognized": False, "reason": f"当前默认输入仅支持 CSV，尚未映射 pandas.{call.func.attr}"}
     if isinstance(receiver, ast.Name) and receiver.id in {"pd", "pandas"} and call.func.attr == "concat":
         return {**base, "semantic": True, "kind": "call", "nodeType": "table.concat", "label": target or "合并表格", "parameters": parameters, "outputVariable": target}
+    if call.func.attr == "groupby":
+        return {**base, "recognized": False, "reason": "groupby 需要链式聚合（如 .mean()/.sum()）"}
+    if (isinstance(call.func, ast.Attribute)
+            and isinstance(call.func.value, ast.Call)
+            and isinstance(call.func.value.func, ast.Attribute)
+            and call.func.value.func.attr == "groupby"):
+        root = _root_name(call.func.value.func.value)
+        groupby_args = call.func.value.args
+        if root and groupby_args:
+            group_by = ",".join(str(ast.literal_eval(argument)) if isinstance(argument, ast.Constant) else ast.unparse(argument) for argument in groupby_args)
+            method = call.func.attr
+            if method in {"mean", "median", "sum", "min", "max", "std", "count"}:
+                return {**base, "semantic": True, "kind": "call", "nodeType": "table.groupby_aggregate", "label": target or f"分组{method}", "parameters": {"groupBy": group_by, "method": method}, "inputVariable": root, "outputVariable": target or root}
+    if call.func.attr == "rename":
+        root = _call_root(call)
+        if not root: return {**base, "recognized": False}
+        columns_kw = next((keyword for keyword in call.keywords if keyword.arg == "columns"), None)
+        if columns_kw is not None and isinstance(columns_kw.value, ast.Dict):
+            try:
+                mapping = ast.literal_eval(columns_kw.value)
+            except (ValueError, TypeError):
+                mapping = None
+            if isinstance(mapping, dict) and all(isinstance(key, (str, int)) for key in mapping):
+                names = json.dumps({str(key): value for key, value in mapping.items()}, ensure_ascii=False)
+                return {**base, "semantic": True, "kind": "call", "nodeType": "table.rename_columns", "label": target or "重命名列", "parameters": {"names": names}, "inputVariable": root, "outputVariable": target or root}
+        return {**base, "recognized": False}
     if call.func.attr in METHOD_NODES:
         root = _call_root(call)
         if not root: return {**base, "recognized": False}

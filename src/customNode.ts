@@ -13,7 +13,7 @@ type AnnotationSpec = {
   valueType?: ValueType;
   optional?: boolean;
   listItemType?: "number" | "text" | "boolean";
-  literalOptions?: Array<{ label: string; value: string | number }>;
+  literalOptions?: Array<{ label: string; value: string | number | boolean }>;
   tupleOutputs?: Array<{ id: string; label: string; valueType: ValueType }>;
 };
 
@@ -120,11 +120,16 @@ function unwrapGeneric(raw: string): { name: string; arguments: string[] } | und
 function scalarValueType(raw: string): ValueType | undefined {
   const annotation = stripQuotes(raw).replaceAll(" ", "").toLowerCase();
   if (["table", "dataframe", "pd.dataframe", "pandas.dataframe"].includes(annotation)) return "table";
+  if (["series", "pd.series", "pandas.series"].includes(annotation)) return "table";
+  if (["ndarray", "np.ndarray", "numpy.ndarray"].includes(annotation)) return "table";
   if (["plot", "image"].includes(annotation)) return "plot";
   if (annotation === "csv") return "csv";
   if (["int", "float", "number"].includes(annotation)) return "number";
   if (["str", "text", "string"].includes(annotation)) return "text";
   if (["bool", "boolean"].includes(annotation)) return "boolean";
+  if (["list", "typing.list"].includes(annotation)) return "list";
+  if (["set", "typing.set", "frozenset"].includes(annotation)) return "list";
+  if (["dict", "typing.dict", "mapping", "object"].includes(annotation)) return "object";
   if (["any", "typing.any"].includes(annotation)) return "any";
   return undefined;
 }
@@ -132,15 +137,20 @@ function scalarValueType(raw: string): ValueType | undefined {
 function parseLiteral(rawValues: string[]): AnnotationSpec | undefined {
   const values = rawValues.map((raw) => {
     const value = stripQuotes(raw);
-    if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-    if (value === "True") return 1;
-    if (value === "False") return 0;
+    if (value === "True") return true;
+    if (value === "False") return false;
+    if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) return Number(value);
     return value;
   });
-  if (!values.length || !values.every((value) => typeof value === typeof values[0])) return undefined;
+  if (!values.length) return undefined;
+  const allBoolean = values.every((value) => typeof value === "boolean");
+  const allNumber = values.every((value) => typeof value === "number");
+  const allString = values.every((value) => typeof value === "string");
+  if (!allBoolean && !allNumber && !allString) return undefined;
+  const valueType: ValueType = allBoolean ? "boolean" : allNumber ? "number" : "text";
   return {
-    valueType: typeof values[0] === "number" ? "number" : "text",
-    literalOptions: values.map((value) => ({ label: String(value), value })),
+    valueType,
+    literalOptions: values.map((value) => ({ label: allBoolean ? (value ? "True" : "False") : String(value), value })),
   };
 }
 
@@ -170,6 +180,8 @@ function annotationSpec(raw: string): AnnotationSpec | undefined {
       if (!itemType || !["number", "text", "boolean"].includes(itemType)) return undefined;
       return { valueType: "text", listItemType: itemType as "number" | "text" | "boolean" };
     }
+    if (["dict", "typing.dict", "mapping"].includes(generic.name)) return { valueType: "object" };
+    if (["set", "typing.set", "frozenset"].includes(generic.name)) return { valueType: "list" };
     if (["literal", "typing.literal"].includes(generic.name)) return parseLiteral(generic.arguments);
     if (["tuple", "typing.tuple"].includes(generic.name)) {
       const tupleOutputs = generic.arguments.map((argument, index) => {
@@ -244,12 +256,85 @@ function parseFunctionHeader(code: string): { functionName: string; argumentsTex
   };
 }
 
+function evaluateArithmeticDefault(source: string): number | undefined {
+  // Safe arithmetic evaluator for numeric default expressions like 10**6, 2*3+1, (1+2)//2.
+  const text = source.trim();
+  if (!/^[-+*/().%\d\s]+$/.test(text)) return undefined;  // 只允许数字与算术符号
+  let index = 0;
+
+  const skipSpace = () => { while (index < text.length && /\s/.test(text[index])) index += 1; };
+
+  function parseExpression(): number {
+    let left = parseTerm();
+    while (true) {
+      skipSpace();
+      if (text[index] === "+") { index += 1; left += parseTerm(); }
+      else if (text[index] === "-") { index += 1; left -= parseTerm(); }
+      else return left;
+    }
+  }
+
+  function parseTerm(): number {
+    let left = parsePower();
+    while (true) {
+      skipSpace();
+      const two = text.slice(index, index + 2);
+      if (two === "//") { index += 2; left = Math.floor(left / parsePower()); }
+      else if (text[index] === "*") { index += 1; left *= parsePower(); }
+      else if (text[index] === "/") { index += 1; left /= parsePower(); }
+      else if (text[index] === "%") { index += 1; left %= parsePower(); }
+      else return left;
+    }
+  }
+
+  function parsePower(): number {
+    const base = parseUnary();
+    skipSpace();
+    if (text[index] === "*" && text[index + 1] === "*") { index += 2; return base ** parsePower(); }
+    return base;
+  }
+
+  function parseUnary(): number {
+    skipSpace();
+    if (text[index] === "-") { index += 1; return -parseUnary(); }
+    if (text[index] === "+") { index += 1; return +parseUnary(); }
+    return parseAtom();
+  }
+
+  function parseAtom(): number {
+    skipSpace();
+    if (text[index] === "(") {
+      index += 1;
+      const value = parseExpression();
+      skipSpace();
+      if (text[index] === ")") index += 1;
+      return value;
+    }
+    const match = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(text.slice(index));
+    if (!match) throw new Error("expected number");
+    index += match[0].length;
+    return Number(match[0]);
+  }
+
+  try {
+    const value = parseExpression();
+    skipSpace();
+    if (index !== text.length) return undefined;
+    return Number.isFinite(value) ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function parseDefaultValue(raw: string | undefined, kind: ParameterSpec["kind"]): string | number | boolean | null | undefined {
   if (raw === undefined) return undefined;
   const value = raw.trim();
   if (value === "None") return null;
   if (kind === "boolean") return value === "True";
-  if (kind === "number" && /^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+  if (kind === "number") {
+    if (/^-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) return Number(value);
+    return evaluateArithmeticDefault(value);
+  }
   if (kind === "text" || kind === "select") return stripQuotes(value);
   return value;
 }
@@ -265,7 +350,14 @@ export function parsePythonFunctionSignature(code: string): ParsedFunctionSignat
   for (const rawArgument of splitTopLevel(rawArguments)) {
     const { declaration, defaultValue } = splitDefault(rawArgument);
     const argument = declaration.match(/^([A-Za-z_]\w*)\s*(?::\s*(.+))?$/);
-    if (!argument) return { ...empty, functionName, error: `无法解析参数：${rawArgument}` };
+    if (!argument) {
+      const trimmed = declaration.trim();
+      if (/^\*\*?[A-Za-z_]\w*$/.test(trimmed)) {
+        return { ...empty, functionName, error: `参数 ${trimmed} 不受支持：自定义节点不支持 *args/**kwargs 可变参数` };
+      }
+      if (trimmed === "*" || trimmed === "/") continue;  // 仅关键字/仅位置分隔符，跳过
+      return { ...empty, functionName, error: `无法解析参数：${rawArgument}` };
+    }
     const [, name, annotation] = argument;
     const parsed = annotation ? annotationSpec(annotation) : undefined;
     if (!parsed?.valueType || parsed.tupleOutputs) return { ...empty, functionName, error: `参数 ${name} 缺少受支持的类型标注` };
@@ -274,7 +366,13 @@ export function parsePythonFunctionSignature(code: string): ParsedFunctionSignat
       inputPorts.push({ id: name, label: name, valueType: parsed.valueType, required });
       continue;
     }
-    const kind: ParameterSpec["kind"] = parsed.literalOptions ? "select" : parsed.listItemType ? "list" : parsed.valueType === "number" ? "number" : parsed.valueType === "boolean" ? "boolean" : "text";
+    const kind: ParameterSpec["kind"] = parsed.literalOptions
+      ? (parsed.valueType === "boolean" ? "boolean" : "select")
+      : parsed.valueType === "object"
+        ? "textarea"
+        : (parsed.listItemType || parsed.valueType === "list")
+          ? "list"
+          : parsed.valueType === "number" ? "number" : parsed.valueType === "boolean" ? "boolean" : "text";
     parameters.push({
       key: name,
       label: name,
@@ -305,6 +403,6 @@ export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<s
     ...base,
     inputPorts: signature.error ? base.inputPorts : signature.inputPorts,
     outputPorts: signature.error ? base.outputPorts : signature.outputPorts,
-    parameters: [...base.parameters, ...signature.parameters],
+    parameters: signature.error ? base.parameters : [...base.parameters, ...signature.parameters],
   };
 }

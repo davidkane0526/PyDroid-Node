@@ -631,6 +631,27 @@ public class PythonExecutorPlugin extends Plugin {
         });
     }
 
+    @PluginMethod
+    public void analyzeSignature(PluginCall call) {
+        String code = call.getString("code");
+        if (code == null) {
+            call.reject("code is required");
+            return;
+        }
+        worker.execute(() -> {
+            try {
+                PyObject module = Python.getInstance().getModule("pydroid_flow.engine");
+                PyObject result = module.callAttr("analyze_signature_json", code);
+                JSObject response = new JSObject();
+                response.put("result", result.toString());
+                call.resolve(response);
+            } catch (Exception exception) {
+                String message = exception.getMessage();
+                call.reject(message == null ? "Signature analysis failed" : message, exception);
+            }
+        });
+    }
+
     @Override
     protected void handleOnDestroy() {
         if (remoteServer != null) remoteServer.stop();

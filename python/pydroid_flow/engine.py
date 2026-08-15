@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import ast
 import builtins
+import hashlib
 import io
 import inspect
 import importlib.metadata
@@ -14,6 +15,7 @@ import time
 import traceback
 from contextlib import redirect_stderr, redirect_stdout
 from collections import defaultdict, deque
+from decimal import Decimal, ROUND_HALF_UP
 from typing import Any
 
 import matplotlib
@@ -31,6 +33,92 @@ MAX_INPUT_FILES = 500
 MAX_INPUT_TEXT_CHARS = 64 * 1024 * 1024
 MAX_WORKFLOW_JSON_CHARS = 16 * 1024 * 1024
 MAX_INPUT_FILES_JSON_CHARS = 96 * 1024 * 1024
+
+# ComfyUI-style execution cache: reuse the result of a pure-function node when its
+# identity, parameters and upstream inputs are unchanged. Lives for the process
+# lifetime so repeated runs of an edited workflow only recompute what changed.
+_node_result_cache: dict[str, tuple[dict[str, Any], pd.DataFrame | None, str | None, str | None]] = {}
+_CACHEABLE_FRAME_LIMIT = 20_000
+_CACHEABLE_NODE_PREFIXES = ("table.", "pandas.", "convert.", "plot.", "analysis.", "pulse.", "python.")
+
+
+def _clear_node_result_cache() -> None:
+    _node_result_cache.clear()
+
+
+def _serialize_cache_value(value: Any) -> Any:
+    if isinstance(value, pd.DataFrame):
+        return {"__dataframe__": value.to_json(date_format="iso", default_handler=str)}
+    if isinstance(value, pd.Series):
+        return {"__series__": value.to_json(date_format="iso", default_handler=str)}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return {"__opaque__": repr(value)}
+
+
+def _deserialize_cache_value(value: Any) -> Any:
+    if isinstance(value, dict) and "__dataframe__" in value:
+        return pd.read_json(io.StringIO(value["__dataframe__"]))
+    if isinstance(value, dict) and "__series__" in value:
+        return pd.read_json(io.StringIO(value["__series__"]), typ="series")
+    if isinstance(value, dict) and "__opaque__" in value:
+        return value["__opaque__"]
+    return value
+
+
+def save_node_result_cache(path: str) -> None:
+    """Persist the execution cache to a JSON file (best-effort)."""
+    try:
+        payload = {
+            key: {
+                "outputs": {name: _serialize_cache_value(item) for name, item in entry[0].items()},
+                "table_result": _serialize_cache_value(entry[1]) if entry[1] is not None else None,
+                "plot_result": entry[2],
+                "export_result": entry[3],
+            }
+            for key, entry in _node_result_cache.items()
+        }
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle, ensure_ascii=False)
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def load_node_result_cache(path: str) -> None:
+    """Restore a previously persisted execution cache (best-effort)."""
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle)
+        if not isinstance(payload, dict):
+            return
+        for key, raw in payload.items():
+            if not isinstance(raw, dict):
+                continue
+            outputs = {name: _deserialize_cache_value(item) for name, item in (raw.get("outputs") or {}).items()}
+            table_result = _deserialize_cache_value(raw["table_result"]) if raw.get("table_result") is not None else None
+            _node_result_cache[key] = (outputs, table_result, raw.get("plot_result"), raw.get("export_result"))
+    except (OSError, TypeError, ValueError):
+        pass
+
+
+def _value_digest(value: Any) -> str:
+    if isinstance(value, pd.DataFrame):
+        if len(value) > _CACHEABLE_FRAME_LIMIT:
+            # Large frames are never cached; a deliberately unstable digest forces a recompute.
+            return f"uncacheable-frame:{value.shape}:{id(value)}"
+        payload = value.to_json(date_format="iso", default_handler=str)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+    if isinstance(value, pd.Series):
+        return hashlib.sha256(value.to_json().encode("utf-8")).hexdigest()
+    if isinstance(value, dict):
+        parts = [f"{key}:{_value_digest(item)}" for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))]
+        return hashlib.sha256(("{" + ",".join(parts) + "}").encode("utf-8")).hexdigest()
+    if isinstance(value, (list, tuple)):
+        parts = [_value_digest(item) for item in value]
+        return hashlib.sha256(("[" + ",".join(parts) + "]").encode("utf-8")).hexdigest()
+    if isinstance(value, (str, int, float, bool, type(None))):
+        return hashlib.sha256(repr(value).encode("utf-8")).hexdigest()
+    return hashlib.sha256(repr(value).encode("utf-8")).hexdigest()
 
 
 def _decode_json_compatible(text: str, label: str = "JSON") -> Any:
@@ -195,7 +283,7 @@ def _container_children(workflow: dict[str, Any], container_id: str, branch: str
     return sorted(children, key=lambda node: (float(node.get("position", {}).get("x", 0)), float(node.get("position", {}).get("y", 0))))
 
 
-def _execute_container_graph(workflow: dict[str, Any], children: list[dict[str, Any]], seed: Any, csv_text: str, input_files: list[dict[str, Any]]) -> Any:
+def _execute_container_graph(workflow: dict[str, Any], children: list[dict[str, Any]], seed: Any, csv_text: str, input_files: list[dict[str, Any]], variables: dict[str, Any] | None = None) -> Any:
     child_ids = {child["id"] for child in children}
     internal_edges = [edge for edge in workflow.get("edges", []) if edge["source"] in child_ids and edge["target"] in child_ids]
     internal_workflow = {"nodes": children, "edges": internal_edges}
@@ -208,42 +296,47 @@ def _execute_container_graph(workflow: dict[str, Any], children: list[dict[str, 
             raise ValueError("Nested visual structures are not supported in this build")
         has_internal_input = any(edge["target"] == child["id"] for edge in internal_edges)
         upstream = _node_upstream(child["id"], child_type, internal_workflow, values) if has_internal_input else seed
-        outputs, _, _, _ = _execute_node(child_type, data.get("parameters", {}), upstream, csv_text, input_files)
+        outputs, _, _, _ = _execute_node(child_type, data.get("parameters", {}), upstream, csv_text, input_files, variables)
         values[child["id"]] = outputs
     if not ordered:
         return seed
     sinks = [child for child in ordered if not any(edge["source"] == child["id"] for edge in internal_edges)]
-    selected = sinks[-1] if sinks else ordered[-1]
+    if len(sinks) > 1:
+        raise ValueError("Structure branch must have exactly one output node; found multiple unconnected sinks")
+    selected = sinks[0] if sinks else ordered[-1]
     outputs = values[selected["id"]]
     return outputs.get("output", next(iter(outputs.values()), seed))
 
 
-def _execute_visual_structure(node: dict[str, Any], workflow: dict[str, Any], upstream: Any, csv_text: str, input_files: list[dict[str, Any]]) -> dict[str, Any]:
+def _execute_visual_structure(node: dict[str, Any], workflow: dict[str, Any], upstream: Any, csv_text: str, input_files: list[dict[str, Any]], variables: dict[str, Any] | None = None) -> dict[str, Any]:
     node_type = node.get("data", {}).get("nodeType")
     params = node.get("data", {}).get("parameters", {})
     table = _require_table(upstream, "Structure input")
     if node_type == "logic.if_subflow":
         condition = str(params.get("condition", "")).strip()
         if not condition: raise ValueError("If structure requires a condition")
-        matching = table.query(condition)
+        working = table.reset_index(drop=True)
+        matching = working.query(condition)
         true_seed = matching.reset_index(drop=True)
-        false_seed = table.loc[~table.index.isin(matching.index)].reset_index(drop=True)
+        false_seed = working.loc[~working.index.isin(matching.index)].reset_index(drop=True)
         return {
-            "true": _execute_container_graph(workflow, _container_children(workflow, node["id"], "true"), true_seed, csv_text, input_files),
-            "false": _execute_container_graph(workflow, _container_children(workflow, node["id"], "false"), false_seed, csv_text, input_files),
+            "true": _execute_container_graph(workflow, _container_children(workflow, node["id"], "true"), true_seed, csv_text, input_files, variables),
+            "false": _execute_container_graph(workflow, _container_children(workflow, node["id"], "false"), false_seed, csv_text, input_files, variables),
         }
     body = _container_children(workflow, node["id"], "body")
     maximum = int(params.get("maxIterations", 100))
     if node_type == "logic.for_each_subflow":
         if len(table) > maximum: raise ValueError(f"For structure exceeds maxIterations={maximum}")
-        rows = [_execute_container_graph(workflow, body, table.iloc[[index]].copy().reset_index(drop=True), csv_text, input_files) for index in range(len(table))]
-        done = pd.concat([item for item in rows if isinstance(item, pd.DataFrame)], ignore_index=True) if rows else table.iloc[0:0].copy()
+        rows = [_execute_container_graph(workflow, body, table.iloc[[index]].copy().reset_index(drop=True), csv_text, input_files, variables) for index in range(len(table))]
+        if any(not isinstance(item, pd.DataFrame) for item in rows):
+            raise ValueError("For structure body must return a table for every row")
+        done = pd.concat(rows, ignore_index=True) if rows else table.iloc[0:0].copy()
         return {"done": done, "output": done}
     condition = str(params.get("condition", "")).strip()
     current = table.copy()
     for _ in range(maximum):
         if current.query(condition).empty: return {"done": current.reset_index(drop=True), "output": current.reset_index(drop=True)}
-        current = _require_table(_execute_container_graph(workflow, body, current, csv_text, input_files), "While structure body")
+        current = _require_table(_execute_container_graph(workflow, body, current, csv_text, input_files, variables), "While structure body")
     raise ValueError(f"While structure reached maxIterations={maximum}")
 
 
@@ -304,6 +397,13 @@ def _optional_float(raw: Any) -> float | None:
     if raw is None or str(raw).strip() == "":
         return None
     return float(raw)
+
+
+def _round_half_away(value: float, ndigits: int = 0) -> float:
+    """Round half away from zero (the conventional 四舍五入), unlike Python's
+    built-in round which uses banker's rounding (round-half-to-even)."""
+    quantum = Decimal(1).scaleb(-ndigits)
+    return float(Decimal(str(value)).quantize(quantum, rounding=ROUND_HALF_UP))
 
 
 def _scalar_value(raw: Any) -> Any:
@@ -515,9 +615,14 @@ def _simple_annotation_kind(name: str) -> str:
     normalized = name.strip(" '\"").replace(" ", "").lower()
     aliases = {
         "dataframe": "table", "pd.dataframe": "table", "pandas.dataframe": "table",
+        "series": "table", "pd.series": "table", "pandas.series": "table",
+        "ndarray": "table", "np.ndarray": "table", "numpy.ndarray": "table",
         "table": "table", "int": "number", "float": "number", "number": "number",
         "str": "text", "string": "text", "text": "text", "bool": "boolean",
         "boolean": "boolean", "plot": "plot", "image": "plot", "csv": "csv",
+        "list": "list", "typing.list": "list", "sequence": "list",
+        "set": "list", "typing.set": "list", "frozenset": "list",
+        "dict": "object", "typing.dict": "object", "mapping": "object", "object": "object",
         "any": "any", "typing.any": "any",
     }
     return aliases.get(normalized, "")
@@ -572,6 +677,10 @@ def _annotation_descriptor(annotation: Any) -> dict[str, Any]:
             if generic in {"list", "typing.list", "sequence", "typing.sequence"} and len(arguments) == 1:
                 item = describe(arguments[0])
                 return {"kind": "list", "item_kind": item.get("kind"), "item_number_type": item.get("number_type")}
+            if generic in {"dict", "typing.dict", "mapping"}:
+                return {"kind": "object"}
+            if generic in {"set", "typing.set", "frozenset"}:
+                return {"kind": "list"}
             if generic in {"literal", "typing.literal"}:
                 try:
                     choices = [ast.literal_eval(member) for member in arguments]
@@ -635,7 +744,17 @@ def _convert_custom_parameter(raw: Any, descriptor: dict[str, Any]) -> Any:
         return _as_bool(raw)
     if kind == "text":
         return str(raw)
+    if kind == "object":
+        if isinstance(raw, (dict, list)):
+            return raw
+        text = str(raw).strip()
+        if not text:
+            return None
+        return _decode_json_compatible(text, "对象参数")
     if kind == "list":
+        if not descriptor.get("item_kind"):
+            # Bare list/set annotation without a concrete item type.
+            return _parse_list_parameter(raw, "text")
         return _parse_list_parameter(raw, descriptor.get("item_kind", ""), descriptor.get("item_number_type"))
     if kind == "literal":
         choices = descriptor.get("choices", [])
@@ -644,6 +763,19 @@ def _convert_custom_parameter(raw: Any, descriptor: dict[str, Any]) -> Any:
                 return choice
         raise ValueError(f"Value {raw!r} is not one of {choices}")
     raise ValueError(f"Unsupported custom parameter type: {kind}")
+
+
+def _coerce_custom_output(value: Any, descriptor: dict[str, Any]) -> Any:
+    """Normalise annotated return values into the port type the node declares."""
+    kind = descriptor.get("kind")
+    if kind == "table":
+        if isinstance(value, pd.Series):
+            return value.to_frame()
+        if isinstance(value, np.ndarray):
+            return pd.DataFrame(value)
+    if kind == "list" and isinstance(value, (set, frozenset)):
+        return list(value)
+    return value
 
 
 def _validate_custom_output(value: Any, descriptor: dict[str, Any], port: str) -> None:
@@ -656,22 +788,88 @@ def _validate_custom_output(value: Any, descriptor: dict[str, Any], port: str) -
         raise ValueError(f"Output {port} declared {kind} but returned {type(value).__name__}")
     if kind == "boolean" and not isinstance(value, bool):
         raise ValueError(f"Output {port} declared boolean but returned {type(value).__name__}")
+    if kind == "list" and not isinstance(value, (list, tuple, set, frozenset)):
+        raise ValueError(f"Output {port} declared list but returned {type(value).__name__}")
+
+
+_CUSTOM_ALLOWED_IMPORTS = {
+    "numpy", "pandas", "scipy", "matplotlib", "math", "json", "re",
+    "collections", "itertools", "functools", "statistics", "typing",
+    "datetime", "decimal", "fractions", "random", "string", "textwrap",
+    "copy", "heapq", "bisect", "operator", "numbers", "warnings",
+    "sklearn", "PIL", "cv2", "openpyxl", "xlrd", "scipy", "networkx",
+}
+
+# 系统级危险模块：即使桌面端放宽 import 也始终禁止。
+_CUSTOM_FORBIDDEN_IMPORTS = {
+    "os", "sys", "subprocess", "shutil", "socket", "importlib", "builtins",
+    "ctypes", "multiprocessing", "threading", "pathlib", "tempfile",
+}
+
+# 移动端（Chaquopy）只能安装预编译 Android wheel 的库，保持严格白名单；
+# 桌面端（pip 自由）可通过 allow_all_custom_imports() 放宽到"仅禁止危险模块"。
+_CUSTOM_ALLOW_ALL_IMPORTS = False
+
+
+def allow_all_custom_imports() -> None:
+    """桌面端调用：放宽自定义节点 import 为仅禁止系统级危险模块。"""
+    global _CUSTOM_ALLOW_ALL_IMPORTS
+    _CUSTOM_ALLOW_ALL_IMPORTS = True
+
+
+def _import_root_allowed(root: str) -> bool:
+    if root in _CUSTOM_FORBIDDEN_IMPORTS:
+        return False
+    if _CUSTOM_ALLOW_ALL_IMPORTS:
+        return True
+    return root in _CUSTOM_ALLOWED_IMPORTS
+
+
+def _validate_custom_imports(tree: ast.AST) -> None:
+    """移动端白名单、桌面端仅禁止危险模块；两者都拒绝系统级危险模块。"""
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                root = alias.name.split(".")[0]
+                if not _import_root_allowed(root):
+                    raise ValueError(f"自定义节点不能导入 {alias.name!r}；允许的模块：{', '.join(sorted(_CUSTOM_ALLOWED_IMPORTS))}")
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            root = module.split(".")[0]
+            if not _import_root_allowed(root):
+                raise ValueError(f"自定义节点不能从 {module!r} 导入；允许的模块：{', '.join(sorted(_CUSTOM_ALLOWED_IMPORTS))}")
+
+
+def _restricted_import(name, globals=None, locals=None, fromlist=(), level=0):
+    """供自定义函数使用的受限 __import__，按平台策略放行模块。"""
+    root = name.split(".")[0]
+    if not _import_root_allowed(root):
+        raise ImportError(f"自定义节点不能导入 {name!r}")
+    return __import__(name, globals, locals, fromlist, level)
 
 
 def _execute_custom_function(code: str, upstream: dict[str, Any], params: dict[str, Any]) -> dict[str, Any]:
     tree = ast.parse(code, mode="exec")
-    forbidden = (ast.Import, ast.ImportFrom, ast.Global, ast.Nonlocal)
-    if any(isinstance(node, forbidden) for node in ast.walk(tree)):
-        raise ValueError("Custom functions cannot import modules or modify global/nonlocal state")
+    _validate_custom_imports(tree)
+    if any(isinstance(node, (ast.Global, ast.Nonlocal)) for node in ast.walk(tree)):
+        raise ValueError("Custom functions cannot modify global/nonlocal state")
     functions = [node.name for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
     if len(functions) != 1 or any(isinstance(node, ast.AsyncFunctionDef) for node in tree.body):
         raise ValueError("Custom node code must contain exactly one synchronous function")
 
     safe_builtins = {
         name: getattr(builtins, name)
-        for name in ("abs", "all", "any", "bool", "dict", "enumerate", "float", "int", "len", "list", "max", "min", "range", "round", "sorted", "str", "sum", "tuple", "zip")
+        for name in (
+            "abs", "all", "any", "bool", "complex", "dict", "divmod", "enumerate",
+            "filter", "float", "frozenset", "getattr", "hasattr", "int", "isinstance",
+            "issubclass", "len", "list", "map", "max", "min", "pow", "range", "reversed",
+            "round", "set", "sorted", "str", "sum", "tuple", "zip",
+        )
     }
-    namespace: dict[str, Any] = {"__builtins__": safe_builtins, "pd": pd}
+    safe_builtins["__import__"] = _restricted_import
+    # Align the custom-function namespace with the notebook cell namespace so the
+    # same Python idioms work in both: pandas + numpy + math are always available.
+    namespace: dict[str, Any] = {"__builtins__": safe_builtins, "pd": pd, "np": np, "math": math}
     exec(compile(tree, "<custom-node>", "exec"), namespace, namespace)
     function = namespace[functions[0]]
     signature = inspect.signature(function)
@@ -680,7 +878,7 @@ def _execute_custom_function(code: str, upstream: dict[str, Any], params: dict[s
         descriptor = _annotation_descriptor(parameter.annotation)
         kind = descriptor.get("kind")
         if not kind or kind == "tuple":
-            raise ValueError(f"Parameter {name} has no supported type annotation")
+            raise ValueError(f"Parameter {name} has no supported type annotation; use table/plot/csv/number/text/boolean/list/Literal/Any (or Optional[...])")
         if kind in {"table", "plot", "csv", "any"}:
             if name in upstream:
                 arguments[name] = upstream[name]
@@ -701,18 +899,86 @@ def _execute_custom_function(code: str, upstream: dict[str, Any], params: dict[s
 
     output_descriptor = _annotation_descriptor(signature.return_annotation)
     if not output_descriptor.get("kind"):
-        raise ValueError("Custom function return value has no supported type annotation")
+        raise ValueError("Custom function return value has no supported type annotation; use table/plot/csv/number/text/boolean/list/Any (or tuple['a:table', ...])")
     value = function(**arguments)
     if output_descriptor["kind"] == "tuple":
         descriptors = output_descriptor["outputs"]
         if not isinstance(value, tuple) or len(value) != len(descriptors):
             raise ValueError(f"Custom function must return a tuple with {len(descriptors)} values")
-        outputs = {descriptor.get("port", f"output{index + 1}"): item for index, (descriptor, item) in enumerate(zip(descriptors, value, strict=True))}
-        for port, item, descriptor in zip(outputs, value, descriptors, strict=True):
+        coerced = [_coerce_custom_output(item, descriptor) for item, descriptor in zip(value, descriptors, strict=True)]
+        outputs = {descriptor.get("port", f"output{index + 1}"): item for index, (descriptor, item) in enumerate(zip(descriptors, coerced, strict=True))}
+        for port, item, descriptor in zip(outputs, coerced, descriptors, strict=True):
             _validate_custom_output(item, descriptor, port)
         return outputs
+    value = _coerce_custom_output(value, output_descriptor)
     _validate_custom_output(value, output_descriptor, "output")
     return {"output": value}
+
+
+def analyze_signature_json(code: str) -> str:
+    """Parse a custom Python function signature into the same JSON shape the
+    frontend's parsePythonFunctionSignature produces, so the Python runtime can
+    serve as the single source of truth whenever it is reachable."""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as error:
+        return json.dumps({"error": f"syntax: {error.msg}"}, ensure_ascii=False)
+    functions = [node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    if len(functions) != 1 or any(isinstance(node, ast.AsyncFunctionDef) for node in tree.body):
+        return json.dumps({"error": "Custom node code must contain exactly one synchronous function"}, ensure_ascii=False)
+    fn = functions[0]
+
+    def descriptor_for(annotation: ast.AST | None) -> dict[str, Any]:
+        if annotation is None:
+            return {}
+        return _annotation_descriptor(ast.unparse(annotation))
+
+    input_ports: list[dict[str, Any]] = []
+    parameters: list[dict[str, Any]] = []
+
+    pos_args = list(fn.args.args)
+    defaults = [None] * (len(pos_args) - len(fn.args.defaults)) + [ast.unparse(default) for default in fn.args.defaults]
+    for arg, default in zip(pos_args, defaults):
+        descriptor = descriptor_for(arg.annotation)
+        kind = descriptor.get("kind")
+        if not kind:
+            return json.dumps({"error": f"参数 {arg.arg} 缺少受支持的类型标注"}, ensure_ascii=False)
+        optional = bool(descriptor.get("optional"))
+        required = default is None and not optional
+        if kind in {"table", "plot", "csv", "any"}:
+            input_ports.append({"id": arg.arg, "label": arg.arg, "valueType": kind, "required": required})
+            continue
+        parameter_kind = (
+            "select" if kind == "literal" else
+            "boolean" if kind == "boolean" else
+            "number" if kind == "number" else
+            "list" if kind == "list" else
+            "textarea" if kind == "object" else
+            "text"
+        )
+        parameters.append({
+            "key": arg.arg, "label": arg.arg, "kind": parameter_kind,
+            "required": required, "defaultValue": default,
+        })
+
+    return_descriptor = descriptor_for(fn.returns)
+    if return_descriptor.get("kind") == "tuple":
+        output_ports = [
+            {"id": output.get("port", f"output{index + 1}"), "label": output.get("port", f"结果 {index + 1}"), "valueType": output.get("kind")}
+            for index, output in enumerate(return_descriptor.get("outputs", []))
+        ]
+    elif return_descriptor.get("kind"):
+        output_ports = [{"id": "output", "label": "结果", "valueType": return_descriptor["kind"]}]
+    else:
+        return json.dumps({"error": "函数返回值缺少受支持的类型标注"}, ensure_ascii=False)
+
+    return json.dumps({
+        "functionName": fn.name,
+        "inputPorts": input_ports,
+        "outputPorts": output_ports,
+        "outputType": output_ports[0]["valueType"],
+        "parameters": parameters,
+    }, ensure_ascii=False)
 
 
 def _group_aggregate(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
@@ -730,6 +996,10 @@ def _group_aggregate(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFram
         raise ValueError(f"Unsupported aggregation method: {method}")
 
     rows: list[pd.Series] = []
+    # Grouping relies on a contiguous 0-based RangeIndex; upstream nodes such as
+    # table.diff / table.select_columns / table.slice keep the original index,
+    # which can be non-contiguous and would silently mis-bucket the rows.
+    frame = frame.reset_index(drop=True)
     for _, group in frame.groupby(frame.index // group_size):
         window = group.iloc[start:end]
         if window.empty:
@@ -797,8 +1067,18 @@ def _logic_expression(expression: str, value: float, iteration: int) -> float | 
                 left = right
             return True
         if isinstance(node, ast.BoolOp) and isinstance(node.op, (ast.And, ast.Or)):
-            values = [bool(evaluate(item)) for item in node.values]
-            return all(values) if isinstance(node.op, ast.And) else any(values)
+            # Short-circuit evaluation: only evaluate operands until the result is
+            # decided, so patterns like `value != 0 and 1 / value > 0.1` no longer
+            # raise ZeroDivisionError when value == 0.
+            if isinstance(node.op, ast.And):
+                for item in node.values:
+                    if not bool(evaluate(item)):
+                        return False
+                return True
+            for item in node.values:
+                if bool(evaluate(item)):
+                    return True
+            return False
         raise ValueError("While expressions support only value, iteration, numbers, arithmetic, comparisons, and/or/not")
 
     result = evaluate(tree.body)
@@ -819,7 +1099,7 @@ def _ter_matrix(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
     groups: list[tuple[Any, list[float], list[float], str]] = []
     detected_min = math.inf
     detected_max = -math.inf
-    detected_step = math.inf
+    all_differences: list[float] = []
     source_column = str(params.get("sourceColumn", "source_file")).strip()
     for vg, group in frame.groupby(vg_column, sort=True):
         cleaned = pd.DataFrame({
@@ -831,14 +1111,15 @@ def _ter_matrix(frame: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
         voltages = cleaned["voltage"].astype(float).tolist()
         currents = cleaned["current"].astype(float).tolist()
         differences = [abs(voltages[index] - voltages[index - 1]) for index in range(1, len(voltages))]
-        nonzero = [item for item in differences if item > 1e-12]
-        if nonzero:
-            detected_step = min(detected_step, min(nonzero))
+        all_differences.extend(item for item in differences if item > 1e-12)
         detected_min = min(detected_min, min(voltages))
         detected_max = max(detected_max, max(voltages))
         source = str(group[source_column].iloc[0]) if source_column and source_column in group.columns else ""
         groups.append((vg, voltages, currents, source))
 
+    # Median is robust against a single noisy tiny difference; the previous
+    # minimum could be collapsed by one noise spike into an absurdly small step.
+    detected_step = float(np.median(all_differences)) if all_differences else math.inf
     step = _optional_float(params.get("vstep")) or detected_step
     vmin = _optional_float(params.get("vmin"))
     vmax = _optional_float(params.get("vmax"))
@@ -934,14 +1215,22 @@ def _oscillating_pulse_ramp(params: dict[str, Any]) -> pd.DataFrame:
     count = max(0, int(math.ceil(total / interval)) - 1)
     if count > 100_000: raise ValueError("Oscillating pulse waveform exceeds the 100000-row safety limit")
     rows = []
-    amplitude = step
+    magnitude = step
+    sign = 1.0
     for index in range(count):
         moment = (index + 1) * interval
-        if index % 2 == 0: rows.append({"time_s": moment, "port1_V": 0.0, "port2_V": fixed, "port3_V": gate})
+        if index % 2 == 0:
+            rows.append({"time_s": moment, "port1_V": 0.0, "port2_V": fixed, "port3_V": gate})
         else:
-            rows.append({"time_s": moment, "port1_V": amplitude, "port2_V": 0.0, "port3_V": gate})
-            amplitude = -amplitude
-            if index % 4 == 1: amplitude += step if amplitude > 0 else -step
+            rows.append({"time_s": moment, "port1_V": sign * magnitude, "port2_V": 0.0, "port3_V": gate})
+            # Advance the magnitude only after a full ±half-cycle so the ramp stays
+            # symmetric: +step, -step, +2*step, -2*step, … (previously the negative
+            # half was always one step larger than the positive one).
+            if sign > 0:
+                sign = -1.0
+            else:
+                sign = 1.0
+                magnitude += step
     return pd.DataFrame(rows, columns=["time_s", "port1_V", "port2_V", "port3_V"])
 
 
@@ -958,7 +1247,9 @@ def _pulse_combine_channels(inputs: dict[str, Any], params: dict[str, Any]) -> p
     if not prepared: raise ValueError("Combine Vd / Vs / Vg requires at least one waveform")
     merged = pd.DataFrame({"time_s": sorted(set().union(*(set(frame["time_s"]) for frame in prepared)))})
     for frame in prepared: merged = pd.merge_asof(merged, frame, on="time_s", direction="backward")
-    return merged.ffill().fillna(0).reset_index(drop=True)
+    # bfill() fills the leading samples (earlier than any waveform timestamp) with
+    # the first known value instead of silently forcing them to 0 via fillna(0).
+    return merged.ffill().bfill().fillna(0).reset_index(drop=True)
 
 
 def _pulse_segment_measurement(inputs: dict[str, Any], params: dict[str, Any]) -> pd.DataFrame:
@@ -982,7 +1273,11 @@ def _pulse_segment_measurement(inputs: dict[str, Any], params: dict[str, Any]) -
         start = int(np.searchsorted(times, event["_time"], side="left"))
         end_time = float(events.iloc[index + 1]["_time"]) if index + 1 < len(events) else math.inf
         end = int(np.searchsorted(times, end_time, side="left"))
-        segment = samples.iloc[start:end]["current"].iloc[leading: None if trailing == 0 else -trailing].dropna()
+        raw_segment = samples.iloc[start:end]["current"]
+        trimmed = raw_segment.iloc[leading: None if trailing == 0 else -trailing]
+        if (leading or trailing) and len(trimmed) == 0 and len(raw_segment) > 0:
+            raise ValueError(f"Pulse segment {index} has only {len(raw_segment)} samples, fewer than the {leading + trailing} rows to drop; reduce dropLeadingRows/dropTrailingRows")
+        segment = trimmed.dropna()
         rows.append({"sequence": int(event.get("sequence", index)), "phase": str(event.get("phase", "pulse")), "waveform_time_s": float(event["_time"]), "voltage_V": float(event["_voltage"]), "sample_count": int(len(segment)), "mean_current_A": float(segment.mean()) if len(segment) else math.nan})
     return pd.DataFrame(rows)
 
@@ -1022,6 +1317,7 @@ def _execute_node(
     upstream: Any,
     csv_text: str,
     input_files: list[dict[str, Any]],
+    variables: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], pd.DataFrame | None, str | None, str | None]:
     table_result: pd.DataFrame | None = None
     plot_result: str | None = None
@@ -1213,8 +1509,9 @@ def _execute_node(
         condition = str(params.get("condition", "")).strip()
         if not condition:
             raise ValueError("Conditional branch requires a condition")
-        matching = table.query(condition)
-        rejected = table.loc[~table.index.isin(matching.index)]
+        working = table.reset_index(drop=True)
+        matching = working.query(condition)
+        rejected = working.loc[~working.index.isin(matching.index)]
         outputs = {"true": matching.reset_index(drop=True), "false": rejected.reset_index(drop=True)}
         return outputs, outputs["true"], plot_result, export_result
     elif node_type == "logic.merge_rows":
@@ -1262,8 +1559,35 @@ def _execute_node(
             params = {**params, "method": "mean", "startRow": 0, "endRow": params.get("groupSize", 20)}
         value = _group_aggregate(_require_table(upstream, "Group aggregate"), params)
         table_result = value
+    elif node_type == "table.groupby_aggregate":
+        table = _require_table(upstream, "Groupby aggregate")
+        group_by = _resolve_columns(table, params.get("groupBy"))
+        if not group_by:
+            raise ValueError("Groupby aggregate requires at least one grouping column")
+        method = str(params.get("method", "mean"))
+        if method not in {"mean", "median", "sum", "min", "max", "std", "count"}:
+            raise ValueError(f"Unsupported groupby method: {method}")
+        grouped = table.groupby(group_by, sort=True)
+        if method == "count":
+            value = grouped.size().reset_index(name="count")
+        else:
+            value = getattr(grouped, method)(numeric_only=True).reset_index()
+        table_result = value
     elif node_type == "analysis.ter_matrix":
         value = _ter_matrix(_require_table(upstream, "TER matrix"), params)
+        table_result = value
+    elif node_type == "analysis.linear_fit":
+        from scipy import stats
+        table = _require_table(upstream, "Linear fit")
+        x_column = _resolve_column(table, params.get("xColumn"))
+        y_column = _resolve_column(table, params.get("yColumn"))
+        x = pd.to_numeric(table[x_column], errors="coerce")
+        y = pd.to_numeric(table[y_column], errors="coerce")
+        mask = x.notna() & y.notna()
+        if int(mask.sum()) < 2:
+            raise ValueError("Linear fit requires at least two valid (x, y) points")
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x[mask], y[mask])
+        value = pd.DataFrame({"slope": [slope], "intercept": [intercept], "r_value": [r_value], "p_value": [p_value], "std_err": [std_err]})
         table_result = value
     elif node_type == "pulse.generate_waveform":
         value = _pulse_waveform(params)
@@ -1403,7 +1727,8 @@ def _execute_node(
         value = _printable(upstream) if _as_bool(params.get("pretty", True)) else str(upstream)
     elif node_type == "convert.to_number":
         raw = _single_value(upstream)
-        value = int(float(raw)) if _as_bool(params.get("integer", False)) else float(raw)
+        number = float(raw)
+        value = _round_half_away(number) if _as_bool(params.get("integer", False)) else number
     elif node_type == "convert.to_boolean":
         raw = _single_value(upstream)
         if isinstance(raw, str):
@@ -1435,7 +1760,7 @@ def _execute_node(
     elif node_type == "python.round":
         if not isinstance(upstream, (int, float)):
             raise ValueError("Python round requires a numeric input")
-        value = round(upstream, int(params.get("digits", 0)))
+        value = _round_half_away(upstream, int(params.get("digits", 0)))
     elif node_type == "python.print":
         prefix = str(params.get("prefix", "")).strip()
         rendered = _printable(upstream, max(100, int(params.get("maxChars", 8000))), max(1, int(params.get("maxRows", 20))), str(params.get("format", "pretty")), _as_bool(params.get("includeType", True)), str(params.get("encoding", "utf-8")), str(params.get("encodingErrors", "replace")), str(params.get("bytesFormat", "decode")))
@@ -1474,6 +1799,18 @@ def _execute_node(
             table_result = value
         else:
             value = str(raw_value)
+    elif node_type == "variable.set":
+        name = str(params.get("name", "")).strip()
+        if not name: raise ValueError("Set variable requires a name")
+        if variables is not None:
+            variables[name] = upstream
+        value = upstream
+    elif node_type == "variable.get":
+        name = str(params.get("name", "")).strip()
+        if not name: raise ValueError("Get variable requires a name")
+        if variables is None or name not in variables:
+            raise ValueError(f"Variable {name!r} is not defined; add a 设置变量 node before reading it")
+        value = variables[name]
     elif node_type == "custom.python_function":
         outputs = _execute_custom_function(str(params.get("code", "")), upstream, params)
         table_result = next((item for item in outputs.values() if isinstance(item, pd.DataFrame)), None)
@@ -1523,7 +1860,7 @@ def _node_upstream(node_id: str, node_type: str, workflow: dict[str, Any], value
 
 def _execute_loop_subflow(
     loop_node: dict[str, Any], workflow: dict[str, Any], values: dict[str, dict[str, Any]],
-    csv_text: str, input_files: list[dict[str, Any]],
+    csv_text: str, input_files: list[dict[str, Any]], variables: dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     loop_id = loop_node["id"]
     data = loop_node.get("data", {})
@@ -1551,7 +1888,7 @@ def _execute_loop_subflow(
             if body_type in {"logic.for_each_subflow", "logic.while_subflow"}:
                 raise ValueError("Nested loop subflows are not supported yet")
             upstream = _node_upstream(body_id, body_type, workflow, local_values)
-            outputs, _, _, _ = _execute_node(body_type, body_data.get("parameters", {}), upstream, csv_text, input_files)
+            outputs, _, _, _ = _execute_node(body_type, body_data.get("parameters", {}), upstream, csv_text, input_files, variables)
             local_values[body_id] = outputs
         return _require_table(_edge_value(back_edge, local_values), "Loop continue output")
 
@@ -1700,6 +2037,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
     loop_body_ids = _all_loop_body_ids(workflow) | _contained_node_ids(workflow)
     notebook_inputs = [io.StringIO(item.get("text", "")) for item in input_files] or ([io.StringIO(csv_text)] if csv_text else [])
     notebook_namespace: dict[str, Any] = {"__builtins__": builtins.__dict__, "pd": pd, "np": np, "plt": plt, "math": math, "csv_text": csv_text, "input_files": notebook_inputs}
+    variables: dict[str, Any] = {}
 
     for node in ordered_nodes:
         node_id = node["id"]
@@ -1720,17 +2058,31 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
             elif node_type in {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"}:
                 if node_type == "logic.if_subflow" or any(child.get("parentId") == node_id for child in workflow.get("nodes", [])):
                     upstream = _node_upstream(node_id, node_type, workflow, values)
-                    outputs = _execute_visual_structure(node, workflow, upstream, csv_text, input_files)
+                    outputs = _execute_visual_structure(node, workflow, upstream, csv_text, input_files, variables)
                     table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), None)
                     plot_result, export_result = None, None
                 else:
-                    table_result = _execute_loop_subflow(node, workflow, values, csv_text, input_files)
+                    table_result = _execute_loop_subflow(node, workflow, values, csv_text, input_files, variables)
                     outputs, plot_result, export_result = {"done": table_result, "output": table_result}, None, None
             else:
                 upstream = _node_upstream(node_id, node_type, workflow, values)
-                outputs, table_result, plot_result, export_result = _execute_node(
-                    node_type, params, upstream, csv_text, input_files
-                )
+                if node_type.startswith(_CACHEABLE_NODE_PREFIXES):
+                    upstream_digest = _value_digest(upstream)
+                    cache_key = hashlib.sha256(
+                        json.dumps([node_id, node_type, params, upstream_digest], ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+                    ).hexdigest()
+                    cached = _node_result_cache.get(cache_key)
+                    if cached is not None:
+                        outputs, table_result, plot_result, export_result = cached
+                    else:
+                        outputs, table_result, plot_result, export_result = _execute_node(node_type, params, upstream, csv_text, input_files, variables)
+                        if len(_node_result_cache) >= 10_000:
+                            _node_result_cache.clear()
+                        _node_result_cache[cache_key] = (outputs, table_result, plot_result, export_result)
+                else:
+                    outputs, table_result, plot_result, export_result = _execute_node(
+                        node_type, params, upstream, csv_text, input_files, variables
+                    )
         except Exception as exception:
             node_timings_ms[node_id] = round((time.perf_counter() - node_started) * 1000, 3)
             return _error_response(

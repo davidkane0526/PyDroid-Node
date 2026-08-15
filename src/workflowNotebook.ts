@@ -79,10 +79,10 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     const analysis = byIndex.get(index);
     if (cell.cellType === "code" && analysis?.operations?.length) {
       return analysis.operations
-        .filter((operation) => operation.semantic !== false && operation.nodeType && !operation.nodeType.startsWith("notebook.") && operation.nodeType !== "custom.python_function")
+        .filter((operation) => operation.semantic !== false && operation.nodeType && !operation.nodeType.startsWith("notebook."))
         .flatMap((operation, operationIndex) => [{ cell, cellIndex: index, operation, operationIndex }, ...((operation.children ?? []).filter((child) => child.semantic && child.nodeType).map((child, childIndex) => ({ cell, cellIndex: index, operation: { ...child, index: operationIndex * 100 + childIndex + 1 } as Operation, operationIndex: operationIndex * 100 + childIndex + 1, parentOperationIndex: operationIndex, branch: child.branch })))]);
     }
-    if (cell.cellType === "code" && analysis?.recognized && analysis.semantic !== false && analysis.nodeType && !analysis.nodeType.startsWith("notebook.") && analysis.nodeType !== "custom.python_function") {
+    if (cell.cellType === "code" && analysis?.recognized && analysis.semantic !== false && analysis.nodeType && !analysis.nodeType.startsWith("notebook.")) {
       return [{ cell, cellIndex: index, operation: analysis as Operation, operationIndex: 0 }];
     }
     return [];
