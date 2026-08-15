@@ -52,7 +52,7 @@ import {
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
-import { analyzeNotebook, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, startRemoteServer, stopRemoteServer, warmUpPythonExecutor, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
+import { analyzeNotebook, analyzePythonSignature, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, startRemoteServer, stopRemoteServer, warmUpPythonExecutor, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { AgentDialog, AlertDialog, CodeEditorModal, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog } from "./dialogs";
@@ -465,9 +465,9 @@ function repairWorkflowGroupInterfaces(nodes: WorkflowNode[], edges: Edge[]): Wo
   });
 }
 
-function loadAutosave(): WorkflowSnapshot | null {
+function loadAutosave(key: string = AUTOSAVE_KEY): WorkflowSnapshot | null {
   try {
-    const saved = localStorage.getItem(AUTOSAVE_KEY);
+    const saved = localStorage.getItem(key);
     if (!saved) return null;
     const document = parseWorkflow(saved);
     const nodes: WorkflowNode[] = normalizeNodePositions(document.nodes).map((node) => {
@@ -480,7 +480,7 @@ function loadAutosave(): WorkflowSnapshot | null {
       requirements: document.requirements ?? loadPackageRequirements(),
     };
   } catch {
-    localStorage.removeItem(AUTOSAVE_KEY);
+    localStorage.removeItem(key);
     return null;
   }
 }
@@ -706,8 +706,9 @@ function isAgentValue(value: unknown): value is string | number | boolean | null
   return value === null || ["string", "number", "boolean"].includes(typeof value);
 }
 
-function FlowEditor() {
-  const restoredSnapshot = useMemo(loadAutosave, []);
+function FlowEditor({ tabId = "default" }: { tabId?: string }) {
+  const autosaveKey = `${AUTOSAVE_KEY}.${tabId}`;
+  const restoredSnapshot = useMemo(() => loadAutosave(autosaveKey), [autosaveKey]);
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(restoredSnapshot?.nodes ?? initialNodes);
@@ -868,6 +869,23 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     ? parsePythonFunctionSignature(String(selectedNode.data.parameters.code ?? ""))
     : undefined;
   const selectedSignatureError = selectedSignature?.error;
+  const [remoteSignature, setRemoteSignature] = useState<PythonSignatureAnalysis | null>(null);
+  const customNodeCode = selectedNode?.data.nodeType === "custom.python_function" ? String(selectedNode.data.parameters.code ?? "") : null;
+  useEffect(() => {
+    if (!customNodeCode) { setRemoteSignature(null); return; }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      analyzePythonSignature(customNodeCode)
+        .then((analysis) => { if (!cancelled) setRemoteSignature(analysis); })
+        .catch(() => { if (!cancelled) setRemoteSignature({ inputPorts: [], outputPorts: [], parameters: [], error: "unavailable" }); });
+    }, 300);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [customNodeCode]);
+  const remoteSignatureError = remoteSignature?.error;
+  const authoritativeSignatureError = remoteSignature && remoteSignatureError !== "unavailable" ? (remoteSignatureError ?? undefined) : selectedSignatureError;
+  const signatureSummary = remoteSignature && remoteSignatureError !== "unavailable" && !remoteSignatureError
+    ? `${remoteSignature.inputPorts.length} 输入 · ${remoteSignature.outputPorts.length} 输出 · 后端已校验`
+    : `${selectedSignature?.inputPorts.length ?? 0} 输入 · ${selectedSignature?.outputPorts.length ?? 0} 输出`;
   const matchedCatalog = useMemo(() => searchNodeCatalog(nodeSearch).filter((spec) => !spec.nodeType.startsWith("notebook.")), [nodeSearch]);
   const catalogGroups = useMemo(() => groupCatalog(matchedCatalog), [matchedCatalog]);
   const customTemplates = useMemo(() => [...CUSTOM_NODE_TEMPLATES, ...personalTemplates], [personalTemplates]);
@@ -1026,12 +1044,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   useEffect(() => {
     const timer = window.setTimeout(() => {
       localStorage.setItem(
-        AUTOSAVE_KEY,
+        autosaveKey,
         JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements)),
       );
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [edges, nodes, requirements]);
+  }, [autosaveKey, edges, nodes, requirements]);
 
   useEffect(() => {
     localStorage.setItem(PACKAGE_REQUIREMENTS_KEY, JSON.stringify(requirements));
@@ -1333,7 +1351,17 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         targetHandle: connection.targetHandle ?? "input",
       };
       if (!isValidConnection(normalized)) {
-        setMessage("无法连线：端口类型不兼容，或该连线会形成环");
+        const sourceNode = nodes.find((node) => node.id === normalized.source);
+        const targetNode = nodes.find((node) => node.id === normalized.target);
+        const output = nodeSpecFor(sourceNode)?.outputPorts.find((port) => port.id === normalized.sourceHandle);
+        const input = nodeSpecFor(targetNode)?.inputPorts.find((port) => port.id === normalized.targetHandle);
+        if (!output || !input) {
+          setMessage("无法连线：端口不存在，请重新选择节点后再试");
+        } else if (!areValueTypesCompatible(output.valueType, input.valueType)) {
+          setMessage(`无法连线：类型不兼容（${output.valueType} 不能连到 ${input.valueType}）`);
+        } else {
+          setMessage("无法连线：该连线会形成环");
+        }
         return;
       }
       try {
@@ -1365,7 +1393,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const input = targetSpec?.inputPorts.find((port) => port.id === (connection.targetHandle ?? "input"));
       const loopBack = targetNode && ["logic.for_each_subflow", "logic.while_subflow"].includes(targetNode.data.nodeType) && connection.targetHandle === "continue";
       if (!sourceNode || !targetNode || !output || !input || !areValueTypesCompatible(output.valueType, input.valueType) || createsCycle(connection, candidateEdges) && !loopBack) {
-        setMessage("无法移动连线端点：目标端口不兼容");
+        if (!output || !input) setMessage("无法移动连线端点：端口不存在");
+        else if (!areValueTypesCompatible(output.valueType, input.valueType)) setMessage(`无法移动连线端点：类型不兼容（${output.valueType} 不能连到 ${input.valueType}）`);
+        else setMessage("无法移动连线端点：该连线会形成环");
         return;
       }
       reconnectSucceeded.current = true;
@@ -2943,7 +2973,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
       onDrop={(event) => void handleFileDrop(event)}>
       <header className="topbar">
-        <div className="brand"><strong>PyDroid Flow</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式 Python 数据处理"}</span></div>
+        <TabBar />
         <div className="topbar__actions">
           <input ref={fileInput} className="file-input" type="file" accept=".csv,.tsv,.txt,.dat,.json,.png,.jpg,.jpeg,text/*,application/json,image/*" multiple onChange={chooseCsv} />
           <input ref={(element) => { directoryInput.current = element; if (element) { element.setAttribute("webkitdirectory", ""); element.setAttribute("directory", ""); } }} className="file-input" type="file" multiple onChange={chooseCsv} />
@@ -2996,7 +3026,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               </section>
             ))}
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
-            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "group", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onClick={() => { if (pointerMode === "mouse") insertGroupTemplate(entry); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small><span className="group-resource-tooltip">{entry.description || "可编辑、可复用的节点组合"}</span></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable title={`按住后拖到画布添加 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "group", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onClick={() => { if (pointerMode === "mouse") insertGroupTemplate(entry); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
             {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); openFlowMenu(entry, event.clientX, event.clientY); }} onPointerDown={(event) => { startFlowLongPress(event, entry); onPalettePointerDown(event, resource); }} onPointerMove={onPalettePointerMove} onPointerUp={(event) => { clearFlowLongPress(); onPalettePointerUp(event); }} onPointerCancel={() => { clearFlowLongPress(); clearPaletteDrag(); }} onPointerLeave={clearFlowLongPress} onClick={() => { if (flowLongPressHandled.current) { flowLongPressHandled.current = false; return; } openLibraryFlow(entry); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
@@ -3234,7 +3264,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               </> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
                 <label className="field" key={key}><span>{key}</span><input value={String(value ?? "")} onChange={(event) => updateParameter(key, event.target.value)} /></label>
               ))}
-              {selectedSignatureError && <p className="validation-error">签名错误：{selectedSignatureError}</p>}
+              {authoritativeSignatureError && <p className="validation-error">签名错误：{authoritativeSignatureError}</p>}
               {selectedSpec?.parameters.length === 0 && <p className="muted">此节点没有可配置参数。</p>}
             </>
           ) : <p className="muted">从左侧添加节点，或选择画布中的节点编辑参数。</p>}
@@ -3261,7 +3291,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={Capacitor.isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
       {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={(requirement) => setRequirements((current) => current.filter((value) => value !== requirement))} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
-      {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={`${selectedSignature?.inputPorts.length ?? 0} 输入 · ${selectedSignature?.outputPorts.length ?? 0} 输出`} error={selectedSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
+      {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
       {plotExpanded && result?.plotPngBase64 && <PlotLightbox open={plotExpanded} src={`data:image/png;base64,${result.plotPngBase64}`} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpanded(false)} />}
       {resultDetail && <ResultDetailDialog detail={resultDetail} onClose={() => setResultDetail(null)} onCopy={() => void navigator.clipboard.writeText(resultDetail.text).then(() => setMessage("节点结果已复制"))} onTextChange={(text) => setResultDetail((current) => current ? { ...current, text } : null)} />}
       {executionError && errorDetailOpen && <ErrorDetailDialog error={executionError} open={errorDetailOpen} canLocate={Boolean(executionError.nodeId && nodes.some((node) => node.id === executionError.nodeId))} onClose={() => setErrorDetailOpen(false)} onLocate={(nodeId) => locateNode(nodeId)} onCopy={() => void navigator.clipboard.writeText(`${executionError.nodeType ?? "workflow"} (${executionError.nodeId ?? "unknown"})\n${executionError.message}\n${executionError.traceback ?? ""}`)} />}
@@ -3270,5 +3300,235 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 }
 
 export function App() {
-  return <AppErrorBoundary><ReactFlowProvider><FlowEditor /></ReactFlowProvider></AppErrorBoundary>;
+  return <AppErrorBoundary><MultiTabWorkspace /></AppErrorBoundary>;
+}
+
+const TABS_KEY = "pydroid-flow.tabs.v1";
+
+type WorkspaceTab = { id: string; name: string };
+
+function loadWorkspaceTabs(): WorkspaceTab[] {
+  try {
+    const value: unknown = JSON.parse(localStorage.getItem(TABS_KEY) ?? "[]");
+    if (Array.isArray(value)) {
+      return value.filter((item): item is WorkspaceTab => Boolean(item && typeof item.id === "string" && typeof item.name === "string"));
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+type TabsApi = {
+  tabs: WorkspaceTab[];
+  activeId: string;
+  selectTab: (id: string) => void;
+  addTab: () => void;
+  closeTab: (id: string) => void;
+  renameTab: (id: string, name: string) => void;
+  reorderTab: (fromId: string, toId: string) => void;
+};
+
+const TabsContext = createContext<TabsApi | null>(null);
+
+function TabBar() {
+  const api = useContext(TabsContext);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [touchCloseId, setTouchCloseId] = useState<string | null>(null);
+  const [pointerMode] = useState<"mouse" | "touch">(() => window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse");
+  const longPressTimer = useRef<number | null>(null);
+  const longPressHandled = useRef(false);
+  if (!api) return null;
+  const { tabs, activeId, selectTab, addTab, closeTab, renameTab, reorderTab } = api;
+
+  const commitRename = () => {
+    const name = editingName.trim();
+    if (editingId && name) renameTab(editingId, name);
+    setEditingId(null);
+  };
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+  };
+
+  const startLongPress = (id: string) => {
+    longPressHandled.current = false;
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      longPressHandled.current = true;
+      setTouchCloseId((current) => (current === id ? null : id));
+    }, 500);
+  };
+
+  return (
+    <>
+      <nav className="tabbar" role="tablist" aria-label="工作流标签页">
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeId;
+          const isEditing = editingId === tab.id;
+          return (
+            <div
+              key={tab.id}
+              role="tab"
+              aria-selected={isActive}
+              className={`tabbar__tab ${isActive ? "active" : ""} ${dragOverId === tab.id ? "drag-over" : ""}`}
+              draggable={!isEditing}
+              onDragStart={(event) => { event.dataTransfer.setData("application/pydroid-tab", tab.id); event.dataTransfer.effectAllowed = "move"; }}
+              onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-tab")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setDragOverId(tab.id); } }}
+              onDragLeave={() => setDragOverId((current) => current === tab.id ? null : current)}
+              onDrop={(event) => { event.preventDefault(); setDragOverId(null); const dragged = event.dataTransfer.getData("application/pydroid-tab"); if (dragged) reorderTab(dragged, tab.id); }}
+              onDragEnd={() => setDragOverId(null)}
+              onClick={() => { if (!longPressHandled.current) selectTab(tab.id); }}
+              onContextMenu={(event) => { event.preventDefault(); setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY }); }}
+              onPointerDown={(event) => { if (event.pointerType === "touch") startLongPress(tab.id); }}
+              onPointerUp={clearLongPress}
+              onPointerLeave={clearLongPress}
+              onPointerCancel={clearLongPress}
+              onDoubleClick={() => { if (pointerMode === "mouse") { setEditingId(tab.id); setEditingName(tab.name); } }}
+              title={`${tab.name}${pointerMode === "mouse" ? " · 双击改名，右键菜单" : " · 长按显示关闭"}`}
+            >
+              {isEditing ? (
+                <input
+                  className="tabbar__rename"
+                  autoFocus
+                  value={editingName}
+                  onChange={(event) => setEditingName(event.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(event) => { if (event.key === "Enter") commitRename(); else if (event.key === "Escape") setEditingId(null); }}
+                  onClick={(event) => event.stopPropagation()}
+                />
+              ) : (
+                <span className="tabbar__name">{tab.name}</span>
+              )}
+              {tabs.length > 1 && (
+                <button
+                  type="button"
+                  className={`tabbar__close ${touchCloseId === tab.id ? "visible" : ""}`}
+                  title="关闭标签页"
+                  aria-label={`关闭 ${tab.name}`}
+                  onClick={(event) => { event.stopPropagation(); closeTab(tab.id); }}
+                >×</button>
+              )}
+            </div>
+          );
+        })}
+        <button type="button" className="tabbar__add" title="新建标签页" aria-label="新建标签页" onClick={addTab}>+</button>
+      </nav>
+      {tabMenu && (() => {
+        const menuHeight = 110;
+        const opensAbove = tabMenu.y > window.innerHeight - menuHeight - 12;
+        return (
+          <div className="tab-context-menu" style={{ left: tabMenu.x, top: opensAbove ? tabMenu.y - menuHeight : tabMenu.y }} onClick={() => setTabMenu(null)}>
+            <button type="button" onClick={() => { setEditingId(tabMenu.tabId); const target = tabs.find((tab) => tab.id === tabMenu.tabId); setEditingName(target?.name ?? ""); setTabMenu(null); }}>重命名</button>
+            <button type="button" onClick={() => { closeTab(tabMenu.tabId); setTabMenu(null); }} disabled={tabs.length <= 1}>关闭标签页</button>
+            <button type="button" onClick={() => setTabMenu(null)}>取消</button>
+          </div>
+        );
+      })()}
+    </>
+  );
+}
+
+type DesktopWindowControls = {
+  minimize: () => void;
+  toggleMaximize: () => void;
+  close: () => void;
+  isMaximized: () => Promise<boolean>;
+  onMaximizedChanged: (callback: (maximized: boolean) => void) => () => void;
+};
+
+function desktopWindowControls(): DesktopWindowControls | undefined {
+  return (window as unknown as { pyDroidDesktop?: { windowControls?: DesktopWindowControls } }).pyDroidDesktop?.windowControls;
+}
+
+function TitleBar() {
+  const [maximized, setMaximized] = useState(false);
+  const controls = desktopWindowControls();
+  const remoteBrowser = isRemoteRuntime();
+  useEffect(() => {
+    if (!controls) return;
+    let mounted = true;
+    controls.isMaximized().then((value) => { if (mounted) setMaximized(value); });
+    const unsubscribe = controls.onMaximizedChanged(setMaximized);
+    return () => { mounted = false; unsubscribe(); };
+  }, [controls]);
+  return (
+    <header className="titlebar">
+      <div className="titlebar__brand"><strong>PyDroid Flow</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式 Python 数据处理"}</span></div>
+      {controls && (
+        <div className="titlebar__controls">
+          <button type="button" title="最小化" aria-label="最小化" onClick={() => controls.minimize()}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg></button>
+          <button type="button" title={maximized ? "还原" : "最大化"} aria-label={maximized ? "还原" : "最大化"} onClick={() => controls.toggleMaximize()}>{maximized ? <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 3.5h5v5h-5z" /></svg> : <svg viewBox="0 0 12 12" aria-hidden="true"><rect x="2.5" y="2.5" width="7" height="7" fill="none" /></svg>}</button>
+          <button type="button" className="titlebar__close" title="关闭" aria-label="关闭" onClick={() => controls.close()}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3 3 6 6M9 3l-6 6" /></svg></button>
+        </div>
+      )}
+    </header>
+  );
+}
+
+function MultiTabWorkspace() {
+  const [themeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
+  const [systemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const resolvedTheme: "dark" | "light" = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
+  const [tabs, setTabs] = useState<WorkspaceTab[]>(() => {
+    const loaded = loadWorkspaceTabs();
+    return loaded.length ? loaded : [{ id: "default", name: "工作流 1" }];
+  });
+  const [activeId, setActiveId] = useState<string>(() => loadWorkspaceTabs()[0]?.id ?? "default");
+
+  useEffect(() => {
+    localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+  }, [tabs]);
+
+  const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
+
+  const addTab = () => {
+    const id = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const name = `工作流 ${tabs.length + 1}`;
+    setTabs((current) => [...current, { id, name }]);
+    setActiveId(id);
+  };
+
+  const closeTab = (id: string) => {
+    setTabs((current) => {
+      if (current.length <= 1) return current;
+      const index = current.findIndex((tab) => tab.id === id);
+      const next = current.filter((tab) => tab.id !== id);
+      if (id === activeId && next.length) {
+        const neighbor = next[Math.max(0, index - 1)];
+        if (neighbor) setActiveId(neighbor.id);
+      }
+      return next;
+    });
+  };
+
+  const renameTab = (id: string, name: string) => {
+    setTabs((current) => current.map((tab) => (tab.id === id ? { ...tab, name } : tab)));
+  };
+
+  const reorderTab = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    setTabs((current) => {
+      const fromIndex = current.findIndex((tab) => tab.id === fromId);
+      const toIndex = current.findIndex((tab) => tab.id === toId);
+      if (fromIndex < 0 || toIndex < 0) return current;
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    });
+  };
+
+  const api: TabsApi = { tabs, activeId, selectTab: setActiveId, addTab, closeTab, renameTab, reorderTab };
+
+  return (
+    <TabsContext.Provider value={api}>
+      <div className="workspace-shell" data-theme={resolvedTheme}>
+        <TitleBar />
+        <ReactFlowProvider key={activeTab.id}><FlowEditor tabId={activeTab.id} /></ReactFlowProvider>
+      </div>
+    </TabsContext.Provider>
+  );
 }

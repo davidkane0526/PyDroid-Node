@@ -140,6 +140,40 @@ describe("node function signatures", () => {
     ]);
   });
 
+  it("maps Literal[True, False] to a boolean switch instead of a numeric select", () => {
+    const signature = parsePythonFunctionSignature("def pick(table: 'table', flag: Literal[True, False] = True) -> 'table':\n    return table");
+    expect(signature.error).toBeUndefined();
+    expect(signature.parameters[0]).toMatchObject({ key: "flag", kind: "boolean", defaultValue: true });
+  });
+
+  it("parses scientific-notation numeric defaults", () => {
+    const signature = parsePythonFunctionSignature("def scale(table: 'table', epsilon: float = 1e-3) -> 'table':\n    return table");
+    expect(signature.error).toBeUndefined();
+    expect(signature.parameters[0]).toMatchObject({ key: "epsilon", kind: "number", defaultValue: 0.001 });
+  });
+
+  it("maps dict/set/Series/ndarray annotations to object/list/table", () => {
+    const signature = parsePythonFunctionSignature("def enrich(table: 'table', config: dict = None, flags: set[str] = None, extra: 'pd.Series' | None = None) -> 'table':\n    return table");
+    expect(signature.error).toBeUndefined();
+    expect(signature.parameters.map((parameter) => [parameter.key, parameter.kind])).toEqual([
+      ["config", "textarea"],
+      ["flags", "list"],
+    ]);
+    expect(signature.inputPorts.map((port) => [port.id, port.valueType])).toEqual([
+      ["table", "table"],
+      ["extra", "table"],
+    ]);
+  });
+
+  it("evaluates arithmetic expressions in numeric defaults", () => {
+    const signature = parsePythonFunctionSignature("def scale(table: 'table', factor: float = 10**6, offset: int = 2*3+1) -> 'table':\n    return table");
+    expect(signature.error).toBeUndefined();
+    expect(signature.parameters.map((parameter) => [parameter.key, parameter.defaultValue])).toEqual([
+      ["factor", 1000000],
+      ["offset", 7],
+    ]);
+  });
+
   it("round-trips a portable custom node template document", () => {
     const template = {
       id: "shared-clean",

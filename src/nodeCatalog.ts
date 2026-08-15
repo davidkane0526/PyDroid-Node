@@ -13,7 +13,7 @@ export type ParameterSpec = {
   key: string;
   label: string;
   kind: ParameterKind;
-  options?: Array<{ label: string; value: string | number }>;
+  options?: Array<{ label: string; value: string | number | boolean }>;
   description?: string;
   placeholder?: string;
   required?: boolean;
@@ -436,6 +436,33 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
+    nodeType: "table.groupby_aggregate",
+    label: "按列分组聚合",
+    description: "按指定列的值分组，对每组数值列求聚合（等价 pandas groupby(...).mean() 等）。",
+    tags: ["pandas", "groupby", "分组", "聚合", "统计"],
+    category: "统计",
+    defaults: { groupBy: "", method: "mean" },
+    inputPorts: TABLE_INPUT,
+    outputPorts: TABLE_OUTPUT,
+    parameters: [
+      { key: "groupBy", label: "分组列", kind: "text", required: true, placeholder: "Vg_V", description: "列名或列序号，多个用英文逗号分隔。" },
+      {
+        key: "method",
+        label: "聚合方法",
+        kind: "select",
+        options: [
+          { label: "平均值", value: "mean" },
+          { label: "中位数", value: "median" },
+          { label: "求和", value: "sum" },
+          { label: "最小值", value: "min" },
+          { label: "最大值", value: "max" },
+          { label: "标准差", value: "std" },
+          { label: "计数", value: "count" },
+        ],
+      },
+    ],
+  },
+  {
     nodeType: "pandas.dropna",
     label: "删除缺失值",
     description: "删除含缺失值的行。",
@@ -627,6 +654,20 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
+    nodeType: "analysis.linear_fit",
+    label: "线性拟合",
+    description: "对两列做最小二乘线性回归（scipy.stats.linregress），输出斜率、截距、相关系数等。",
+    tags: ["拟合", "线性", "linregress", "回归", "斜率", "scipy"],
+    category: "统计",
+    defaults: { xColumn: "", yColumn: "" },
+    inputPorts: TABLE_INPUT,
+    outputPorts: TABLE_OUTPUT,
+    parameters: [
+      { key: "xColumn", label: "X 列", kind: "text", required: true, description: "列名或列序号。" },
+      { key: "yColumn", label: "Y 列", kind: "text", required: true, description: "列名或列序号。" },
+    ],
+  },
+  {
     nodeType: "pulse.generate_waveform",
     label: "生成脉冲波形",
     description: "以读出-写入交替序列生成可复现的电压时间表；可分别用于 Vd、Vs、Vg 后再合并。",
@@ -735,6 +776,28 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "update", label: "更新表达式", kind: "text", required: true, placeholder: "value + 1" },
       { key: "maxIterations", label: "最大迭代次数", kind: "number", min: 1, max: 10000, step: 1, description: "防止条件错误造成无限循环。" },
     ],
+  },
+  {
+    nodeType: "variable.set",
+    label: "设置变量",
+    description: "将输入值保存到命名变量并原样透传；配合“读取变量”在工作流中跨节点共享数据。",
+    tags: ["变量", "variable", "set", "赋值", "共享"],
+    category: "逻辑控制",
+    defaults: { name: "" },
+    inputPorts: [{ id: "input", label: "输入值", valueType: "any", required: true }],
+    outputPorts: [{ id: "output", label: "原值", valueType: "any" }],
+    parameters: [{ key: "name", label: "变量名", kind: "text", required: true, placeholder: "my_var", description: "变量在工作流执行期间有效；同名变量会被后执行的设置节点覆盖。" }],
+  },
+  {
+    nodeType: "variable.get",
+    label: "读取变量",
+    description: "读取命名变量的值；变量由“设置变量”节点在本次执行中写入。",
+    tags: ["变量", "variable", "get", "读取", "共享"],
+    category: "逻辑控制",
+    defaults: { name: "" },
+    inputPorts: [{ id: "previous", label: "顺序（可选）", valueType: "any", required: false }],
+    outputPorts: [{ id: "output", label: "变量值", valueType: "any" }],
+    parameters: [{ key: "name", label: "变量名", kind: "text", required: true, placeholder: "my_var", description: "建议从设置变量节点连一条线到“顺序”端口，确保读取发生在设置之后；否则可能因执行顺序早于设置而报错。" }],
   },
   {
     nodeType: "logic.for_each_subflow",

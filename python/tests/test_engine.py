@@ -1,9 +1,23 @@
 import json
 from pathlib import Path
 
+import pandas as pd
 import pytest
 
-from pydroid_flow.engine import execute_workflow
+from pydroid_flow.engine import (
+    _clear_node_result_cache,
+    _execute_node,
+    _group_aggregate,
+    _logic_expression,
+    _node_result_cache,
+    _pulse_combine_channels,
+    _pulse_segment_measurement,
+    _round_half_away,
+    analyze_signature_json,
+    execute_workflow,
+    load_node_result_cache,
+    save_node_result_cache,
+)
 
 
 def node(node_id, node_type, parameters=None):
@@ -512,7 +526,18 @@ def test_custom_python_function_rejects_imports():
         [port_edge("read", "unsafe", "table")],
     )
     assert result["status"] == "error"
-    assert "cannot import" in result["message"]
+    assert "不能导入" in result["message"]
+
+
+def test_custom_function_allows_whitelisted_imports():
+    code = "def fit(table: 'table') -> 'table':\n    import statistics\n    return table + statistics.mean([1, 2, 3])"
+    result = execute(
+        [node("read", "io.read_csv"), node("fit", "custom.python_function", {"code": code})],
+        [port_edge("read", "fit", "table")],
+        "1,2\n3,4\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[3.0, 4.0], [5.0, 6.0]]
 
 
 def test_custom_function_supports_optional_literal_and_list_parameters():
@@ -685,7 +710,7 @@ def test_logic_control_demo_and_oscillating_pulse_examples_execute_without_code_
     pulse_result = json.loads(execute_workflow(json.dumps(pulse), ""))
     assert pulse_result["status"] == "success"
     assert pulse_result["preview"]["columns"] == ["time_s", "port1_V", "port2_V", "port3_V"]
-    assert pulse_result["preview"]["rows"][:4] == [[0.005, 0.0, 0.6, 0.0], [0.01, 0.2, 0.0, 0.0], [0.015, 0.0, 0.6, 0.0], [0.02, -0.4, 0.0, 0.0]]
+    assert pulse_result["preview"]["rows"][:4] == [[0.005, 0.0, 0.6, 0.0], [0.01, 0.2, 0.0, 0.0], [0.015, 0.0, 0.6, 0.0], [0.02, -0.2, 0.0, 0.0]]
 
 
 def test_additional_plot_nodes_and_adaptive_dialog_values_execute():
@@ -780,3 +805,219 @@ def test_periodic_window_and_tail_mean_support_experiment_cycle_processing():
     )
     assert result["status"] == "success"
     assert result["preview"]["rows"] == [[4.0], [8.0]]
+
+
+def test_oscillating_pulse_ramp_amplitudes_grow_symmetrically():
+    result = execute(
+        [node("ramp", "pulse.generate_oscillating_ramp", {"interval": 0.005, "totalTime": 0.05, "amplitudeStep": 0.2, "fixedVoltage": 0.6, "gateVoltage": 0})],
+        [],
+    )
+    assert result["status"] == "success"
+    port1 = [row[1] for row in result["preview"]["rows"] if row[1] != 0.0]
+    assert port1 == [0.2, -0.2, 0.4, -0.4]
+
+
+def test_group_aggregate_resets_index_before_bucketing():
+    frame = pd.DataFrame({"v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}, index=[100, 101, 102, 200, 201, 202])
+    result = _group_aggregate(frame, {"groupSize": 3, "startRow": 0, "endRow": 3, "method": "mean"})
+    assert result["v"].tolist() == [2.0, 5.0]
+
+
+def test_round_half_away_from_zero():
+    assert _round_half_away(2.5) == 3.0
+    assert _round_half_away(3.5) == 4.0
+    assert _round_half_away(-2.5) == -3.0
+    assert _round_half_away(2.4) == 2.0
+    assert _round_half_away(2.5, 1) == 2.5
+    assert _round_half_away(0.15, 1) == 0.2
+
+
+def test_logic_expression_short_circuits_division_by_zero():
+    assert _logic_expression("value != 0 and 1 / value > 0.1", 0.0, 0) is False
+    assert _logic_expression("value == 0 or 1 / value > 0.1", 0.0, 0) is True
+
+
+def test_if_rows_handles_duplicate_index():
+    frame = pd.DataFrame({"v": [1, 2, 3, 4]}, index=[0, 0, 1, 1])
+    outputs, _, _, _ = _execute_node("logic.if_rows", {"condition": "v >= 2"}, frame, "", [])
+    assert outputs["true"]["v"].tolist() == [2, 3, 4]
+    assert outputs["false"]["v"].tolist() == [1]
+
+
+def test_pulse_combine_channels_backfills_leading_samples():
+    drain = pd.DataFrame({"time_s": [2.0, 4.0], "voltage_V": [1.0, 2.0]})
+    gate = pd.DataFrame({"time_s": [3.0, 5.0], "voltage_V": [10.0, 20.0]})
+    result = _pulse_combine_channels({"drain": drain, "gate": gate}, {"timeColumn": "time_s", "voltageColumn": "voltage_V"})
+    assert result.iloc[0]["Vg_V"] == 10.0
+
+
+def test_pulse_segment_measurement_rejects_over_trimming():
+    measurement = pd.DataFrame({"time": [1.0, 2.0], "current": [1.0, 2.0]})
+    waveform = pd.DataFrame({"time_s": [0.5], "voltage_V": [1.0]})
+    with pytest.raises(ValueError):
+        _pulse_segment_measurement(
+            {"measurement": measurement, "waveform": waveform},
+            {"measurementTimeColumn": "time", "currentColumn": "current", "waveformTimeColumn": "time_s", "waveformVoltageColumn": "voltage_V", "dropLeadingRows": 5, "dropTrailingRows": 0},
+        )
+
+
+def test_custom_function_namespace_exposes_numpy_and_math():
+    code = "def scale(table: 'table', factor: float = 1) -> 'table':\n    return table * math.sqrt(factor) + np.full(table.shape, 1.0)"
+    result = execute(
+        [node("read", "io.read_csv"), node("scale", "custom.python_function", {"code": code, "factor": 4})],
+        [port_edge("read", "scale", "table")],
+        "1,2\n3,4\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[3.0, 5.0], [7.0, 9.0]]
+
+
+def test_structure_branch_rejects_multiple_sinks():
+    structure = node("if", "logic.if_subflow", {"condition": "x >= 0"})
+    child_a = node("a", "table.absolute")
+    child_a["parentId"], child_a["data"]["branch"] = "if", "true"
+    child_b = node("b", "table.transpose")
+    child_b["parentId"], child_b["data"]["branch"] = "if", "true"
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), structure, child_a, child_b],
+        [{"id": "a", "source": "read", "target": "if", "targetHandle": "input"}],
+        "x\n-2\n3\n",
+    )
+    assert result["status"] == "error"
+    assert "one output node" in result["message"]
+
+
+def test_variable_nodes_set_and_get_share_values():
+    result = execute(
+        [
+            node("read", "io.read_csv", {"header": "infer"}),
+            node("setv", "variable.set", {"name": "tbl"}),
+            node("getv", "variable.get", {"name": "tbl"}),
+            node("print", "python.print"),
+        ],
+        [
+            {"id": "a", "source": "read", "target": "setv", "targetHandle": "input"},
+            {"id": "b", "source": "setv", "target": "getv", "targetHandle": "previous"},
+            {"id": "c", "source": "getv", "target": "print", "targetHandle": "input"},
+        ],
+        "x\n1\n2\n",
+    )
+    assert result["status"] == "success"
+    assert "DataFrame" in result["nodeResults"]["print"]["text"]
+
+
+def test_variable_get_reports_undefined_variable():
+    result = execute([node("getv", "variable.get", {"name": "missing"})], [], "x\n1\n")
+    assert result["status"] == "error"
+    assert "not defined" in result["message"]
+
+
+def test_custom_function_accepts_dict_parameter_and_ndarray_return():
+    code = "def scale(table: 'table', config: dict = None) -> 'table':\n    factor = (config or {}).get('factor', 1)\n    return np.array(table) * factor"
+    result = execute(
+        [node("read", "io.read_csv"), node("fn", "custom.python_function", {"code": code, "config": '{"factor": 2}'})],
+        [port_edge("read", "fn", "table")],
+        "1,2\n3,4\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[2.0, 4.0], [6.0, 8.0]]
+
+
+def test_custom_function_coerces_series_return_to_table():
+    code = "def first_column(table: 'table') -> 'table':\n    return table.iloc[:, 0]"
+    result = execute(
+        [node("read", "io.read_csv"), node("fn", "custom.python_function", {"code": code})],
+        [port_edge("read", "fn", "table")],
+        "1,2\n3,4\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[1], [3]]
+
+
+def test_analyze_signature_json_matches_frontend_shape():
+    code = "def scale(table: 'table', factor: float = 1, mode: Literal['a', 'b'] = 'a', flags: list[int] = [0], config: dict = None) -> tuple['clean:table', 'rejected:table']:\n    return table, table"
+    result = json.loads(analyze_signature_json(code))
+    assert result["functionName"] == "scale"
+    assert result["inputPorts"] == [{"id": "table", "label": "table", "valueType": "table", "required": True}]
+    assert [parameter["key"] for parameter in result["parameters"]] == ["factor", "mode", "flags", "config"]
+    assert result["parameters"][1]["kind"] == "select"
+    assert result["parameters"][3]["kind"] == "textarea"
+    assert result["outputPorts"] == [
+        {"id": "clean", "label": "clean", "valueType": "table"},
+        {"id": "rejected", "label": "rejected", "valueType": "table"},
+    ]
+    assert result["outputType"] == "table"
+
+
+def test_execution_cache_reuses_unchanged_pure_nodes():
+    _clear_node_result_cache()
+    workflow = [node("read", "io.read_csv", {"header": "infer"}), node("abs", "table.absolute")]
+    edges = [edge("read", "abs")]
+    execute(workflow, edges, "x\n-1\n2\n")
+    assert len(_node_result_cache) == 1  # 只有 table.absolute 可缓存，io.read_csv 不可缓存
+    execute(workflow, edges, "x\n-1\n2\n")
+    assert len(_node_result_cache) == 1  # 命中缓存，不新增条目
+
+
+def test_execution_cache_recomputes_when_input_changes():
+    _clear_node_result_cache()
+    workflow = [node("read", "io.read_csv", {"header": "infer"}), node("abs", "table.absolute")]
+    edges = [edge("read", "abs")]
+    execute(workflow, edges, "x\n-1\n2\n")
+    result = execute(workflow, edges, "x\n-5\n6\n")
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[5], [6]]
+
+
+def test_execution_cache_round_trips_to_disk(tmp_path):
+    _clear_node_result_cache()
+    workflow = [node("read", "io.read_csv", {"header": "infer"}), node("abs", "table.absolute")]
+    edges = [edge("read", "abs")]
+    execute(workflow, edges, "x\n-1\n2\n")
+    assert len(_node_result_cache) == 1
+    cache_file = tmp_path / "execution-cache.json"
+    save_node_result_cache(str(cache_file))
+    _clear_node_result_cache()
+    assert len(_node_result_cache) == 0
+    load_node_result_cache(str(cache_file))
+    assert len(_node_result_cache) == 1
+    execute(workflow, edges, "x\n-1\n2\n")
+    assert len(_node_result_cache) == 1  # 反序列化后的缓存命中，不新增条目
+
+
+def test_custom_import_policy_is_platform_aware():
+    import pydroid_flow.engine as engine
+    engine._CUSTOM_ALLOW_ALL_IMPORTS = False  # 重置为移动端默认（避免 desktop_bridge 副作用污染）
+    assert engine._import_root_allowed("statistics") is True
+    assert engine._import_root_allowed("requests") is False  # 移动端白名单
+    assert engine._import_root_allowed("os") is False  # 危险模块始终禁止
+    engine.allow_all_custom_imports()
+    try:
+        assert engine._import_root_allowed("requests") is True  # 桌面端放宽
+        assert engine._import_root_allowed("os") is False  # 危险模块仍禁止
+        assert engine._import_root_allowed("subprocess") is False
+    finally:
+        engine._CUSTOM_ALLOW_ALL_IMPORTS = False
+
+
+def test_groupby_aggregate_groups_by_column_values():
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), node("agg", "table.groupby_aggregate", {"groupBy": "Vg", "method": "mean"})],
+        [edge("read", "agg")],
+        "Vg,val\n1,10\n1,20\n2,30\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[1, 15.0], [2, 30.0]]
+
+
+def test_linear_fit_computes_linregress_statistics():
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), node("fit", "analysis.linear_fit", {"xColumn": "x", "yColumn": "y"})],
+        [edge("read", "fit")],
+        "x,y\n1,2\n2,4\n3,6\n",
+    )
+    assert result["status"] == "success"
+    rows = result["preview"]["rows"][0]
+    assert rows[0] == 2.0  # slope
+    assert rows[1] == 0.0  # intercept
+    assert abs(rows[2] - 1.0) < 1e-9  # r_value
