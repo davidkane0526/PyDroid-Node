@@ -5,6 +5,18 @@ contextBridge.exposeInMainWorld("pyDroidDesktop", {
   getEnvironment: () => ipcRenderer.invoke("pydroid:get-environment"),
   getRuntimeStats: () => ipcRenderer.invoke("pydroid:get-runtime-stats"),
   analyzeNotebook: (notebook) => ipcRenderer.invoke("pydroid:analyze-notebook", notebook),
+  analyzeSignature: (code) => ipcRenderer.invoke("pydroid:analyze-signature", code),
+  windowControls: {
+    minimize: () => ipcRenderer.send("pydroid:window-minimize"),
+    toggleMaximize: () => ipcRenderer.send("pydroid:window-toggle-maximize"),
+    close: () => ipcRenderer.send("pydroid:window-close"),
+    isMaximized: () => ipcRenderer.invoke("pydroid:window-is-maximized"),
+    onMaximizedChanged: (callback) => {
+      const listener = (_event, maximized) => callback(maximized);
+      ipcRenderer.on("pydroid:window-maximized-changed", listener);
+      return () => ipcRenderer.removeListener("pydroid:window-maximized-changed", listener);
+    },
+  },
   pickCsvFiles: (mode) => ipcRenderer.invoke("pydroid:pick-csv", mode),
   discoverSmbServers: () => ipcRenderer.invoke("pydroid:discover-smb-servers"),
   scanSmbShares: (connection) => ipcRenderer.invoke("pydroid:scan-smb-shares", connection),

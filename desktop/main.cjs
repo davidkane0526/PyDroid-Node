@@ -399,6 +399,7 @@ function startDesktopRemoteServer(requirePin) {
         }
         if (url.pathname === "/api/environment") return response.end(await runPythonRequest({ action: "environment" }));
         if (url.pathname === "/api/analyze-notebook") return response.end(await runPythonRequest({ action: "analyze_notebook", notebook: String(body.notebook ?? "") }));
+        if (url.pathname === "/api/analyze-signature") return response.end(await runPythonRequest({ action: "analyze_signature", code: String(body.code ?? "") }));
         if (url.pathname === "/api/runtime-stats") {
           const memoryBytes = app.getAppMetrics().reduce((total, metric) => total + Math.max(0, metric.memory.workingSetSize) * 1024, 0);
           return sendJson(response, 200, { memoryBytes });
@@ -541,6 +542,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 640,
     backgroundColor: "#0b1020",
+    frame: false,
     ...(fs.existsSync(sharedAppIcon) ? { icon: sharedAppIcon } : {}),
     show: false,
     webPreferences: {
@@ -552,6 +554,8 @@ function createWindow() {
   });
 
   window.webContents.on("did-fail-load", (_event, code, description, url) => appendDesktopLog(`did-fail-load ${code} ${description} ${url}`));
+  window.on("maximize", () => window.webContents.send("pydroid:window-maximized-changed", true));
+  window.on("unmaximize", () => window.webContents.send("pydroid:window-maximized-changed", false));
   window.webContents.on("render-process-gone", (_event, details) => appendDesktopLog(`render-process-gone ${details.reason} ${details.exitCode}`));
   window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
     if (level >= 2) appendDesktopLog(`renderer-console level=${level} ${message} ${sourceId}:${line}`);
@@ -662,9 +666,18 @@ function createWindow() {
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   ensureUserProfile();
+  ipcMain.on("pydroid:window-minimize", (event) => BrowserWindow.fromWebContents(event.sender)?.minimize());
+  ipcMain.on("pydroid:window-toggle-maximize", (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return;
+    if (win.isMaximized()) win.unmaximize(); else win.maximize();
+  });
+  ipcMain.on("pydroid:window-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
+  ipcMain.handle("pydroid:window-is-maximized", (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
   ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload));
   ipcMain.handle("pydroid:get-environment", () => runPythonRequest({ action: "environment" }));
   ipcMain.handle("pydroid:analyze-notebook", (_event, notebook) => runPythonRequest({ action: "analyze_notebook", notebook }));
+  ipcMain.handle("pydroid:analyze-signature", (_event, code) => runPythonRequest({ action: "analyze_signature", code }));
   ipcMain.handle("pydroid:get-runtime-stats", async () => {
     const metrics = app.getAppMetrics();
     const memoryBytes = metrics.reduce((total, metric) => total + Math.max(0, metric.memory.workingSetSize) * 1024, 0);

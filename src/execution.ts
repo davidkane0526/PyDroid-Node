@@ -20,6 +20,7 @@ type PythonExecutorPlugin = {
   renameWorkflowFile(options: { uri: string; name: string }): Promise<{ uri: string; name: string }>;
   deleteWorkflowFile(options: { uri: string }): Promise<{ deleted: boolean }>;
   analyzeNotebook(options: { notebook: string }): Promise<NativeExecutionResponse>;
+  analyzeSignature(options: { code: string }): Promise<NativeExecutionResponse>;
   runWorkflow(options: {
     workflow: string;
     csvText: string;
@@ -281,6 +282,25 @@ export async function analyzeNotebook(notebook: string): Promise<NotebookCellAna
   await warmUpPythonExecutor();
   const response = await PythonExecutor.analyzeNotebook({ notebook });
   return (JSON.parse(response.result) as { cells: NotebookCellAnalysis[] }).cells;
+}
+
+export type PythonSignatureAnalysis = {
+  functionName?: string;
+  inputPorts: Array<{ id: string; label: string; valueType: string; required?: boolean }>;
+  outputPorts: Array<{ id: string; label: string; valueType: string }>;
+  outputType?: string;
+  parameters: Array<{ key: string; label: string; kind: string; required?: boolean; defaultValue?: string | null }>;
+  error?: string;
+};
+
+export async function analyzePythonSignature(code: string): Promise<PythonSignatureAnalysis> {
+  if (isRemoteRuntime()) {
+    return remoteRequest<PythonSignatureAnalysis>("/api/analyze-signature", { code });
+  }
+  if (!Capacitor.isNativePlatform()) return { inputPorts: [], outputPorts: [], parameters: [], error: "unavailable" };
+  await warmUpPythonExecutor();
+  const response = await PythonExecutor.analyzeSignature({ code });
+  return JSON.parse(response.result) as PythonSignatureAnalysis;
 }
 
 export async function executeWorkflow(
