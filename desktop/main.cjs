@@ -4,6 +4,7 @@ const crypto = require("node:crypto");
 const http = require("node:http");
 const os = require("node:os");
 const net = require("node:net");
+const dgram = require("node:dgram");
 const dns = require("node:dns").promises;
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
@@ -31,7 +32,8 @@ async function netViewListHosts() {
     const chunks = [];
     let settled = false;
     const finish = (hosts = []) => { if (settled) return; settled = true; clearTimeout(timer); resolve(hosts); };
-    const timer = setTimeout(() => { child.kill(); finish([]); }, 6000);
+    // 现代 Windows 浏览服务已废弃：net view 要么秒回要么报错 6118 卡死，1.2s 内见分晓
+    const timer = setTimeout(() => { child.kill(); finish([]); }, 1200);
     child.stdout.on("data", (chunk) => chunks.push(chunk));
     child.once("error", () => finish([]));
     child.once("close", () => {
@@ -48,33 +50,59 @@ async function netViewListHosts() {
 }
 
 function netbiosName(address) {
-  // nbtstat -A 通过 NetBIOS 查询主机名；局域网没有反向 DNS 时的兜底。
+  // nbtstat -A 通过 NetBIOS 节点状态查询（UDP 137）获取主机名。
+  // 名称列固定 15 字符：短名称后补空格，占满 15 字符的名称与 <type> 之间无空格。
+  // nbtstat 输出为 GBK（中文系统把 UNIQUE/GROUP/状态列都本地化），node 直接 UTF-8 解码会乱码，
+  // 因此用 latin1 保留原始字节，在字节层面匹配 ASCII "UNIQUE" 或 GBK“唯一”(CE A8 D2 BB)。
   if (!/^[0-9.]+$/.test(String(address || ""))) return Promise.resolve("");
   return new Promise((resolve) => {
     const child = spawn("nbtstat.exe", ["-A", address], { windowsHide: true });
     const chunks = [];
     let settled = false;
     const finish = (name = "") => { if (settled) return; settled = true; clearTimeout(timer); resolve(name); };
-    const timer = setTimeout(() => { child.kill(); finish(""); }, 3000);
+    // nbtstat 对每个网络接口串行查询，多接口机器（vEthernet/WLAN/以太网并存）累计可达 4~5s，超时需留足余量
+    const timer = setTimeout(() => { child.kill(); finish(""); }, 5500);
     child.stdout.on("data", (chunk) => chunks.push(chunk));
     child.once("error", () => finish(""));
     child.once("close", () => {
-      const text = Buffer.concat(chunks).toString("utf8");
-      const match = text.match(/<00>\s+UNIQUE\s+Registered\s+([A-Za-z0-9_.-]+)/);
-      finish(match ? match[1] : "");
+      const text = Buffer.concat(chunks).toString("latin1");
+      const gbkUnique = String.fromCharCode(0xCE, 0xA8, 0xD2, 0xBB); // GBK“唯一”
+      let name = "";
+      for (const line of text.split(/\r?\n/)) {
+        const match = line.match(/^\s*([A-Za-z0-9_.-]{1,15})\s*<(\d{2})>\s+(.*)$/);
+        if (!match) continue;
+        const tag = match[2];
+        if (tag !== "00" && tag !== "20") continue;
+        const typeText = match[3].replace(/^\s+/, "");
+        const isUnique = /^UNIQUE/i.test(typeText) || typeText.startsWith(gbkUnique);
+        if (!isUnique) continue;
+        if (tag === "00") { name = match[1]; break; }
+        if (!name) name = match[1]; // 无 <00> 条目时以 <20>（文件服务器服务）兜底
+      }
+      finish(name);
     });
   });
 }
 
 async function scanSubnetForSmb() {
-  const candidates = new Set();
-  for (const entries of Object.values(os.networkInterfaces())) for (const entry of entries ?? []) {
-    if (entry.family !== "IPv4" || entry.internal) continue;
-    const octets = entry.address.split(".").map(Number);
-    if (octets.length !== 4) continue;
-    for (let suffix = 1; suffix < 255; suffix++) candidates.add(`${octets[0]}.${octets[1]}.${octets[2]}.${suffix}`);
-  }
-  const addresses = [...candidates];
+  const localAddrs = new Set(mdnsLocalIfaceAddrs()); // 排除本机接口 IP
+  // 虚拟网卡（Hyper-V vEthernet / VMware / VirtualBox）子网里通常只有网关，整段扫描纯浪费
+  const VIRTUAL_IFACE = /vEthernet|vmware|virtual|hyper-v|bluetooth|loopback/i;
+  const buildCandidates = (filterVirtual) => {
+    const candidates = new Set();
+    for (const [name, entries] of Object.entries(os.networkInterfaces())) {
+      if (filterVirtual && VIRTUAL_IFACE.test(name)) continue;
+      for (const entry of entries ?? []) {
+        if (entry.family !== "IPv4" || entry.internal) continue;
+        const octets = entry.address.split(".").map(Number);
+        if (octets.length !== 4) continue;
+        for (let suffix = 1; suffix < 255; suffix++) candidates.add(`${octets[0]}.${octets[1]}.${octets[2]}.${suffix}`);
+      }
+    }
+    return [...candidates].filter((address) => !localAddrs.has(address));
+  };
+  let addresses = buildCandidates(true);
+  if (!addresses.length) addresses = buildCandidates(false); // 全是虚拟网卡时回退，避免漏扫
   const found = [];
   for (let offset = 0; offset < addresses.length; offset += 48) {
     const batch = await Promise.all(addresses.slice(offset, offset + 48).map((address) => probeSmbHost(address)));
@@ -83,25 +111,262 @@ async function scanSubnetForSmb() {
   return found;
 }
 
+// ---- mDNS 发现（零依赖，UDP 5353 组播）----
+// Windows 10+（启用网络发现）与主流 NAS（avahi/bonjour）会响应 mDNS，
+// 用于补齐 net view / nbtstat 都解析不到的设备名称。
+const MDNS_ADDR = "224.0.0.251";
+const MDNS_PORT = 5353;
+const MDNS_QTYPE_PTR = 12;
+const MDNS_QTYPE_SRV = 33;
+const MDNS_QTYPE_A = 1;
+
+function mdnsEncodeName(name) {
+  const parts = String(name).replace(/\.$/, "").split(".");
+  const chunks = [];
+  for (const part of parts) {
+    const label = Buffer.from(part, "ascii");
+    chunks.push(Buffer.from([label.length]), label);
+  }
+  chunks.push(Buffer.from([0]));
+  return Buffer.concat(chunks);
+}
+
+function mdnsDecodeName(message, offset) {
+  const labels = [];
+  let cursor = offset;
+  let end = -1;
+  let hops = 0;
+  while (hops++ < 64) {
+    const length = message[cursor];
+    if (length === 0) { cursor += 1; if (end === -1) end = cursor; break; }
+    if ((length & 0xC0) === 0xC0) {
+      const pointer = ((length & 0x3F) << 8) | message[cursor + 1];
+      if (end === -1) end = cursor + 2;
+      cursor = pointer;
+      continue;
+    }
+    labels.push(message.subarray(cursor + 1, cursor + 1 + length).toString("ascii"));
+    cursor += 1 + length;
+  }
+  return { name: labels.join("."), end: end === -1 ? cursor : end };
+}
+
+function mdnsBuildQuery(name, qtype) {
+  const header = Buffer.alloc(12);
+  header.writeUInt16BE(0, 0); // ID（mDNS 通常为 0）
+  header.writeUInt16BE(0, 2); // flags：标准查询
+  header.writeUInt16BE(1, 4); // QDCOUNT
+  const nameBytes = mdnsEncodeName(name);
+  const question = Buffer.alloc(4);
+  question.writeUInt16BE(qtype, 0);
+  question.writeUInt16BE(1, 2); // QCLASS IN
+  return Buffer.concat([header, nameBytes, question]);
+}
+
+function mdnsParseResponse(message, onRecord) {
+  if (message.length < 12) return;
+  const questions = message.readUInt16BE(4);
+  const answers = message.readUInt16BE(6);
+  let cursor = 12;
+  for (let i = 0; i < questions; i++) cursor = mdnsDecodeName(message, cursor).end + 4;
+  for (let i = 0; i < answers; i++) {
+    const owner = mdnsDecodeName(message, cursor);
+    cursor = owner.end;
+    if (cursor + 10 > message.length) break;
+    const type = message.readUInt16BE(cursor);
+    const rdlength = message.readUInt16BE(cursor + 8);
+    const rdataStart = cursor + 10;
+    let data = null;
+    let rdataEnd = rdataStart + rdlength;
+    if (type === MDNS_QTYPE_PTR) {
+      const target = mdnsDecodeName(message, rdataStart);
+      data = target.name;
+      rdataEnd = target.end;
+    } else if (type === MDNS_QTYPE_SRV) {
+      if (rdataStart + 6 <= message.length) {
+        const target = mdnsDecodeName(message, rdataStart + 6);
+        data = { port: message.readUInt16BE(rdataStart + 4), target: target.name };
+        rdataEnd = target.end;
+      }
+    } else if (type === MDNS_QTYPE_A && rdlength === 4 && rdataStart + 4 <= message.length) {
+      data = [message[rdataStart], message[rdataStart + 1], message[rdataStart + 2], message[rdataStart + 3]].join(".");
+    }
+    cursor = rdataEnd;
+    onRecord(owner.name, type, data);
+  }
+}
+
+function mdnsUnescape(name) {
+  return String(name).replace(/\\(.)/g, "$1");
+}
+
+function mdnsLocalIfaceAddrs() {
+  return Object.values(os.networkInterfaces()).flat()
+    .filter((entry) => entry && entry.family === "IPv4" && !entry.internal)
+    .map((entry) => entry.address);
+}
+
+function mdnsSmbServers(timeoutMs = 2500) {
+  // 正向发现：查询 _smb._tcp.local. 的 PTR，经 SRV/A 记录关联出 { name, address }。
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
+    const instances = new Map(); // 实例全名 -> { target, port }
+    const ptrNames = new Set();  // PTR 指向的实例全名
+    const targetIps = new Map(); // SRV 目标主机 -> [IP]
+    let settled = false;
+    const collect = () => {
+      const results = new Map();
+      for (const instanceName of ptrNames) {
+        const info = instances.get(instanceName);
+        if (!info || !info.target) continue;
+        const ips = targetIps.get(info.target) || [];
+        for (const ip of ips) {
+          if (!/^[0-9.]+$/.test(ip)) continue;
+          if (!results.has(ip)) results.set(ip, { name: mdnsUnescape(String(instanceName).split(".")[0] || ip), address: ip });
+        }
+      }
+      return [...results.values()];
+    };
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { socket.close(); } catch {}
+      resolve(collect());
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    socket.on("error", () => finish());
+    socket.on("message", (message) => {
+      try {
+        mdnsParseResponse(message, (owner, type, data) => {
+          if (type === MDNS_QTYPE_PTR && owner.toLowerCase() === "_smb._tcp.local") {
+            ptrNames.add(String(data));
+          } else if (type === MDNS_QTYPE_SRV) {
+            const info = instances.get(owner) || { target: "", port: 0 };
+            info.target = data.target;
+            info.port = data.port;
+            instances.set(owner, info);
+          } else if (type === MDNS_QTYPE_A) {
+            const list = targetIps.get(owner) || [];
+            if (!list.includes(data)) list.push(data);
+            targetIps.set(owner, list);
+          }
+        });
+      } catch {}
+    });
+    const ifaces = mdnsLocalIfaceAddrs();
+    if (!ifaces.length) { finish(); return; }
+    socket.bind(0, () => {
+      for (const iface of ifaces) { try { socket.addMembership(MDNS_ADDR, iface); } catch {} }
+      const query = mdnsBuildQuery("_smb._tcp.local.", MDNS_QTYPE_PTR);
+      const send = () => { for (const iface of ifaces) { try { socket.send(query, 0, query.length, MDNS_PORT, MDNS_ADDR); } catch {} } };
+      send();
+      setTimeout(send, 900); // 重发一次，提高可靠性
+    });
+  });
+}
+
+function mdnsReverseLookup(address, timeoutMs = 600) {
+  // 反向发现：查询 <反转IP>.in-addr.arpa. 的 PTR，把已知 IP 映射回主机名。
+  if (!/^[0-9.]+$/.test(String(address || ""))) return Promise.resolve("");
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
+    let settled = false;
+    const finish = (name = "") => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { socket.close(); } catch {}
+      resolve(name);
+    };
+    const timer = setTimeout(() => finish(""), timeoutMs);
+    socket.on("error", () => finish(""));
+    socket.on("message", (message) => {
+      try {
+        mdnsParseResponse(message, (owner, type, data) => {
+          if (type === MDNS_QTYPE_PTR && /in-addr\.arpa\.?$/i.test(owner)) {
+            finish(mdnsUnescape(String(data).split(".")[0] || ""));
+          }
+        });
+      } catch {}
+    });
+    const ifaces = mdnsLocalIfaceAddrs();
+    if (!ifaces.length) { finish(""); return; }
+    socket.bind(0, () => {
+      for (const iface of ifaces) { try { socket.addMembership(MDNS_ADDR, iface); } catch {} }
+      const query = mdnsBuildQuery(address.split(".").reverse().join(".") + ".in-addr.arpa.", MDNS_QTYPE_PTR);
+      const send = () => { for (const iface of ifaces) { try { socket.send(query, 0, query.length, MDNS_PORT, MDNS_ADDR); } catch {} } };
+      send();
+      setTimeout(send, 250);
+    });
+  });
+}
+
+async function resolveSmbName(address) {
+  // 快速路径优先：反向 DNS（~0ms）→ mDNS 反向（≤600ms）→ nbtstat（多接口机器 4~5s，最后兜底）
+  let name = address;
+  try { name = (await dns.reverse(address))[0] || address; } catch {}
+  if (name === address) name = (await mdnsReverseLookup(address)) || address;
+  if (name === address) name = (await netbiosName(address)) || address;
+  return name;
+}
+
 async function discoverSmbServers() {
-  // 1) `net view` 权威发现：返回真实主机名，共享枚举由 netViewShares 完成
   const found = [];
   const seen = new Set();
-  for (const host of await netViewListHosts()) {
+  // 1) `net view` 权威发现与 445 端口扫描并行（net view 在现代 Windows 常返回空，2.5s 内见分晓）
+  const [netViewHosts, scanned] = await Promise.all([netViewListHosts(), scanSubnetForSmb()]);
+  for (const host of netViewHosts) {
     if (seen.has(host.toLocaleLowerCase())) continue;
     seen.add(host.toLocaleLowerCase());
-    const shares = await netViewShares(host).catch(() => []);
-    found.push({ address: host, name: host, shares });
+    found.push({ address: host, name: host, shares: [] });
   }
-  // 2) 445 端口扫描补充：net view 可能因权限/广播域看不到的设备
-  for (const address of await scanSubnetForSmb()) {
-    if (seen.has(address)) continue;
+  // 2) 名称解析：nbtstat（NetBIOS UDP 137）高并发批次；mDNS 正向发现同时启动，结果随后合并
+  //    解析链：反向 DNS → mDNS 反向（≤600ms）→ nbtstat（4~5s）
+  const mdnsPromise = mdnsSmbServers();
+  const names = new Map();
+  const pending = scanned.filter((address) => !seen.has(address));
+  for (let offset = 0; offset < pending.length; offset += 32) {
+    const batch = pending.slice(offset, offset + 32);
+    const resolved = await Promise.all(batch.map((address) => resolveSmbName(address)));
+    batch.forEach((address, index) => names.set(address, resolved[index]));
+  }
+  for (const address of pending) {
     seen.add(address);
-    let name = address;
-    try { name = (await dns.reverse(address))[0] || address; } catch {}
-    if (name === address) name = (await netbiosName(address)) || address;
-    const shares = await netViewShares(address).catch(() => []);
-    found.push({ address, name, shares });
+    found.push({ address, name: names.get(address) || address, shares: [] });
+  }
+  // 3) 对首次 nbtstat 解析失败的设备重试（UDP 137 偶发丢包），与共享枚举并行
+  const retryTargets = pending.filter((address) => names.get(address) === address);
+  const retryPromise = retryTargets.length
+    ? Promise.all(retryTargets.map(async (address) => {
+        const name = await netbiosName(address);
+        if (name) names.set(address, name);
+      }))
+    : Promise.resolve();
+  // 4) 共享枚举并行批次（Get-ChildItem \\ip 对无凭据主机快速失败，避免串行累积等待）
+  const shareCandidates = found.map((server) => server.address);
+  const sharesByAddress = new Map();
+  for (let offset = 0; offset < shareCandidates.length; offset += 16) {
+    const batch = shareCandidates.slice(offset, offset + 16);
+    const results = await Promise.all(batch.map((address) => netViewShares(address).catch(() => [])));
+    batch.forEach((address, index) => sharesByAddress.set(address, results[index]));
+  }
+  await retryPromise;
+  for (const server of found) {
+    server.shares = sharesByAddress.get(server.address) || [];
+    const name = names.get(server.address);
+    if (name && name !== server.address) server.name = name;
+  }
+  // 5) mDNS 正向发现补充：_smb._tcp.local 的权威名称，覆盖 445 未开或 net view 漏掉的设备
+  for (const server of await mdnsPromise) {
+    const key = server.address.toLocaleLowerCase();
+    if (seen.has(key)) {
+      const existing = found.find((item) => item.address === server.address);
+      if (existing && existing.name === existing.address && server.name) existing.name = server.name;
+      continue;
+    }
+    seen.add(key);
+    found.push({ address: server.address, name: server.name || server.address, shares: await netViewShares(server.address).catch(() => []) });
   }
   return found;
 }
