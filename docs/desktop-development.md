@@ -9,9 +9,9 @@ PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflo
 - Node.js 24、pnpm（版本以 `pnpm-lock.yaml` 为准）。
 - Python 3.12；无法通过 `py -3.12` 找到时，设置
   `PYDROID_PYTHON_EXECUTABLE` 为 Python 3.12 可执行文件。
-- 桌面打包使用 `.tools/python312-runtime` 便携运行时。
-- 工具、依赖、缓存和构建产物统一放在 OneDrive 外的
-  `D:\PyDroidTemp\PyDroid`，项目内通过 Junction 使用。
+- 桌面打包使用用户指定文件夹中的 `python312-runtime` 便携运行时。
+- 工具、依赖、缓存和构建产物统一放在用户指定文件夹（OneDrive 之外，
+  本机约定 `D:\Code\Language`），通过环境变量指向，不在项目内建立 Junction/联接。
 
 完整版本、来源、用途和删除方法见 [environment.md](environment.md)。不要把本机绝对路径
 写入受版本控制的配置文件。
@@ -24,18 +24,15 @@ PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflo
 powershell -ExecutionPolicy Bypass -File scripts/setup-desktop-development.ps1
 ```
 
-脚本默认将本地依赖放在 `D:\PyDroidTemp\PyDroid`。没有 D 盘时可明确指定
+脚本将本地依赖放在用户指定的文件夹；建议明确指定任意 OneDrive 之外的位置：
 任意 OneDrive 之外的位置：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/setup-desktop-development.ps1 -LocalRoot "E:\PyDroidTemp\PyDroid"
+powershell -ExecutionPolicy Bypass -File scripts/setup-desktop-development.ps1 -LocalRoot "E:\PyDroidDev"
 ```
 
-`local-storage.ps1` 只会为已存在的外部目录创建链接；遇到实体目录时会保留并警告，
-不会覆盖。可通过 `PYDROID_LOCAL_ROOT` 临时指定另一台设备的本地存储根目录。
-项目的 `pnpm-workspace.yaml` 使用 hoisted 布局并关闭 pnpm 11 的运行前自动依赖重装，
-避免 pnpm 把 Junction 后的依赖符号链接改回 OneDrive 逻辑路径；更新锁文件后应显式执行
-`pnpm install`。
+项目不在 OneDrive 目录内创建 Junction/联接；工具与缓存一律放在用户指定文件夹并通过
+环境变量指向，因此无需在项目内建立或重建链接。
 
 ## 日常开发与验证
 
@@ -81,17 +78,16 @@ pnpm android:live
 `android/` 下的 Java/Manifest/资源、Chaquopy 依赖、Gradle 配置、Capacitor 原生插件接口。
 Android Python 并非日常每次都重新编译；只有 APK 构建阶段才由 Chaquopy 重新收集和打包。
 
-打包前确认 `.tools/python312-runtime/python.exe` 存在，且能导入
-`pandas`、`matplotlib` 和 `pytest`。输出目录 `release/` 是可再生成产物，不应提交或同步。
-Electron 打包或冒烟脚本可能在清理输出时移除 `release` Junction 本身；任务完成后重新运行
-`scripts/local-storage.ps1` 即可恢复，外部 `artifacts/release` 目录不会因此迁回 OneDrive。
+打包前确认用户指定文件夹中的 `python312-runtime/python.exe` 存在，且能导入
+`pandas`、`matplotlib` 和 `pytest`。输出目录 `release/` 是用户指定文件夹下的可再生成产物，
+不应提交或同步到 OneDrive。
 
 ## 常见问题
 
 - `pnpm` 可运行但 `node` 找不到：安装 Node.js 24 并重新打开终端，确认
   `node --version` 与 `pnpm --version` 都成功。
-- 外部目录移动后链接失效：更新 `PYDROID_LOCAL_ROOT`，再运行
-  `scripts/local-storage.ps1`。脚本不会盲目覆盖实体目录。
+- 工具/缓存目录移动后：更新对应的环境变量（`JAVA_HOME`、`ANDROID_HOME`、
+  `GRADLE_USER_HOME` 等）即可，项目内不存在需要重建的链接。
 - Python 解释器启动失败：先运行 `pnpm env:windows`；开发时也可设置
   `PYDROID_PYTHON_EXECUTABLE` 指向有效的 Python 3.12。
 - 跨平台行为不一致：先运行 `pnpm check`，并在 `docs/progress.md` 记录尚未完成的差异。
