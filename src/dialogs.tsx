@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { AGENT_PRESETS, presetById, type AgentPlan, type AgentSettings } from "./agent";
-import type { ExecutionResult, NodeExecutionPreview, TablePreview } from "./execution";
+import type { ExecutionResult, NodeExecutionPreview, RuntimePreference, TablePreview } from "./execution";
 import type { WorkflowNode } from "./workflow";
 import { DataGrid, resultPreviewText } from "./components";
+import { PlotPreview } from "./ui/PlotPreview";
 
 export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };
@@ -172,7 +173,7 @@ export function ErrorDetailDialog({ error, open, canLocate, onClose, onLocate, o
   onCopy: () => void;
 }) {
   if (!error || !open) return null;
-  return <div className="settings-backdrop error-detail-backdrop" role="dialog" aria-modal="true" aria-label="执行错误详情"><section className="error-detail-dialog"><header><div><strong>{error.title}</strong><span>{error.nodeType ? `${error.nodeType} · ${error.nodeId ?? "工作流"}` : "工作流级错误"}</span></div><button onClick={onClose}>×</button></header><div><p>{error.message}</p>{error.traceback && <details><summary>Python 调试堆栈</summary><pre>{error.traceback}</pre></details>}{error.nodeId && canLocate && <button onClick={() => onLocate(error.nodeId!)}>定位错误节点</button>}<button onClick={onCopy}>复制错误</button></div></section></div>;
+  return <div className="settings-backdrop error-detail-backdrop" role="dialog" aria-modal="true" aria-label="执行错误详情"><section className="error-detail-dialog"><header><div><strong>{error.title}</strong><span>{error.nodeType ? `${error.nodeType} · ${error.nodeId ?? "工作流"}` : "工作流级错误"}</span></div><button onClick={onClose}>×</button></header><div><p>{error.message}</p>{error.traceback && <details><summary>运行时调试堆栈</summary><pre>{error.traceback}</pre></details>}{error.nodeId && canLocate && <button onClick={() => onLocate(error.nodeId!)}>定位错误节点</button>}<button onClick={onCopy}>复制错误</button></div></section></div>;
 }
 
 export function ResultDetailDialog({ detail, onClose, onCopy, onTextChange }: {
@@ -188,25 +189,26 @@ export function ResultDetailDialog({ detail, onClose, onCopy, onTextChange }: {
   </div>;
 }
 
-export function PlotLightbox({ open, src, zoom, onZoom, onClose }: {
+export function PlotLightbox({ open, preview, zoom, onZoom, onClose }: {
   open: boolean;
-  src: string;
+  preview: Extract<NodeExecutionPreview, { kind: "plot" }>;
   zoom: number;
   onZoom: (value: number) => void;
   onClose: () => void;
 }) {
   if (!open) return null;
+  const interactive = Boolean(preview.chart);
   return <div className="plot-lightbox" role="dialog" aria-modal="true" aria-label="图表放大预览">
     <header>
-      <strong>图表预览</strong>
+      <div><strong>图表预览</strong>{interactive && <span>交互式 · 可缩放 / 悬停查看数据</span>}</div>
       <div>
-        <button onClick={() => onZoom(Math.max(.5, zoom - .25))}>−</button>
-        <button onClick={() => onZoom(1)}>{Math.round(zoom * 100)}%</button>
-        <button onClick={() => onZoom(Math.min(4, zoom + .25))}>＋</button>
+        {!interactive && <><button onClick={() => onZoom(Math.max(.5, zoom - .25))}>−</button><button onClick={() => onZoom(1)}>{Math.round(zoom * 100)}%</button><button onClick={() => onZoom(Math.min(4, zoom + .25))}>＋</button></>}
         <button onClick={onClose}>关闭</button>
       </div>
     </header>
-    <div className="plot-lightbox__body"><img style={{ width: zoom === 1 ? "auto" : `${zoom * 100}%`, maxWidth: zoom === 1 ? "100%" : "none" }} src={src} alt="放大的 Python 绘图结果" /></div>
+    <div className={`plot-lightbox__body ${interactive ? "plot-lightbox__body--interactive" : ""}`}>
+      {interactive ? <PlotPreview preview={preview} className="plot-lightbox__chart" /> : <div style={{ width: zoom === 1 ? "100%" : `${zoom * 100}%`, maxWidth: zoom === 1 ? "100%" : "none" }}><PlotPreview preview={preview} alt="放大的绘图结果" /></div>}
+    </div>
   </div>;
 }
 
@@ -329,7 +331,7 @@ export function AlertDialog({ node, preview, onSubmit }: {
   onSubmit: (response: boolean | null) => void;
 }) {
   if (!node) return null;
-  return <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label={String(node.data.parameters.title ?? "提示")} onKeyDown={(event) => { if (event.key === "Escape" && String(node.data.parameters.cancelLabel ?? "取消").trim()) onSubmit(null); }}><section className="interaction-dialog interaction-dialog--alert"><header><span className="interaction-dialog__icon" aria-hidden="true">!</span><div><strong>{String(node.data.parameters.title ?? "提示")}</strong><small>“内容”端口支持文本、表格、图片、时间及任意可预览值</small></div></header><div className="interaction-dialog__content"><p>{String(node.data.parameters.message ?? "流程正在执行。")}</p>{preview?.kind === "table" ? <DataGrid preview={preview.preview} /> : preview?.kind === "plot" ? <img className="interaction-dialog__image-preview" src={`data:image/png;base64,${preview.plotPngBase64}`} alt="弹窗输入图像" /> : preview?.kind === "value" ? <pre className="interaction-dialog__value">{preview.text}</pre> : <small>首次运行时先执行上游后即可在此自适应显示内容；选择结果仍由 output 端口输出。</small>}</div><footer className="interaction-dialog__choices">{String(node.data.parameters.cancelLabel ?? "取消").trim() && <button className="button secondary" onClick={() => onSubmit(null)}>{String(node.data.parameters.cancelLabel)}</button>}{String(node.data.parameters.exitLabel ?? "退出").trim() && <button className="button alert-false" onClick={() => onSubmit(false)}>{String(node.data.parameters.exitLabel)}</button>}{String(node.data.parameters.confirmLabel ?? "确认").trim() && <button autoFocus className="button primary" onClick={() => onSubmit(true)}>{String(node.data.parameters.confirmLabel)}</button>}{!["cancelLabel", "exitLabel", "confirmLabel"].some((key) => String(node.data.parameters[key] ?? "").trim()) && <button autoFocus className="button secondary" onClick={() => onSubmit(null)}>关闭</button>}</footer><div className="interaction-dialog__result-legend"><span><b>true</b> 确认</span><span><b>false</b> 退出</span><span><b>None</b> 取消</span></div></section></div>;
+  return <div className="settings-backdrop interaction-backdrop" role="dialog" aria-modal="true" aria-label={String(node.data.parameters.title ?? "提示")} onKeyDown={(event) => { if (event.key === "Escape" && String(node.data.parameters.cancelLabel ?? "取消").trim()) onSubmit(null); }}><section className="interaction-dialog interaction-dialog--alert"><header><span className="interaction-dialog__icon" aria-hidden="true">!</span><div><strong>{String(node.data.parameters.title ?? "提示")}</strong><small>“内容”端口支持文本、表格、图片、时间及任意可预览值</small></div></header><div className="interaction-dialog__content"><p>{String(node.data.parameters.message ?? "流程正在执行。")}</p>{preview?.kind === "table" ? <DataGrid preview={preview.preview} /> : preview?.kind === "plot" ? <PlotPreview preview={preview} className="interaction-dialog__image-preview" alt="弹窗输入图像" /> : preview?.kind === "value" ? <pre className="interaction-dialog__value">{preview.text}</pre> : <small>首次运行时先执行上游后即可在此自适应显示内容；选择结果仍由 output 端口输出。</small>}</div><footer className="interaction-dialog__choices">{String(node.data.parameters.cancelLabel ?? "取消").trim() && <button className="button secondary" onClick={() => onSubmit(null)}>{String(node.data.parameters.cancelLabel)}</button>}{String(node.data.parameters.exitLabel ?? "退出").trim() && <button className="button alert-false" onClick={() => onSubmit(false)}>{String(node.data.parameters.exitLabel)}</button>}{String(node.data.parameters.confirmLabel ?? "确认").trim() && <button autoFocus className="button primary" onClick={() => onSubmit(true)}>{String(node.data.parameters.confirmLabel)}</button>}{!["cancelLabel", "exitLabel", "confirmLabel"].some((key) => String(node.data.parameters[key] ?? "").trim()) && <button autoFocus className="button secondary" onClick={() => onSubmit(null)}>关闭</button>}</footer><div className="interaction-dialog__result-legend"><span><b>true</b> 确认</span><span><b>false</b> 退出</span><span><b>None</b> 取消</span></div></section></div>;
 }
 
 export function CodeEditorModal({ open, code, summary, error, onClose, onCodeChange }: {
@@ -433,11 +435,12 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
 type ThemeMode = "system" | "dark" | "light";
 type CanvasSettings = { nodeScale: number; endpointScale: number; edgeWidth: number; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; miniMapMode: "auto" | "show" | "hide"; showNodeInsights: boolean };
 
-export function SettingsDialog({ open, themeMode, language, resolvedTheme, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, hotReloadEnabled, profilePath, workspaceUri, onClose, onThemeModeChange, onLanguageChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onConfigureFolder, onExportSettings, onImportSettings }: {
+export function SettingsDialog({ open, themeMode, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, hotReloadEnabled, profilePath, workspaceUri, onClose, onThemeModeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onConfigureFolder, onExportSettings, onImportSettings }: {
   open: boolean;
   themeMode: ThemeMode;
   language: string;
   resolvedTheme: "dark" | "light";
+  runtimePreference: RuntimePreference;
   canvas: CanvasSettings;
   smbServer: string;
   smbShare: string;
@@ -451,6 +454,7 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, canva
   onClose: () => void;
   onThemeModeChange: (value: ThemeMode) => void;
   onLanguageChange: (value: "zh-CN" | "en") => void;
+  onRuntimePreferenceChange: (value: RuntimePreference) => void;
   onCanvasChange: (patch: Partial<CanvasSettings>) => void;
   onOpenSmb: () => void;
   onOpenAgent: () => void;
@@ -466,10 +470,11 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, canva
       <header><div><strong>设置</strong><span>设置会保存在本机用户配置中</span></div><button aria-label="关闭设置" onClick={onClose}>×</button></header>
       <div className="settings-dialog__body">
         <section><h3>外观</h3><label><span>主题</span><ThemedSelect ariaLabel="主题" value={themeMode} options={[{ value: "system", label: "跟随系统" }, { value: "dark", label: "暗色模式" }, { value: "light", label: "亮色模式" }]} onChange={(value) => onThemeModeChange(value as ThemeMode)} /></label><label><span>界面语言</span><ThemedSelect ariaLabel="界面语言" value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label><small>当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}。</small></section>
+        <section className="settings-runtime-section"><h3>执行引擎</h3><label><span>工作流运行时</span><ThemedSelect ariaLabel="工作流运行时" value={runtimePreference} options={[{ value: "auto", label: "自动选择（推荐）" }, { value: "python", label: "Python · 完整兼容" }, { value: "javascript", label: "JavaScript · 实验" }]} onChange={(value) => onRuntimePreferenceChange(value as RuntimePreference)} /></label><p>{runtimePreference === "auto" ? "本机兼容工作流优先使用内置 JavaScript 引擎；遇到 Python 专属节点自动回退。局域网远程会保持宿主 Python 执行。" : runtimePreference === "javascript" ? "纯前端执行，无需 Python 进程，并提供交互式图表；不兼容节点会明确提示。" : "始终使用 Python 引擎，兼容 Notebook、自定义 Python 函数和完整节点目录。"}</p><small>运行时选择不会改变工作流文件结构，后续可随时切换。</small></section>
         <section><h3>画布</h3>{range("节点尺寸", `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range("端点大小", `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range("连线粗细", `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range("左侧节点栏", `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 176, 360, 4, "paletteWidth")}{range("右侧参数栏", `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range("横屏参数栏高度", `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}{range("结果区高度", `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label><span>缩略图</span><ThemedSelect ariaLabel="缩略图" value={canvas.miniMapMode} options={[{ value: "hide", label: "默认隐藏" }, { value: "auto", label: "自动显示" }, { value: "show", label: "始终显示" }]} onChange={(value) => onCanvasChange({ miniMapMode: value as CanvasSettings["miniMapMode"] })} /></label><label className="settings-check"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />显示节点运行结果</label></section>
         <section className="settings-smb-summary"><h3>局域网 SMB</h3><p>设备发现、账号或访客登录、共享选择和文件浏览集中在同一个文件选择器中。密码由 Android Keystore 或 Windows 系统安全存储加密保存。</p><dl><dt>当前设备</dt><dd>{smbServer || "尚未选择"}</dd><dt>当前共享</dt><dd>{smbShare || "尚未选择"}</dd><dt>登录方式</dt><dd>{smbGuest ? "访客" : smbUsername || "账号未填写"}</dd></dl><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>选择 SMB 文件</button></section>
         <section><h3>AI Agent</h3><p>通过顶部星形按钮设置模型、加密密钥及 AI 的画布权限。每次变更都需要在计划预览中确认。</p><button onClick={onOpenAgent}>AI 模型与密钥</button></section>
-        <section><h3>调试与热更新</h3><label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />启用调试模式</label><p>调试模式保留节点执行顺序、单节点耗时、部分结果和 Python 堆栈；底部虫形按钮可打开调试面板。</p><p>当前前端热更新：{hotReloadEnabled ? "已连接 HMR" : "未启用（当前为构建版）"}</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div><small>React、CSS 和 TypeScript 可即时更新；Electron 主进程需重启 desktop:dev，Android Java、Manifest、Gradle 和内置 Python 需要重新安装。</small></section>
+        <section><h3>调试与热更新</h3><label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />启用调试模式</label><p>调试模式保留节点执行顺序、单节点耗时、部分结果和运行时堆栈；底部虫形按钮可打开调试面板。</p><p>当前前端热更新：{hotReloadEnabled ? "已连接 HMR" : "未启用（当前为构建版）"}</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div><small>React、CSS 和 TypeScript 可即时更新；Electron 主进程需重启 desktop:dev，Android Java、Manifest、Gradle 和内置 Python 需要重新安装。</small></section>
         <section className="settings-profile-section"><h3>配置文件</h3><p>设置、自动保存、个人节点模板和用户代码会保存到应用用户配置目录。</p><dl><dt>应用配置目录</dt><dd>{profilePath ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={onConfigureFolder}>选择 / 跳转文件夹</button><button onClick={onExportSettings}>导出设置</button><button onClick={onImportSettings}>导入设置</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
       </div>
     </section>

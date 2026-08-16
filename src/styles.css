@@ -2952,3 +2952,14 @@ button, input, select, textarea { font: inherit; }
   background: rgba(248, 250, 252, .96) !important;
   box-shadow: 0 2px 6px rgba(71, 85, 105, .15);
 }
+
+/* Runtime architecture: raster Python plots and interactive JS plots share one presentation layer. */
+.plot-view { min-width: 0; min-height: 180px; }
+.plot-preview.plot-view { height: clamp(180px, 32vh, 360px); min-height: 180px; background: var(--surface-overlay); }
+.node-insight--plot .plot-view { width: 100%; height: 46px; min-height: 46px; }
+.interaction-dialog__image-preview.plot-view { width: 100%; height: min(260px, 36vh); min-height: 180px; }
+.plot-lightbox header > div:first-child { display: grid; gap: 2px; overflow: visible; text-align: left; }
+.plot-lightbox header > div:first-child span { color: var(--text-muted); font-size: var(--font-xs); }
+.plot-lightbox__body--interactive { overflow: hidden; padding: 16px; }
+.plot-lightbox__chart { width: 100%; height: 100%; min-height: 300px; border-radius: 10px; background: var(--surface); }
+.settings-runtime-section p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--font-xs); line-height: 1.55; }

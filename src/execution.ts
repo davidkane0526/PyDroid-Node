@@ -1,6 +1,35 @@
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import type { Edge } from "@xyflow/react";
 import { flattenWorkflowGroups, serializeWorkflow, type WorkflowNode } from "./workflow";
+import {
+  createPythonRuntime,
+  getRuntime,
+  javascriptRuntime,
+  listRuntimes,
+  registerRuntime,
+  resolveRuntime,
+  WorkflowExecutionError,
+  type ExecutionErrorResult,
+  type ExecutionResult,
+  type NodeExecutionPreview,
+  type PlotChart,
+  type RuntimeDescriptor,
+  type RuntimeEnvironment,
+  type RuntimePreference,
+  type TablePreview,
+  type WorkflowInputFile,
+} from "./runtime";
+
+export { WorkflowExecutionError } from "./runtime";
+export type {
+  ExecutionResult,
+  NodeExecutionPreview,
+  PlotChart,
+  RuntimeEnvironment,
+  RuntimePreference,
+  TablePreview,
+  WorkflowInputFile,
+} from "./runtime";
 
 type NativeExecutionResponse = { result: string };
 
@@ -35,88 +64,20 @@ type PythonExecutorPlugin = {
   stopRemoteServer(): Promise<{ stopped: boolean }>;
 };
 
-export type WorkflowInputFile = { name: string; text: string; base64?: string };
 export type PickedCsvFile = { name: string; bytes: Uint8Array };
 export type SmbConnection = { server: string; share: string; domain: string; username: string; password: string };
 export type SmbServer = { address: string; name: string; shares?: string[] };
 export type SmbEntry = { name: string; path: string; directory: boolean; size: number; modifiedAt?: string | null };
-
-export async function discoverSmbServers(): Promise<SmbServer[]> {
-  if (!Capacitor.isNativePlatform()) throw new Error("SMB 设备扫描仅在宿主应用中可用");
-  return (await PythonExecutor.discoverSmbServers()).servers;
-}
-
-export async function listSmbDirectory(connection: SmbConnection, path: string): Promise<SmbEntry[]> {
-  if (!Capacitor.isNativePlatform()) throw new Error("内置 SMB 浏览器仅在 Android 应用中可用");
-  return (await PythonExecutor.listSmb({ ...connection, path })).entries;
-}
-
-export async function scanSmbShares(connection: SmbConnection): Promise<string[]> {
-  if (!Capacitor.isNativePlatform()) throw new Error("SMB 扫描仅在 Android 应用中可用");
-  return (await PythonExecutor.scanSmbShares({ server: connection.server, domain: connection.domain, username: connection.username, password: connection.password })).shares;
-}
-
-export async function readSmbCsvFiles(connection: SmbConnection, paths: string[]): Promise<PickedCsvFile[]> {
-  if (!Capacitor.isNativePlatform()) throw new Error("内置 SMB 浏览器仅在 Android 应用中可用");
-  const response = await PythonExecutor.readSmbCsv({ ...connection, paths });
-  return response.files.map((file) => ({ name: file.name, bytes: Uint8Array.from(atob(file.base64), (character) => character.charCodeAt(0)) }));
-}
-
-export async function pickCsvFiles(mode: "files" | "files_external" | "directory" | "directory_external"): Promise<PickedCsvFile[] | null> {
-  if (!Capacitor.isNativePlatform()) return null;
-  const response = await PythonExecutor.pickCsv({ mode });
-  return response.files.map((file) => ({ name: file.name, bytes: Uint8Array.from(atob(file.base64), (character) => character.charCodeAt(0)) }));
-}
-
 export type PythonEnvironment = { pythonVersion: string; packages: Array<{ name: string; version: string }> };
 export type NotebookCellAnalysis = { index: number; recognized: boolean; reason?: string; nodeType?: string; label?: string; parameters?: Record<string, string | number | boolean | null>; inputVariable?: string | null; outputVariable?: string | null };
-
-export type TablePreview = {
-  columns: string[];
-  rows: Array<Array<string | number | boolean | null>>;
-  totalRows: number;
-  totalColumns: number;
+export type PythonSignatureAnalysis = {
+  functionName?: string;
+  inputPorts: Array<{ id: string; label: string; valueType: string; required?: boolean }>;
+  outputPorts: Array<{ id: string; label: string; valueType: string }>;
+  outputType?: string;
+  parameters: Array<{ key: string; label: string; kind: string; required?: boolean; defaultValue?: string | null }>;
+  error?: string;
 };
-
-export type NodeExecutionPreview =
-  | { kind: "table"; preview: TablePreview }
-  | { kind: "plot"; plotPngBase64: string }
-  | { kind: "value"; text: string };
-
-export type ExecutionResult = {
-  status: "success";
-  preview: TablePreview;
-  plotPngBase64: string | null;
-  exportCsv: string | null;
-  exports: Array<{ nodeId: string; fileName: string; content: string }>;
-  nodeResults: Record<string, NodeExecutionPreview>;
-  nodeTimingsMs?: Record<string, number>;
-  executionOrder?: string[];
-};
-
-type ExecutionErrorResult = {
-  status: "error";
-  nodeId: string;
-  nodeType: string;
-  message: string;
-  nodeResults?: Record<string, NodeExecutionPreview>;
-  nodeTimingsMs?: Record<string, number>;
-  executionOrder?: string[];
-  preview?: TablePreview | null;
-  debugTraceback?: string | null;
-};
-
-export class WorkflowExecutionError extends Error {
-  constructor(
-    message: string,
-    public readonly nodeId: string,
-    public readonly nodeType: string,
-    public readonly details?: ExecutionErrorResult,
-  ) {
-    super(message);
-    this.name = "WorkflowExecutionError";
-  }
-}
 
 const PythonExecutor = registerPlugin<PythonExecutorPlugin>("PythonExecutor");
 let warmUpPromise: Promise<void> | null = null;
@@ -125,6 +86,8 @@ export type RemoteServerInfo = { url: string; pin: string | null; requiresPin: b
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
 export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentApiKey: string };
+export type UserProfileInfo = { path: string; workspaceUri: string | null };
+export type ExternalWorkflowEntry = { name: string; content: string; uri: string };
 const REMOTE_SESSION_TOKEN_KEY = "pydroid-flow.remote-session-token.v1";
 
 export function isRemoteRuntime(): boolean {
@@ -218,9 +181,6 @@ export async function saveUserProfileFile(relativePath: string, content: string)
   await PythonExecutor.saveUserProfileFile({ relativePath, content });
 }
 
-export type UserProfileInfo = { path: string; workspaceUri: string | null };
-export type ExternalWorkflowEntry = { name: string; content: string; uri: string };
-
 export async function getUserProfileInfo(): Promise<UserProfileInfo> {
   if (!Capacitor.isNativePlatform() || isRemoteRuntime()) return { path: "浏览器站点存储（工作流库仅在此浏览器可用）", workspaceUri: null };
   return PythonExecutor.getUserProfileInfo();
@@ -250,6 +210,33 @@ export async function renameWorkflowFile(uri: string, name: string): Promise<Ext
 export async function deleteWorkflowFile(uri: string): Promise<void> {
   if (!Capacitor.isNativePlatform() || isRemoteRuntime()) throw new Error("外部流程文件只能在 Android 应用内删除");
   await PythonExecutor.deleteWorkflowFile({ uri });
+}
+
+export async function discoverSmbServers(): Promise<SmbServer[]> {
+  if (!Capacitor.isNativePlatform()) throw new Error("SMB 设备扫描仅在宿主应用中可用");
+  return (await PythonExecutor.discoverSmbServers()).servers;
+}
+
+export async function listSmbDirectory(connection: SmbConnection, path: string): Promise<SmbEntry[]> {
+  if (!Capacitor.isNativePlatform()) throw new Error("内置 SMB 浏览器仅在 Android 应用中可用");
+  return (await PythonExecutor.listSmb({ ...connection, path })).entries;
+}
+
+export async function scanSmbShares(connection: SmbConnection): Promise<string[]> {
+  if (!Capacitor.isNativePlatform()) throw new Error("SMB 扫描仅在 Android 应用中可用");
+  return (await PythonExecutor.scanSmbShares({ server: connection.server, domain: connection.domain, username: connection.username, password: connection.password })).shares;
+}
+
+export async function readSmbCsvFiles(connection: SmbConnection, paths: string[]): Promise<PickedCsvFile[]> {
+  if (!Capacitor.isNativePlatform()) throw new Error("内置 SMB 浏览器仅在 Android 应用中可用");
+  const response = await PythonExecutor.readSmbCsv({ ...connection, paths });
+  return response.files.map((file) => ({ name: file.name, bytes: Uint8Array.from(atob(file.base64), (character) => character.charCodeAt(0)) }));
+}
+
+export async function pickCsvFiles(mode: "files" | "files_external" | "directory" | "directory_external"): Promise<PickedCsvFile[] | null> {
+  if (!Capacitor.isNativePlatform()) return null;
+  const response = await PythonExecutor.pickCsv({ mode });
+  return response.files.map((file) => ({ name: file.name, bytes: Uint8Array.from(atob(file.base64), (character) => character.charCodeAt(0)) }));
 }
 
 export function warmUpPythonExecutor(): Promise<void> {
@@ -284,38 +271,27 @@ export async function analyzeNotebook(notebook: string): Promise<NotebookCellAna
   return (JSON.parse(response.result) as { cells: NotebookCellAnalysis[] }).cells;
 }
 
-export type PythonSignatureAnalysis = {
-  functionName?: string;
-  inputPorts: Array<{ id: string; label: string; valueType: string; required?: boolean }>;
-  outputPorts: Array<{ id: string; label: string; valueType: string }>;
-  outputType?: string;
-  parameters: Array<{ key: string; label: string; kind: string; required?: boolean; defaultValue?: string | null }>;
-  error?: string;
-};
-
 export async function analyzePythonSignature(code: string): Promise<PythonSignatureAnalysis> {
-  if (isRemoteRuntime()) {
-    return remoteRequest<PythonSignatureAnalysis>("/api/analyze-signature", { code });
-  }
+  if (isRemoteRuntime()) return remoteRequest<PythonSignatureAnalysis>("/api/analyze-signature", { code });
   if (!Capacitor.isNativePlatform()) return { inputPorts: [], outputPorts: [], parameters: [], error: "unavailable" };
   await warmUpPythonExecutor();
   const response = await PythonExecutor.analyzeSignature({ code });
   return JSON.parse(response.result) as PythonSignatureAnalysis;
 }
 
-export async function executeWorkflow(
+async function executePythonWorkflow(
   nodes: WorkflowNode[],
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
 ): Promise<ExecutionResult> {
   const executable = flattenWorkflowGroups(nodes, edges);
-  const workflow = JSON.stringify(serializeWorkflow("Android 验证流程", executable.nodes, executable.edges));
+  const workflow = JSON.stringify(serializeWorkflow("Python 工作流", executable.nodes, executable.edges));
 
   if (isRemoteRuntime()) {
     const result = await remoteRequest<ExecutionResult | ExecutionErrorResult>("/api/execute", { workflow, csvText, inputFiles });
-    if (result.status === "error") throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, result);
-    return result;
+    if (result.status === "error") throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, { ...result, runtimeId: "python" });
+    return { ...result, runtimeId: "python" };
   }
 
   if (!Capacitor.isNativePlatform()) {
@@ -330,9 +306,11 @@ export async function executeWorkflow(
         totalColumns: lines[0]?.split(",").length ?? 0,
       },
       plotPngBase64: null,
+      plotChart: null,
       exportCsv: previewText,
       exports: previewText ? [{ nodeId: "web-preview", fileName: "result.csv", content: previewText }] : [],
       nodeResults: {},
+      runtimeId: "python",
     };
   }
 
@@ -340,7 +318,72 @@ export async function executeWorkflow(
   const response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles) });
   const result = JSON.parse(response.result) as ExecutionResult | ExecutionErrorResult;
   if (result.status === "error") {
-    throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, result);
+    throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, { ...result, runtimeId: "python" });
   }
-  return result;
+  return { ...result, runtimeId: "python" };
+}
+
+const pythonRuntime = createPythonRuntime({
+  warmUp: warmUpPythonExecutor,
+  getEnvironment: getPythonEnvironment,
+  execute: ({ nodes, edges, csvText, inputFiles = [] }) => executePythonWorkflow(nodes, edges, csvText, inputFiles),
+});
+registerRuntime(pythonRuntime);
+registerRuntime(javascriptRuntime);
+
+let currentRuntimePreference: RuntimePreference = "auto";
+
+function resolveHostRuntime(preference: RuntimePreference, nodes: WorkflowNode[]) {
+  // Remote browser sessions keep their historical execution semantics: Auto means
+  // execute on the paired host through Python. Explicit JavaScript remains a local
+  // browser choice and is never selected silently for a remote session.
+  return resolveRuntime(isRemoteRuntime() && preference === "auto" ? "python" : preference, nodes);
+}
+
+export function setExecutionRuntimePreference(preference: RuntimePreference): void {
+  currentRuntimePreference = preference;
+}
+
+export function getExecutionRuntimePreference(): RuntimePreference {
+  return currentRuntimePreference;
+}
+
+export function getExecutionRuntimeDescriptors(): RuntimeDescriptor[] {
+  return listRuntimes().map((runtime) => runtime.descriptor);
+}
+
+export function resolveExecutionRuntime(preference: RuntimePreference, nodes: WorkflowNode[]): RuntimeDescriptor {
+  return resolveHostRuntime(preference, nodes).descriptor;
+}
+
+export async function warmUpExecutionRuntime(preference: RuntimePreference = currentRuntimePreference, nodes: WorkflowNode[] = []): Promise<RuntimeDescriptor> {
+  const runtime = resolveHostRuntime(preference, nodes);
+  await runtime.warmUp();
+  return runtime.descriptor;
+}
+
+export async function getExecutionEnvironment(preference: RuntimePreference = currentRuntimePreference, nodes: WorkflowNode[] = []): Promise<RuntimeEnvironment> {
+  return resolveHostRuntime(preference, nodes).getEnvironment();
+}
+
+export async function executeWorkflow(
+  nodes: WorkflowNode[],
+  edges: Edge[],
+  csvText: string,
+  inputFiles: WorkflowInputFile[] = [],
+  preference: RuntimePreference = currentRuntimePreference,
+): Promise<ExecutionResult> {
+  const runtime = resolveHostRuntime(preference, nodes);
+  return runtime.execute({ nodes, edges, csvText, inputFiles });
+}
+
+// Explicit runtime entry points are useful for diagnostics and future per-node routing.
+export async function executeWorkflowWithRuntime(
+  runtimeId: "python" | "javascript",
+  nodes: WorkflowNode[],
+  edges: Edge[],
+  csvText: string,
+  inputFiles: WorkflowInputFile[] = [],
+): Promise<ExecutionResult> {
+  return getRuntime(runtimeId).execute({ nodes, edges, csvText, inputFiles });
 }

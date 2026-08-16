@@ -3,7 +3,7 @@ import type { NodeExecutionPreview, TablePreview } from "./execution";
 
 export function resultPreviewText(preview: NodeExecutionPreview): string {
   if (preview.kind === "value") return preview.text;
-  if (preview.kind === "plot") return `[PNG 图像 · base64 ${preview.plotPngBase64.length} 字符]`;
+  if (preview.kind === "plot") return preview.chart ? `[交互式图表 · ${preview.chart.type}]` : `[PNG 图像 · base64 ${preview.plotPngBase64?.length ?? 0} 字符]`;
   return JSON.stringify({ columns: preview.preview.columns, rows: preview.preview.rows, totalRows: preview.preview.totalRows, totalColumns: preview.preview.totalColumns }, null, 2);
 }
 

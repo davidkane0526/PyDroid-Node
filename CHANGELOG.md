@@ -1,3 +1,11 @@
+## Runtime architecture refactor (unreleased)
+
+- Introduce a shared `RuntimeAdapter`/registry while preserving the 149p UI and Python execution behavior. Auto mode uses the JavaScript engine only when the full workflow is compatible and otherwise falls back to Python; explicit JavaScript mode reports unsupported nodes.
+- Recover the useful pure TypeScript data-flow engine from the former JS experiment branch into `src/runtime/javascript/engine/` instead of maintaining a second application/UI branch.
+- Add shared runtime result types and a unified plot presentation layer: Python PNG plots and JavaScript interactive ECharts plots now use the same UI path.
+- Add runtime preference settings (`Auto / Python / JavaScript`) and runtime-aware run status messages on Android, Web and Windows renderer builds.
+- Add runtime compatibility/registry tests and `docs/runtime-architecture.md`; the remaining platform-host extraction and workflow-core split are explicitly staged as later refactors.
+
 ## 1.4.9o
 
 ### 1.4.9p mobile gesture/tab hotfix

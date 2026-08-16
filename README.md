@@ -4,9 +4,9 @@
 
 当前 Android 调试构建版本：`1.4.8 (31)`。
 
-PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用 Python
-数据处理节点编辑器。用户通过可视化工作流读取 CSV、处理表格、绘制图表并导出结果，
-无需为每次数据处理单独编写脚本。
+PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
+用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
+作为可切换的执行运行时共享 UI、工作流模型和结果协议。
 
 所有面向用户的功能、修复和版本号更新均记录在 [CHANGELOG.md](CHANGELOG.md)，并与 Android
 `versionName` / `versionCode` 保持一致。
@@ -15,11 +15,12 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 1. 在不同平台提供相同或等价的节点、参数、校验、预览和导出能力。
 2. 使用同一版本化工作流 JSON，使 Android 与 Windows 可以互相交换工作流。
-3. 共享 Python 执行核心，仅为不同平台维护轻量执行适配器。
+3. 通过统一 Runtime Adapter 同时承载 Python 与 JavaScript 引擎，避免维护两套应用 UI。
 4. 所有开发环境和额外工具均可追踪、可复现，并可在项目结束时统一卸载。
 
 ## 当前功能
 
+- **Runtime Adapter 架构重构（当前分支，待本地完整编译验证）**：保留 149p 共享 UI 与 Python 能力，取回原 JS 分支中可复用的数据流引擎；“自动”模式仅在整个工作流兼容时选择 JS，否则回退 Python；JS 图表以 ECharts 交互式结果接入现有预览。详见 [docs/runtime-architecture.md](docs/runtime-architecture.md)。
 - `1.4.9` 候选：修复 Android 长按画布框选与单指平移竞争，框选激活后不再推动画布；首次构建不再因固定为 `null` 的 `restoredSnapshot` 可选链访问产生 `never` 类型错误；并继续统一资源栏、参数面板和节点结果 UI。
 - `1.4.8`：组合会从内部未占用端口自动生成公开输入输出并修复旧 0 端点资源；完成组合与框选计数同步，框选时隐藏连线和删除叉号；节点/组合资源增加右键菜单，组合卡片与桌面拖拽动画重做。
 - `1.4.7`：SMB 文件选择器改为多行设备/登录/共享/文件流程，设备卡显示共享名与 IP，支持访客登录、密码显隐和可读错误；设置页合并为单一文件选择入口；鼠标可拖动连线端点改接或拖到空白处断开，并校准断开按钮；缩窄、减淡资源栏。
@@ -47,7 +48,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 - 本地自动恢复、50 步撤销/重做
 - 节点级执行错误提示和画布高亮
 - CSV 文件选择、表格预览、折线图预览和 CSV 结果导出
-- 共享 pandas/Matplotlib Python 执行引擎
+- 统一 Runtime Adapter：Python 保持完整兼容，内置 JavaScript 引擎可执行兼容节点并输出交互式 ECharts 图表
 - 响应式 Web 界面
 - AI Agent：OpenAI Responses / 兼容接口的结构化工具调用、逐项权限、确认预览与本地审计
 - 节点抽屉分为“节点 / 组合 / 流程”；流程可保存到库，并扫描用户选择的 Android 文件夹
@@ -63,6 +64,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 自定义 Python 函数节点 | 已实现基础版；由函数类型标注生成端口和参数 | 已实现，共用 Python 核心 |
 | 工作流导入/导出与恢复 | 已实现 | 已实现，共用渲染层 |
 | Python 工作流执行 | 已实现，Chaquopy 桥接 | 已实现，Electron IPC 桥接 |
+| JavaScript 工作流执行 | 已接入统一 Runtime Adapter；兼容工作流可在 WebView 内执行 | 已接入统一 Runtime Adapter；兼容工作流可在渲染层执行 |
 | 局域网网页遥控 | 已实现：Android 托管同一 UI，执行在手机 | 已实现：Electron 托管同一 UI，执行在桌面 Python |
 | AI 节点规划 | 已实现：会话密钥、计划预览、权限和审计 | 已实现，共用渲染层与工作流模型 |
 | 表格、图表及导出预览 | 已实现 | 已实现 |
@@ -223,8 +225,10 @@ Vg 分文件识别升/降压方向、自动检测全局 Vds 范围与步长、�
 
 ## 项目结构
 
-- `src/`：共享 React 工作流编辑器
-- `python/pydroid_flow/`：共享 Python 执行核心与平台入口
+- `src/`：共享 React 工作流编辑器、工作流模型与运行时接口
+- `src/runtime/`：统一 Runtime Adapter、Python 适配器与内置 JavaScript 数据流引擎
+- `src/ui/`：跨运行时结果展示组件（包含交互式 ECharts 图表）
+- `python/pydroid_flow/`：Python 执行核心与平台入口
 - `android/`：现有 Android/Capacitor/Chaquopy 实现
 - `desktop/`：Windows Electron 主进程、预加载脚本和桌面执行适配器
 - `docs/environment.md`：工具、安装位置及统一卸载清单

@@ -52,9 +52,10 @@ import {
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
-import { analyzeNotebook, analyzePythonSignature, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, startRemoteServer, stopRemoteServer, warmUpPythonExecutor, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
+import { analyzeNotebook, analyzePythonSignature, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, resolveExecutionRuntime, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setExecutionRuntimePreference, startRemoteServer, stopRemoteServer, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RemoteAccessPolicy, type RemoteServerInfo, type RuntimePreference, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
+import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
@@ -96,7 +97,7 @@ function NotebookEditor({ value, rows, onChange }: { value: string; rows: number
   return <div className="notebook-editor"><div ref={gutter} className="notebook-editor__lines" aria-hidden="true">{Array.from({ length: lineCount }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={value} rows={rows} spellCheck={false} onScroll={(event) => { if (gutter.current) gutter.current.scrollTop = event.currentTarget.scrollTop; }} onChange={(event) => onChange(event.target.value)} /></div>;
 }
 type SmbSettings = Omit<SmbConnection, "password"> & { rememberPassword: boolean; guest: boolean };
-type AppSettings = { themeMode: ThemeMode; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
+type AppSettings = { themeMode: ThemeMode; runtimePreference: RuntimePreference; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
 
 function readableError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message && error.message !== "[object Object]") return error.message;
@@ -147,11 +148,12 @@ function loadAgentSettings(value: unknown): AgentSettings {
 }
 
 function loadAppSettings(): AppSettings {
-  const defaults: AppSettings = { themeMode: "system", paletteWidth: 176, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: false, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
+  const defaults: AppSettings = { themeMode: "system", runtimePreference: "auto", paletteWidth: 176, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: false, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
     return {
       themeMode: saved.themeMode === "dark" || saved.themeMode === "light" ? saved.themeMode : "system",
+      runtimePreference: saved.runtimePreference === "python" || saved.runtimePreference === "javascript" ? saved.runtimePreference : "auto",
       paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(176, Number(saved.paletteWidth))) : defaults.paletteWidth,
       inspectorWidth: Number.isFinite(saved.inspectorWidth) ? Math.min(560, Math.max(250, Number(saved.inspectorWidth))) : defaults.inspectorWidth,
       inspectorHeight: Number.isFinite(saved.inspectorHeight) ? Math.min(440, Math.max(140, Number(saved.inspectorHeight))) : defaults.inspectorHeight,
@@ -590,7 +592,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         </div>
       ))}
       {insight.visible && nodeResult && <div className={`node-insight node-insight--${nodeResult.kind} ${data.nodeType === "python.print" ? "node-insight--print" : ""}`}>
-        {nodeResult.kind === "plot" && <img src={`data:image/png;base64,${nodeResult.plotPngBase64}`} alt={`${data.label} 中间结果`} />}
+        {nodeResult.kind === "plot" && <PlotPreview preview={nodeResult} alt={`${data.label} 中间结果`} />}
         {nodeResult.kind === "table" && <><strong>{nodeResult.preview.totalRows}×{nodeResult.preview.totalColumns}</strong><span>{nodeResult.preview.columns.slice(0, 3).join(" · ")}</span></>}
         {nodeResult.kind === "value" && <><strong>{data.nodeType === "python.print" ? "打印结果" : "结果"}</strong><span>{nodeResult.text}</span></>}
       </div>}
@@ -777,6 +779,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [agentPanelOpen, setAgentPanelOpen] = useState(false);
+  const [runtimePreference, setRuntimePreference] = useState<RuntimePreference>(() => loadAppSettings().runtimePreference);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(() => loadAppSettings().agent);
   const [agentApiKey, setAgentApiKey] = useState("");
   const [agentSecretReady, setAgentSecretReady] = useState(() => !Capacitor.isNativePlatform() && !isRemoteRuntime());
@@ -804,7 +807,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
     Capacitor.isNativePlatform() && window.matchMedia("(orientation: portrait)").matches ? "bottom" : "right",
   );
   const previousPortrait = useRef(isPortrait);
-  const [plotExpanded, setPlotExpanded] = useState(false);
+  const [plotExpandedPreview, setPlotExpandedPreview] = useState<Extract<NodeExecutionPreview, { kind: "plot" }> | null>(null);
   const [plotZoom, setPlotZoom] = useState(1);
   const [livePreview, setLivePreview] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
@@ -1175,7 +1178,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, [language]);
 
   useEffect(() => {
-    const settings = { themeMode, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    setExecutionRuntimePreference(runtimePreference);
+  }, [runtimePreference]);
+
+  useEffect(() => {
+    const settings = { themeMode, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     if (remoteBrowser && agentSecretReady) {
       if (applyingRemoteConfiguration.current) applyingRemoteConfiguration.current = false;
@@ -1183,7 +1190,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
     void saveUserProfileFile("settings/app-settings.json", JSON.stringify(settings, null, 2));
     void saveUserProfileFile("settings/agent.json", JSON.stringify(agentSettings, null, 2));
-  }, [themeMode, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
+  }, [themeMode, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
 
   useEffect(() => {
     if (remoteBrowser) return;
@@ -1301,15 +1308,15 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   useEffect(() => {
     if (remoteBrowser && !remotePaired) { setMemoryMb(null); return; }
     let active = true;
-    warmUpPythonExecutor()
-      .then(() => {
-        if (active) setMessage((current) => current === "尚未执行" ? "Python 解释器已就绪" : current);
+    warmUpExecutionRuntime(runtimePreference, nodes)
+      .then((runtime) => {
+        if (active) setMessage((current) => current === "尚未执行" ? `${runtime.label} 已就绪` : current);
       })
       .catch((error) => {
-        if (active) setMessage(error instanceof Error ? `Python 初始化失败：${error.message}` : "Python 初始化失败");
+        if (active) setMessage(error instanceof Error ? `运行时初始化失败：${error.message}` : "运行时初始化失败");
       });
     return () => { active = false; };
-  }, []);
+  }, [remoteBrowser, remotePaired, runtimePreference]);
 
   useEffect(() => {
     if (!remoteBrowser) return;
@@ -1335,6 +1342,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const remote = configuration.settings as Partial<AppSettings>;
       applyingRemoteConfiguration.current = true;
       if (remote.themeMode === "system" || remote.themeMode === "dark" || remote.themeMode === "light") setThemeMode(remote.themeMode);
+      if (remote.runtimePreference === "auto" || remote.runtimePreference === "python" || remote.runtimePreference === "javascript") setRuntimePreference(remote.runtimePreference);
       if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(176, Number(remote.paletteWidth))));
       if (Number.isFinite(remote.inspectorWidth)) setInspectorWidth(Math.min(560, Math.max(250, Number(remote.inspectorWidth))));
       if (Number.isFinite(remote.inspectorHeight)) setInspectorHeight(Math.min(440, Math.max(140, Number(remote.inspectorHeight))));
@@ -2501,7 +2509,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const exportSettings = () => {
-    const settings = { themeMode, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    const settings = { themeMode, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
     downloadText(JSON.stringify({ kind: "pydroid-flow.settings", schemaVersion: 1, settings }, null, 2), "pydroid-flow.settings.json", "application/json");
     setMessage("设置已导出；为安全起见不包含 AI API Key");
   };
@@ -2515,6 +2523,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload.settings));
       const imported = loadAppSettings();
       setThemeMode(imported.themeMode);
+      setRuntimePreference(imported.runtimePreference);
       setPaletteWidth(Math.min(360, Math.max(176, imported.paletteWidth)));
       setInspectorWidth(imported.inspectorWidth);
       setInspectorHeight(imported.inspectorHeight);
@@ -2633,7 +2642,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       const document = notebookCellsToWorkflow("Notebook 交互运行", cells, notebookMetadata);
       const inputFiles = csvFiles.map((file) => ({ name: file.name, text: new TextDecoder("utf-8").decode(file.bytes) }));
-      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles);
+      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference);
       setResult(nextResult);
       setNotebookCellResults((current) => ({ ...current, ...Object.fromEntries(cells.map((cell, index) => [cell.id, nextResult.nodeResults[`notebook-cell-${index + 1}`]]).filter((entry): entry is [string, NodeExecutionPreview] => Boolean(entry[1]))) }));
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
@@ -3177,7 +3186,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     isRunningRef.current = true;
     const runStartedAt = performance.now();
     setIsRunning(true);
-    setMessage("正在执行 Python 工作流…");
+    const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes);
+    setMessage(`正在执行 ${selectedRuntime.label} 工作流…`);
     setExecutionError(null);
     setErrorDetailOpen(false);
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
@@ -3198,11 +3208,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           return { name: file.name, text, base64: bytesToBase64(file.bytes) };
         });
       }
-      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles);
+      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference);
       setResult(nextResult);
       setExecutionError(null);
       setDebugPausedAt(stopAt ?? null);
-      setMessage(stopAt ? `调试已暂停在 ${nodes.find((node) => node.id === stopAt)?.data.label ?? stopAt}` : `执行完成：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
+      setMessage(stopAt ? `调试已暂停在 ${nodes.find((node) => node.id === stopAt)?.data.label ?? stopAt}` : `执行完成 · ${nextResult.runtimeId === "javascript" ? "JS" : "Python"}：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
       const completed = new Set(nextResult.executionOrder ?? workflowNodes.map((node) => node.id));
       setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: completed.has(node.id) ? "success" : "idle" } })));
     } catch (error) {
@@ -3213,7 +3223,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         setExecutionError({ title: failingNodeExists ? "节点执行失败" : "工作流执行失败", message: error.message, nodeId: failingNodeExists ? error.nodeId : undefined, nodeType: error.nodeType, traceback: error.details?.debugTraceback });
         const partialResults = error.details?.nodeResults ?? {};
         const partialPreview = error.details?.preview;
-        if (partialPreview || Object.keys(partialResults).length) setResult({ status: "success", preview: partialPreview ?? { columns: [], rows: [], totalRows: 0, totalColumns: 0 }, plotPngBase64: null, exportCsv: null, exports: [], nodeResults: partialResults, nodeTimingsMs: error.details?.nodeTimingsMs, executionOrder: error.details?.executionOrder });
+        if (partialPreview || Object.keys(partialResults).length) setResult({ status: "success", preview: partialPreview ?? { columns: [], rows: [], totalRows: 0, totalColumns: 0 }, plotPngBase64: null, plotChart: null, exportCsv: null, exports: [], nodeResults: partialResults, nodeTimingsMs: error.details?.nodeTimingsMs, executionOrder: error.details?.executionOrder });
         const completed = new Set(error.details?.executionOrder ?? []);
         setNodes((current) => current.map((node) => ({
           ...node,
@@ -3420,7 +3430,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       {Object.entries(result.nodeResults).filter(([nodeId]) => nodes.find((node) => node.id === nodeId)?.data.nodeType === "python.print").length > 0 && <section className="print-results" aria-label="打印结果"><strong>打印结果</strong>{Object.entries(result.nodeResults).filter(([nodeId]) => nodes.find((node) => node.id === nodeId)?.data.nodeType === "python.print").map(([nodeId, preview]) => <article key={nodeId}><span>{nodes.find((node) => node.id === nodeId)?.data.label ?? "打印输出"}</span><code>{preview.kind === "value" ? preview.text : ""}</code></article>)}</section>}
       <div className="result-content">
         <DataGrid preview={result.preview} onExpand={() => setResultDetail({ title: "工作流结果", text: JSON.stringify(result.preview, null, 2), preview: result.preview })} />
-        {result.plotPngBase64 && <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpanded(true); }}><img className="plot-preview" src={`data:image/png;base64,${result.plotPngBase64}`} alt="Python 绘图结果；点击放大" /></button>}
+        {(() => { const preview: Extract<NodeExecutionPreview, { kind: "plot" }> | null = result.plotChart ? { kind: "plot", chart: result.plotChart } : result.plotPngBase64 ? { kind: "plot", plotPngBase64: result.plotPngBase64 } : null; return preview ? <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpandedPreview(preview); }}><PlotPreview preview={preview} className="plot-preview" alt="工作流绘图结果；点击放大" /></button> : null; })()}
       </div>
     </section>
   ) : null;
@@ -3606,7 +3616,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
                     setNotebookCells((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, source } : item));
                     setNotebookCellResults((current) => { const next = { ...current }; delete next[cell.id]; return next; });
                     setNotebookError(null);
-                  }} />{notebookCellResults[cell.id] && <div className="notebook-cell__output"><span>Out [{cell.executionCount ?? " "}]</span>{(() => { const preview = notebookCellResults[cell.id]; return preview.kind === "table" ? <DataGrid preview={preview.preview} /> : preview.kind === "plot" ? <img src={`data:image/png;base64,${preview.plotPngBase64}`} alt={`单元格 ${index + 1} 图形输出`}/> : <pre>{preview.text}</pre>; })()}</div>}</div>
+                  }} />{notebookCellResults[cell.id] && <div className="notebook-cell__output"><span>Out [{cell.executionCount ?? " "}]</span>{(() => { const preview = notebookCellResults[cell.id]; return preview.kind === "table" ? <DataGrid preview={preview.preview} /> : preview.kind === "plot" ? <PlotPreview preview={preview} alt={`单元格 ${index + 1} 图形输出`}/> : <pre>{preview.text}</pre>; })()}</div>}</div>
               </div>)}
             </div>
           </div>}
@@ -3698,7 +3708,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           {selectedNode ? (
             <>
               <div className="inspector__selection"><strong className="inspector__node-name">{selectedNode.data.label}</strong><span className="inspector__node-type">{selectedNode.data.nodeType}</span></div>
-              {selectedNodeResult && <section className="node-result-inspector" title="双击展开、编辑和复制" tabIndex={0} onDoubleClick={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined })}><h3>本节点结果 <small>双击展开</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpanded(true); }}><img className="plot-preview" src={`data:image/png;base64,${preview.plotPngBase64}`} alt="节点图表结果" /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
+              {selectedNodeResult && <section className="node-result-inspector" title="双击展开、编辑和复制" tabIndex={0} onDoubleClick={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined })}><h3>本节点结果 <small>双击展开</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpandedPreview(preview); }}><PlotPreview preview={preview} className="plot-preview" alt="节点图表结果" /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
               {selectedNode.data.nodeType === "workflow.group" && <section className="group-settings">
                 <label>组名称<input value={selectedNode.data.label} onChange={(event) => updateSelectedGroupLabel(event.target.value)} /></label>
                 <button className="primary" onClick={() => openSubflowGroup(selectedNode.id)}>进入子流程画布</button>
@@ -3784,10 +3794,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       {alertDialogNode && <AlertDialog node={alertDialogNode} preview={alertInputPreview} onSubmit={(response) => void submitAlertDialog(response)} />}
       {renameFlow && <RenameFlowDialog name={renameFlow.name} value={renameFlowValue} onValueChange={setRenameFlowValue} onClose={() => setRenameFlow(null)} onConfirm={() => void confirmRenameFlow()} />}
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={Capacitor.isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
-      {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
+      {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={(requirement) => setRequirements((current) => current.filter((value) => value !== requirement))} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
-      {plotExpanded && result?.plotPngBase64 && <PlotLightbox open={plotExpanded} src={`data:image/png;base64,${result.plotPngBase64}`} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpanded(false)} />}
+      {plotExpandedPreview && <PlotLightbox open preview={plotExpandedPreview} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpandedPreview(null)} />}
       {resultDetail && <ResultDetailDialog detail={resultDetail} onClose={() => setResultDetail(null)} onCopy={() => void navigator.clipboard.writeText(resultDetail.text).then(() => setMessage("节点结果已复制"))} onTextChange={(text) => setResultDetail((current) => current ? { ...current, text } : null)} />}
       {executionError && errorDetailOpen && <ErrorDetailDialog error={executionError} open={errorDetailOpen} canLocate={Boolean(executionError.nodeId && nodes.some((node) => node.id === executionError.nodeId))} onClose={() => setErrorDetailOpen(false)} onLocate={(nodeId) => locateNode(nodeId)} onCopy={() => void navigator.clipboard.writeText(`${executionError.nodeType ?? "workflow"} (${executionError.nodeId ?? "unknown"})\n${executionError.message}\n${executionError.traceback ?? ""}`)} />}
       <NewWorkflowDialog open={newWorkflowDialogOpen} onCurrentTab={chooseNewInCurrentTab} onNewTab={chooseNewTab} onCancel={() => setNewWorkflowDialogOpen(false)} />
@@ -4065,7 +4075,7 @@ function TitleBar() {
   if (!controls && Capacitor.isNativePlatform()) return null;
   return (
     <header className="titlebar">
-      <div className="titlebar__brand"><strong>PyDroid Node</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式 Python 数据处理"}</span></div>
+      <div className="titlebar__brand"><strong>PyDroid Node</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式数据处理 · Python / JavaScript"}</span></div>
       {controls && (
         <div className="titlebar__controls">
           <button type="button" title="最小化" aria-label="最小化" onClick={() => controls.minimize()}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg></button>
