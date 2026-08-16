@@ -108,6 +108,29 @@ describe("workflow notebook DSL", () => {
     expect(workflow.edges.some((edge) => edge.source === group.id)).toBe(true);
   });
 
+  it("maps custom Python notebook dependencies to signature ports and preserves multi-input export", () => {
+    const code = "def combine(left: 'table', right: 'table', /, *, scale: float = 2) -> tuple['scaled:table', 'raw:table']:\n    return left * scale + right, left";
+    const cells = [{ id: "logic", cellType: "code" as const, source: "custom" }];
+    const workflow = analyzedNotebookToWorkflow("自定义", cells, [{
+      index: 0, recognized: true, semantic: true, nodeType: "custom.python_function", label: "combine",
+      inputVariable: "leftFrame", outputVariable: "scaled", defines: ["scaled", "raw"], uses: ["leftFrame", "rightFrame"], parameters: { code, scale: 3 },
+      operations: [
+        { index: 0, recognized: true, semantic: true, nodeType: "io.read_csv", label: "left", outputVariable: "leftFrame", defines: ["leftFrame"], uses: [], parameters: {} },
+        { index: 1, recognized: true, semantic: true, nodeType: "io.read_csv", label: "right", outputVariable: "rightFrame", defines: ["rightFrame"], uses: [], parameters: {} },
+        { index: 2, recognized: true, semantic: true, nodeType: "custom.python_function", label: "combine", inputVariable: "leftFrame", outputVariable: "scaled", defines: ["scaled", "raw"], uses: ["leftFrame", "rightFrame"], parameters: { code, scale: 3 } },
+      ],
+    }]);
+    const custom = workflow.nodes.find((node) => node.data.nodeType === "custom.python_function")!;
+    const incoming = workflow.edges.filter((edge) => edge.target === custom.id).map((edge) => edge.targetHandle).sort();
+    expect(incoming).toEqual(["left", "right"]);
+    const source = serializeWorkflowNotebook("自定义", workflow.nodes, workflow.edges);
+    expect(source).toContain("_call_custom(combine");
+    expect(source).toContain('"left"');
+    expect(source).toContain('"right"');
+    expect(source).toContain('"scaled"');
+    expect(source).toContain('"raw"');
+  });
+
   it("places AST branch operations inside a visual If structure", () => {
     const cells = [{ id: "logic", cellType: "code" as const, source: "if value >= 0:\n    clean = frame.abs()" }];
     const workflow = analyzedNotebookToWorkflow("逻辑", cells, [{ index: 0, recognized: true, semantic: true, nodeType: "logic.if_subflow", label: "If", inputVariable: "frame", parameters: { condition: "value >= 0" }, operations: [{ index: 0, recognized: true, semantic: true, nodeType: "logic.if_subflow", label: "If", inputVariable: "frame", parameters: { condition: "value >= 0" }, children: [{ recognized: true, semantic: true, nodeType: "table.absolute", label: "clean", inputVariable: "frame", outputVariable: "clean", branch: "true", childIndex: 0, parameters: {} }] }] }]);

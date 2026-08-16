@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { AGENT_PRESETS, presetById, type AgentPlan, type AgentSettings } from "./agent";
 import type { ExecutionResult, NodeExecutionPreview, TablePreview } from "./execution";
 import type { WorkflowNode } from "./workflow";
@@ -7,6 +8,76 @@ export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };
 export type ReplacementCandidate = { nodeType: string; label: string; inputPorts: { valueType: string }[]; outputPorts: { valueType: string }[] };
 export type ExecutionErrorView = { title: string; nodeType?: string; nodeId?: string; message: string; traceback?: string | null };
+
+
+type ThemedSelectOption = { value: string; label: string };
+
+function ThemedSelect({ value, options, onChange, ariaLabel }: { value: string; options: ThemedSelectOption[]; onChange: (value: string) => void; ariaLabel: string }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const selected = options.find((option) => option.value === value) ?? options[0];
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (rootRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
+  return <div className={`themed-select ${open ? "open" : ""}`} ref={rootRef}>
+    <button type="button" className="themed-select__trigger" role="combobox" aria-label={ariaLabel} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((current) => !current)}><span>{selected?.label ?? value}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg></button>
+    {open && <div className="themed-select__menu" role="listbox" aria-label={ariaLabel}>{options.map((option) => <button type="button" role="option" aria-selected={option.value === value} className={option.value === value ? "selected" : ""} key={option.value} onClick={() => { onChange(option.value); setOpen(false); }}><span>{option.label}</span>{option.value === value && <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>}</button>)}</div>}
+  </div>;
+}
+
+export function ConfirmDialog({ open, title, message, confirmLabel = "确定", cancelLabel = "取消", danger = false, onConfirm, onCancel }: { open: boolean; title: string; message: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; onConfirm: () => void; onCancel: () => void }) {
+  if (!open) return null;
+  return <div className="settings-backdrop modern-confirm-backdrop" role="dialog" aria-modal="true" aria-label={title} onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+    <section className="modern-confirm-dialog">
+      <header><span className={`modern-confirm-dialog__icon ${danger ? "danger" : ""}`} aria-hidden="true">{danger ? "!" : "◇"}</span><div><strong>{title}</strong><small>{danger ? "此操作需要确认" : "请确认后继续"}</small></div><button type="button" className="modern-confirm-dialog__close" aria-label="关闭" onClick={onCancel}>×</button></header>
+      <div className="modern-confirm-dialog__content"><p>{message}</p></div>
+      <footer><button type="button" className="button secondary" onClick={onCancel}>{cancelLabel}</button><button type="button" autoFocus className={`button ${danger ? "danger-confirm" : "primary"}`} onClick={onConfirm}>{confirmLabel}</button></footer>
+    </section>
+  </div>;
+}
+
+
+export function NewWorkflowDialog({ open, onCurrentTab, onNewTab, onCancel }: { open: boolean; onCurrentTab: () => void; onNewTab: () => void; onCancel: () => void }) {
+  if (!open) return null;
+  return <div className="settings-backdrop modern-confirm-backdrop" role="dialog" aria-modal="true" aria-label="新建工作流" onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+    <section className="modern-confirm-dialog workspace-choice-dialog">
+      <header><span className="modern-confirm-dialog__icon" aria-hidden="true">＋</span><div><strong>新建工作流</strong><small>选择新工作流的打开方式</small></div><button type="button" className="modern-confirm-dialog__close" aria-label="关闭" onClick={onCancel}>×</button></header>
+      <div className="workspace-choice-dialog__choices">
+        <button type="button" className="workspace-choice-card" onClick={onCurrentTab}><span className="workspace-choice-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 5h14v14H5z"/><path d="M9 9h6M9 13h6"/></svg></span><span><strong>当前页面新建</strong><small>保留当前标签页，在这里创建空白工作流</small></span><svg className="workspace-choice-card__arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+        <button type="button" className="workspace-choice-card" onClick={onNewTab}><span className="workspace-choice-card__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 6h10v12H4z"/><path d="M10 4h10v12h-2M15 7v6M12 10h6"/></svg></span><span><strong>新建标签页</strong><small>保留当前工作流，并在新的标签页中开始</small></span><svg className="workspace-choice-card__arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5"/></svg></button>
+      </div>
+      <footer><button type="button" className="button secondary" onClick={onCancel}>取消</button></footer>
+    </section>
+  </div>;
+}
+
+export function UnsavedChangesDialog({ open, title, message, onSave, onDiscard, onCancel }: { open: boolean; title: string; message: string; onSave: () => void; onDiscard: () => void; onCancel: () => void }) {
+  if (!open) return null;
+  return <div className="settings-backdrop modern-confirm-backdrop" role="dialog" aria-modal="true" aria-label={title} onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+    <section className="modern-confirm-dialog unsaved-changes-dialog">
+      <header><span className="modern-confirm-dialog__icon warning" aria-hidden="true">●</span><div><strong>{title}</strong><small>检测到尚未保存的修改</small></div><button type="button" className="modern-confirm-dialog__close" aria-label="关闭" onClick={onCancel}>×</button></header>
+      <div className="modern-confirm-dialog__content"><p>{message}</p></div>
+      <footer><button type="button" className="button secondary" onClick={onCancel}>取消</button><button type="button" className="button unsaved-discard" onClick={onDiscard}>不保存</button><button type="button" autoFocus className="button primary" onClick={onSave}>保存</button></footer>
+    </section>
+  </div>;
+}
+
+export function TextPromptDialog({ open, title, label, value, confirmLabel = "保存", onValueChange, onConfirm, onCancel }: { open: boolean; title: string; label: string; value: string; confirmLabel?: string; onValueChange: (value: string) => void; onConfirm: () => void; onCancel: () => void }) {
+  if (!open) return null;
+  return <div className="settings-backdrop modern-confirm-backdrop" role="dialog" aria-modal="true" aria-label={title} onPointerDown={(event) => { if (event.target === event.currentTarget) onCancel(); }}>
+    <section className="modern-confirm-dialog modern-prompt-dialog">
+      <header><span className="modern-confirm-dialog__icon" aria-hidden="true">✎</span><div><strong>{title}</strong><small>{label}</small></div><button type="button" className="modern-confirm-dialog__close" aria-label="关闭" onClick={onCancel}>×</button></header>
+      <div className="modern-confirm-dialog__content"><input autoFocus value={value} aria-label={label} onChange={(event) => onValueChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && value.trim()) onConfirm(); if (event.key === "Escape") onCancel(); }} /></div>
+      <footer><button type="button" className="button secondary" onClick={onCancel}>取消</button><button type="button" className="button primary" disabled={!value.trim()} onClick={onConfirm}>{confirmLabel}</button></footer>
+    </section>
+  </div>;
+}
 
 const BUNDLED_PACKAGES = [
   { name: "pandas", version: "2.1.3", purpose: "表格处理与 CSV" },
@@ -330,14 +401,14 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
       <header><div><strong>AI Agent 设置</strong><span>AI 只提出计划；画布变更仍需确认</span></div><button aria-label="关闭 AI Agent" onClick={onClose}>×</button></header>
       <div className="settings-dialog__body">
         <section><h3>模型与连接</h3>
-          <label>供应商<select value={settings.presetId} onChange={(event) => onPresetSelect(event.target.value)}>{AGENT_PRESETS.map((preset) => <option key={preset.id} value={preset.id}>{preset.label}</option>)}</select></label>
-          <label>协议<select value={settings.provider} onChange={(event) => onSettingsChange({ provider: event.target.value as AgentSettings["provider"], presetId: "custom" })}><option value="openai-responses">OpenAI Responses</option><option value="openai-compatible">OpenAI 兼容 Chat</option><option value="anthropic-messages">Anthropic Messages</option></select></label>
+          <label><span>供应商</span><ThemedSelect ariaLabel="供应商" value={settings.presetId} options={AGENT_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))} onChange={onPresetSelect} /></label>
+          <label><span>协议</span><ThemedSelect ariaLabel="协议" value={settings.provider} options={[{ value: "openai-responses", label: "OpenAI Responses" }, { value: "openai-compatible", label: "OpenAI 兼容 Chat" }, { value: "anthropic-messages", label: "Anthropic Messages" }]} onChange={(value) => onSettingsChange({ provider: value as AgentSettings["provider"], presetId: "custom" })} /></label>
           <label>接口地址<input value={settings.endpoint} onChange={(event) => onSettingsChange({ endpoint: event.target.value, presetId: "custom" })} /></label>
-          <label>模型<select value={settings.model} onChange={(event) => onSettingsChange({ model: event.target.value })}><option value="">选择或自定义模型</option>{presetById(settings.presetId).models.map((model) => <option key={model} value={model}>{model}</option>)}</select></label>
+          <label><span>模型</span><ThemedSelect ariaLabel="模型" value={settings.model} options={[{ value: "", label: "选择或自定义模型" }, ...presetById(settings.presetId).models.map((model) => ({ value: model, label: model }))]} onChange={(value) => onSettingsChange({ model: value })} /></label>
           {presetById(settings.presetId).note && <small className="agent-preset-note">{presetById(settings.presetId).note}</small>}
           <label>自定义模型<input value={settings.model} placeholder="模型 ID，例如 deepseek-chat" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>
           <label>API 密钥<input type="password" autoComplete="off" value={apiKey} placeholder={keyStorageHint} onChange={(event) => onApiKeyChange(event.target.value)} /></label>
-          <label>规划语言<select value={language} onChange={(event) => onLanguageChange(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label>
+          <label><span>规划语言</span><ThemedSelect ariaLabel="规划语言" value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label>
           <div className="agent-inline-actions"><button className="button secondary" disabled={testing} onClick={onTestConnection}>{testing ? "测试中…" : "尝试连接"}</button>{connectionStatus && <small className={connectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{connectionStatus}</small>}</div>
           <small>{keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : keyStorageHint === "synced" ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
         </section>
@@ -394,8 +465,8 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, canva
     <section className="settings-dialog">
       <header><div><strong>设置</strong><span>设置会保存在本机用户配置中</span></div><button aria-label="关闭设置" onClick={onClose}>×</button></header>
       <div className="settings-dialog__body">
-        <section><h3>外观</h3><label>主题<select value={themeMode} onChange={(event) => onThemeModeChange(event.target.value as ThemeMode)}><option value="system">跟随系统</option><option value="dark">暗色模式</option><option value="light">亮色模式</option></select></label><label>界面语言<select value={language} onChange={(event) => onLanguageChange(event.target.value as "zh-CN" | "en")}><option value="zh-CN">中文</option><option value="en">English</option></select></label><small>当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}。</small></section>
-        <section><h3>画布</h3>{range("节点尺寸", `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range("端点大小", `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range("连线粗细", `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range("左侧节点栏", `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 132, 360, 4, "paletteWidth")}{range("右侧参数栏", `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range("横屏参数栏高度", `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}{range("结果区高度", `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label>缩略图<select value={canvas.miniMapMode} onChange={(event) => onCanvasChange({ miniMapMode: event.target.value as CanvasSettings["miniMapMode"] })}><option value="hide">默认隐藏</option><option value="auto">自动显示</option><option value="show">始终显示</option></select></label><label className="settings-check"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />显示节点运行结果</label></section>
+        <section><h3>外观</h3><label><span>主题</span><ThemedSelect ariaLabel="主题" value={themeMode} options={[{ value: "system", label: "跟随系统" }, { value: "dark", label: "暗色模式" }, { value: "light", label: "亮色模式" }]} onChange={(value) => onThemeModeChange(value as ThemeMode)} /></label><label><span>界面语言</span><ThemedSelect ariaLabel="界面语言" value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label><small>当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}。</small></section>
+        <section><h3>画布</h3>{range("节点尺寸", `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range("端点大小", `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range("连线粗细", `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range("左侧节点栏", `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 176, 360, 4, "paletteWidth")}{range("右侧参数栏", `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range("横屏参数栏高度", `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}{range("结果区高度", `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label><span>缩略图</span><ThemedSelect ariaLabel="缩略图" value={canvas.miniMapMode} options={[{ value: "hide", label: "默认隐藏" }, { value: "auto", label: "自动显示" }, { value: "show", label: "始终显示" }]} onChange={(value) => onCanvasChange({ miniMapMode: value as CanvasSettings["miniMapMode"] })} /></label><label className="settings-check"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />显示节点运行结果</label></section>
         <section className="settings-smb-summary"><h3>局域网 SMB</h3><p>设备发现、账号或访客登录、共享选择和文件浏览集中在同一个文件选择器中。密码由 Android Keystore 或 Windows 系统安全存储加密保存。</p><dl><dt>当前设备</dt><dd>{smbServer || "尚未选择"}</dd><dt>当前共享</dt><dd>{smbShare || "尚未选择"}</dd><dt>登录方式</dt><dd>{smbGuest ? "访客" : smbUsername || "账号未填写"}</dd></dl><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>选择 SMB 文件</button></section>
         <section><h3>AI Agent</h3><p>通过顶部星形按钮设置模型、加密密钥及 AI 的画布权限。每次变更都需要在计划预览中确认。</p><button onClick={onOpenAgent}>AI 模型与密钥</button></section>
         <section><h3>调试与热更新</h3><label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />启用调试模式</label><p>调试模式保留节点执行顺序、单节点耗时、部分结果和 Python 堆栈；底部虫形按钮可打开调试面板。</p><p>当前前端热更新：{hotReloadEnabled ? "已连接 HMR" : "未启用（当前为构建版）"}</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div><small>React、CSS 和 TypeScript 可即时更新；Electron 主进程需重启 desktop:dev，Android Java、Manifest、Gradle 和内置 Python 需要重新安装。</small></section>

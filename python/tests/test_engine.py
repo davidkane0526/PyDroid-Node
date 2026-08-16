@@ -519,6 +519,27 @@ def test_custom_python_function_uses_annotated_ports_and_parameters():
     assert result["preview"]["rows"] == [[2.5, 5.0], [7.5, 10.0]]
 
 
+def test_custom_python_function_supports_positional_only_and_keyword_only_parameters():
+    code = "def scale(table: 'table', /, *, factor: float = 2) -> 'table':\n    return table * factor"
+    result = execute(
+        [
+            node("read", "io.read_csv"),
+            node("scale", "custom.python_function", {"code": code, "factor": 3}),
+        ],
+        [port_edge("read", "scale", "table")],
+        "1,2\n3,4\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[3, 6], [9, 12]]
+
+
+def test_analyze_signature_json_includes_positional_only_and_keyword_only_parameters():
+    code = "def scale(table: 'table', /, value: float = 1, *, enabled: bool = True) -> 'table':\n    return table if enabled else table * value"
+    result = json.loads(analyze_signature_json(code))
+    assert [port["id"] for port in result["inputPorts"]] == ["table"]
+    assert [parameter["key"] for parameter in result["parameters"]] == ["value", "enabled"]
+
+
 def test_custom_python_function_rejects_imports():
     code = "def unsafe(table: 'table') -> 'table':\n    import os\n    return table"
     result = execute(

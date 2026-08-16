@@ -1,3 +1,23 @@
+## 1.4.9o
+
+### 1.4.9p mobile gesture/tab hotfix
+- Android canvas now owns a two-pointer pinch state, restoring midpoint-anchored pinch zoom while preserving one-finger pan and long-press marquee selection.
+- Mobile tab close affordance uses a centered SVG in the tab upper-right corner, auto-dismisses, dismisses on outside tap/scroll, and long-press opens the custom tab menu deterministically.
+
+- 顶部“新建”改为二级选择：可在当前标签页清空新建，或直接新建标签页；当前标签页存在未保存修改时提供“保存 / 不保存 / 取消”。
+- 标签页关闭增加未保存检查：保存后未再修改的标签页直接关闭，存在修改时才询问是否保存。
+- 工作流标签页在当前应用会话中保留各自画布快照与保存基线，切换标签不会丢失当前内容。
+
+## 1.4.9n
+
+
+- 修复 Android 长按空白画布框选时 React Flow 已启动的单指平移仍继续生效、导致节点在框选过程中被“推走”的问题：触摸空白画布改由统一手势状态机接管，10 px 前置移动阈值判定平移，520 ms 稳定长按切换为框选；框选后禁止再进入平移，并通过手动 viewport 平移保留快速单指移动画布。
+- 修复首次 Android TypeScript 构建中 `restoredSnapshot` 被常量收窄为 `null` 后可选链属性访问产生的 `never` 类型错误；启动节点、连线与 requirements 直接使用干净初值。
+
+## 1.4.9m
+
+- 启动时固定为单个空白“工作流 1”；修复窄数据表按钮溢出；底部参数区的概览、高级参数和组织字段改为响应式布局；移动端支持长按空白画布后拖动框选节点，并与快速单指平移使用独立阈值。
+
 # 版本记录
 
 每次用户可见的功能更新、缺陷修复或 APK 版本号变更，都必须在此文件、`README.md` 和
@@ -5,6 +25,7 @@
 
 ## dev（未发布，1.4.9 候选）
 
+- UI 细节继续收敛：参数面板标题与资源栏统一，并在标题下优先显示节点名称；资源栏最小宽度提高到可完整显示“节点/组合/流程”；节点结果表格的换行/紧凑按钮改为紧凑图标宽度、复制/全屏保留完整文字；移动端标签激活线抬高至与顶部按钮底端对齐，桌面端激活线进一步细化。
 - 桌面端 SMB 重写：设备发现优先使用 Windows `net view` 获取真实主机名并枚举共享，445 端口扫描补充、`nbtstat` 解析兜底；文件操作改用 Windows 原生 SMB（`net use` 凭据会话 + `Get-ChildItem` 列目录 + `[IO.File]` 读文件），彻底移除兼容性差的 node-smb2；凭据经子进程环境变量传递、错误信息统一 UTF-8 中文输出并按退出码映射清晰提示（网络名/凭据/权限等）、退出时清理会话、导入总量 128 MiB 限制；设备卡以主机名为主要显示，共享与 IP 作为辅助信息。
 - 安卓端 SMB 设备发现改用 NetBIOS 节点状态查询（UDP 137，jcifs-ng）获取真实主机名，替代局域网基本失效的反向 DNS。
 - 双击组合节点直接进入内部子流程画布（原先打开节点菜单）。
@@ -264,3 +285,5 @@
 - 增加自定义 Python 函数、函数签名解析、模板、输入输出端口和个人模板导入导出。
 - 增加 Notebook/Jupyter 与工作流互转、`.ipynb` 导入导出、代码视图和 AST 识别基础。
 - 增加工作流自动保存、恢复、撤销/重做、结果预览、图表放大与 CSV 导出。
+
+- 1.4.9l UI: rebalance DataGrid action widths and use responsive multi-column controls when the Parameters panel is docked at the bottom.

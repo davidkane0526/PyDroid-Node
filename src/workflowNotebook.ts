@@ -1,5 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import { parseWorkflow, type WorkflowDocument, type WorkflowNode } from "./workflow";
+import { getNodeSpec } from "./nodeCatalog";
+import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
 
 const NODE_CELL = /^# %% \[node\] ([^\r\n]+)$/gm;
 
@@ -22,8 +24,19 @@ export type NotebookCellAnalysis = {
   children?: Array<Omit<NotebookCellAnalysis, "operations"> & { branch: "true" | "false" | "body"; childIndex: number }>;
 };
 
-function connectablePort(node: WorkflowNode | undefined, direction: "input" | "output"): string | undefined {
+function resolvedNodePorts(node: WorkflowNode | undefined, direction: "input" | "output"): string[] {
+  if (!node) return [];
+  if (node.data.nodeType === "workflow.group") {
+    return (direction === "input" ? node.data.groupInputs : node.data.groupOutputs)?.map((port) => port.id) ?? [];
+  }
+  const spec = resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters);
+  return (direction === "input" ? spec?.inputPorts : spec?.outputPorts)?.map((port) => port.id) ?? [];
+}
+
+function connectablePort(node: WorkflowNode | undefined, direction: "input" | "output", index = 0): string | undefined {
   if (!node) return undefined;
+  const ports = resolvedNodePorts(node, direction);
+  if (ports.length) return ports[Math.min(index, ports.length - 1)];
   const type = node.data.nodeType;
   if (direction === "input") {
     if (["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image", "notebook.markdown_cell"].includes(type)) return undefined;
@@ -158,23 +171,31 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     };
   });
   const edges: Edge[] = [];
-  const variableNode = new Map<string, string>();
+  const variableNode = new Map<string, { nodeId: string; sourceHandle?: string }>();
   entries.forEach(({ operation }, flatIndex) => {
     if (!operation?.recognized) return;
     const target = nodes[flatIndex]?.id;
     const targetNode = nodes[flatIndex];
     const dependencies = [...new Set([operation.inputVariable, ...(operation.uses ?? [])].filter((name): name is string => Boolean(name && variableNode.has(name))))];
     dependencies.forEach((dependency, dependencyIndex) => {
-      const source = variableNode.get(dependency);
+      const sourceBinding = variableNode.get(dependency);
+      const source = sourceBinding?.nodeId;
       const sourceNode = nodes.find((node) => node.id === source);
-      const sourceHandle = connectablePort(sourceNode, "output");
-      const targetHandle = targetNode.data.nodeType === "table.concat" ? (dependencyIndex === 0 ? "left" : dependencyIndex === 1 ? "right" : undefined) : connectablePort(targetNode, "input");
+      const sourceHandle = sourceBinding?.sourceHandle ?? connectablePort(sourceNode, "output");
+      const targetHandle = connectablePort(targetNode, "input", dependencyIndex);
       if (source && target && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.targetHandle === targetHandle)) {
         edges.push({ id: `notebook-variable-${edges.length}`, source, sourceHandle, target, targetHandle });
       }
     });
-    for (const defined of operation.defines ?? []) if (target) variableNode.set(defined, target);
-    if (operation.outputVariable && target) variableNode.set(operation.outputVariable, target);
+    if (target) {
+      const outputHandles = resolvedNodePorts(targetNode, "output");
+      for (const [definedIndex, defined] of (operation.defines ?? []).entries()) {
+        variableNode.set(defined, { nodeId: target, sourceHandle: outputHandles[definedIndex] ?? outputHandles[0] ?? connectablePort(targetNode, "output") });
+      }
+      if (operation.outputVariable && !(operation.defines ?? []).includes(operation.outputVariable)) {
+        variableNode.set(operation.outputVariable, { nodeId: target, sourceHandle: outputHandles[0] ?? connectablePort(targetNode, "output") });
+      }
+    }
   });
   // Preserve executable cell order when AST dependency inference has no usable variable edge.
   for (let index = 1; index < nodes.length; index += 1) {
@@ -347,15 +368,16 @@ function balancedDictionary(source: string, start: number): string {
   throw new Error("节点参数字典没有闭合");
 }
 
+function edgeValueExpression(edge: Edge): string {
+  const source = variableName(edge.source);
+  return edge.sourceHandle && edge.sourceHandle !== "output" ? `${source}[${JSON.stringify(edge.sourceHandle)}]` : source;
+}
+
 function inputExpression(nodeId: string, edges: Edge[]): string {
   const incoming = edges.filter((edge) => edge.target === nodeId);
   if (!incoming.length) return "None";
-  if (incoming.length === 1) {
-    const edge = incoming[0];
-    const source = variableName(edge.source);
-    return edge.sourceHandle && edge.sourceHandle !== "output" ? `${source}[${JSON.stringify(edge.sourceHandle)}]` : source;
-  }
-  return `{${incoming.map((edge) => `${JSON.stringify(edge.targetHandle ?? "input")}: ${variableName(edge.source)}${edge.sourceHandle && edge.sourceHandle !== "output" ? `[${JSON.stringify(edge.sourceHandle)}]` : ""}`).join(", ")}}`;
+  if (incoming.length === 1) return edgeValueExpression(incoming[0]);
+  return `{${incoming.map((edge) => `${JSON.stringify(edge.targetHandle ?? "input")}: ${edgeValueExpression(edge)}`).join(", ")}}`;
 }
 
 function orderedContainerChildren(children: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
@@ -601,9 +623,31 @@ print(f"{${params}.get('prefix', '')}{'：' if ${params}.get('prefix', '') else 
 ${name} = ${input}`;
   if (type === "custom.python_function") {
     const code = String(node.data.parameters.code ?? "");
-    const functionName = code.match(/def\s+([A-Za-z_]\w*)\s*\(/)?.[1] ?? "transform";
+    const signature = parsePythonFunctionSignature(code);
+    if (signature.error) return `raise ValueError(${JSON.stringify(`Custom function signature is invalid: ${signature.error}`)})`;
+    const incoming = edges.filter((edge) => edge.target === node.id);
+    const values: string[] = [];
+    for (const port of signature.inputPorts) {
+      const edge = incoming.find((candidate) => (candidate.targetHandle ?? "input") === port.id)
+        ?? (signature.inputPorts.length === 1 && incoming.length === 1 ? incoming[0] : undefined);
+      if (edge) values.push(`${JSON.stringify(port.id)}: ${edgeValueExpression(edge)}`);
+    }
+    for (const parameter of signature.parameters) {
+      if (Object.prototype.hasOwnProperty.call(node.data.parameters, parameter.key)) {
+        values.push(`${JSON.stringify(parameter.key)}: ${pythonLiteral(node.data.parameters[parameter.key])}`);
+      }
+    }
+    const resultName = `_${name}_custom_result`;
+    const call = `${resultName} = _call_custom(${signature.functionName}, {${values.join(", ")}})`;
+    if (signature.outputPorts.length > 1) {
+      const routed = signature.outputPorts.map((port, index) => `${JSON.stringify(port.id)}: ${resultName}[${index}]`).join(", ");
+      return `${code}
+${call}
+${name} = {${routed}}`;
+    }
     return `${code}
-${name} = ${functionName}(${input})`;
+${call}
+${name} = ${resultName}`;
   }
   return `raise NotImplementedError(${JSON.stringify(`Notebook exporter does not support ${type} yet`)})`;
 }
@@ -613,6 +657,7 @@ import io
 import json
 import base64
 import re
+import inspect
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -630,6 +675,22 @@ def _column(frame, raw):
 
 def _column_names(frame, raw):
     return [_column(frame, item.strip()) for item in str(raw).split(",") if item.strip()]
+
+def _call_custom(function, values):
+    signature = inspect.signature(function)
+    positional, keyword = [], {}
+    for name, parameter in signature.parameters.items():
+        if parameter.kind in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD):
+            raise TypeError("Custom workflow export does not support *args/**kwargs")
+        if parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
+            if name in values: positional.append(values[name])
+            elif parameter.default is not inspect.Parameter.empty: positional.append(parameter.default)
+            else: raise TypeError(f"Required positional-only argument {name!r} is not connected")
+        elif name in values:
+            keyword[name] = values[name]
+        elif parameter.default is inspect.Parameter.empty:
+            raise TypeError(f"Required custom argument {name!r} is not connected")
+    return function(*positional, **keyword)
 
 def calculate_ter(frame, params):
     vg_col, v_col, i_col = params.get("vgColumn", "Vg_V"), params.get("voltageColumn", "0"), params.get("currentColumn", "1")

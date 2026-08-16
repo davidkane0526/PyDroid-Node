@@ -1,5 +1,5 @@
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent as ReactDragEvent, type ErrorInfo, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import {
   addEdge,
   Background,
@@ -55,7 +55,7 @@ import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow,
 import { analyzeNotebook, analyzePythonSignature, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, startRemoteServer, stopRemoteServer, warmUpPythonExecutor, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
-import { AgentDialog, AlertDialog, CodeEditorModal, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog } from "./dialogs";
+import { AgentDialog, AlertDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -72,6 +72,8 @@ const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-ove
 type PaletteResource = { kind: "node" | "saved-node" | "group" | "flow"; id: string; label: string };
 
 type ThemeMode = "system" | "dark" | "light";
+type UiChromePlugin = { setTheme(options: { dark: boolean }): Promise<void> };
+const UiChrome = registerPlugin<UiChromePlugin>("UiChrome");
 const notebookCellRows = (source: string) => Math.max(3, source.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil(Array.from(line).length / 96)), 0));
 const VALUE_TYPE_COLORS: Record<ValueType, string> = { table: "#22c55e", plot: "#a855f7", csv: "#14b8a6", number: "#f59e0b", text: "#3b82f6", boolean: "#ef4444", list: "#06b6d4", object: "#8b5cf6", any: "#64748b" };
 const bytesToBase64 = (bytes: Uint8Array) => { let binary = ""; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary); };
@@ -150,7 +152,7 @@ function loadAppSettings(): AppSettings {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
     return {
       themeMode: saved.themeMode === "dark" || saved.themeMode === "light" ? saved.themeMode : "system",
-      paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(132, Number(saved.paletteWidth))) : defaults.paletteWidth,
+      paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(176, Number(saved.paletteWidth))) : defaults.paletteWidth,
       inspectorWidth: Number.isFinite(saved.inspectorWidth) ? Math.min(560, Math.max(250, Number(saved.inspectorWidth))) : defaults.inspectorWidth,
       inspectorHeight: Number.isFinite(saved.inspectorHeight) ? Math.min(440, Math.max(140, Number(saved.inspectorHeight))) : defaults.inspectorHeight,
       resultHeight: Number.isFinite(saved.resultHeight) ? Math.min(520, Math.max(180, Number(saved.resultHeight))) : defaults.resultHeight,
@@ -168,6 +170,7 @@ function loadAppSettings(): AppSettings {
 }
 
 type WorkflowSnapshot = { nodes: WorkflowNode[]; edges: Edge[]; requirements?: string[] };
+type WorkspaceRuntimeState = { snapshot: WorkflowSnapshot; savedSignature: string };
 type FlowLibraryEntry = { id: string; name: string; savedAt: string; document: string; uri?: string; external?: boolean; locked?: boolean };
 type GroupLibraryEntry = { id: string; name: string; description: string; nodes: WorkflowNode[]; edges: Edge[]; builtIn?: boolean; locked?: boolean };
 type SavedNodeEntry = { id: string; name: string; node: WorkflowNode; savedAt: string; locked?: boolean };
@@ -217,22 +220,9 @@ function loadFlowLibrary(): FlowLibraryEntry[] {
   } catch { return []; }
 }
 
-const initialNodes: WorkflowNode[] = [
-  createNode("read-csv", "io.read_csv", 45, 70, { skipRows: 2 }),
-  createNode("drop-missing", "pandas.dropna", 235, 70),
-  createNode("select-columns", "table.select_columns", 425, 70, { columns: "0,1" }),
-  createNode("group-aggregate", "table.group_aggregate", 615, 70),
-  createNode("line-plot", "plot.line", 805, 25),
-  createNode("export-csv", "io.export_csv", 805, 135),
-];
+const initialNodes: WorkflowNode[] = [];
 
-const initialEdges: Edge[] = [
-  { id: "e0", source: "read-csv", target: "drop-missing" },
-  { id: "e1", source: "drop-missing", target: "select-columns" },
-  { id: "e2", source: "select-columns", target: "group-aggregate" },
-  { id: "e3", source: "group-aggregate", target: "line-plot" },
-  { id: "e4", source: "group-aggregate", target: "export-csv" },
-];
+const initialEdges: Edge[] = [];
 
 function createNode(
   id: string,
@@ -343,6 +333,56 @@ function loadNodeGroups(): Record<string, string[]> {
 
 function cloneSnapshot(snapshot: WorkflowSnapshot): WorkflowSnapshot {
   return JSON.parse(JSON.stringify(snapshot)) as WorkflowSnapshot;
+}
+
+function workflowSnapshotForPersistence(snapshot: WorkflowSnapshot): WorkflowSnapshot {
+  return {
+    nodes: snapshot.nodes.map((node) => {
+      const { selected: _selected, dragging: _dragging, measured: _measured, className: _className, ...rest } = node;
+      const { status: _status, ...data } = node.data;
+      return { ...rest, data } as WorkflowNode;
+    }),
+    edges: snapshot.edges.map((edge) => {
+      const { selected: _selected, ...rest } = edge;
+      return rest as Edge;
+    }),
+    requirements: [...(snapshot.requirements ?? [])],
+  };
+}
+
+function workflowSnapshotSignature(snapshot: WorkflowSnapshot): string {
+  return JSON.stringify(workflowSnapshotForPersistence(snapshot));
+}
+
+function workflowHasContent(snapshot: WorkflowSnapshot): boolean {
+  return snapshot.nodes.length > 0 || snapshot.edges.length > 0 || Boolean(snapshot.requirements?.length);
+}
+
+function downloadTextFile(text: string, name: string, type: string) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function safeWorkflowFileName(name: string): string {
+  const stem = name.trim().replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").slice(0, 80) || "pydroid-flow";
+  return `${stem}.workflow.json`;
+}
+
+function persistWorkflowSnapshot(snapshot: WorkflowSnapshot, name: string): FlowLibraryEntry {
+  const persistent = workflowSnapshotForPersistence(snapshot);
+  const json = JSON.stringify(serializeWorkflow(name || "PyDroid Flow 工作流", persistent.nodes, persistent.edges, persistent.requirements ?? []), null, 2);
+  downloadTextFile(json, safeWorkflowFileName(name), "application/json");
+  const entry: FlowLibraryEntry = { id: `flow-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: name || `流程 ${new Date().toLocaleString()}`, savedAt: new Date().toISOString(), document: json };
+  const library = [entry, ...loadFlowLibrary()].slice(0, 40);
+  localStorage.setItem(FLOW_LIBRARY_KEY, JSON.stringify(library));
+  void saveUserProfileFile(`workflows/${entry.id}.workflow.json`, json);
+  void saveUserProfileFile("workflows/library.json", JSON.stringify(library, null, 2));
+  window.dispatchEvent(new CustomEvent("pydroid-flow-library-changed"));
+  return entry;
 }
 
 function nodesInExecutionOrder(nodes: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
@@ -706,20 +746,21 @@ function isAgentValue(value: unknown): value is string | number | boolean | null
   return value === null || ["string", "number", "boolean"].includes(typeof value);
 }
 
-function FlowEditor({ tabId = "default" }: { tabId?: string }) {
+function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntimeState, onRuntimeStateChange, onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { tabId?: string; tabName?: string; initialRuntimeState?: WorkspaceRuntimeState; onRuntimeStateChange: (tabId: string, state: WorkspaceRuntimeState) => void; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
   const autosaveKey = `${AUTOSAVE_KEY}.${tabId}`;
-  const restoredSnapshot = useMemo(() => loadAutosave(autosaveKey), [autosaveKey]);
+  const startingSnapshot = initialRuntimeState?.snapshot ?? { nodes: initialNodes, edges: initialEdges, requirements: [] };
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
-  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(restoredSnapshot?.nodes ?? initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(restoredSnapshot?.edges ?? initialEdges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(startingSnapshot.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(startingSnapshot.edges);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionMode, setSelectionMode] = useState(false);
+  const [touchMarquee, setTouchMarquee] = useState<{ pointerId: number; startX: number; startY: number; currentX: number; currentY: number } | null>(null);
   const [pointerMode, setPointerMode] = useState<"mouse" | "touch">(() => window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse");
   const [paletteDragPreview, setPaletteDragPreview] = useState<{ kind: PaletteResource["kind"]; label: string; x: number; y: number; overCanvas: boolean } | null>(null);
   const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
-  const [message, setMessage] = useState(restoredSnapshot ? "已恢复上次自动保存的流程" : "尚未执行");
+  const [message, setMessage] = useState("尚未执行");
   const [fileName, setFileName] = useState<string | null>(null);
   const [csvText, setCsvText] = useState("");
   const [csvBytes, setCsvBytes] = useState<Uint8Array | null>(null);
@@ -748,11 +789,21 @@ function FlowEditor({ tabId = "default" }: { tabId?: string }) {
   const [agentPlan, setAgentPlan] = useState<AgentPlan | null>(null);
   const [agentPlanError, setAgentPlanError] = useState<string | null>(null);
   const [agentAudit, setAgentAudit] = useState<Array<{ at: string; summary: string; result: string }>>([]);
-  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
-  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const setThemeMode = onThemeModeChange;
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [newWorkflowDialogOpen, setNewWorkflowDialogOpen] = useState(false);
+  const [replaceCurrentUnsavedOpen, setReplaceCurrentUnsavedOpen] = useState(false);
+  const savedSignatureRef = useRef(initialRuntimeState?.savedSignature ?? workflowSnapshotSignature(startingSnapshot));
+  const [confirmDialog, setConfirmDialog] = useState<{ title: string; message: string; confirmLabel?: string; danger?: boolean; resolve: (confirmed: boolean) => void } | null>(null);
+  const [textPromptDialog, setTextPromptDialog] = useState<{ title: string; label: string; value: string; confirmLabel?: string; resolve: (value: string | null) => void } | null>(null);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  const isPortrait = window.matchMedia("(orientation: portrait)").matches;
+  const [inspectorDock, setInspectorDock] = useState<"right" | "bottom">(() =>
+    Capacitor.isNativePlatform() && window.matchMedia("(orientation: portrait)").matches ? "bottom" : "right",
+  );
+  const previousPortrait = useRef(isPortrait);
   const [plotExpanded, setPlotExpanded] = useState(false);
   const [plotZoom, setPlotZoom] = useState(1);
   const [livePreview, setLivePreview] = useState(false);
@@ -771,6 +822,11 @@ function FlowEditor({ tabId = "default" }: { tabId?: string }) {
   const [savedNodeLibrary, setSavedNodeLibrary] = useState<SavedNodeEntry[]>(loadSavedNodeLibrary);
 const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(null);
   const [flowLibrary, setFlowLibrary] = useState<FlowLibraryEntry[]>(loadFlowLibrary);
+  useEffect(() => {
+    const refresh = () => setFlowLibrary(loadFlowLibrary());
+    window.addEventListener("pydroid-flow-library-changed", refresh);
+    return () => window.removeEventListener("pydroid-flow-library-changed", refresh);
+  }, []);
   const [userProfile, setUserProfile] = useState<UserProfileInfo | null>(null);
   const [showNodeInsights, setShowNodeInsights] = useState(() => loadAppSettings().showNodeInsights);
   const [debugMode, setDebugMode] = useState(() => loadAppSettings().debugMode);
@@ -790,7 +846,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [notebookRunningCell, setNotebookRunningCell] = useState<number | "all" | null>(null);
   const [packageManagerOpen, setPackageManagerOpen] = useState(false);
   const [packageRequirement, setPackageRequirement] = useState("");
-  const [requirements, setRequirements] = useState<string[]>(restoredSnapshot?.requirements ?? loadPackageRequirements);
+  const [requirements, setRequirements] = useState<string[]>(startingSnapshot.requirements ?? []);
   const [pythonEnvironment, setPythonEnvironment] = useState<PythonEnvironment | null>(null);
   const [environmentLoading, setEnvironmentLoading] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"auto" | "horizontal" | "vertical">(() => {
@@ -840,13 +896,61 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const flowLongPressTimer = useRef<number | null>(null);
   const flowLongPressHandled = useRef(false);
   const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const touchMarqueeTimer = useRef<number | null>(null);
+  const touchMarqueeCandidate = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+    panning: boolean;
+    marquee: boolean;
+    viewport: { x: number; y: number; zoom: number };
+  } | null>(null);
+  const activeCanvasTouches = useRef(new Map<number, { x: number; y: number }>());
+  const touchPinch = useRef<{
+    pointerIds: [number, number];
+    startDistance: number;
+    startZoom: number;
+    anchorFlowX: number;
+    anchorFlowY: number;
+  } | null>(null);
+  const canvasPanelRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    const releaseTouch = (event: PointerEvent) => {
+      if (event.pointerType !== "touch") return;
+      activeCanvasTouches.current.delete(event.pointerId);
+      if (touchPinch.current?.pointerIds.includes(event.pointerId)) {
+        touchPinch.current = null;
+        if (touchMarqueeTimer.current !== null) window.clearTimeout(touchMarqueeTimer.current);
+        touchMarqueeTimer.current = null;
+        touchMarqueeCandidate.current = null;
+        setTouchMarquee(null);
+      }
+    };
+    const clearTouches = () => {
+      activeCanvasTouches.current.clear();
+      touchPinch.current = null;
+      touchMarqueeCandidate.current = null;
+    };
+    window.addEventListener("pointerup", releaseTouch);
+    window.addEventListener("pointercancel", releaseTouch);
+    window.addEventListener("blur", clearTouches);
+    return () => {
+      window.removeEventListener("pointerup", releaseTouch);
+      window.removeEventListener("pointercancel", releaseTouch);
+      window.removeEventListener("blur", clearTouches);
+    };
+  }, []);
   const livePreviewTimer = useRef<number | null>(null);
   const isRunningRef = useRef(false);
   const parameterEditSession = useRef<{ key: string; time: number } | null>(null);
   const applyingRemoteConfiguration = useRef(false);
-  const touchPaletteDrag = useRef<{ resource: PaletteResource; pointerId: number; startX: number; startY: number; element: HTMLButtonElement; armed: boolean } | null>(null);
+  const touchPaletteDrag = useRef<{ resource: PaletteResource; pointerId: number; startX: number; startY: number; element: HTMLButtonElement; armed: boolean; pointerType: string } | null>(null);
   const reconnectSucceeded = useRef(false);
   const paletteDragTimer = useRef<number | null>(null);
+  const desktopPaletteDragElement = useRef<HTMLButtonElement | null>(null);
+  const desktopDragImageElement = useRef<HTMLImageElement | null>(null);
+  const palettePointerDragHandled = useRef(false);
   const suppressNextNodeClick = useRef(false);
   const nextNodeNumber = useRef(1);
   const history = useRef<WorkflowSnapshot[]>([]);
@@ -858,7 +962,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
   const remoteBrowser = isRemoteRuntime();
-  const resolvedTheme = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
   const selectedSpec = nodeSpecFor(selectedNode ?? undefined);
   const selectedNodeResult = selectedNode ? result?.nodeResults[selectedNode.id] ?? (selectedNode.data.nodeType === "workflow.group" ? result?.nodeResults[selectedNode.data.groupOutputs?.[0]?.internalNodeId ?? ""] : undefined) : undefined;
   const alertInputSourceId = alertDialogNode ? edges.find((edge) => edge.target === alertDialogNode.id && edge.targetHandle === "content")?.source : undefined;
@@ -894,7 +997,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const finePointer = useMemo(() => window.matchMedia("(any-pointer: fine)").matches, []);
   const resolvedLayoutDirection: "horizontal" | "vertical" = layoutMode === "auto" ? (viewportWidth < 760 ? "vertical" : "horizontal") : layoutMode;
   const previousAutoDirection = useRef(resolvedLayoutDirection);
-  const initialLayoutPending = useRef(restoredSnapshot === null);
+  const initialLayoutPending = useRef(true);
   const visibleNodes = useMemo(() => nodes.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId), [currentCanvasId, nodes]);
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
   const refreshVisibleNodeGeometry = useCallback(() => {
@@ -1052,6 +1155,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, [autosaveKey, edges, nodes, requirements]);
 
   useEffect(() => {
+    onRuntimeStateChange(tabId, { snapshot: { nodes, edges, requirements }, savedSignature: savedSignatureRef.current });
+  }, [edges, nodes, onRuntimeStateChange, requirements, tabId]);
+
+  useEffect(() => {
     localStorage.setItem(PACKAGE_REQUIREMENTS_KEY, JSON.stringify(requirements));
   }, [requirements]);
 
@@ -1062,13 +1169,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   useEffect(() => {
     localStorage.setItem(MINIMAP_MODE_KEY, miniMapMode);
   }, [miniMapMode]);
-
-  useEffect(() => {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const update = () => setSystemDark(media.matches);
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
 
   useEffect(() => {
     document.documentElement.lang = language;
@@ -1178,6 +1278,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, []);
 
   useEffect(() => {
+    if (previousPortrait.current === isPortrait) return;
+    previousPortrait.current = isPortrait;
+    if (Capacitor.isNativePlatform()) setInspectorDock(isPortrait ? "bottom" : "right");
+  }, [isPortrait]);
+
+  useEffect(() => {
     if (!initialLayoutPending.current) return;
     // Let React Flow measure the first cards, then lay out the starter graph in its
     // vertical default. fitView subsequently chooses a readable zoom for the screen.
@@ -1229,7 +1335,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const remote = configuration.settings as Partial<AppSettings>;
       applyingRemoteConfiguration.current = true;
       if (remote.themeMode === "system" || remote.themeMode === "dark" || remote.themeMode === "light") setThemeMode(remote.themeMode);
-      if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(132, Number(remote.paletteWidth))));
+      if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(176, Number(remote.paletteWidth))));
       if (Number.isFinite(remote.inspectorWidth)) setInspectorWidth(Math.min(560, Math.max(250, Number(remote.inspectorWidth))));
       if (Number.isFinite(remote.inspectorHeight)) setInspectorHeight(Math.min(440, Math.max(140, Number(remote.inspectorHeight))));
       if (Number.isFinite(remote.resultHeight)) setResultHeight(Math.min(520, Math.max(180, Number(remote.resultHeight))));
@@ -1313,6 +1419,25 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     window.addEventListener("pointerdown", close);
     return () => window.removeEventListener("pointerdown", close);
   }, [contextMenu, selectionMenu, flowMenu, resourceMenu]);
+
+  const requestConfirm = useCallback((options: { title: string; message: string; confirmLabel?: string; danger?: boolean }) => new Promise<boolean>((resolve) => {
+    setConfirmDialog({ ...options, resolve });
+  }), []);
+
+
+  useEffect(() => {
+    if (!mobileToolsOpen) return;
+    const close = (event: PointerEvent) => {
+      if ((event.target as HTMLElement | null)?.closest(".mobile-tools-overflow")) return;
+      setMobileToolsOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [mobileToolsOpen]);
+
+  const requestTextPrompt = useCallback((options: { title: string; label: string; value: string; confirmLabel?: string }) => new Promise<string | null>((resolve) => {
+    setTextPromptDialog({ ...options, resolve });
+  }), []);
 
   const resetExecution = useCallback(() => {
     setResult(null);
@@ -1432,31 +1557,294 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     longPressOrigin.current = null;
   };
 
+  const cancelTouchMarqueeHold = () => {
+    if (touchMarqueeTimer.current !== null) window.clearTimeout(touchMarqueeTimer.current);
+    touchMarqueeTimer.current = null;
+  };
+
+  const clearTouchMarqueeCandidate = (releaseCapture = false) => {
+    cancelTouchMarqueeHold();
+    const candidate = touchMarqueeCandidate.current;
+    touchMarqueeCandidate.current = null;
+    if (releaseCapture && candidate && canvasPanelRef.current) {
+      try {
+        if (canvasPanelRef.current.hasPointerCapture(candidate.pointerId)) canvasPanelRef.current.releasePointerCapture(candidate.pointerId);
+      } catch { /* best effort */ }
+    }
+  };
+
+  const nodeIdsInsideScreenRect = (startX: number, startY: number, currentX: number, currentY: number) => {
+    const left = Math.min(startX, currentX);
+    const right = Math.max(startX, currentX);
+    const top = Math.min(startY, currentY);
+    const bottom = Math.max(startY, currentY);
+    const ids: string[] = [];
+    document.querySelectorAll<HTMLElement>(".canvas-panel [data-workflow-node-id]").forEach((element) => {
+      const id = element.dataset.workflowNodeId;
+      if (!id) return;
+      const bounds = element.getBoundingClientRect();
+      if (bounds.right >= left && bounds.left <= right && bounds.bottom >= top && bounds.top <= bottom) ids.push(id);
+    });
+    return [...new Set(ids)];
+  };
+
+  const applyTouchMarqueeSelection = (marquee: { startX: number; startY: number; currentX: number; currentY: number }) => {
+    const ids = nodeIdsInsideScreenRect(marquee.startX, marquee.startY, marquee.currentX, marquee.currentY);
+    const selected = new Set(ids);
+    setNodes((current) => current.map((node) => ({ ...node, selected: selected.has(node.id) })));
+    setSelectedIds(ids);
+    setSelectedId(ids.length === 1 ? ids[0] : null);
+    return ids;
+  };
+
   const onCanvasPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
     setPointerMode(event.pointerType === "mouse" ? "mouse" : "touch");
-    if (event.pointerType !== "touch" || selectionMode) return;
-    const card = (event.target as HTMLElement).closest<HTMLElement>("[data-workflow-node-id]");
-    const nodeId = card?.dataset.workflowNodeId;
-    if (!nodeId) return;
-    clearLongPress();
-    longPressOrigin.current = { x: event.clientX, y: event.clientY };
-    longPressTimer.current = window.setTimeout(() => {
-      suppressNextNodeClick.current = true;
-      setSelectionMode(true);
-      setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
-      setSelectedId(nodeId);
-      setSelectedIds([nodeId]);
-      setContextMenu(null);
-      setMessage("已进入多选：点按节点勾选，完成后点击“组合”");
-      navigator.vibrate?.(30);
+    if (event.pointerType !== "touch") return;
+
+    const target = event.target as HTMLElement;
+    const insideFlow = Boolean(target.closest(".react-flow"));
+    if (!insideFlow) return;
+
+    activeCanvasTouches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    // Two active fingers always win over the single-finger pan / long-hold marquee state machine.
+    // React Flow's native touch pan is disabled on Android, so pinch is implemented here as a stable
+    // viewport transform around the midpoint between both fingers.
+    if (activeCanvasTouches.current.size >= 2) {
+      event.preventDefault();
+      event.stopPropagation();
       clearLongPress();
-    }, 550);
+      clearTouchMarqueeCandidate(true);
+      setTouchMarquee(null);
+
+      const firstTwo = [...activeCanvasTouches.current.entries()].slice(0, 2) as Array<[number, { x: number; y: number }]>;
+      const [first, second] = firstTwo;
+      const panel = canvasPanelRef.current;
+      if (!first || !second || !panel) return;
+      const [firstId, firstPoint] = first;
+      const [secondId, secondPoint] = second;
+      const distance = Math.max(1, Math.hypot(secondPoint.x - firstPoint.x, secondPoint.y - firstPoint.y));
+      const midpointX = (firstPoint.x + secondPoint.x) / 2;
+      const midpointY = (firstPoint.y + secondPoint.y) / 2;
+      const bounds = panel.getBoundingClientRect();
+      const viewport = reactFlow.getViewport();
+      const localX = midpointX - bounds.left;
+      const localY = midpointY - bounds.top;
+      touchPinch.current = {
+        pointerIds: [firstId, secondId],
+        startDistance: distance,
+        startZoom: viewport.zoom,
+        anchorFlowX: (localX - viewport.x) / viewport.zoom,
+        anchorFlowY: (localY - viewport.y) / viewport.zoom,
+      };
+      try { panel.setPointerCapture(firstId); } catch { /* best effort */ }
+      try { panel.setPointerCapture(secondId); } catch { /* best effort */ }
+      setMessage("双指缩放画布；松开一指后结束本次缩放");
+      return;
+    }
+
+    const card = target.closest<HTMLElement>("[data-workflow-node-id]");
+    const nodeId = card?.dataset.workflowNodeId;
+
+    // Node long-press retains the existing multi-select affordance.
+    if (nodeId) {
+      if (selectionMode) return;
+      clearLongPress();
+      clearTouchMarqueeCandidate(true);
+      longPressOrigin.current = { x: event.clientX, y: event.clientY };
+      longPressTimer.current = window.setTimeout(() => {
+        suppressNextNodeClick.current = true;
+        setSelectionMode(true);
+        setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
+        setSelectedId(nodeId);
+        setSelectedIds([nodeId]);
+        setContextMenu(null);
+        setMessage("已进入多选：点按节点勾选，完成后点击“组合”");
+        navigator.vibrate?.(30);
+        clearLongPress();
+      }, 550);
+      return;
+    }
+
+    // Blank-canvas touch is owned here instead of by React Flow. Quick movement pans; a 520 ms hold
+    // enters marquee selection. A second finger cancels both paths and switches to pinch zoom above.
+    if (target.closest(".react-flow__controls, .react-flow__minimap, .canvas-toolbar, .canvas-breadcrumb, button, input, select, textarea, a")) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    clearLongPress();
+    clearTouchMarqueeCandidate(true);
+    try { canvasPanelRef.current?.setPointerCapture(event.pointerId); } catch { /* best effort */ }
+    const candidate = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      moved: false,
+      panning: false,
+      marquee: false,
+      viewport: reactFlow.getViewport(),
+    };
+    touchMarqueeCandidate.current = candidate;
+    touchMarqueeTimer.current = window.setTimeout(() => {
+      const current = touchMarqueeCandidate.current;
+      if (!current || current.pointerId !== event.pointerId || current.moved || current.panning || touchPinch.current) return;
+      current.marquee = true;
+      setSelectionMode(true);
+      setNodes((nodesNow) => nodesNow.map((node) => ({ ...node, selected: false })));
+      setSelectedId(null);
+      setSelectedIds([]);
+      setContextMenu(null);
+      setSelectionMenu(null);
+      setTouchMarquee({ pointerId: event.pointerId, startX: current.startX, startY: current.startY, currentX: current.startX, currentY: current.startY });
+      setMessage("框选已启动：拖动手指框选节点；快速拖动画布仍用于平移");
+      navigator.vibrate?.(22);
+      touchMarqueeTimer.current = null;
+    }, 520);
   };
 
   const onCanvasPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
     if (event.pointerType !== "mouse" && pointerMode !== "touch") setPointerMode("touch");
+    if (event.pointerType === "touch" && activeCanvasTouches.current.has(event.pointerId)) {
+      activeCanvasTouches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    }
+
+    const pinch = touchPinch.current;
+    if (pinch && pinch.pointerIds.includes(event.pointerId)) {
+      event.preventDefault();
+      event.stopPropagation();
+      const first = activeCanvasTouches.current.get(pinch.pointerIds[0]);
+      const second = activeCanvasTouches.current.get(pinch.pointerIds[1]);
+      const panel = canvasPanelRef.current;
+      if (!first || !second || !panel) return;
+      const distance = Math.max(1, Math.hypot(second.x - first.x, second.y - first.y));
+      const midpointX = (first.x + second.x) / 2;
+      const midpointY = (first.y + second.y) / 2;
+      const bounds = panel.getBoundingClientRect();
+      const nextZoom = Math.max(0.25, Math.min(2, pinch.startZoom * (distance / pinch.startDistance)));
+      const localX = midpointX - bounds.left;
+      const localY = midpointY - bounds.top;
+      void reactFlow.setViewport({
+        x: localX - pinch.anchorFlowX * nextZoom,
+        y: localY - pinch.anchorFlowY * nextZoom,
+        zoom: nextZoom,
+      }, { duration: 0 });
+      return;
+    }
+
     const origin = longPressOrigin.current;
     if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) clearLongPress();
+
+    const active = touchMarquee;
+    if (active && active.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      const next = { ...active, currentX: event.clientX, currentY: event.clientY };
+      setTouchMarquee(next);
+      applyTouchMarqueeSelection(next);
+      return;
+    }
+
+    const candidate = touchMarqueeCandidate.current;
+    if (candidate && candidate.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      const dx = event.clientX - candidate.startX;
+      const dy = event.clientY - candidate.startY;
+      const distance = Math.hypot(dx, dy);
+
+      if (candidate.marquee) {
+        const next = { pointerId: event.pointerId, startX: candidate.startX, startY: candidate.startY, currentX: event.clientX, currentY: event.clientY };
+        setTouchMarquee(next);
+        applyTouchMarqueeSelection(next);
+        return;
+      }
+
+      if (!candidate.panning && distance > 10) {
+        candidate.moved = true;
+        candidate.panning = true;
+        cancelTouchMarqueeHold();
+      }
+      if (candidate.panning) {
+        void reactFlow.setViewport({
+          x: candidate.viewport.x + dx,
+          y: candidate.viewport.y + dy,
+          zoom: candidate.viewport.zoom,
+        }, { duration: 0 });
+      }
+    }
+  };
+
+  const onCanvasPointerUp = (event: ReactPointerEvent<HTMLElement>) => {
+    clearLongPress();
+
+    const pinch = touchPinch.current;
+    if (pinch && pinch.pointerIds.includes(event.pointerId)) {
+      event.preventDefault();
+      event.stopPropagation();
+      activeCanvasTouches.current.delete(event.pointerId);
+      touchPinch.current = null;
+      cancelTouchMarqueeHold();
+      setTouchMarquee(null);
+      clearTouchMarqueeCandidate(true);
+      try {
+        if (canvasPanelRef.current?.hasPointerCapture(event.pointerId)) canvasPanelRef.current.releasePointerCapture(event.pointerId);
+      } catch { /* best effort */ }
+      return;
+    }
+
+    activeCanvasTouches.current.delete(event.pointerId);
+    if (touchMarquee && touchMarquee.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      const finalMarquee = { ...touchMarquee, currentX: event.clientX, currentY: event.clientY };
+      const ids = applyTouchMarqueeSelection(finalMarquee);
+      setTouchMarquee(null);
+      clearTouchMarqueeCandidate(true);
+      if (ids.length) {
+        setSelectionMode(true);
+        setMessage(`已框选 ${ids.length} 个节点；可继续点按增减选择，完成后点击“组合”`);
+      } else {
+        setSelectionMode(false);
+        setMessage("框选区域内没有节点");
+      }
+      return;
+    }
+
+    const candidate = touchMarqueeCandidate.current;
+    if (candidate?.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (candidate.marquee) {
+        const finalMarquee = { pointerId: event.pointerId, startX: candidate.startX, startY: candidate.startY, currentX: event.clientX, currentY: event.clientY };
+        const ids = applyTouchMarqueeSelection(finalMarquee);
+        setTouchMarquee(null);
+        clearTouchMarqueeCandidate(true);
+        if (ids.length) {
+          setSelectionMode(true);
+          setMessage(`已框选 ${ids.length} 个节点；可继续点按增减选择，完成后点击“组合”`);
+        } else {
+          setSelectionMode(false);
+          setMessage("框选区域内没有节点");
+        }
+        return;
+      }
+      clearTouchMarqueeCandidate(true);
+      return;
+    }
+    clearTouchMarqueeCandidate(true);
+  };
+
+  const onCanvasPointerCancel = (event: ReactPointerEvent<HTMLElement>) => {
+    clearLongPress();
+    activeCanvasTouches.current.delete(event.pointerId);
+    if (touchPinch.current?.pointerIds.includes(event.pointerId)) touchPinch.current = null;
+    if (touchMarquee?.pointerId === event.pointerId) setTouchMarquee(null);
+    const candidate = touchMarqueeCandidate.current;
+    if (candidate?.pointerId === event.pointerId) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    clearTouchMarqueeCandidate(true);
   };
 
   const onWorkflowNodesChange = useCallback((changes: NodeChange<WorkflowNode>[]) => {
@@ -1507,36 +1895,62 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setMessage(`已添加“${node.data.label}”节点`);
   };
 
+  const updatePaletteDragPreviewAt = (clientX: number, clientY: number) => {
+    if (!clientX && !clientY) return;
+    const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
+    setPaletteDragPreview((current) => current ? { ...current, x: clientX, y: clientY, overCanvas: Boolean(bounds && clientX >= bounds.left && clientX <= bounds.right && clientY >= bounds.top && clientY <= bounds.bottom) } : null);
+  };
+
   const onPaletteDragStart = (event: ReactDragEvent<HTMLButtonElement>, resource: PaletteResource) => {
     event.dataTransfer.setData("application/pydroid-resource", JSON.stringify(resource));
     event.dataTransfer.effectAllowed = "copy";
+    // Chromium only reliably suppresses its native drag bitmap when setDragImage() receives
+    // an already-rendered DOM image. A detached canvas is ignored on some desktop builds.
+    if (desktopDragImageElement.current) event.dataTransfer.setDragImage(desktopDragImageElement.current, 0, 0);
+    desktopPaletteDragElement.current?.classList.remove("is-dragging");
+    desktopPaletteDragElement.current = event.currentTarget;
+    event.currentTarget.classList.add("is-dragging");
     setPaletteDragPreview({ kind: resource.kind, label: resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
   };
 
   const updatePaletteDragPreview = (event: ReactDragEvent<HTMLButtonElement>) => {
-    if (!event.clientX && !event.clientY) return;
-    const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
-    setPaletteDragPreview((current) => current ? { ...current, x: event.clientX, y: event.clientY, overCanvas: Boolean(bounds && event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) } : null);
+    updatePaletteDragPreviewAt(event.clientX, event.clientY);
   };
 
   const clearPaletteDrag = () => {
     if (paletteDragTimer.current !== null) window.clearTimeout(paletteDragTimer.current);
     paletteDragTimer.current = null;
+    const pointerDrag = touchPaletteDrag.current;
+    if (pointerDrag) {
+      pointerDrag.element.classList.remove("is-dragging");
+      try { if (pointerDrag.element.hasPointerCapture(pointerDrag.pointerId)) pointerDrag.element.releasePointerCapture(pointerDrag.pointerId); } catch { /* ignore */ }
+    }
     touchPaletteDrag.current = null;
+    desktopPaletteDragElement.current?.classList.remove("is-dragging");
+    desktopPaletteDragElement.current = null;
     setPaletteDragPreview(null);
   };
 
   const onPalettePointerDown = (event: ReactPointerEvent<HTMLButtonElement>, resource: PaletteResource) => {
+    if (event.button !== 0) return;
     if (event.pointerType === "mouse") setPointerMode("mouse"); else setPointerMode("touch");
-    if (event.pointerType !== "touch") return;
     clearPaletteDrag();
+    palettePointerDragHandled.current = false;
     const element = event.currentTarget;
-    touchPaletteDrag.current = { resource, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, element, armed: false };
+    touchPaletteDrag.current = { resource, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, element, armed: false, pointerType: event.pointerType };
+    // Desktop palette dragging intentionally avoids native HTML5 drag-and-drop. Pointer capture
+    // keeps our animated preview reliable and prevents Chromium/Electron from painting a ghost rectangle.
+    if (event.pointerType === "mouse") {
+      try { element.setPointerCapture(event.pointerId); } catch { /* best effort */ }
+      return;
+    }
     paletteDragTimer.current = window.setTimeout(() => {
       const drag = touchPaletteDrag.current;
       if (!drag || drag.pointerId !== event.pointerId) return;
       drag.armed = true;
-      drag.element.setPointerCapture(drag.pointerId);
+      palettePointerDragHandled.current = true;
+      try { drag.element.setPointerCapture(drag.pointerId); } catch { /* ignore */ }
+      drag.element.classList.add("is-dragging");
       setPaletteDragPreview({ kind: drag.resource.kind, label: drag.resource.label, x: drag.startX, y: drag.startY, overCanvas: false });
       navigator.vibrate?.(15);
     }, 280);
@@ -1545,11 +1959,21 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const onPalettePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const drag = touchPaletteDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
+    const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
     if (!drag.armed) {
-      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 8) clearPaletteDrag();
-      return;
+      if (drag.pointerType === "mouse") {
+        if (distance < 4) return;
+        drag.armed = true;
+        palettePointerDragHandled.current = true;
+        drag.element.classList.add("is-dragging");
+        setPaletteDragPreview({ kind: drag.resource.kind, label: drag.resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
+      } else {
+        if (distance > 8) clearPaletteDrag();
+        return;
+      }
     }
-    if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 12) clearFlowLongPress();
+    if (distance > 12) clearFlowLongPress();
+    event.preventDefault();
     const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
     setPaletteDragPreview((current) => current ? { ...current, x: event.clientX, y: event.clientY, overCanvas: Boolean(bounds && event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) } : null);
   };
@@ -1568,13 +1992,20 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (paletteDragTimer.current !== null) window.clearTimeout(paletteDragTimer.current);
     paletteDragTimer.current = null;
     touchPaletteDrag.current = null;
+    if (drag) {
+      drag.element.classList.remove("is-dragging");
+      try { if (drag.element.hasPointerCapture(event.pointerId)) drag.element.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
+    }
     setPaletteDragPreview(null);
     if (!drag || !drag.armed || drag.pointerId !== event.pointerId) return;
-    const canvas = document.querySelector<HTMLElement>(".canvas-panel");
-    const bounds = canvas?.getBoundingClientRect();
-    if (!bounds || event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) return;
-    dropPaletteResource(drag.resource, event.clientX, event.clientY);
-    navigator.vibrate?.(20);
+    palettePointerDragHandled.current = true;
+    event.preventDefault();
+    const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
+    if (bounds && event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) {
+      dropPaletteResource(drag.resource, event.clientX, event.clientY);
+      if (drag.pointerType !== "mouse") navigator.vibrate?.(20);
+    }
+    window.setTimeout(() => { palettePointerDragHandled.current = false; }, 0);
   };
 
   const onCanvasDrop = (event: ReactDragEvent<HTMLElement>) => {
@@ -1935,8 +2366,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const startHeight = inspectorHeight;
     const resize = (moveEvent: PointerEvent) => {
       const delta = moveEvent.clientX - startX;
-      if (side === "palette") setPaletteWidth(Math.min(360, Math.max(132, startWidth + delta)));
-      else if (viewportWidth <= 720) setInspectorHeight(Math.min(440, Math.max(140, startHeight - (moveEvent.clientY - startY))));
+      if (side === "palette") setPaletteWidth(Math.min(360, Math.max(176, startWidth + delta)));
+      else if (inspectorDock === "bottom") setInspectorHeight(Math.min(440, Math.max(140, startHeight - (moveEvent.clientY - startY))));
       else setInspectorWidth(Math.min(560, Math.max(250, startWidth - delta)));
     };
     const stop = () => {
@@ -2084,7 +2515,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload.settings));
       const imported = loadAppSettings();
       setThemeMode(imported.themeMode);
-      setPaletteWidth(imported.paletteWidth);
+      setPaletteWidth(Math.min(360, Math.max(176, imported.paletteWidth)));
       setInspectorWidth(imported.inspectorWidth);
       setInspectorHeight(imported.inspectorHeight);
       setResultHeight(imported.resultHeight);
@@ -2255,8 +2686,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
   };
 
-  const newWorkflow = () => {
-    if ((nodes.length || edges.length) && !window.confirm("新建流程会清空当前画布；未导出的修改仍可通过撤销恢复。继续吗？")) return;
+  const currentWorkflowSnapshot = () => ({ nodes, edges, requirements } satisfies WorkflowSnapshot);
+  const currentWorkflowSignature = () => workflowSnapshotSignature(currentWorkflowSnapshot());
+  const hasUnsavedWorkflowChanges = () => currentWorkflowSignature() !== savedSignatureRef.current;
+
+  const clearCurrentWorkflow = () => {
     pushHistory();
     setNodes([]);
     setEdges([]);
@@ -2272,7 +2706,26 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setNotebookError(null);
     setExecutionError(null);
     setErrorDetailOpen(false);
-    setMessage("已新建空白流程");
+    const blankSnapshot: WorkflowSnapshot = { nodes: [], edges: [], requirements: [] };
+    savedSignatureRef.current = workflowSnapshotSignature(blankSnapshot);
+    onRuntimeStateChange(tabId, { snapshot: blankSnapshot, savedSignature: savedSignatureRef.current });
+    setMessage("已在当前标签页新建空白流程");
+  };
+
+  const requestNewWorkflow = () => setNewWorkflowDialogOpen(true);
+
+  const chooseNewInCurrentTab = () => {
+    setNewWorkflowDialogOpen(false);
+    if (hasUnsavedWorkflowChanges()) {
+      setReplaceCurrentUnsavedOpen(true);
+      return;
+    }
+    clearCurrentWorkflow();
+  };
+
+  const chooseNewTab = () => {
+    setNewWorkflowDialogOpen(false);
+    onAddTab();
   };
 
   const addPackageRequirement = () => {
@@ -2314,12 +2767,23 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const saveWorkflow = () => {
-    const json = JSON.stringify(serializeWorkflow("PyDroid Flow 工作流", nodes, edges, requirements), null, 2);
-    downloadText(json, "pydroid-flow.workflow.json", "application/json");
-    const entry: FlowLibraryEntry = { id: `flow-${Date.now()}`, name: `流程 ${new Date().toLocaleString()}`, savedAt: new Date().toISOString(), document: json };
-    setFlowLibrary((current) => [entry, ...current].slice(0, 40));
-    void saveUserProfileFile(`workflows/${entry.id}.workflow.json`, json);
-    setMessage("工作流 JSON 已导出");
+    const snapshot = currentWorkflowSnapshot();
+    persistWorkflowSnapshot(snapshot, tabName);
+    savedSignatureRef.current = workflowSnapshotSignature(snapshot);
+    onRuntimeStateChange(tabId, { snapshot, savedSignature: savedSignatureRef.current });
+    setFlowLibrary(loadFlowLibrary());
+    setMessage(`工作流“${tabName}”已保存`);
+  };
+
+  const saveThenReplaceCurrentWorkflow = () => {
+    saveWorkflow();
+    setReplaceCurrentUnsavedOpen(false);
+    clearCurrentWorkflow();
+  };
+
+  const discardThenReplaceCurrentWorkflow = () => {
+    setReplaceCurrentUnsavedOpen(false);
+    clearCurrentWorkflow();
   };
 
   const openLibraryFlow = (entry: FlowLibraryEntry) => {
@@ -2404,7 +2868,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const deleteFlow = async (entry: FlowLibraryEntry) => {
     setFlowMenu(null);
     if (entry.locked) { setMessage("该流程已锁定，请先解除锁定"); return; }
-    if (!window.confirm(`删除流程“${entry.name}”？此操作无法恢复。`)) return;
+    if (!(await requestConfirm({ title: "删除流程", message: `确定删除流程“${entry.name}”？此操作无法恢复。`, confirmLabel: "删除", danger: true }))) return;
     try {
       if (entry.external && entry.uri) await deleteWorkflowFile(entry.uri);
       setFlowLibrary((current) => current.filter((item) => item.id !== entry.id));
@@ -2969,10 +3433,15 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   } as CSSProperties;
 
   return (
-    <div className={`app-shell ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme}
-      onDragOver={(event) => { if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
+    <div className={`app-shell ${Capacitor.isNativePlatform() ? "native-platform" : ""} ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes("application/pydroid-resource")) updatePaletteDragPreviewAt(event.clientX, event.clientY);
+        if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }
+      }}
       onDrop={(event) => void handleFileDrop(event)}>
+      <img ref={desktopDragImageElement} className="native-drag-image-shim" alt="" aria-hidden="true" draggable={false} src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==" />
       <header className="topbar">
+        {Capacitor.isNativePlatform() && <strong className="mobile-brand" aria-label="PyDroid Node">PyDroid Node</strong>}
         <TabBar />
         <div className="topbar__actions">
           <input ref={fileInput} className="file-input" type="file" accept=".csv,.tsv,.txt,.dat,.json,.png,.jpg,.jpeg,text/*,application/json,image/*" multiple onChange={chooseCsv} />
@@ -2981,40 +3450,56 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <input ref={notebookInput} className="file-input" type="file" accept=".ipynb,application/x-ipynb+json,application/json" onChange={importNotebook} />
           <input ref={templateInput} className="file-input" type="file" accept=".json,application/json" onChange={importCustomTemplate} />
           <input ref={settingsInput} className="file-input" type="file" accept=".json,application/json" onChange={importSettings} />
-          <button className="button secondary icon-button" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={history.current.length === 0} onClick={undo}>
+          <button className="button secondary icon-button topbar-tool-action" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={history.current.length === 0} onClick={undo}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5" /><path d="M4 12h9a7 7 0 0 1 7 7" /></svg>
           </button>
-          <button className="button secondary icon-button" title="重做（Ctrl+Y）" aria-label="重做" disabled={future.current.length === 0} onClick={redo}>
+          <button className="button secondary icon-button topbar-tool-action" title="重做（Ctrl+Y）" aria-label="重做" disabled={future.current.length === 0} onClick={redo}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M20 12h-9a7 7 0 0 0-7 7" /></svg>
           </button>
-          <button className="button secondary icon-button" title="AI Agent" aria-label="AI Agent" onClick={() => setAgentPanelOpen(true)}>
+          <button className="button secondary icon-button topbar-tool-action" title="AI Agent" aria-label="AI Agent" onClick={() => setAgentPanelOpen(true)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.5 5.3L19 10l-5.5 1.7L12 17l-1.5-5.3L5 10l5.5-1.7L12 3Z" /><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z" /></svg>
           </button>
-          <button className="button secondary icon-button" title="设置" aria-label="设置" onClick={() => setSettingsOpen(true)}>
+          <button className="button secondary icon-button topbar-tool-action" title="设置" aria-label="设置" onClick={() => setSettingsOpen(true)}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14" /><circle cx="9" cy="6" r="1.7" /><circle cx="15" cy="12" r="1.7" /><circle cx="11" cy="18" r="1.7" /></svg>
           </button>
-          {canHostRemoteServer() && <button className={`button ${remoteServer ? "primary" : "secondary"} icon-button optional-action`} title={remoteServer ? "关闭局域网网页服务" : "开启局域网网页服务：其他设备通过浏览器操作，本机完成计算"} aria-label={remoteServer ? "关闭局域网网页服务" : "开启局域网网页服务"} onClick={() => void toggleRemoteServer()}>
+          {canHostRemoteServer() && <button className={`button ${remoteServer ? "primary" : "secondary"} icon-button optional-action topbar-tool-action`} title={remoteServer ? "关闭局域网网页服务" : "开启局域网网页服务：其他设备通过浏览器操作，本机完成计算"} aria-label={remoteServer ? "关闭局域网网页服务" : "开启局域网网页服务"} onClick={() => void toggleRemoteServer()}>
             <svg className="airdrop-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2" /><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4" /><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6" /></svg>
           </button>}
-          <button className="button secondary icon-button" title="Python 包管理" aria-label="Python 包管理" onClick={() => void openPackageManager()}>
+          <button className="button secondary icon-button topbar-tool-action" title="Python 包管理" aria-label="Python 包管理" onClick={() => void openPackageManager()}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z" /><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z" /><path d="M12 12v9" /></svg>
           </button>
+          <div className="mobile-tools-overflow">
+            <button type="button" className="button secondary icon-button mobile-tools-overflow__trigger" title="更多工具" aria-label="更多工具" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((open) => !open)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><g className="mobile-tools-overflow__dots"><circle cx="6" cy="9" r="1.35"/><circle cx="12" cy="9" r="1.35"/><circle cx="18" cy="9" r="1.35"/></g><path className="mobile-tools-overflow__chevron" d="m8.75 15.5 3.25 3.1 3.25-3.1"/></svg>
+            </button>
+            {mobileToolsOpen && <div className="mobile-tools-menu" role="menu">
+              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={history.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>撤销</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={future.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>重做</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); setAgentPanelOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.5 5.3L19 10l-5.5 1.7L12 17l-1.5-5.3L5 10l5.5-1.7L12 3Z"/><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"/></svg><span>AI Agent</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); setSettingsOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="11" cy="18" r="1.7"/></svg><span>设置</span></button>
+              {canHostRemoteServer() && <button type="button" onClick={() => { setMobileToolsOpen(false); void toggleRemoteServer(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6"/></svg><span>{remoteServer ? "关闭局域网" : "开启局域网"}</span></button>}
+              <button type="button" onClick={() => { setMobileToolsOpen(false); void openPackageManager(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z"/><path d="M12 12v9"/></svg><span>Python 包管理</span></button>
+              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); requestNewWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>新建工作流</span></button>
+              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); workflowInput.current?.click(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg><span>导入工作流</span></button>
+              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); saveWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4"/><path d="M8 20v-6h8v6"/></svg><span>保存工作流</span></button>
+            </div>}
+          </div>
           <i className="topbar-divider" aria-hidden="true" />
-          <button className="button secondary optional-action" onClick={newWorkflow}>新建</button>
-          <button className="button secondary optional-action" onClick={() => workflowInput.current?.click()}>导入</button>
-          <button className="button secondary optional-action" onClick={saveWorkflow}>保存</button>
+          <button className="button secondary optional-action topbar-file-action" onClick={requestNewWorkflow}>新建</button>
+          <button className="button secondary optional-action topbar-file-action" onClick={() => workflowInput.current?.click()}>导入</button>
+          <button className="button secondary optional-action topbar-file-action" onClick={saveWorkflow}>保存</button>
           <button className="button primary topbar-run" disabled={isRunning} onClick={() => runPrototype()}>{isRunning ? "运行中…" : "运行"}</button>
         </div>
       </header>
 
       {remoteServer && <aside className="remote-server-banner" role="status"><strong>局域网计算服务已开启</strong><code>{remoteServer.url}</code><button onClick={() => void copyRemoteUrl()}>复制地址</button><span>{remoteServer.requiresPin ? `网页端输入校验码：${remoteServer.pin}` : "访问设备与本机需在同一局域网；当前无需校验码。"}</span></aside>}
 
-      <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
+      <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${inspectorDock === "bottom" ? "inspector-bottom" : "inspector-right"} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
         <aside className="node-palette">
           <div className="sidebar-resizer sidebar-resizer--palette" role="separator" aria-orientation="vertical" aria-label="调整节点列表宽度" onPointerDown={(event) => startSidebarResize("palette", event)} />
           <div className="palette-fixed">
             <div className="palette-heading"><h2>资源</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>收起</button></div>
-            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span aria-hidden="true">◆</span>节点</button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span aria-hidden="true">⧉</span>组合</button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span aria-hidden="true">◇</span>流程</button></nav>
+            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">节点</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">组合</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">流程</span></button></nav>
             <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder="搜索内置或导入节点" /><span>{matchedCatalog.length}</span></label>
           </div>
           <div className="palette-content">
@@ -3022,24 +3507,26 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             {[...catalogGroups.entries()].map(([category, specs]) => (
               <section className="palette-group" key={category}>
                 <h3>{category}</h3>
-                {specs.map((spec) => { const resource: PaletteResource = { kind: "node", id: spec.nodeType, label: spec.label }; return <button draggable key={spec.nodeType} title={`按住后拖到画布添加 · ${spec.pythonCallable ?? spec.nodeType}${spec.description ? ` · ${spec.description}` : ""}`} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={() => setPaletteDragPreview(null)} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "catalog-node", entryId: spec.nodeType, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag}>⠿ <strong>{spec.label}</strong>{nodeSearch && <small>{spec.pythonCallable ?? spec.nodeType}</small>}</button>; })}
+                {specs.map((spec) => { const resource: PaletteResource = { kind: "node", id: spec.nodeType, label: spec.label }; return <button draggable={false} key={spec.nodeType} title={`按住后拖到画布添加 · ${spec.pythonCallable ?? spec.nodeType}${spec.description ? ` · ${spec.description}` : ""}`} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "catalog-node", entryId: spec.nodeType, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag}>⠿ <strong>{spec.label}</strong>{nodeSearch && <small>{spec.pythonCallable ?? spec.nodeType}</small>}</button>; })}
               </section>
             ))}
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
-            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable title={`按住后拖到画布添加 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "group", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onClick={() => { if (pointerMode === "mouse") insertGroupTemplate(entry); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
-            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); openFlowMenu(entry, event.clientX, event.clientY); }} onPointerDown={(event) => { startFlowLongPress(event, entry); onPalettePointerDown(event, resource); }} onPointerMove={onPalettePointerMove} onPointerUp={(event) => { clearFlowLongPress(); onPalettePointerUp(event); }} onPointerCancel={() => { clearFlowLongPress(); clearPaletteDrag(); }} onPointerLeave={clearFlowLongPress} onClick={() => { if (flowLongPressHandled.current) { flowLongPressHandled.current = false; return; } openLibraryFlow(entry); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
+            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`按住后拖到画布添加 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "group", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onClick={() => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (pointerMode === "mouse") insertGroupTemplate(entry); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => { event.preventDefault(); openFlowMenu(entry, event.clientX, event.clientY); }} onPointerDown={(event) => { startFlowLongPress(event, entry); onPalettePointerDown(event, resource); }} onPointerMove={onPalettePointerMove} onPointerUp={(event) => { clearFlowLongPress(); onPalettePointerUp(event); }} onPointerCancel={() => { clearFlowLongPress(); clearPaletteDrag(); }} onPointerLeave={clearFlowLongPress} onClick={() => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (flowLongPressHandled.current) { flowLongPressHandled.current = false; return; } openLibraryFlow(entry); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
 
         <section
-          className="canvas-panel"
+          ref={canvasPanelRef}
+          className={`canvas-panel ${touchMarquee ? "touch-marquee-active" : ""}`}
           onPointerDownCapture={onCanvasPointerDown}
           onPointerMoveCapture={onCanvasPointerMove}
-          onPointerUpCapture={clearLongPress}
-          onPointerCancelCapture={clearLongPress}
-          onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }}
+          onPointerUpCapture={onCanvasPointerUp}
+          onPointerCancelCapture={onCanvasPointerCancel}
+          onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; updatePaletteDragPreviewAt(event.clientX, event.clientY); } }}
           onDrop={onCanvasDrop}
         >
+          {touchMarquee && <div className="touch-marquee" aria-hidden="true" style={{ left: Math.min(touchMarquee.startX, touchMarquee.currentX), top: Math.min(touchMarquee.startY, touchMarquee.currentY), width: Math.abs(touchMarquee.currentX - touchMarquee.startX), height: Math.abs(touchMarquee.currentY - touchMarquee.startY) }} />}
           {viewMode === "nodes" ? <NodeLayoutContext.Provider value={resolvedLayoutDirection}><NodeAppearanceContext.Provider value={{ nodeScale, endpointScale }}><NodeSelectionContext.Provider value={{ active: selectionMode, toggle: toggleNodeSelection, remove: (nodeId) => deleteNodes([nodeId]) }}><NodeInsightContext.Provider value={{ visible: showNodeInsights, results: result?.nodeResults ?? {} }}><EdgeActionsContext.Provider value={{ disconnect: (ids) => disconnectEdges(ids) }}><ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}
@@ -3089,7 +3576,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             }}
             onPaneClick={() => { if (!selectionMode) { setSelectedId(null); setSelectedIds([]); } }}
             selectionOnDrag={finePointer && pointerMode === "mouse"}
-            panOnDrag={finePointer && pointerMode === "mouse" ? [1, 2] : true}
+            panOnDrag={finePointer && pointerMode === "mouse" ? [1, 2] : false}
             deleteKeyCode={null}
             proOptions={{ hideAttribution: true }}
             fitView
@@ -3140,7 +3627,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           </nav>
           {viewMode === "nodes" && currentCanvasId && <nav className="canvas-breadcrumb" aria-label="画布层级"><button onClick={() => leaveSubflowGroup(null)}>← 返回主流程</button>{canvasTrail.map((group, index) => <span key={group.id}>› <button className={index === canvasTrail.length - 1 ? "active" : ""} onClick={() => leaveSubflowGroup(group.id)}>{group.data.label}</button></span>)}</nav>}
           {paletteDragPreview && <div className={`palette-drag-preview palette-drag-preview--${paletteDragPreview.kind} ${paletteDragPreview.overCanvas ? "over-canvas" : ""}`} style={{ left: paletteDragPreview.x, top: paletteDragPreview.y }}><span>{paletteDragPreview.kind === "group" ? "⧉" : paletteDragPreview.kind === "flow" ? "◇" : "◆"}</span><div><strong>{paletteDragPreview.label}</strong><small>{paletteDragPreview.overCanvas ? "松开放置" : "拖到画布"}</small></div></div>}
-          {viewMode === "nodes" && currentCanvasId && (() => { const group = nodes.find((node) => node.id === currentCanvasId); return group ? <aside className="group-interface"><span><i>输入</i>{(group.data.groupInputs ?? []).map((port) => <b key={port.id}>{port.label} → {nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId}</b>)}</span><span><i>输出</i>{(group.data.groupOutputs ?? []).map((port) => <b key={port.id}>{nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId} → {port.label}</b>)}</span></aside> : null; })()}
+          {viewMode === "nodes" && currentCanvasId && (() => { const group = nodes.find((node) => node.id === currentCanvasId); return group ? <aside className="group-interface"><span><i>输入</i><span className="group-interface__ports">{(group.data.groupInputs ?? []).map((port) => <b key={port.id}>{port.label} → {nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId}</b>)}</span></span><span><i>输出</i><span className="group-interface__ports">{(group.data.groupOutputs ?? []).map((port) => <b key={port.id}>{nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId} → {port.label}</b>)}</span></span></aside> : null; })()}
           {paletteCollapsed && <button className="palette-toggle" onClick={() => setPaletteCollapsed(false)}>显示节点</button>}
           {inspectorCollapsed && <button className="inspector-toggle" onClick={() => setInspectorCollapsed(false)}>显示参数</button>}
           {contextMenu && (
@@ -3179,8 +3666,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             const label = catalog?.label ?? saved?.name ?? group?.name ?? "资源";
             return <div className="context-menu resource-context-menu" style={{ left: Math.min(resourceMenu.x, window.innerWidth - 210), top: Math.min(resourceMenu.y, window.innerHeight - 240) }} role="menu" aria-label="资源操作" onContextMenu={(event) => event.preventDefault()}><strong>{label}</strong>
               <button onClick={() => { if (catalog) addNodeFromCatalog(catalog.nodeType); else if (saved) insertSavedNode(saved); else if (group) insertGroupTemplate(group); setResourceMenu(null); }}>添加到画布</button>
-              {saved && <button onClick={() => { const name = window.prompt("节点名称", saved.name)?.trim(); if (name) setSavedNodeLibrary((current) => current.map((item) => item.id === saved.id ? { ...item, name } : item)); setResourceMenu(null); }}>重命名</button>}
-              {group && !group.builtIn && <button onClick={() => { const name = window.prompt("组合名称", group.name)?.trim(); if (name) setGroupLibrary((current) => current.map((item) => item.id === group.id ? { ...item, name, nodes: item.nodes.map((node) => node.data.nodeType === "workflow.group" ? { ...node, data: { ...node.data, label: name } } : node) } : item)); setResourceMenu(null); }}>重命名</button>}
+              {saved && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名节点", label: "节点名称", value: saved.name }).then((value) => { const name = value?.trim(); if (name) setSavedNodeLibrary((current) => current.map((item) => item.id === saved.id ? { ...item, name } : item)); }); }}>重命名</button>}
+              {group && !group.builtIn && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名组合", label: "组合名称", value: group.name }).then((value) => { const name = value?.trim(); if (name) setGroupLibrary((current) => current.map((item) => item.id === group.id ? { ...item, name, nodes: item.nodes.map((node) => node.data.nodeType === "workflow.group" ? { ...node, data: { ...node.data, label: name } } : node) } : item)); }); }}>重命名</button>}
               {saved && <button className="danger" onClick={() => { setSavedNodeLibrary((current) => current.filter((item) => item.id !== saved.id)); setResourceMenu(null); }}>删除我的节点</button>}
               {group && !group.builtIn && <button className="danger" onClick={() => { setGroupLibrary((current) => current.filter((item) => item.id !== group.id)); setResourceMenu(null); }}>删除组合</button>}
             </div>;
@@ -3193,18 +3680,24 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         </section>
 
         <aside className="inspector">
-          <div className="sidebar-resizer sidebar-resizer--inspector" role="separator" aria-orientation="vertical" aria-label="调整参数列表宽度" onPointerDown={(event) => startSidebarResize("inspector", event)} />
+          <div className="sidebar-resizer sidebar-resizer--inspector" role="separator" aria-orientation={inspectorDock === "bottom" ? "horizontal" : "vertical"} aria-label={inspectorDock === "bottom" ? "调整参数面板高度" : "调整参数面板宽度"} onPointerDown={(event) => startSidebarResize("inspector", event)} />
           <div className="inspector-scroll">
           <div className="inspector__heading">
             <h2>参数</h2>
+            <div className="inspector__heading-tools">
+              <div className="inspector-dock-switch" role="group" aria-label="参数面板位置">
+                <button type="button" className={inspectorDock === "right" ? "active" : ""} title="参数面板放在右侧" onClick={() => setInspectorDock("right")}>右侧</button>
+                <button type="button" className={inspectorDock === "bottom" ? "active" : ""} title="参数面板放在底部" onClick={() => setInspectorDock("bottom")}>底部</button>
+              </div>
             <div className="inspector__actions">
               {selectedNode && <>{selectedNode.data.nodeType !== "workflow.group" && <button className="download-link" onClick={duplicateSelectedNode}>复制</button>}<button className="danger-link" onClick={deleteSelectedNode}>删除</button></>}
               <button className="download-link" onClick={() => setInspectorCollapsed(true)}>收起</button>
             </div>
+            </div>
           </div>
           {selectedNode ? (
             <>
-              <div className="inspector__node-type">{selectedNode.data.nodeType}</div>
+              <div className="inspector__selection"><strong className="inspector__node-name">{selectedNode.data.label}</strong><span className="inspector__node-type">{selectedNode.data.nodeType}</span></div>
               {selectedNodeResult && <section className="node-result-inspector" title="双击展开、编辑和复制" tabIndex={0} onDoubleClick={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined })}><h3>本节点结果 <small>双击展开</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpanded(true); }}><img className="plot-preview" src={`data:image/png;base64,${preview.plotPngBase64}`} alt="节点图表结果" /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
               {selectedNode.data.nodeType === "workflow.group" && <section className="group-settings">
                 <label>组名称<input value={selectedNode.data.label} onChange={(event) => updateSelectedGroupLabel(event.target.value)} /></label>
@@ -3213,6 +3706,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
                 <div><strong>公开输出</strong>{(selectedNode.data.groupOutputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("output", port.id, event.target.value)} /></label>)}</div>
                 <small>端口由组合时跨越组边界的连线自动生成；内部连线和节点参数在子画布中编辑。</small>
               </section>}
+              <div className="inspector-node-overview">
               {["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{selectedNode.data.nodeType === "io.read_csv_batch" ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
               {selectedNode.data.nodeType !== "workflow.group" && selectedSpec?.pythonCallable && (
                 <div className="callable-signature">
@@ -3222,6 +3716,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
                   {selectedSpec.excludedSignatureParameters?.length ? <small>未生成：{selectedSpec.excludedSignatureParameters.join(", ")}（浏览器文件输入、返回迭代器或可执行回调与表格节点模型不兼容）</small> : null}
                 </div>
               )}
+              </div>
               <div className="node-organization">
                 <label>节点标签<input value={(selectedNode.data.tags ?? []).join(",")} placeholder="清洗,关键步骤" onChange={(event) => updateSelectedTags(event.target.value)} /></label>
                 <label>加入分组<span><input value={groupName} placeholder="我的常用" onChange={(event) => setGroupName(event.target.value)} /><button onClick={addSelectedToGroup}>加入</button></span></label>
@@ -3260,7 +3755,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               )}
               {selectedSpec ? <>
                 {renderParameterFields(basicParameters)}
-                {advancedParameters.length > 0 && <details className="advanced-parameters"><summary>高级参数 <span>{advancedParameters.length}</span></summary>{renderParameterFields(advancedParameters)}</details>}
+                {advancedParameters.length > 0 && <details className="advanced-parameters"><summary>高级参数 <span>{advancedParameters.length}</span></summary><div className="advanced-parameters__grid">{renderParameterFields(advancedParameters)}</div></details>}
               </> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
                 <label className="field" key={key}><span>{key}</span><input value={String(value ?? "")} onChange={(event) => updateParameter(key, event.target.value)} /></label>
               ))}
@@ -3295,6 +3790,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       {plotExpanded && result?.plotPngBase64 && <PlotLightbox open={plotExpanded} src={`data:image/png;base64,${result.plotPngBase64}`} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpanded(false)} />}
       {resultDetail && <ResultDetailDialog detail={resultDetail} onClose={() => setResultDetail(null)} onCopy={() => void navigator.clipboard.writeText(resultDetail.text).then(() => setMessage("节点结果已复制"))} onTextChange={(text) => setResultDetail((current) => current ? { ...current, text } : null)} />}
       {executionError && errorDetailOpen && <ErrorDetailDialog error={executionError} open={errorDetailOpen} canLocate={Boolean(executionError.nodeId && nodes.some((node) => node.id === executionError.nodeId))} onClose={() => setErrorDetailOpen(false)} onLocate={(nodeId) => locateNode(nodeId)} onCopy={() => void navigator.clipboard.writeText(`${executionError.nodeType ?? "workflow"} (${executionError.nodeId ?? "unknown"})\n${executionError.message}\n${executionError.traceback ?? ""}`)} />}
+      <NewWorkflowDialog open={newWorkflowDialogOpen} onCurrentTab={chooseNewInCurrentTab} onNewTab={chooseNewTab} onCancel={() => setNewWorkflowDialogOpen(false)} />
+      <UnsavedChangesDialog open={replaceCurrentUnsavedOpen} title="是否保存当前标签页？" message={`“${tabName}”包含尚未保存的修改。保存后将继续在当前标签页创建空白工作流。`} onSave={saveThenReplaceCurrentWorkflow} onDiscard={discardThenReplaceCurrentWorkflow} onCancel={() => setReplaceCurrentUnsavedOpen(false)} />
+      {confirmDialog && <ConfirmDialog open title={confirmDialog.title} message={confirmDialog.message} confirmLabel={confirmDialog.confirmLabel} danger={confirmDialog.danger} onCancel={() => { confirmDialog.resolve(false); setConfirmDialog(null); }} onConfirm={() => { confirmDialog.resolve(true); setConfirmDialog(null); }} />}
+      {textPromptDialog && <TextPromptDialog open title={textPromptDialog.title} label={textPromptDialog.label} value={textPromptDialog.value} confirmLabel={textPromptDialog.confirmLabel} onValueChange={(value) => setTextPromptDialog((current) => current ? { ...current, value } : null)} onCancel={() => { textPromptDialog.resolve(null); setTextPromptDialog(null); }} onConfirm={() => { const value = textPromptDialog.value.trim(); if (!value) return; textPromptDialog.resolve(value); setTextPromptDialog(null); }} />}
     </div>
   );
 }
@@ -3339,6 +3838,95 @@ function TabBar() {
   const [pointerMode] = useState<"mouse" | "touch">(() => window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse");
   const longPressTimer = useRef<number | null>(null);
   const longPressHandled = useRef(false);
+  const tabLongPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const touchCloseTimer = useRef<number | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const tabRefs = useRef(new Map<string, HTMLDivElement>());
+  const scrollActiveId = api?.activeId ?? null;
+  const scrollTabCount = api?.tabs.length ?? 0;
+
+  useEffect(() => {
+    if (!scrollActiveId) return;
+    const activeTab = tabRefs.current.get(scrollActiveId);
+    if (!activeTab) return;
+    const scroller = scrollerRef.current;
+    if (!scroller) return;
+    const left = activeTab.offsetLeft;
+    const right = left + activeTab.offsetWidth;
+    const viewLeft = scroller.scrollLeft;
+    const viewRight = viewLeft + scroller.clientWidth;
+    if (left < viewLeft) scroller.scrollTo({ left: Math.max(0, left - 8), behavior: "smooth" });
+    else if (right > viewRight) scroller.scrollTo({ left: right - scroller.clientWidth + 8, behavior: "smooth" });
+  }, [scrollActiveId, scrollTabCount]);
+
+  const clearLongPress = () => {
+    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    tabLongPressOrigin.current = null;
+  };
+
+  const clearTouchCloseTimer = () => {
+    if (touchCloseTimer.current !== null) window.clearTimeout(touchCloseTimer.current);
+    touchCloseTimer.current = null;
+  };
+
+  const hideTouchClose = () => {
+    clearTouchCloseTimer();
+    setTouchCloseId(null);
+  };
+
+  const revealTouchClose = (id: string) => {
+    clearTouchCloseTimer();
+    setTouchCloseId(id);
+    touchCloseTimer.current = window.setTimeout(() => {
+      setTouchCloseId((current) => current === id ? null : current);
+      touchCloseTimer.current = null;
+    }, 3200);
+  };
+
+  const openTouchTabMenu = (id: string, x: number, y: number) => {
+    revealTouchClose(id);
+    setTabMenu({
+      tabId: id,
+      x: Math.max(8, Math.min(x, window.innerWidth - 170)),
+      y: Math.max(8, Math.min(y, window.innerHeight - 130)),
+    });
+  };
+
+  const startLongPress = (id: string, x: number, y: number, element: HTMLElement) => {
+    longPressHandled.current = false;
+    clearLongPress();
+    tabLongPressOrigin.current = { x, y };
+    longPressTimer.current = window.setTimeout(() => {
+      longPressHandled.current = true;
+      const bounds = element.getBoundingClientRect();
+      openTouchTabMenu(id, bounds.left + Math.min(bounds.width * .55, 56), bounds.bottom + 5);
+      navigator.vibrate?.(18);
+      longPressTimer.current = null;
+      tabLongPressOrigin.current = null;
+    }, 500);
+  };
+
+  useEffect(() => () => {
+    clearLongPress();
+    clearTouchCloseTimer();
+  }, []);
+
+  useEffect(() => {
+    if (!touchCloseId && !tabMenu) return;
+    const dismiss = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target) return;
+      if (target.closest(".tab-context-menu") || target.closest(".tabbar__close")) return;
+      const tab = target.closest<HTMLElement>(".tabbar__tab");
+      if (tab && tab.dataset.tabId === touchCloseId) return;
+      hideTouchClose();
+      setTabMenu(null);
+    };
+    window.addEventListener("pointerdown", dismiss, true);
+    return () => window.removeEventListener("pointerdown", dismiss, true);
+  }, [touchCloseId, tabMenu]);
+
   if (!api) return null;
   const { tabs, activeId, selectTab, addTab, closeTab, renameTab, reorderTab } = api;
 
@@ -3348,29 +3936,21 @@ function TabBar() {
     setEditingId(null);
   };
 
-  const clearLongPress = () => {
-    if (longPressTimer.current !== null) window.clearTimeout(longPressTimer.current);
-    longPressTimer.current = null;
-  };
 
-  const startLongPress = (id: string) => {
-    longPressHandled.current = false;
-    clearLongPress();
-    longPressTimer.current = window.setTimeout(() => {
-      longPressHandled.current = true;
-      setTouchCloseId((current) => (current === id ? null : id));
-    }, 500);
-  };
 
   return (
     <>
       <nav className="tabbar" role="tablist" aria-label="工作流标签页">
+        <div className="tabbar__scroller" ref={scrollerRef} onScroll={() => { hideTouchClose(); setTabMenu(null); }}>
+          <div className="tabbar__track">
         {tabs.map((tab) => {
           const isActive = tab.id === activeId;
           const isEditing = editingId === tab.id;
           return (
             <div
               key={tab.id}
+              data-tab-id={tab.id}
+              ref={(element) => { if (element) tabRefs.current.set(tab.id, element); else tabRefs.current.delete(tab.id); }}
               role="tab"
               aria-selected={isActive}
               className={`tabbar__tab ${isActive ? "active" : ""} ${dragOverId === tab.id ? "drag-over" : ""}`}
@@ -3380,9 +3960,35 @@ function TabBar() {
               onDragLeave={() => setDragOverId((current) => current === tab.id ? null : current)}
               onDrop={(event) => { event.preventDefault(); setDragOverId(null); const dragged = event.dataTransfer.getData("application/pydroid-tab"); if (dragged) reorderTab(dragged, tab.id); }}
               onDragEnd={() => setDragOverId(null)}
-              onClick={() => { if (!longPressHandled.current) selectTab(tab.id); }}
-              onContextMenu={(event) => { event.preventDefault(); setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY }); }}
-              onPointerDown={(event) => { if (event.pointerType === "touch") startLongPress(tab.id); }}
+              onClick={(event) => {
+                if (longPressHandled.current) { longPressHandled.current = false; return; }
+                if (touchCloseId && touchCloseId !== tab.id) hideTouchClose();
+                selectTab(tab.id);
+                const element = event.currentTarget;
+                window.requestAnimationFrame(() => {
+                  const scroller = scrollerRef.current;
+                  if (!scroller) return;
+                  const left = element.offsetLeft;
+                  const right = left + element.offsetWidth;
+                  if (left < scroller.scrollLeft) scroller.scrollTo({ left: Math.max(0, left - 8), behavior: "smooth" });
+                  else if (right > scroller.scrollLeft + scroller.clientWidth) scroller.scrollTo({ left: right - scroller.clientWidth + 8, behavior: "smooth" });
+                });
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (pointerMode === "touch") {
+                  if (!longPressHandled.current) openTouchTabMenu(tab.id, event.clientX, event.clientY);
+                  return;
+                }
+                setTabMenu({ tabId: tab.id, x: event.clientX, y: event.clientY });
+              }}
+              onPointerDown={(event) => { if (event.pointerType === "touch") startLongPress(tab.id, event.clientX, event.clientY, event.currentTarget); }}
+              onPointerMove={(event) => {
+                if (event.pointerType !== "touch") return;
+                const origin = tabLongPressOrigin.current;
+                if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 9) clearLongPress();
+              }}
               onPointerUp={clearLongPress}
               onPointerLeave={clearLongPress}
               onPointerCancel={clearLongPress}
@@ -3408,22 +4014,24 @@ function TabBar() {
                   className={`tabbar__close ${touchCloseId === tab.id ? "visible" : ""}`}
                   title="关闭标签页"
                   aria-label={`关闭 ${tab.name}`}
-                  onClick={(event) => { event.stopPropagation(); closeTab(tab.id); }}
-                >×</button>
+                  onClick={(event) => { event.stopPropagation(); hideTouchClose(); setTabMenu(null); closeTab(tab.id); }}
+                ><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5 14.5 14.5M14.5 5.5 5.5 14.5" /></svg></button>
               )}
             </div>
           );
         })}
+          </div>
+        </div>
         <button type="button" className="tabbar__add" title="新建标签页" aria-label="新建标签页" onClick={addTab}>+</button>
       </nav>
       {tabMenu && (() => {
         const menuHeight = 110;
         const opensAbove = tabMenu.y > window.innerHeight - menuHeight - 12;
         return (
-          <div className="tab-context-menu" style={{ left: tabMenu.x, top: opensAbove ? tabMenu.y - menuHeight : tabMenu.y }} onClick={() => setTabMenu(null)}>
-            <button type="button" onClick={() => { setEditingId(tabMenu.tabId); const target = tabs.find((tab) => tab.id === tabMenu.tabId); setEditingName(target?.name ?? ""); setTabMenu(null); }}>重命名</button>
-            <button type="button" onClick={() => { closeTab(tabMenu.tabId); setTabMenu(null); }} disabled={tabs.length <= 1}>关闭标签页</button>
-            <button type="button" onClick={() => setTabMenu(null)}>取消</button>
+          <div className="tab-context-menu" style={{ left: tabMenu.x, top: opensAbove ? tabMenu.y - menuHeight : tabMenu.y }}>
+            <button type="button" onClick={() => { setEditingId(tabMenu.tabId); const target = tabs.find((tab) => tab.id === tabMenu.tabId); setEditingName(target?.name ?? ""); hideTouchClose(); setTabMenu(null); }}>重命名</button>
+            <button type="button" onClick={() => { hideTouchClose(); closeTab(tabMenu.tabId); setTabMenu(null); }} disabled={tabs.length <= 1}>关闭标签页</button>
+            <button type="button" onClick={() => { hideTouchClose(); setTabMenu(null); }}>取消</button>
           </div>
         );
       })()}
@@ -3454,9 +4062,10 @@ function TitleBar() {
     const unsubscribe = controls.onMaximizedChanged(setMaximized);
     return () => { mounted = false; unsubscribe(); };
   }, [controls]);
+  if (!controls && Capacitor.isNativePlatform()) return null;
   return (
     <header className="titlebar">
-      <div className="titlebar__brand"><strong>PyDroid Flow</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式 Python 数据处理"}</span></div>
+      <div className="titlebar__brand"><strong>PyDroid Node</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式 Python 数据处理"}</span></div>
       {controls && (
         <div className="titlebar__controls">
           <button type="button" title="最小化" aria-label="最小化" onClick={() => controls.minimize()}><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" /></svg></button>
@@ -3469,14 +4078,29 @@ function TitleBar() {
 }
 
 function MultiTabWorkspace() {
-  const [themeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
-  const [systemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
+  const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const resolvedTheme: "dark" | "light" = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
-  const [tabs, setTabs] = useState<WorkspaceTab[]>(() => {
-    const loaded = loadWorkspaceTabs();
-    return loaded.length ? loaded : [{ id: "default", name: "工作流 1" }];
-  });
-  const [activeId, setActiveId] = useState<string>(() => loadWorkspaceTabs()[0]?.id ?? "default");
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setSystemDark(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+  useEffect(() => {
+    document.documentElement.dataset.theme = resolvedTheme;
+    document.documentElement.style.colorScheme = resolvedTheme;
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", resolvedTheme === "dark" ? "#0b1020" : "#f4f7fb");
+    if (Capacitor.isNativePlatform()) void UiChrome.setTheme({ dark: resolvedTheme === "dark" }).catch(() => undefined);
+  }, [resolvedTheme]);
+  // A new app session always starts from one predictable, empty workspace.
+  const emptySnapshot: WorkflowSnapshot = { nodes: [], edges: [], requirements: [] };
+  const emptyRuntimeState: WorkspaceRuntimeState = { snapshot: emptySnapshot, savedSignature: workflowSnapshotSignature(emptySnapshot) };
+  const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
+  const [activeId, setActiveId] = useState<string>("default");
+  const runtimeStatesRef = useRef<Map<string, WorkspaceRuntimeState>>(new Map([["default", emptyRuntimeState]]));
+  const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
@@ -3484,14 +4108,24 @@ function MultiTabWorkspace() {
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
 
-  const addTab = () => {
-    const id = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    const name = `工作流 ${tabs.length + 1}`;
-    setTabs((current) => [...current, { id, name }]);
-    setActiveId(id);
-  };
+  const updateRuntimeState = useCallback((tabId: string, state: WorkspaceRuntimeState) => {
+    runtimeStatesRef.current.set(tabId, state);
+  }, []);
 
-  const closeTab = (id: string) => {
+  const addTab = useCallback(() => {
+    const id = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    setTabs((current) => {
+      const usedNumbers = new Set(current.map((tab) => Number(tab.name.match(/^工作流\s+(\d+)$/)?.[1])).filter(Number.isFinite));
+      let number = 1;
+      while (usedNumbers.has(number)) number += 1;
+      const name = `工作流 ${number}`;
+      runtimeStatesRef.current.set(id, { snapshot: { nodes: [], edges: [], requirements: [] }, savedSignature: workflowSnapshotSignature({ nodes: [], edges: [], requirements: [] }) });
+      return [...current, { id, name }];
+    });
+    setActiveId(id);
+  }, []);
+
+  const performCloseTab = useCallback((id: string) => {
     setTabs((current) => {
       if (current.length <= 1) return current;
       const index = current.findIndex((tab) => tab.id === id);
@@ -3500,9 +4134,41 @@ function MultiTabWorkspace() {
         const neighbor = next[Math.max(0, index - 1)];
         if (neighbor) setActiveId(neighbor.id);
       }
+      runtimeStatesRef.current.delete(id);
+      localStorage.removeItem(`${AUTOSAVE_KEY}.${id}`);
       return next;
     });
-  };
+  }, [activeId]);
+
+  const closeTab = useCallback((id: string) => {
+    if (tabs.length <= 1) return;
+    const state = runtimeStatesRef.current.get(id) ?? emptyRuntimeState;
+    if (workflowSnapshotSignature(state.snapshot) === state.savedSignature) {
+      performCloseTab(id);
+      return;
+    }
+    setPendingCloseTabId(id);
+  }, [emptyRuntimeState, performCloseTab, tabs.length]);
+
+  const savePendingTabAndClose = useCallback(() => {
+    if (!pendingCloseTabId) return;
+    const tab = tabs.find((item) => item.id === pendingCloseTabId);
+    const state = runtimeStatesRef.current.get(pendingCloseTabId);
+    if (!tab || !state) { setPendingCloseTabId(null); return; }
+    persistWorkflowSnapshot(state.snapshot, tab.name);
+    const savedSignature = workflowSnapshotSignature(state.snapshot);
+    runtimeStatesRef.current.set(pendingCloseTabId, { ...state, savedSignature });
+    const id = pendingCloseTabId;
+    setPendingCloseTabId(null);
+    performCloseTab(id);
+  }, [pendingCloseTabId, performCloseTab, tabs]);
+
+  const discardPendingTabAndClose = useCallback(() => {
+    if (!pendingCloseTabId) return;
+    const id = pendingCloseTabId;
+    setPendingCloseTabId(null);
+    performCloseTab(id);
+  }, [pendingCloseTabId, performCloseTab]);
 
   const renameTab = (id: string, name: string) => {
     setTabs((current) => current.map((tab) => (tab.id === id ? { ...tab, name } : tab)));
@@ -3527,7 +4193,8 @@ function MultiTabWorkspace() {
     <TabsContext.Provider value={api}>
       <div className="workspace-shell" data-theme={resolvedTheme}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor tabId={activeTab.id} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor tabId={activeTab.id} tabName={activeTab.name} initialRuntimeState={runtimeStatesRef.current.get(activeTab.id)} onRuntimeStateChange={updateRuntimeState} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
+        <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>
   );

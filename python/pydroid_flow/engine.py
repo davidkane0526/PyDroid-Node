@@ -873,34 +873,46 @@ def _execute_custom_function(code: str, upstream: dict[str, Any], params: dict[s
     exec(compile(tree, "<custom-node>", "exec"), namespace, namespace)
     function = namespace[functions[0]]
     signature = inspect.signature(function)
-    arguments: dict[str, Any] = {}
+    provided: dict[str, Any] = {}
     for name, parameter in signature.parameters.items():
+        if parameter.kind in {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}:
+            raise ValueError("Custom functions do not support *args/**kwargs parameters")
         descriptor = _annotation_descriptor(parameter.annotation)
         kind = descriptor.get("kind")
         if not kind or kind == "tuple":
             raise ValueError(f"Parameter {name} has no supported type annotation; use table/plot/csv/number/text/boolean/list/Literal/Any (or Optional[...])")
         if kind in {"table", "plot", "csv", "any"}:
             if name in upstream:
-                arguments[name] = upstream[name]
+                provided[name] = upstream[name]
             elif parameter.default is inspect.Parameter.empty:
                 if descriptor.get("optional"):
-                    arguments[name] = None
+                    provided[name] = None
                 else:
                     raise ValueError(f"Required input {name} is not connected")
             continue
         if name not in params or params[name] in {None, ""}:
             if parameter.default is inspect.Parameter.empty:
                 if descriptor.get("optional"):
-                    arguments[name] = None
+                    provided[name] = None
                 else:
                     raise ValueError(f"Required parameter {name} has no value")
             continue
-        arguments[name] = _convert_custom_parameter(params[name], descriptor)
+        provided[name] = _convert_custom_parameter(params[name], descriptor)
 
     output_descriptor = _annotation_descriptor(signature.return_annotation)
     if not output_descriptor.get("kind"):
         raise ValueError("Custom function return value has no supported type annotation; use table/plot/csv/number/text/boolean/list/Any (or tuple['a:table', ...])")
-    value = function(**arguments)
+    positional_arguments: list[Any] = []
+    keyword_arguments: dict[str, Any] = {}
+    for name, parameter in signature.parameters.items():
+        if parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
+            if name in provided:
+                positional_arguments.append(provided[name])
+            elif parameter.default is not inspect.Parameter.empty:
+                positional_arguments.append(parameter.default)
+        elif name in provided:
+            keyword_arguments[name] = provided[name]
+    value = function(*positional_arguments, **keyword_arguments)
     if output_descriptor["kind"] == "tuple":
         descriptors = output_descriptor["outputs"]
         if not isinstance(value, tuple) or len(value) != len(descriptors):
@@ -935,19 +947,19 @@ def analyze_signature_json(code: str) -> str:
 
     input_ports: list[dict[str, Any]] = []
     parameters: list[dict[str, Any]] = []
+    if fn.args.vararg or fn.args.kwarg:
+        return json.dumps({"error": "自定义节点不支持 *args/**kwargs 可变参数"}, ensure_ascii=False)
 
-    pos_args = list(fn.args.args)
-    defaults = [None] * (len(pos_args) - len(fn.args.defaults)) + [ast.unparse(default) for default in fn.args.defaults]
-    for arg, default in zip(pos_args, defaults):
+    def add_argument(arg: ast.arg, default: str | None) -> str | None:
         descriptor = descriptor_for(arg.annotation)
         kind = descriptor.get("kind")
         if not kind:
-            return json.dumps({"error": f"参数 {arg.arg} 缺少受支持的类型标注"}, ensure_ascii=False)
+            return f"参数 {arg.arg} 缺少受支持的类型标注"
         optional = bool(descriptor.get("optional"))
         required = default is None and not optional
         if kind in {"table", "plot", "csv", "any"}:
             input_ports.append({"id": arg.arg, "label": arg.arg, "valueType": kind, "required": required})
-            continue
+            return None
         parameter_kind = (
             "select" if kind == "literal" else
             "boolean" if kind == "boolean" else
@@ -960,6 +972,17 @@ def analyze_signature_json(code: str) -> str:
             "key": arg.arg, "label": arg.arg, "kind": parameter_kind,
             "required": required, "defaultValue": default,
         })
+        return None
+
+    positional_args = [*fn.args.posonlyargs, *fn.args.args]
+    positional_defaults = [None] * (len(positional_args) - len(fn.args.defaults)) + [ast.unparse(default) for default in fn.args.defaults]
+    for arg, default in zip(positional_args, positional_defaults, strict=True):
+        if error := add_argument(arg, default):
+            return json.dumps({"error": error}, ensure_ascii=False)
+    for arg, default_node in zip(fn.args.kwonlyargs, fn.args.kw_defaults, strict=True):
+        default = ast.unparse(default_node) if default_node is not None else None
+        if error := add_argument(arg, default):
+            return json.dumps({"error": error}, ensure_ascii=False)
 
     return_descriptor = descriptor_for(fn.returns)
     if return_descriptor.get("kind") == "tuple":

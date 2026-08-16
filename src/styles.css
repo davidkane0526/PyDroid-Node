@@ -792,3 +792,2163 @@ button, input, select, textarea { font: inherit; }
   .package-list article { grid-template-columns: minmax(0, 1fr) auto auto; }
   .package-list article > div { grid-column: 1; }
 }
+
+/* 1.4.9 responsive shell correction: native header, orientation-aware inspector and restrained light shadows. */
+.mobile-brand { display: none; }
+.inspector__heading-tools { display: flex; min-width: 0; align-items: center; gap: 8px; }
+.inspector-dock-switch { display: inline-flex; flex: none; padding: 2px; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--surface-deep); }
+.inspector-dock-switch button { min-width: 38px; padding: 4px 6px; border: 0; border-radius: 5px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: var(--font-xs); }
+.inspector-dock-switch button.active { color: var(--text-bright); background: var(--surface-hover); box-shadow: inset 0 0 0 1px var(--border); }
+
+/* Inspector docking is explicit. Portrait JS chooses bottom; landscape defaults to right but may be switched by the user. */
+.workspace.inspector-bottom { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--inspector-height, 220px); }
+.workspace.inspector-bottom.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.workspace.inspector-bottom.inspector-collapsed { grid-template-rows: minmax(0, 1fr) 0; }
+.workspace.inspector-bottom.palette-collapsed.inspector-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
+.workspace.inspector-bottom .inspector { display: block; grid-column: 2; grid-row: 2; padding: 0; border-left: 0; border-top: 1px solid var(--border-soft); }
+.workspace.inspector-bottom.inspector-collapsed .inspector { display: none; }
+.workspace.inspector-bottom .sidebar-resizer--inspector { display: block; top: -6px; right: 0; bottom: auto; left: 0; width: auto; height: 12px; cursor: row-resize; }
+.workspace.inspector-bottom .sidebar-resizer--inspector::after { top: 4px; right: 50%; bottom: auto; left: auto; width: 62px; height: 5px; transform: translateX(50%); }
+.workspace.inspector-bottom.result-bottom { grid-template-rows: minmax(0, 1fr) var(--inspector-height, 220px) var(--result-height, 280px); }
+.workspace.inspector-bottom.inspector-collapsed.result-bottom { grid-template-rows: minmax(0, 1fr) 0 var(--result-height, 280px); }
+.workspace.inspector-bottom .result-panel--bottom { grid-column: 2; grid-row: 3; }
+
+.workspace.inspector-right { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) var(--inspector-width, 320px); grid-template-rows: minmax(0, 1fr); }
+.workspace.inspector-right.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--inspector-width, 320px); }
+.workspace.inspector-right.inspector-collapsed { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) 0; }
+.workspace.inspector-right.palette-collapsed.inspector-collapsed { grid-template-columns: 0 minmax(0, 1fr) 0; }
+.workspace.inspector-right .inspector { display: block; grid-column: 3; grid-row: 1 / -1; padding: 12px 14px; border-top: 0; border-left: 1px solid var(--border-soft); }
+.workspace.inspector-right.inspector-collapsed .inspector { display: none; }
+.workspace.inspector-right .sidebar-resizer--inspector { display: block; top: 0; right: auto; bottom: 0; left: -6px; width: 12px; height: auto; cursor: col-resize; }
+.workspace.inspector-right .sidebar-resizer--inspector::after { top: 0; right: auto; bottom: 0; left: 4px; width: 5px; height: auto; transform: none; }
+.workspace.inspector-right.result-bottom { grid-template-rows: minmax(0, 1fr) var(--result-height, 280px); }
+.workspace.inspector-right .result-panel--bottom { grid-column: 2 / 4; grid-row: 2; }
+
+/* Keep desktop HTML5 drag feedback: source lift + native ghost + animated application preview. */
+@media (pointer: fine) {
+  .palette-group button[draggable="true"], .flow-library-item[draggable="true"], .group-resource-card[draggable="true"] { transition: transform .14s ease, box-shadow .14s ease, border-color .14s ease, opacity .14s ease; }
+  .palette-group button.is-dragging, .flow-library-item.is-dragging, .group-resource-card.is-dragging { opacity: .62; transform: translateY(-2px) scale(.985); border-color: var(--accent-hover); box-shadow: 0 7px 18px #02061755; }
+  .palette-drag-preview { animation: palette-drag-enter .14s cubic-bezier(.2,.8,.2,1); }
+}
+@keyframes palette-drag-enter { from { opacity: 0; transform: translate(18px, calc(-100% - 28px)) scale(.90); } to { opacity: .92; } }
+
+/* Light surfaces use shallower, lower-opacity elevation; dark mode keeps the existing depth. */
+.workspace-shell[data-theme="light"] .tab-context-menu,
+.app-shell[data-theme="light"] .context-menu,
+.app-shell[data-theme="light"] .canvas-menu__popover,
+.app-shell[data-theme="light"] .group-resource-tooltip { box-shadow: 0 6px 18px #64748b1f, 0 1px 4px #64748b17; }
+.app-shell[data-theme="light"] .package-manager,
+.app-shell[data-theme="light"] .history-dialog,
+.app-shell[data-theme="light"] .smb-dialog,
+.app-shell[data-theme="light"] .remote-access-dialog,
+.app-shell[data-theme="light"] .interaction-dialog,
+.app-shell[data-theme="light"] .settings-dialog,
+.app-shell[data-theme="light"] .replacement-panel,
+.app-shell[data-theme="light"] .debug-dialog,
+.app-shell[data-theme="light"] .error-detail-dialog,
+.app-shell[data-theme="light"] .settings-profile-card,
+.app-shell[data-theme="light"] .startup-recovery section { box-shadow: 0 10px 26px #64748b20, 0 2px 7px #64748b14; }
+.app-shell[data-theme="light"] .remote-server-banner { box-shadow: 0 7px 18px #64748b1f, 0 1px 4px #64748b14; }
+
+/* Android/native header: brand is retained, tabs live in the middle, and actions never get clipped to Run only. */
+.app-shell.native-platform { grid-template-rows: 50px minmax(0, 1fr) 26px; }
+.app-shell.native-platform .topbar { display: grid; grid-template-columns: max-content minmax(110px, 1fr) max-content; align-items: center; gap: 7px; padding: 0 max(7px, env(safe-area-inset-right)) 0 max(9px, env(safe-area-inset-left)); overflow: visible; }
+.app-shell.native-platform .mobile-brand { display: block; min-width: 0; color: var(--text-bright); font-size: 13px; font-weight: 700; letter-spacing: -.15px; white-space: nowrap; }
+.app-shell.native-platform .tabbar { min-width: 0; align-items: center; justify-content: center; gap: 3px; overflow-x: auto; }
+.app-shell.native-platform .tabbar__tab { flex: 0 1 112px; min-width: 70px; max-width: 118px; height: 32px; padding: 0 8px; border: 1px solid transparent; border-radius: 7px; }
+.app-shell.native-platform .tabbar__tab.active { margin-bottom: 0; border-color: var(--border-soft); background: var(--surface-raised); box-shadow: inset 0 -2px var(--accent); }
+.app-shell.native-platform .tabbar__name { display: block; min-width: 0; margin: 0; overflow: hidden; font-size: 11.5px; text-align: center; text-overflow: ellipsis; }
+.app-shell.native-platform .tabbar__close { display: none; }
+.app-shell.native-platform .tabbar__close.visible { position: absolute; top: 1px; right: 1px; display: grid; background: var(--surface); opacity: 1; }
+.app-shell.native-platform .tabbar__add { width: 27px; height: 30px; padding: 0; border-radius: 6px; }
+.app-shell.native-platform .topbar__actions { min-width: max-content; gap: 4px; overflow: visible; }
+.app-shell.native-platform .topbar__actions .optional-action { display: none; }
+.app-shell.native-platform .topbar__actions .icon-button { flex: none; width: 30px; height: 30px; padding: 0; border-radius: 7px; }
+.app-shell.native-platform .topbar__actions .icon-button svg { width: 17px; height: 17px; }
+.app-shell.native-platform .topbar-divider { flex: none; height: 22px; }
+.app-shell.native-platform .topbar__actions .topbar-run { flex: none; min-width: 54px; padding: 7px 9px; border-radius: 7px; }
+
+/* Narrow portrait phones use two rows instead of clipping controls. */
+@media (orientation: portrait) {
+  .app-shell.native-platform { grid-template-rows: 86px minmax(0, 1fr) 26px; }
+  .app-shell.native-platform .topbar { grid-template-columns: max-content minmax(0, 1fr); grid-template-rows: 39px 47px; grid-template-areas: "brand tabs" "actions actions"; column-gap: 8px; row-gap: 0; padding-top: 0; }
+  .app-shell.native-platform .mobile-brand { grid-area: brand; }
+  .app-shell.native-platform .tabbar { grid-area: tabs; justify-content: center; }
+  .app-shell.native-platform .topbar__actions { grid-area: actions; width: 100%; min-width: 0; justify-content: flex-end; gap: 5px; padding-inline: 2px; border-top: 1px solid var(--border-soft); overflow-x: auto; scrollbar-width: none; }
+  .app-shell.native-platform .topbar__actions::-webkit-scrollbar { display: none; }
+  .app-shell.native-platform .tabbar__tab { min-width: 66px; max-width: 105px; }
+  .app-shell.native-platform .inspector-dock-switch { display: none; }
+}
+
+/* Landscape phones/tablets keep one compact row and default to a right inspector. */
+@media (orientation: landscape) and (max-height: 720px) {
+  .app-shell.native-platform { grid-template-rows: 48px minmax(0, 1fr) 24px; }
+  .app-shell.native-platform .topbar { grid-template-columns: max-content minmax(105px, 1fr) max-content; gap: 6px; }
+  .app-shell.native-platform .mobile-brand { font-size: 12.5px; }
+  .workspace.inspector-right { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 23vw)) minmax(0, 1fr) minmax(230px, min(var(--inspector-width, 300px), 36vw)); }
+  .workspace.inspector-bottom { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 23vw)) minmax(0, 1fr); }
+  .palette-content { padding: 8px 7px; }
+  .inspector-scroll { padding: 10px 12px; }
+}
+
+/* The legacy max-width mobile rules forced the inspector bottom. Dock-specific rules below take precedence. */
+@media (max-width: 720px) {
+  .workspace.inspector-bottom { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 38vw)) minmax(0, 1fr); }
+  .workspace.inspector-right { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 32vw)) minmax(0, 1fr) minmax(210px, min(var(--inspector-width, 260px), 42vw)); grid-template-rows: minmax(0, 1fr); }
+  .workspace.inspector-right .node-palette { grid-row: 1 / -1; }
+  .workspace.inspector-right .inspector { grid-column: 3; grid-row: 1 / -1; border-top: 0; border-left: 1px solid var(--border-soft); }
+  .workspace.inspector-right.result-bottom { grid-template-rows: minmax(0, 1fr) var(--result-height, 280px); }
+  .workspace.inspector-right .result-panel--bottom { grid-column: 2 / 4; grid-row: 2; }
+  .workspace.inspector-bottom .result-panel--bottom { grid-column: 2; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .palette-drag-preview { animation: none; transition: none; }
+  .palette-group button, .flow-library-item, .group-resource-card { transition: none !important; }
+}
+
+
+/* 1.4.9c Android toolbar + JetBrains-like editor tabs + resource alignment + classic resize grips.
+   Keep the earlier parameter-panel styling; only targeted layout defects are overridden here. */
+
+/* Resource tabs: icon and label are a single non-wrapping row even when the palette is narrow. */
+.palette-tabs button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.palette-tabs__icon { flex: none; width: 12px; margin: 0 !important; text-align: center; line-height: 1; }
+.palette-tabs__label { min-width: 0; margin: 0 !important; overflow: hidden; line-height: 1; text-overflow: ellipsis; }
+
+/* Editor tabs: rectangular, attached to the editor strip, with a thin active underline.
+   This intentionally avoids the rounded input/pill appearance. */
+.tabbar { align-items: stretch; justify-content: flex-start; }
+.tabbar__tab {
+  height: 36px;
+  padding: 0 11px;
+  align-items: center;
+  border: 0;
+  border-right: 1px solid transparent;
+  border-left: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  transition: color .12s ease, background .12s ease;
+}
+.tabbar__tab:hover { background: color-mix(in srgb, var(--surface-hover) 72%, transparent); }
+.tabbar__tab.active {
+  margin-bottom: 0;
+  border: 0;
+  border-right: 1px solid var(--border-soft);
+  border-left: 1px solid var(--border-soft);
+  color: var(--text-bright);
+  background: var(--surface-deep);
+  box-shadow: inset 0 -2px var(--accent);
+}
+.tabbar__name { margin: 0 !important; font-size: 12px; }
+.tabbar__add { height: 36px; padding: 0 9px; border-radius: 0; }
+.workspace-shell[data-theme="light"] .tabbar__tab.active {
+  color: #1f2937;
+  background: #ffffff;
+  border-color: #d7dee8;
+  box-shadow: inset 0 -2px #3574f0;
+}
+.workspace-shell[data-theme="light"] .tabbar__tab:hover { background: #edf3fa; }
+
+/* Group sub-canvas I/O: reserve a fixed label column; actual ports own the second column. */
+.group-interface { width: min(760px, calc(100% - 24px)); gap: 5px; }
+.group-interface > span { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: start; gap: 6px; }
+.group-interface i { padding-top: 4px; text-align: right; }
+.group-interface__ports { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 5px; }
+.group-interface b { display: inline-flex; min-width: 0; max-width: min(320px, 100%); align-items: center; justify-self: auto; }
+
+/* Restore the classic main-branch style resize grip: small capsule centered on the split line.
+   Palette and right inspector now use the same visual language; bottom inspector is its rotated form. */
+.sidebar-resizer::after,
+.workspace.inspector-right .sidebar-resizer--inspector::after {
+  top: 50%;
+  bottom: auto;
+  width: 5px;
+  height: 62px;
+  border: 1px solid var(--text-faint);
+  border-radius: 99px;
+  background: var(--border);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translateY(-50%);
+  opacity: .92;
+}
+.sidebar-resizer--palette::after { right: 4px; left: auto; }
+.workspace.inspector-right .sidebar-resizer--inspector::after { right: auto; left: 4px; }
+.workspace.inspector-bottom .sidebar-resizer--inspector::after {
+  top: 4px;
+  right: 50%;
+  bottom: auto;
+  left: auto;
+  width: 62px;
+  height: 5px;
+  border: 1px solid var(--text-faint);
+  border-radius: 99px;
+  background: var(--border);
+  box-shadow: 0 0 0 2px var(--surface);
+  transform: translateX(50%);
+  opacity: .92;
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:active::after,
+.workspace.inspector-right .sidebar-resizer--inspector:hover::after,
+.workspace.inspector-right .sidebar-resizer--inspector:active::after,
+.workspace.inspector-bottom .sidebar-resizer--inspector:hover::after,
+.workspace.inspector-bottom .sidebar-resizer--inspector:active::after { background: var(--info); opacity: 1; }
+
+/* Android: one physical row in both orientations. Brand and editor tabs stay at the left;
+   actions stay in source order and are never hidden. */
+.app-shell.native-platform { grid-template-rows: 48px minmax(0, 1fr) 26px; }
+.app-shell.native-platform .topbar {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-rows: 48px;
+  grid-template-areas: "brand tabs actions";
+  align-items: center;
+  gap: 0;
+  padding: 0 max(6px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+  overflow: hidden;
+}
+.app-shell.native-platform .mobile-brand {
+  display: block;
+  grid-area: brand;
+  margin-right: 10px;
+  color: var(--text-bright);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: -.2px;
+  white-space: nowrap;
+}
+.app-shell.native-platform .tabbar {
+  grid-area: tabs;
+  min-width: 0;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: flex-start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.app-shell.native-platform .tabbar__tab {
+  flex: 0 1 108px;
+  min-width: 54px;
+  max-width: 128px;
+  height: 35px;
+  padding: 0 8px;
+}
+.app-shell.native-platform .tabbar__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
+.app-shell.native-platform .tabbar__close { display: none; }
+.app-shell.native-platform .tabbar__close.visible { position: absolute; top: 0; right: 0; display: grid; background: var(--surface); opacity: 1; }
+.app-shell.native-platform .tabbar__add { flex: none; width: 24px; height: 35px; padding: 0; }
+
+.app-shell.native-platform .topbar__actions {
+  grid-area: actions;
+  display: flex;
+  width: max-content;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px;
+  margin-left: 8px;
+  overflow: visible;
+}
+.app-shell.native-platform .topbar__actions .optional-action { display: inline-flex; }
+.app-shell.native-platform .topbar__actions .icon-button {
+  flex: none;
+  width: 28px;
+  height: 30px;
+  padding: 0;
+  border-radius: 7px;
+}
+.app-shell.native-platform .topbar__actions .icon-button svg { width: 16px; height: 16px; }
+.app-shell.native-platform .topbar__actions .optional-action:not(.icon-button) {
+  min-width: 38px;
+  height: 30px;
+  padding: 0 7px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  font-size: 11px;
+}
+.app-shell.native-platform .topbar-divider { flex: none; width: 1px; height: 22px; margin: 0 1px; }
+.app-shell.native-platform .topbar__actions .topbar-run {
+  flex: none;
+  min-width: 44px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-size: 11.5px;
+}
+
+/* Portrait is still a single row. We only compress; we do not hide New/Import/Save or icons. */
+@media (orientation: portrait) {
+  .app-shell.native-platform { grid-template-rows: 48px minmax(0, 1fr) 26px; }
+  .app-shell.native-platform .topbar {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    grid-template-rows: 48px;
+    grid-template-areas: "brand tabs actions";
+    padding-top: 0;
+  }
+  .app-shell.native-platform .tabbar { justify-content: flex-start; }
+  .app-shell.native-platform .topbar__actions { width: max-content; justify-content: flex-start; padding: 0; border-top: 0; overflow: visible; }
+  .app-shell.native-platform .inspector-dock-switch { display: none; }
+}
+
+/* Common phone portrait widths.  All controls remain in the DOM and visible; dimensions are compacted. */
+@media (max-width: 520px) {
+  .app-shell.native-platform .topbar { padding-inline: 5px; }
+  .app-shell.native-platform .mobile-brand { margin-right: 5px; font-size: 10.5px; letter-spacing: -.35px; }
+  .app-shell.native-platform .tabbar__tab { min-width: 42px; max-width: 72px; height: 32px; padding-inline: 4px; }
+  .app-shell.native-platform .tabbar__name { font-size: 10px; }
+  .app-shell.native-platform .tabbar__add { width: 18px; height: 32px; font-size: 15px; }
+  .app-shell.native-platform .topbar__actions { gap: 2px; margin-left: 4px; }
+  .app-shell.native-platform .topbar__actions .icon-button { width: 24px; height: 28px; border-radius: 6px; }
+  .app-shell.native-platform .topbar__actions .icon-button svg { width: 14px; height: 14px; }
+  .app-shell.native-platform .topbar__actions .optional-action:not(.icon-button) { min-width: 31px; height: 28px; padding-inline: 4px; font-size: 10px; }
+  .app-shell.native-platform .topbar-divider { height: 19px; margin-inline: 0; }
+  .app-shell.native-platform .topbar__actions .topbar-run { min-width: 37px; height: 28px; padding-inline: 5px; font-size: 10px; }
+}
+
+/* Very small phones cannot physically fit brand + tab + ten full controls at comfortable sizes.
+   Keep every action available and preserve source order via a small horizontal action scroller instead of clipping to the last button. */
+@media (max-width: 400px) {
+  .app-shell.native-platform .mobile-brand { margin-right: 3px; font-size: 9.5px; }
+  .app-shell.native-platform .tabbar__tab { min-width: 34px; max-width: 48px; padding-inline: 3px; }
+  .app-shell.native-platform .tabbar__name { font-size: 9px; }
+  .app-shell.native-platform .tabbar__add { width: 16px; }
+  .app-shell.native-platform .topbar__actions { max-width: 270px; overflow-x: auto; scrollbar-width: none; }
+  .app-shell.native-platform .topbar__actions::-webkit-scrollbar { display: none; }
+  .app-shell.native-platform .topbar__actions .icon-button { width: 23px; }
+  .app-shell.native-platform .topbar__actions .optional-action:not(.icon-button) { min-width: 29px; padding-inline: 3px; font-size: 9.5px; }
+  .app-shell.native-platform .topbar__actions .topbar-run { min-width: 35px; padding-inline: 4px; font-size: 9.5px; }
+}
+
+@media (orientation: landscape) and (max-height: 720px) {
+  .app-shell.native-platform { grid-template-rows: 46px minmax(0, 1fr) 24px; }
+  .app-shell.native-platform .topbar { grid-template-rows: 46px; }
+  .app-shell.native-platform .mobile-brand { font-size: 11px; }
+}
+
+
+/* 1.4.9c.1 narrow-width polish after Chromium layout checks. */
+.palette-tabs { gap: 2px; padding: 3px; }
+.palette-tabs button { gap: 3px; padding-inline: 1px; }
+.palette-tabs__icon { width: 10px; font-size: 10px; }
+.palette-tabs__label { font-size: 10.5px; }
+
+@media (max-width: 430px) {
+  .app-shell.native-platform .mobile-brand { margin-right: 3px; font-size: 9.5px; }
+  .app-shell.native-platform .topbar__actions { gap: 1px; margin-left: 2px; }
+  .app-shell.native-platform .topbar__actions .icon-button { width: 22px; height: 27px; }
+  .app-shell.native-platform .topbar__actions .icon-button svg { width: 13px; height: 13px; }
+  .app-shell.native-platform .topbar__actions .optional-action:not(.icon-button) { min-width: 29px; height: 27px; padding-inline: 3px; font-size: 9.5px; }
+  .app-shell.native-platform .topbar-divider { display: none; }
+  .app-shell.native-platform .topbar__actions .topbar-run { min-width: 35px; height: 27px; padding-inline: 4px; font-size: 9.5px; }
+}
+
+
+/* 1.4.9c.2 compact IDE tabs + mobile overflow + alignment polish */
+/* Tabs follow an IDE/browser-tab silhouette: selected tab is attached to the content plane,
+   with rounded top corners and a quiet border rather than an input-like pill. */
+.tabbar { gap: 0; align-items: flex-end; }
+.tabbar__tab {
+  height: 36px;
+  margin: 0;
+  padding: 0 13px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+}
+.tabbar__tab + .tabbar__tab { margin-left: -1px; }
+.tabbar__tab:hover { background: var(--surface-hover); }
+.tabbar__tab.active {
+  z-index: 1;
+  margin-bottom: -1px;
+  border: 1px solid var(--border-soft);
+  border-bottom-color: var(--surface);
+  border-radius: 9px 9px 0 0;
+  color: var(--text-bright);
+  background: var(--surface);
+  box-shadow: none;
+}
+.tabbar__name { font-size: 12.5px; line-height: 1; }
+.tabbar__add { width: 34px; height: 35px; padding: 0; border-radius: 7px 7px 0 0; }
+.workspace-shell[data-theme="light"] .tabbar__tab.active {
+  color: #17233a;
+  background: #fff;
+  border-color: #cbd5e1;
+  border-bottom-color: #fff;
+  box-shadow: none;
+}
+
+/* Inspector heading is one baseline-aligned row: title | dock switch + actions. */
+.inspector__heading { min-height: 34px; align-items: center; }
+.inspector__heading h2 { margin: 0; line-height: 30px; }
+.inspector__heading-tools { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.inspector-dock-switch { height: 30px; box-sizing: border-box; align-items: center; }
+.inspector-dock-switch button { height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+.inspector__actions { min-height: 30px; align-items: center; gap: 10px; }
+.inspector__actions button { line-height: 30px; }
+
+/* All square toolbar controls center their glyph geometrically. */
+.topbar__actions .icon-button {
+  display: inline-grid !important;
+  place-items: center !important;
+  line-height: 0;
+}
+.topbar__actions .icon-button svg { display: block; margin: 0; }
+
+.mobile-tools-overflow { display: none; position: relative; flex: none; }
+.mobile-tools-menu {
+  position: absolute;
+  z-index: 1200;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  min-width: 148px;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border-pop);
+  border-radius: 9px;
+  background: var(--surface);
+  box-shadow: 0 12px 30px #0005;
+}
+.mobile-tools-menu button {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+}
+.mobile-tools-menu button:hover { background: var(--surface-hover); }
+.mobile-tools-menu button:disabled { opacity: .45; }
+
+.app-shell.native-platform .topbar {
+  overflow: visible;
+  grid-template-columns: max-content minmax(64px, 1fr) max-content;
+  column-gap: 9px;
+}
+.app-shell.native-platform .mobile-brand {
+  margin-right: 0;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -.25px;
+}
+.app-shell.native-platform .tabbar { min-width: 0; overflow: hidden; }
+.app-shell.native-platform .tabbar__tab {
+  flex: 0 1 112px;
+  min-width: 62px;
+  max-width: 124px;
+  height: 35px;
+  padding-inline: 10px;
+  border-radius: 8px 8px 0 0;
+}
+.app-shell.native-platform .tabbar__tab.active {
+  margin-bottom: -1px;
+  border: 1px solid var(--border-soft);
+  border-bottom-color: var(--surface);
+  background: var(--surface);
+  box-shadow: none;
+}
+.app-shell.native-platform .tabbar__name { font-size: 11.5px; text-align: left; }
+.app-shell.native-platform .tabbar__add { width: 24px; height: 35px; }
+.app-shell.native-platform .topbar__actions { margin-left: 0; align-items: center; }
+
+/* On narrow portrait screens, utility glyphs move behind one overflow control.
+   New / Import / Save / Run remain immediately visible. */
+@media (max-width: 560px) {
+  .app-shell.native-platform .topbar { padding-inline: 8px; column-gap: 7px; }
+  .app-shell.native-platform .mobile-brand { font-size: 14.5px; }
+  .app-shell.native-platform .tabbar__tab { min-width: 58px; max-width: 82px; height: 35px; padding-inline: 8px; }
+  .app-shell.native-platform .tabbar__name { font-size: 11px; }
+  .app-shell.native-platform .tabbar__add { width: 21px; height: 35px; font-size: 16px; }
+  .app-shell.native-platform .topbar__actions .icon-button.topbar-tool-action { display: none !important; }
+  .app-shell.native-platform .mobile-tools-overflow { display: block; }
+  .app-shell.native-platform .topbar-divider { display: none; }
+  .app-shell.native-platform .topbar__actions { gap: 4px; }
+  .app-shell.native-platform .topbar__actions .optional-action:not(.icon-button) {
+    min-width: 35px; height: 30px; padding-inline: 6px; font-size: 10.5px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .app-shell.native-platform .topbar__actions .topbar-run { min-width: 40px; height: 30px; font-size: 10.5px; }
+  .app-shell.native-platform .mobile-tools-overflow__trigger { width: 30px; height: 30px; }
+}
+
+@media (max-width: 410px) {
+  .app-shell.native-platform .topbar { padding-inline: 6px; column-gap: 5px; }
+  .app-shell.native-platform .mobile-brand { font-size: 13.5px; }
+  .app-shell.native-platform .tabbar__tab { min-width: 48px; max-width: 68px; padding-inline: 6px; }
+  .app-shell.native-platform .topbar__actions { gap: 3px; }
+  .app-shell.native-platform .topbar__actions .optional-action:not(.icon-button) { min-width: 32px; padding-inline: 4px; font-size: 10px; }
+  .app-shell.native-platform .topbar__actions .topbar-run { min-width: 37px; padding-inline: 5px; font-size: 10px; }
+}
+/* 1.4.9e mobile tab strip + responsive tool overflow + neutral statusbar polish. */
+
+/* TabBar now owns a dedicated horizontal viewport; the + button is outside that viewport,
+   so it stays reachable while tabs scroll independently. */
+.tabbar {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 4px;
+  overflow: hidden;
+}
+.tabbar__scroller {
+  min-width: 0;
+  flex: 1 1 auto;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tabbar__scroller::-webkit-scrollbar { display: none; }
+.tabbar__track {
+  display: flex;
+  width: max-content;
+  min-width: 100%;
+  height: 100%;
+  align-items: flex-end;
+  gap: 1px;
+}
+.tabbar__track > .tabbar__tab { margin-left: 0; }
+.tabbar__track > .tabbar__tab:first-child { margin-left: auto; }
+.tabbar__track > .tabbar__tab:last-child { margin-right: auto; }
+.tabbar__add { flex: 0 0 auto; }
+
+/* Native topbar: keep title, tab strip and actions on one visual baseline. */
+.app-shell.native-platform {
+  grid-template-rows: 50px minmax(0, 1fr) 26px;
+}
+.app-shell.native-platform .topbar {
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
+  grid-template-rows: 50px;
+  grid-template-areas: "brand tabs actions";
+  align-items: center;
+  column-gap: 16px;
+  padding-inline: max(10px, env(safe-area-inset-left)) max(10px, env(safe-area-inset-right));
+  overflow: visible;
+}
+.app-shell.native-platform .mobile-brand {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: -.28px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.app-shell.native-platform .tabbar {
+  min-width: 0;
+  height: 34px;
+  align-self: end;
+  overflow: hidden;
+}
+.app-shell.native-platform .tabbar__scroller { height: 34px; }
+.app-shell.native-platform .tabbar__track { height: 34px; }
+.app-shell.native-platform .tabbar__tab {
+  position: relative;
+  flex: 0 0 112px;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  align-items: center;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 7px 7px 0 0;
+  background: transparent;
+}
+.app-shell.native-platform .tabbar__tab + .tabbar__tab { margin-left: 0; }
+.app-shell.native-platform .tabbar__tab:hover { background: color-mix(in srgb, var(--surface-hover) 78%, transparent); }
+.app-shell.native-platform .tabbar__tab.active {
+  margin-bottom: 0;
+  border-color: var(--border-soft);
+  border-bottom: 0;
+  color: var(--text-bright);
+  background: var(--surface-raised);
+  box-shadow: inset 0 -2px var(--accent);
+}
+.app-shell.native-platform .tabbar__name {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 32px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.app-shell.native-platform .tabbar__add {
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px 6px 0 0;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* All visible native topbar controls use the same 34 px height as tabs. */
+.app-shell.native-platform .topbar__actions {
+  display: flex;
+  width: max-content;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  overflow: visible;
+}
+.app-shell.native-platform .topbar__actions .icon-button,
+.app-shell.native-platform .mobile-tools-overflow__trigger {
+  width: 34px;
+  height: 34px;
+  box-sizing: border-box;
+  padding: 0;
+  display: inline-grid !important;
+  place-items: center !important;
+  border-radius: 7px;
+  line-height: 0;
+}
+.app-shell.native-platform .topbar__actions .icon-button svg,
+.app-shell.native-platform .mobile-tools-overflow__trigger svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  margin: 0;
+}
+.app-shell.native-platform .topbar__actions .optional-action:not(.icon-button),
+.app-shell.native-platform .topbar__actions .topbar-run {
+  height: 34px;
+  box-sizing: border-box;
+  padding-block: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  line-height: 1;
+}
+.app-shell.native-platform .topbar__actions .topbar-file-action {
+  min-width: 48px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+.app-shell.native-platform .topbar__actions .topbar-run {
+  min-width: 52px;
+  padding-inline: 11px;
+  font-size: 12.5px;
+}
+.app-shell.native-platform .topbar-divider { height: 24px; }
+
+/* A tablet/phone-width native window should not squeeze the tab strip to preserve six utility glyphs.
+   Put those six tools behind one overflow control first. */
+@media (max-width: 1180px) {
+  .app-shell.native-platform .topbar__actions .icon-button.topbar-tool-action { display: none !important; }
+  .app-shell.native-platform .mobile-tools-overflow { display: block; }
+  .app-shell.native-platform .topbar-divider { display: none; }
+}
+
+/* Particularly narrow phones keep only More + Run on the right; New/Import/Save remain available
+   through existing workflow commands but no longer crowd the single-row native header. */
+@media (max-width: 430px) {
+  .app-shell.native-platform .topbar {
+    grid-template-columns: max-content minmax(0, 1fr) max-content;
+    column-gap: 10px;
+    padding-inline: max(8px, env(safe-area-inset-left)) max(8px, env(safe-area-inset-right));
+  }
+  .app-shell.native-platform .mobile-brand { font-size: 15px; }
+  .app-shell.native-platform .topbar__actions { gap: 5px; }
+  .app-shell.native-platform .topbar__actions .topbar-file-action { display: none !important; }
+}
+
+/* Do not let older portrait overrides split the native header into two rows. */
+@media (orientation: portrait) {
+  .app-shell.native-platform { grid-template-rows: 50px minmax(0, 1fr) 26px; }
+  .app-shell.native-platform .topbar {
+    grid-template-rows: 50px;
+    grid-template-areas: "brand tabs actions";
+  }
+  .app-shell.native-platform .tabbar { justify-content: stretch; }
+  .app-shell.native-platform .topbar__actions { width: max-content; padding: 0; border-top: 0; overflow: visible; }
+}
+
+/* Light active tab keeps the same attached-tab silhouette. */
+.app-shell[data-theme="light"].native-platform .tabbar__tab.active {
+  color: #17233a;
+  border-color: #cbd5e1;
+  border-bottom: 0;
+  background: #ffffff;
+  box-shadow: inset 0 -2px #3574f0;
+}
+
+/* Statusbar iconography is deliberately neutral in both themes. */
+.app-statusbar svg { stroke: #8490a3; }
+.statusbar-debug,
+.statusbar-history { color: #8490a3; }
+.statusbar-debug:hover,
+.statusbar-debug:focus-visible,
+.statusbar-history:hover,
+.statusbar-history:focus-visible {
+  color: #c1c8d3;
+  background: var(--surface-hover);
+  outline: none;
+}
+.app-shell[data-theme="light"] .app-statusbar svg { stroke: #64748b; }
+.app-shell[data-theme="light"] .statusbar-debug,
+.app-shell[data-theme="light"] .statusbar-history { color: #64748b; }
+.app-shell[data-theme="light"] .statusbar-debug:hover,
+.app-shell[data-theme="light"] .statusbar-debug:focus-visible,
+.app-shell[data-theme="light"] .statusbar-history:hover,
+.app-shell[data-theme="light"] .statusbar-history:focus-visible {
+  color: #334155;
+  background: #f1f5f9;
+}
+.mobile-tools-menu__compact-only { display: none !important; }
+@media (max-width: 430px) {
+  .app-shell.native-platform .mobile-tools-menu__compact-only { display: block !important; }
+}
+
+/* 1.4.9f native header alignment + attached tab silhouette + statusbar optical alignment. */
+
+/* The native title is a distinct leading region: PyDroid Node | tabs.  The divider is subtle,
+   but the title and tab strip never visually merge into one continuous block. */
+.app-shell.native-platform .topbar {
+  column-gap: 12px;
+}
+.app-shell.native-platform .mobile-brand {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  align-self: center;
+  padding-right: 16px;
+  border-right: 1px solid var(--border-soft);
+  line-height: 1;
+}
+
+/* Tabs occupy the full native header height.  This moves their text onto the same visual baseline
+   as the brand/actions and gives the attached IDE-tab shape a real top edge. */
+.app-shell.native-platform .tabbar {
+  height: 50px;
+  align-self: stretch;
+  align-items: center;
+}
+.app-shell.native-platform .tabbar__scroller,
+.app-shell.native-platform .tabbar__track {
+  height: 50px;
+}
+.app-shell.native-platform .tabbar__track {
+  align-items: stretch;
+}
+.app-shell.native-platform .tabbar__tab {
+  flex-basis: 96px;
+  width: 96px;
+  min-width: 96px;
+  max-width: 96px;
+  height: 50px;
+  padding: 0 10px;
+  align-items: center;
+  border-radius: 7px 7px 0 0;
+}
+.app-shell.native-platform .tabbar__name {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  line-height: 1;
+}
+.app-shell.native-platform .tabbar__tab.active {
+  position: relative;
+  box-shadow: none;
+}
+.app-shell.native-platform .tabbar__tab.active::after {
+  position: absolute;
+  right: 16px;
+  bottom: 0;
+  left: 16px;
+  height: 1px;
+  border-radius: 1px 1px 0 0;
+  background: var(--accent);
+  content: "";
+  pointer-events: none;
+}
+.app-shell.native-platform .tabbar__add {
+  align-self: center;
+}
+.app-shell[data-theme="light"].native-platform .tabbar__tab.active {
+  box-shadow: none;
+}
+.app-shell[data-theme="light"].native-platform .tabbar__tab.active::after {
+  background: #3574f0;
+}
+
+/* Optical rather than merely box-level alignment for the bottom status bar. */
+.app-statusbar {
+  line-height: 1;
+}
+.app-statusbar > span {
+  height: 100%;
+  align-items: center;
+  line-height: 1;
+}
+.app-statusbar > span > svg {
+  display: block;
+  flex: 0 0 auto;
+  margin: 0;
+  transform: translateY(.5px);
+}
+.statusbar-debug,
+.statusbar-history {
+  align-self: center;
+}
+
+@media (max-width: 430px) {
+  .app-shell.native-platform .topbar {
+    column-gap: 8px;
+  }
+  .app-shell.native-platform .mobile-brand {
+    padding-right: 10px;
+  }
+  .app-shell.native-platform .tabbar__tab {
+    flex-basis: 88px;
+    width: 88px;
+    min-width: 88px;
+    max-width: 88px;
+    padding-inline: 8px;
+  }
+  .app-shell.native-platform .tabbar__tab.active::after {
+    right: 15px;
+    left: 15px;
+  }
+}
+/* Native tabs are left anchored after the title divider, never re-centered when only a few are open. */
+.app-shell.native-platform .tabbar__track > .tabbar__tab:first-child { margin-left: 0; }
+.app-shell.native-platform .tabbar__track > .tabbar__tab:last-child { margin-right: 0; }
+
+
+/* 1.4.9g tab-flow placement, responsive native tools, drag polish and inspector spacing. */
+
+/* The tab viewport sizes to its contents until it needs to shrink. This keeps + immediately
+   after the last tab instead of pinning it to the far edge of the header. */
+.tabbar {
+  justify-content: flex-start;
+}
+.tabbar__scroller {
+  flex: 0 1 max-content;
+  width: auto;
+  max-width: calc(100% - 36px);
+}
+.tabbar__track {
+  width: max-content;
+  min-width: 0;
+}
+.tabbar__track > .tabbar__tab:first-child,
+.tabbar__track > .tabbar__tab:last-child {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+/* Desktop: tabs and topbar actions share one 34 px control rhythm and one optical baseline. */
+.app-shell:not(.native-platform) .topbar {
+  align-items: center;
+}
+.app-shell:not(.native-platform) .tabbar,
+.app-shell:not(.native-platform) .tabbar__scroller,
+.app-shell:not(.native-platform) .tabbar__track {
+  height: 46px;
+}
+.app-shell:not(.native-platform) .tabbar {
+  align-items: center;
+  overflow: hidden;
+}
+.app-shell:not(.native-platform) .tabbar__track {
+  align-items: center;
+}
+.app-shell:not(.native-platform) .tabbar__tab {
+  height: 34px;
+  margin-bottom: 0;
+  padding-inline: 12px;
+  align-items: center;
+  border-bottom: 1px solid transparent;
+  border-radius: 7px 7px 0 0;
+}
+.app-shell:not(.native-platform) .tabbar__name {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1;
+}
+.app-shell:not(.native-platform) .tabbar__tab.active {
+  position: relative;
+  margin-bottom: 0;
+  border-color: var(--border-soft);
+  border-bottom-color: transparent;
+  box-shadow: none;
+}
+.app-shell:not(.native-platform) .tabbar__tab.active::after {
+  position: absolute;
+  right: 12px;
+  bottom: 0;
+  left: 12px;
+  height: 1px;
+  border-radius: 999px;
+  background: var(--accent);
+  content: "";
+  pointer-events: none;
+}
+.app-shell:not(.native-platform) .tabbar__add {
+  align-self: center;
+  width: 34px;
+  height: 34px;
+  margin-left: 2px;
+  padding: 0;
+  line-height: 1;
+}
+.app-shell:not(.native-platform) .topbar__actions {
+  height: 46px;
+  align-items: center;
+}
+.app-shell:not(.native-platform) .topbar__actions > .button:not(.icon-button) {
+  height: 34px;
+  padding-block: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+}
+.app-shell[data-theme="light"]:not(.native-platform) .tabbar__tab.active::after {
+  background: #3574f0;
+}
+
+/* Native: keep a clear title region without drawing a literal "|" separator. */
+.app-shell.native-platform .topbar {
+  column-gap: 12px;
+  padding-left: max(24px, env(safe-area-inset-left));
+}
+.app-shell.native-platform .mobile-brand {
+  padding-right: 16px;
+  border-right: 0;
+  margin-right: 2px;
+}
+.app-shell.native-platform .tabbar__name {
+  justify-content: center;
+  text-align: center;
+}
+.app-shell.native-platform .tabbar__add {
+  margin-left: 2px;
+}
+
+/* Do not collapse the six utility controls just because the device is native.
+   They stay visible whenever the header has enough width; the overflow is the narrow-screen fallback. */
+@media (min-width: 761px) {
+  .app-shell.native-platform .topbar__actions .icon-button.topbar-tool-action {
+    display: inline-grid !important;
+  }
+  .app-shell.native-platform .mobile-tools-overflow {
+    display: none !important;
+  }
+  .app-shell.native-platform .topbar-divider {
+    display: block;
+  }
+}
+@media (max-width: 760px) {
+  .app-shell.native-platform .topbar__actions .icon-button.topbar-tool-action {
+    display: none !important;
+  }
+  .app-shell.native-platform .mobile-tools-overflow {
+    display: block;
+  }
+  .app-shell.native-platform .topbar-divider {
+    display: none;
+  }
+}
+@media (max-width: 520px) {
+  .app-shell.native-platform .topbar {
+    column-gap: 8px;
+    padding-left: max(24px, env(safe-area-inset-left));
+    padding-right: max(8px, env(safe-area-inset-right));
+  }
+  .app-shell.native-platform .mobile-brand {
+    padding-right: 10px;
+    margin-right: 0;
+  }
+  .app-shell.native-platform .topbar__actions .topbar-file-action {
+    display: none !important;
+  }
+  .app-shell.native-platform .mobile-tools-menu__compact-only {
+    display: flex !important;
+  }
+}
+
+/* Overflow control reads as a dropdown rather than an anonymous ellipsis button. */
+.app-shell.native-platform .mobile-tools-overflow__trigger {
+  border: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--surface-raised) 88%, var(--accent) 12%);
+}
+.app-shell.native-platform .mobile-tools-overflow__trigger:hover,
+.app-shell.native-platform .mobile-tools-overflow__trigger[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border-soft));
+  background: color-mix(in srgb, var(--surface-hover) 80%, var(--accent) 20%);
+}
+.mobile-tools-menu {
+  min-width: 188px;
+  padding: 7px;
+  gap: 2px;
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.mobile-tools-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  line-height: 1;
+}
+.mobile-tools-menu button > svg {
+  display: block;
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mobile-tools-menu button > span {
+  min-width: 0;
+  margin: 0;
+  color: inherit;
+  font-size: 12px;
+  line-height: 1.2;
+}
+.mobile-tools-menu__compact-only {
+  display: none !important;
+}
+
+/* The application preview is the only drag ghost. The browser's native drag bitmap is suppressed in JS. */
+.palette-drag-preview {
+  background: color-mix(in srgb, var(--surface) 72%, transparent);
+  backdrop-filter: blur(12px) saturate(1.08);
+  -webkit-backdrop-filter: blur(12px) saturate(1.08);
+}
+.palette-drag-preview.over-canvas {
+  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  backdrop-filter: blur(14px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+}
+
+/* Give the selected callable/type line a little breathing room below the inspector heading. */
+.inspector__node-type {
+  margin-top: 10px;
+}
+
+
+/* 1.4.9h desktop drag restoration + native header/menu alignment. */
+
+/* The browser drag bitmap is replaced with a real, already-rendered transparent image.
+   Keep it in the viewport so Chromium/WebView accepts it as setDragImage() input. */
+.native-drag-image-shim {
+  position: fixed;
+  z-index: 2147483647;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Native header: exactly 28 px from the title text region to the first tab.
+   The tab starts at the same top edge as the 34 px action buttons, while its bottom remains
+   attached to the header edge in the IDE-style shape. */
+.app-shell.native-platform .topbar {
+  column-gap: 0;
+}
+.app-shell.native-platform .mobile-brand {
+  margin-right: 28px;
+  padding-right: 0;
+  border-right: 0;
+  letter-spacing: .12px;
+}
+.app-shell.native-platform .tabbar {
+  height: 42px;
+  align-self: end;
+  align-items: stretch;
+  margin-right: 10px;
+}
+.app-shell.native-platform .tabbar__scroller,
+.app-shell.native-platform .tabbar__track {
+  height: 42px;
+}
+.app-shell.native-platform .tabbar__track { align-items: stretch; }
+.app-shell.native-platform .tabbar__tab {
+  height: 42px;
+}
+.app-shell.native-platform .tabbar__add {
+  height: 34px;
+  align-self: flex-start;
+}
+
+/* max-width:720px contains a legacy `.topbar span { display:none }` rule.
+   Menu labels must explicitly opt back in. */
+.app-shell.native-platform .mobile-tools-menu button > span {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  color: inherit;
+}
+
+/* Give ellipsis and chevron more separation while keeping the compound glyph centered. */
+.app-shell.native-platform .mobile-tools-overflow__trigger svg {
+  width: 19px;
+  height: 19px;
+  overflow: visible;
+}
+.app-shell.native-platform .mobile-tools-overflow__dots,
+.app-shell.native-platform .mobile-tools-overflow__chevron {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.app-shell.native-platform .mobile-tools-overflow__dots { transform: translateY(-1.35px); }
+.app-shell.native-platform .mobile-tools-overflow__chevron { transform: translateY(1.45px); }
+
+/* The light overflow menu should read as a floating menu, not a heavy modal. */
+.app-shell[data-theme="light"] .mobile-tools-menu {
+  border-color: #d4dce7;
+  background: rgba(255, 255, 255, .94);
+  box-shadow: 0 8px 20px rgba(71, 85, 105, .14), 0 2px 6px rgba(71, 85, 105, .08);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.app-shell[data-theme="light"] .mobile-tools-menu button:hover {
+  background: #eef3f8;
+}
+
+
+/* 1.4.9i: pointer-native desktop drag, narrow inspector heading, and DataGrid overflow fixes. */
+.app-shell.native-platform .mobile-brand {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  margin-right: 27px;
+  padding-right: 0;
+  line-height: 1;
+  letter-spacing: .16px;
+}
+.app-shell.native-platform .tabbar__tab { align-items: flex-start; }
+.app-shell.native-platform .tabbar__name {
+  display: flex !important;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.app-shell.native-platform .tabbar__close { margin-top: 4px; }
+
+.inspector {
+  container-name: inspector-panel;
+  container-type: inline-size;
+}
+@container inspector-panel (max-width: 350px) {
+  .inspector__heading {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    grid-template-rows: 30px 30px;
+    justify-content: start;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .inspector__heading h2 {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+    line-height: 30px;
+  }
+  .inspector__heading-tools { display: contents; }
+  .inspector-dock-switch {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+  }
+  .inspector__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+    min-width: 0;
+    gap: 12px;
+  }
+  .inspector__actions button { white-space: nowrap; }
+}
+
+.data-grid__toolbar {
+  grid-template-columns: minmax(0, 1fr) max-content max-content !important;
+  align-items: center;
+}
+.data-grid__search { width: 100%; min-width: 0; }
+.data-grid__search input { width: 100%; min-width: 0; }
+.data-grid__page-size {
+  width: auto;
+  min-width: 64px;
+  max-width: 72px;
+  height: 30px;
+  padding-inline: 5px !important;
+  white-space: nowrap;
+}
+.data-grid__count {
+  min-width: 0;
+  white-space: nowrap;
+  font-size: var(--font-xs);
+}
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: flex !important;
+  grid-column: 1 / -1;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button {
+  flex: 0 0 auto;
+  min-width: 30px;
+  height: 30px;
+  padding-inline: 6px;
+}
+.data-grid__actions button:nth-last-child(-n + 2) { min-width: 48px; }
+.node-result-inspector .data-grid__toolbar {
+  grid-template-columns: minmax(0, 1fr) max-content max-content !important;
+}
+.node-result-inspector .data-grid__search { min-width: 0; }
+.node-result-inspector .data-grid__page-size {
+  min-width: 62px;
+  max-width: 68px;
+  font-size: var(--font-xs);
+}
+.node-result-inspector .data-grid__count { font-size: 10px; }
+
+.palette-group button[draggable="false"],
+.group-resource-card[draggable="false"],
+.flow-library-item[draggable="false"] { touch-action: pan-y; }
+@media (pointer: fine) {
+  .palette-group button[draggable="false"],
+  .group-resource-card[draggable="false"],
+  .flow-library-item[draggable="false"] { touch-action: none; }
+}
+.palette-drag-preview { z-index: 1400; }
+
+/* 1.4.9j: proportional inspector header, compact DataGrid, themed dropdowns and modern confirms. */
+
+/* Keep inspector controls grouped naturally. Only wrap when the panel is genuinely narrow. */
+.inspector__heading {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.inspector__heading h2 { flex: none; margin: 0; line-height: 30px; }
+.inspector__heading-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.inspector__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.inspector__actions button { flex: none; white-space: nowrap; }
+@container inspector-panel (max-width: 278px) {
+  .inspector__heading {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    grid-template-rows: 30px 30px;
+    justify-content: start;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .inspector__heading h2 { grid-column: 1; grid-row: 1; }
+  .inspector__heading-tools { display: contents; }
+  .inspector-dock-switch { grid-column: 2; grid-row: 1; justify-self: start; }
+  .inspector__actions { grid-column: 1 / -1; grid-row: 2; justify-self: start; gap: 12px; }
+}
+
+/* Bring the custom pointer-drag card nearer to the pointer while preserving the lift animation. */
+.palette-drag-preview {
+  transform: translate(12px, calc(-100% - 10px)) rotate(-.8deg) scale(.97);
+  animation: palette-drag-enter-near .14s cubic-bezier(.2,.8,.2,1);
+}
+.palette-drag-preview.over-canvas {
+  transform: translate(12px, calc(-100% - 10px)) rotate(0) scale(1.025);
+}
+@keyframes palette-drag-enter-near {
+  from { opacity: 0; transform: translate(10px, calc(-100% - 4px)) scale(.92); }
+  to { opacity: .92; }
+}
+
+/* DataGrid: first row is search + page size; second row is equal-width actions. */
+.data-grid { container-name: data-grid-panel; container-type: inline-size; }
+.data-grid__toolbar,
+.node-result-inspector .data-grid__toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  align-items: center;
+  gap: 6px;
+}
+.data-grid__search {
+  width: 100%;
+  min-width: 0;
+  flex: none;
+}
+.data-grid__search > span { flex: none; }
+.data-grid__search input { width: 100%; min-width: 0; }
+.data-grid__page-size,
+.node-result-inspector .data-grid__page-size {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  height: 30px;
+  padding-inline: 5px !important;
+  white-space: nowrap;
+}
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: grid !important;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 6px;
+}
+.data-grid__actions--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.data-grid__actions--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button,
+.data-grid__actions button:nth-last-child(-n + 2) {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.data-grid__pager {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px;
+}
+.data-grid__pager > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.data-grid__pager > div { min-width: 0; }
+@container data-grid-panel (max-width: 285px) {
+  .data-grid__page-size,
+  .node-result-inspector .data-grid__page-size { width: 68px; min-width: 68px; max-width: 68px; }
+  .data-grid__search { padding-inline: 6px; }
+  .data-grid__search input { font-size: 10.5px; }
+  .data-grid__pager { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+  .data-grid__pager > div { justify-self: stretch; justify-content: center; width: 100%; }
+}
+
+/* Result header remains legible when docked into a narrow inspector. */
+.result-panel { container-name: result-panel-box; container-type: inline-size; }
+.result-panel__heading { min-width: 0; }
+.result-panel__heading h3 { flex: none; white-space: nowrap; }
+.node-result-inspector h3 { gap: 8px; white-space: nowrap; }
+.node-result-inspector h3 small { flex: none; }
+@container result-panel-box (max-width: 305px) {
+  .result-panel__heading { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 7px; }
+  .result-actions { width: 100%; justify-content: flex-start; gap: 7px; }
+  .result-summary { white-space: nowrap; }
+}
+
+/* Theme-consistent dropdowns: avoid the operating system's native select popup. */
+.themed-select {
+  position: relative;
+  z-index: 1;
+  width: 144px;
+  min-width: 120px;
+  max-width: 100%;
+}
+.themed-select.open { z-index: 80; }
+.themed-select__trigger {
+  display: flex;
+  width: 100%;
+  min-height: 32px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-bright);
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 0 #ffffff08;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.themed-select__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.themed-select__trigger svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.themed-select.open .themed-select__trigger,
+.themed-select__trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-hover) 70%, var(--border));
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.themed-select__menu {
+  position: absolute;
+  z-index: 2000;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 2px;
+  min-width: max(100%, 156px);
+  padding: 5px;
+  border: 1px solid var(--border-pop);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 10px 28px #0008, 0 2px 8px #0005;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.themed-select__menu button {
+  display: flex;
+  width: 100%;
+  min-height: 31px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.themed-select__menu button:hover { background: var(--surface-hover); }
+.themed-select__menu button.selected { color: var(--text-highlight); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.themed-select__menu button svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--accent-hover); stroke-width: 1.8; }
+.workspace-shell[data-theme="light"] .themed-select__trigger,
+.app-shell[data-theme="light"] .themed-select__trigger {
+  border-color: #cbd5e1;
+  color: #1e293b;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 #fff;
+}
+.workspace-shell[data-theme="light"] .themed-select__menu,
+.app-shell[data-theme="light"] .themed-select__menu {
+  border-color: #cbd5e1;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 8px 20px rgba(71,85,105,.13), 0 2px 6px rgba(71,85,105,.07);
+}
+.workspace-shell[data-theme="light"] .themed-select__menu button,
+.app-shell[data-theme="light"] .themed-select__menu button { color: #243b53; }
+.workspace-shell[data-theme="light"] .themed-select__menu button:hover,
+.app-shell[data-theme="light"] .themed-select__menu button:hover { background: #eef3f8; }
+.workspace-shell[data-theme="light"] .themed-select__menu button.selected,
+.app-shell[data-theme="light"] .themed-select__menu button.selected { color: #173a63; background: #dbeafe; }
+
+/* Modern in-app confirmation replaces the native Windows/Chromium message box. */
+.modern-confirm-backdrop { z-index: 2100; background: #02061799; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.modern-confirm-dialog {
+  display: grid;
+  width: min(430px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--border-pop);
+  border-radius: 14px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 24px 70px #000b, 0 4px 18px #0007;
+  animation: modern-dialog-in .16s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modern-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.modern-confirm-dialog > header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 16px 12px;
+}
+.modern-confirm-dialog > header > div { display: grid; gap: 2px; }
+.modern-confirm-dialog > header strong { color: var(--text-bright); font-size: 15px; }
+.modern-confirm-dialog > header small { color: var(--text-faint); font-size: 11px; }
+.modern-confirm-dialog__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-raised));
+  font-size: 18px;
+  font-weight: 700;
+}
+.modern-confirm-dialog__icon.danger { color: #fecaca; background: #7f1d1d66; }
+.modern-confirm-dialog__close { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 7px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: 20px; }
+.modern-confirm-dialog__close:hover { color: var(--text-bright); background: var(--surface-hover); }
+.modern-confirm-dialog__content { padding: 2px 16px 17px 65px; }
+.modern-confirm-dialog__content p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.65; }
+.modern-confirm-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-soft); background: color-mix(in srgb, var(--surface-deep) 72%, transparent); }
+.modern-confirm-dialog > footer .button { min-width: 76px; justify-content: center; }
+.modern-confirm-dialog .danger-confirm { border-color: #b91c1c; color: #fff; background: #dc2626; }
+.modern-confirm-dialog .danger-confirm:hover { background: #ef4444; }
+.workspace-shell[data-theme="light"] .modern-confirm-backdrop,
+.app-shell[data-theme="light"] .modern-confirm-backdrop { background: rgba(30,41,59,.24); }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog,
+.app-shell[data-theme="light"] .modern-confirm-dialog {
+  border-color: #cbd5e1;
+  color: #1e293b;
+  background: rgba(255,255,255,.985);
+  box-shadow: 0 18px 48px rgba(71,85,105,.18), 0 3px 10px rgba(71,85,105,.09);
+}
+.workspace-shell[data-theme="light"] .modern-confirm-dialog > header strong,
+.app-shell[data-theme="light"] .modern-confirm-dialog > header strong { color: #172554; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog__content p,
+.app-shell[data-theme="light"] .modern-confirm-dialog__content p { color: #52677f; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog > footer,
+.app-shell[data-theme="light"] .modern-confirm-dialog > footer { border-color: #dbe3ed; background: #f8fafc; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog__icon,
+.app-shell[data-theme="light"] .modern-confirm-dialog__icon { color: #1d4ed8; background: #dbeafe; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog__icon.danger,
+.app-shell[data-theme="light"] .modern-confirm-dialog__icon.danger { color: #b91c1c; background: #fee2e2; }
+
+/* Settings secondary controls follow the same visual system as the new dropdowns. */
+.settings-inline-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.settings-inline-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-highlight);
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 0 #ffffff08;
+  cursor: pointer;
+  font-size: var(--font-xs);
+}
+.settings-inline-actions button:hover { border-color: var(--accent-hover); background: color-mix(in srgb, var(--surface-hover) 80%, var(--accent) 20%); }
+.app-shell[data-theme="light"] .settings-inline-actions button,
+.workspace-shell[data-theme="light"] .settings-inline-actions button { border-color: #cbd5e1; color: #1e3a5f; background: #f8fafc; box-shadow: none; }
+.app-shell[data-theme="light"] .settings-inline-actions button:hover,
+.workspace-shell[data-theme="light"] .settings-inline-actions button:hover { border-color: #93b4dc; background: #eef4fb; }
+
+.modern-prompt-dialog .modern-confirm-dialog__content { padding-top: 4px; }
+.modern-prompt-dialog .modern-confirm-dialog__content input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  color: var(--text-bright);
+  background: var(--surface-deep);
+  font-size: 13px;
+}
+.modern-prompt-dialog .modern-confirm-dialog__content input:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+.app-shell[data-theme="light"] .modern-prompt-dialog .modern-confirm-dialog__content input,
+.workspace-shell[data-theme="light"] .modern-prompt-dialog .modern-confirm-dialog__content input { border-color: #cbd5e1; color: #172554; background: #fff; }
+
+
+/* 1.4.9k: unified inspector heading, palette minimum width, DataGrid action sizing and tab indicator alignment. */
+
+/* The Parameters panel is a peer of Resources: same title scale, same left/right header rhythm.
+   Technical node type remains useful, but the user-facing node label is the first line below the panel title. */
+.inspector__heading {
+  display: grid;
+  min-width: 0;
+  min-height: 34px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.inspector__heading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.inspector__heading-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 10px;
+}
+.inspector__actions { gap: 10px; }
+.inspector__selection {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin: 12px 0 18px;
+}
+.inspector__node-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-highlight);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.inspector__selection .inspector__node-type {
+  margin: 0;
+  color: var(--accent-hover);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.35;
+  word-break: break-all;
+}
+.app-shell[data-theme="light"] .inspector__node-name { color: #1e293b; }
+.app-shell[data-theme="light"] .inspector__selection .inspector__node-type { color: #405f82; }
+
+/* Controlled two-line layout when the inspector itself becomes narrow. This avoids both huge dead gaps
+   and character-by-character wrapping of Copy/Delete/Collapse. */
+@container inspector-panel (max-width: 360px) {
+  .inspector__heading {
+    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-rows: 30px 30px;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .inspector__heading h2 { grid-column: 1; grid-row: 1; }
+  .inspector__heading-tools { display: contents; }
+  .inspector-dock-switch {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .inspector__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+    gap: 12px;
+  }
+}
+@media (max-width: 720px) {
+  .inspector__heading h2 { font-size: 14px; }
+}
+
+/* Do not allow the Resources pane to become narrower than the Nodes / Groups / Flows selector can display.
+   176 px is also the application's original/default palette width, so resizing now has a meaningful floor. */
+@media (min-width: 901px) {
+  .workspace,
+  .workspace.inspector-right { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) var(--inspector-width, 320px); }
+  .workspace.inspector-bottom { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr); }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  .workspace,
+  .workspace.inspector-right {
+    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 30vw)) minmax(0, 1fr) min(var(--inspector-width, 300px), 42vw);
+  }
+  .workspace.inspector-bottom {
+    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 30vw)) minmax(0, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .workspace,
+  .workspace.inspector-bottom,
+  .workspace.inspector-collapsed {
+    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 46vw)) minmax(0, 1fr);
+  }
+  .workspace.inspector-right {
+    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 38vw)) minmax(0, 1fr) minmax(210px, min(var(--inspector-width, 260px), 42vw));
+  }
+}
+@media (orientation: landscape) and (max-height: 720px) {
+  .workspace.inspector-right {
+    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 23vw)) minmax(0, 1fr) minmax(230px, min(var(--inspector-width, 300px), 36vw));
+  }
+  .workspace.inspector-bottom {
+    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 23vw)) minmax(0, 1fr);
+  }
+}
+
+/* DataGrid action row: glyph-only controls stay compact; text controls get the space they actually need.
+   The row still spans exactly the same width as search + page-size above it. */
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: grid !important;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 6px;
+}
+.data-grid__actions--4 {
+  grid-template-columns: 34px 34px minmax(48px, 1fr) minmax(48px, 1fr);
+}
+.data-grid__actions--3 {
+  grid-template-columns: 34px 34px minmax(48px, 1fr);
+}
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button,
+.data-grid__actions button:nth-last-child(-n + 2) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 6px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.data-grid__actions button:nth-child(-n + 2) {
+  padding-inline: 0;
+  font-size: 13px;
+}
+@container data-grid-panel (max-width: 190px) {
+  .data-grid__actions,
+  .node-result-inspector .data-grid__actions { gap: 4px; }
+  .data-grid__actions--4 { grid-template-columns: 32px 32px minmax(42px, 1fr) minmax(42px, 1fr); }
+  .data-grid__actions--3 { grid-template-columns: 32px 32px minmax(42px, 1fr); }
+  .data-grid__page-size,
+  .node-result-inspector .data-grid__page-size { width: 66px; min-width: 66px; max-width: 66px; }
+}
+
+/* Mobile active-tab marker aligns with the bottom edge of the 34 px topbar buttons (8 px above header bottom).
+   Desktop keeps the same marker but uses a subtler hairline. */
+.app-shell.native-platform .tabbar__tab.active::after {
+  bottom: 8px;
+  height: 1px;
+}
+.app-shell:not(.native-platform) .tabbar__tab.active::after {
+  height: .75px;
+}
+
+
+/* Match the Parameters panel's content inset to the Resources header instead of double-padding the right dock. */
+.workspace.inspector-right .inspector { padding: 0; }
+.workspace.inspector-right .inspector-scroll { padding: 11px 12px 18px; }
+
+/* 1.4.9l: rebalance DataGrid actions and use the horizontal inspector area efficiently. */
+
+/* Keep the toolbar frame full width, but do not stretch two icon-only actions to the same visual weight
+   as text actions. The compact pair stays on the left and the text pair is grouped on the right. */
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: grid !important;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: stretch;
+  gap: 6px;
+}
+.data-grid__actions--4,
+.node-result-inspector .data-grid__actions--4 {
+  grid-template-columns: 38px 38px minmax(10px, 1fr) minmax(68px, 96px) minmax(68px, 96px);
+}
+.data-grid__actions--4 > button:nth-child(1) { grid-column: 1; }
+.data-grid__actions--4 > button:nth-child(2) { grid-column: 2; }
+.data-grid__actions--4 > button:nth-child(3) { grid-column: 4; }
+.data-grid__actions--4 > button:nth-child(4) { grid-column: 5; }
+.data-grid__actions--3,
+.node-result-inspector .data-grid__actions--3 {
+  grid-template-columns: 38px 38px minmax(10px, 1fr) minmax(68px, 104px);
+}
+.data-grid__actions--3 > button:nth-child(1) { grid-column: 1; }
+.data-grid__actions--3 > button:nth-child(2) { grid-column: 2; }
+.data-grid__actions--3 > button:nth-child(3) { grid-column: 4; }
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button,
+.data-grid__actions button:nth-last-child(-n + 2) {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.data-grid__actions button:nth-child(-n + 2) {
+  padding-inline: 0;
+  font-size: 13px;
+}
+@container data-grid-panel (max-width: 300px) {
+  .data-grid__actions,
+  .node-result-inspector .data-grid__actions { gap: 5px; }
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 {
+    grid-template-columns: 34px 34px minmax(4px, 1fr) minmax(58px, 78px) minmax(58px, 78px);
+  }
+  .data-grid__actions--3,
+  .node-result-inspector .data-grid__actions--3 {
+    grid-template-columns: 34px 34px minmax(4px, 1fr) minmax(62px, 84px);
+  }
+}
+@container data-grid-panel (max-width: 220px) {
+  .data-grid__actions,
+  .node-result-inspector .data-grid__actions { gap: 4px; }
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 {
+    grid-template-columns: 32px 32px minmax(2px, 1fr) 56px 56px;
+  }
+  .data-grid__actions--3,
+  .node-result-inspector .data-grid__actions--3 {
+    grid-template-columns: 32px 32px minmax(2px, 1fr) 60px;
+  }
+  .data-grid__actions button,
+  .node-result-inspector .data-grid__actions button { padding-inline: 4px; }
+}
+
+/* A bottom-docked inspector has horizontal room but little vertical room. Treat that room as a responsive
+   form grid: compact controls can share rows, while objects that benefit from width keep the full span. */
+.workspace.inspector-bottom .inspector-scroll {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-auto-flow: row dense;
+  align-content: start;
+  align-items: start;
+  gap: 12px 14px;
+  padding: 14px 18px 18px;
+}
+.workspace.inspector-bottom .inspector__heading,
+.workspace.inspector-bottom .inspector__selection,
+.workspace.inspector-bottom .node-result-inspector,
+.workspace.inspector-bottom .group-settings,
+.workspace.inspector-bottom .node-organization,
+.workspace.inspector-bottom .node-default-actions,
+.workspace.inspector-bottom .custom-templates,
+.workspace.inspector-bottom .advanced-parameters,
+.workspace.inspector-bottom .validation-error,
+.workspace.inspector-bottom .result-panel,
+.workspace.inspector-bottom .muted {
+  grid-column: 1 / -1;
+}
+.workspace.inspector-bottom .inspector__heading { margin: 0; }
+.workspace.inspector-bottom .inspector__selection { margin: 0 0 2px; }
+.workspace.inspector-bottom .node-file-picker,
+.workspace.inspector-bottom .callable-signature,
+.workspace.inspector-bottom .field,
+.workspace.inspector-bottom .signature-summary,
+.workspace.inspector-bottom .node-default-actions,
+.workspace.inspector-bottom .custom-templates,
+.workspace.inspector-bottom .advanced-parameters,
+.workspace.inspector-bottom .validation-error,
+.workspace.inspector-bottom .muted {
+  min-width: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.workspace.inspector-bottom .field {
+  align-self: start;
+}
+.workspace.inspector-bottom .node-organization {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+.workspace.inspector-bottom .node-organization label { min-width: 0; }
+.workspace.inspector-bottom .node-default-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+.workspace.inspector-bottom .node-default-actions small {
+  flex: 1 1 260px;
+  min-width: 180px;
+}
+.workspace.inspector-bottom .advanced-parameters[open] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 14px;
+  padding-bottom: 10px;
+}
+.workspace.inspector-bottom .advanced-parameters[open] > summary {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+.workspace.inspector-bottom .advanced-parameters[open] > .field { margin: 0; }
+
+/* At medium widths two columns are still useful; below that, revert naturally to a single-column form. */
+@container inspector-panel (max-width: 620px) {
+  .workspace.inspector-bottom .inspector-scroll {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 10px 12px;
+    padding-inline: 14px;
+  }
+  .workspace.inspector-bottom .node-organization {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+}
+@container inspector-panel (max-width: 470px) {
+  .workspace.inspector-bottom .inspector-scroll { grid-template-columns: minmax(0, 1fr); }
+  .workspace.inspector-bottom .node-organization { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* 1.4.9m: blank startup, robust compact table controls, bottom-inspector flow layout, and touch marquee selection. */
+
+/* DataGrid: the two glyph buttons are compact, while Copy / Fullscreen share all remaining width.
+   No spacer column is used, so a scrollbar or one-pixel container difference can never push Fullscreen outside. */
+.data-grid__actions--4,
+.node-result-inspector .data-grid__actions--4 {
+  grid-template-columns: 36px 36px minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 6px;
+}
+.data-grid__actions--3,
+.node-result-inspector .data-grid__actions--3 {
+  grid-template-columns: 36px 36px minmax(0, 1fr) !important;
+  gap: 6px;
+}
+.data-grid__actions--4 > button:nth-child(1),
+.data-grid__actions--4 > button:nth-child(2),
+.data-grid__actions--4 > button:nth-child(3),
+.data-grid__actions--4 > button:nth-child(4),
+.data-grid__actions--3 > button:nth-child(1),
+.data-grid__actions--3 > button:nth-child(2),
+.data-grid__actions--3 > button:nth-child(3) { grid-column: auto !important; }
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button { box-sizing: border-box; }
+@container data-grid-panel (max-width: 230px) {
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 { grid-template-columns: 32px 32px minmax(0, 1fr) minmax(0, 1fr) !important; gap: 5px; }
+  .data-grid__actions--3,
+  .node-result-inspector .data-grid__actions--3 { grid-template-columns: 32px 32px minmax(0, 1fr) !important; gap: 5px; }
+}
+@container data-grid-panel (max-width: 190px) {
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 { grid-template-columns: 30px 30px minmax(0, 1fr) minmax(0, 1fr) !important; gap: 4px; }
+  .data-grid__actions button,
+  .node-result-inspector .data-grid__actions button { padding-inline: 3px; }
+}
+
+/* Right dock keeps the original vertical flow. Bottom dock uses content-aware columns: file actions need less
+   room than long callable documentation, so descriptive text gets the larger share and wraps less. */
+.inspector-node-overview { display: contents; }
+.workspace.inspector-bottom .inspector-node-overview {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(260px, .82fr) minmax(360px, 1.18fr);
+  align-items: stretch;
+  gap: 12px 16px;
+}
+.workspace.inspector-bottom .inspector-node-overview > .node-file-picker,
+.workspace.inspector-bottom .inspector-node-overview > .callable-signature {
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+.workspace.inspector-bottom .inspector-node-overview > .node-file-picker { align-content: center; }
+.workspace.inspector-bottom .inspector-node-overview > .callable-signature { align-content: center; }
+@container inspector-panel (max-width: 820px) {
+  .workspace.inspector-bottom .inspector-node-overview { grid-template-columns: minmax(230px, .9fr) minmax(300px, 1.1fr); gap: 10px 12px; }
+}
+@container inspector-panel (max-width: 610px) {
+  .workspace.inspector-bottom .inspector-node-overview { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Advanced fields use their own real grid wrapper. This avoids <details> layout quirks and allows the number
+   of columns to follow the actual bottom-panel width. */
+.workspace.inspector-bottom .advanced-parameters[open] { display: block; padding-bottom: 10px; }
+.workspace.inspector-bottom .advanced-parameters[open] > summary { margin-bottom: 8px; }
+.workspace.inspector-bottom .advanced-parameters__grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
+  gap: 10px 14px;
+}
+.workspace.inspector-bottom .advanced-parameters__grid > .field { min-width: 0; margin: 0; }
+@container inspector-panel (max-width: 780px) {
+  .workspace.inspector-bottom .advanced-parameters__grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 9px 12px; }
+}
+@container inspector-panel (max-width: 470px) {
+  .workspace.inspector-bottom .advanced-parameters__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Organization fields share the same control height; the joined input/button composite no longer looks taller. */
+.node-organization label > input,
+.node-organization label > span { min-height: 38px; height: 38px; box-sizing: border-box; }
+.node-organization label > span { align-items: stretch; }
+.node-organization label > span > input,
+.node-organization label > span > button { height: 38px; box-sizing: border-box; }
+
+/* Touch marquee: one-finger motion above 10 px before the hold remains panning. After a 520 ms hold on blank
+   canvas the parent captures the pointer and this screen-space marquee becomes the only active gesture. */
+.touch-marquee {
+  position: fixed;
+  z-index: 75;
+  box-sizing: border-box;
+  min-width: 1px;
+  min-height: 1px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 88%, white 12%);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent), inset 0 0 18px color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+.touch-marquee::before,
+.touch-marquee::after {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 5px #0005;
+  content: "";
+}
+.touch-marquee::before { left: -6px; top: -6px; }
+.touch-marquee::after { right: -6px; bottom: -6px; }
+.app-shell[data-theme="light"] .touch-marquee { background: #2563eb14; box-shadow: 0 0 0 1px #2563eb16, inset 0 0 18px #2563eb0c; }
+.canvas-panel.touch-marquee-active { cursor: crosshair; }
+
+/* 1.4.9o: workspace creation / unsaved-change dialogs. */
+.workspace-choice-dialog { width: min(520px, calc(100vw - 28px)); }
+.workspace-choice-dialog__choices { display: grid; gap: 10px; padding: 4px 16px 16px; }
+.workspace-choice-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  padding: 11px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-deep) 78%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease, transform .14s ease;
+}
+.workspace-choice-card:hover { border-color: var(--border-pop); background: var(--surface-hover); transform: translateY(-1px); }
+.workspace-choice-card:active { transform: translateY(0); }
+.workspace-choice-card__icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 9px; color: var(--accent-hover); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.workspace-choice-card__icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.workspace-choice-card > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; }
+.workspace-choice-card strong { color: var(--text-bright); font-size: 13px; font-weight: 650; }
+.workspace-choice-card small { color: var(--text-faint); font-size: 11px; line-height: 1.45; }
+.workspace-choice-card__arrow { width: 17px; height: 17px; fill: none; stroke: var(--text-faint); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.workspace-choice-dialog > footer { padding-top: 10px; }
+.modern-confirm-dialog__icon.warning { color: #fbbf24; background: color-mix(in srgb, #f59e0b 17%, transparent); font-size: 11px; }
+.unsaved-changes-dialog > footer { flex-wrap: wrap; }
+.unsaved-changes-dialog .unsaved-discard { border-color: color-mix(in srgb, #ef4444 45%, var(--border-soft)); color: #fca5a5; background: transparent; }
+.unsaved-changes-dialog .unsaved-discard:hover { border-color: #ef4444; color: #fff; background: color-mix(in srgb, #ef4444 22%, transparent); }
+.workspace-shell[data-theme="light"] .workspace-choice-card,
+.app-shell[data-theme="light"] .workspace-choice-card { border-color: #d5deea; color: #334155; background: #f8fafc; }
+.workspace-shell[data-theme="light"] .workspace-choice-card:hover,
+.app-shell[data-theme="light"] .workspace-choice-card:hover { border-color: #b7c6d8; background: #f1f5f9; }
+.workspace-shell[data-theme="light"] .workspace-choice-card strong,
+.app-shell[data-theme="light"] .workspace-choice-card strong { color: #172554; }
+.workspace-shell[data-theme="light"] .workspace-choice-card small,
+.app-shell[data-theme="light"] .workspace-choice-card small { color: #64748b; }
+.workspace-shell[data-theme="light"] .workspace-choice-card__icon,
+.app-shell[data-theme="light"] .workspace-choice-card__icon { color: #1d4ed8; background: #e8f0ff; }
+.workspace-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard,
+.app-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard { color: #b91c1c; border-color: #fecaca; }
+.workspace-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard:hover,
+.app-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard:hover { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+@media (max-width: 560px) {
+  .workspace-choice-dialog__choices { gap: 8px; padding-inline: 12px; }
+  .workspace-choice-card { grid-template-columns: 34px minmax(0, 1fr) 16px; gap: 9px; min-height: 62px; padding: 9px 10px; }
+  .workspace-choice-card__icon { width: 32px; height: 32px; }
+  .workspace-choice-card small { font-size: 10.5px; }
+  .unsaved-changes-dialog > footer { display: grid; grid-template-columns: 1fr 1fr; }
+  .unsaved-changes-dialog > footer .button.primary { grid-column: 1 / -1; grid-row: 1; }
+  .unsaved-changes-dialog > footer .unsaved-discard { grid-column: 1; grid-row: 2; }
+  .unsaved-changes-dialog > footer .button.secondary { grid-column: 2; grid-row: 2; }
+}
+
+
+/* 1.4.9p: restore native two-finger pinch and polish transient tab-close affordance. */
+.tabbar__close svg {
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Canvas gestures are fully owned by the app on Android: one finger pans/long-holds, two fingers pinch. */
+.app-shell.native-platform .canvas-panel { touch-action: none; }
+
+/* A temporary mobile close affordance belongs to the tab's upper-right corner and never participates
+   in the tab's flex layout. SVG geometry guarantees the X is optically and mathematically centered. */
+.app-shell.native-platform .tabbar__close.visible {
+  position: absolute !important;
+  z-index: 6;
+  top: 3px !important;
+  right: 4px !important;
+  display: grid !important;
+  width: 18px;
+  height: 18px;
+  margin: 0 !important;
+  padding: 0;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent) !important;
+  box-shadow: 0 2px 7px #0003;
+  opacity: 1 !important;
+}
+.app-shell.native-platform .tabbar__close.visible svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.app-shell.native-platform .tabbar__close.visible:active {
+  color: var(--text-bright);
+  background: var(--surface-hover) !important;
+}
+.app-shell.native-platform .tabbar__tab:has(.tabbar__close.visible) .tabbar__name { padding-right: 12px; }
+.app-shell[data-theme="light"].native-platform .tabbar__close.visible {
+  border-color: #cbd5e1;
+  color: #52677f;
+  background: rgba(248, 250, 252, .96) !important;
+  box-shadow: 0 2px 6px rgba(71, 85, 105, .15);
+}
