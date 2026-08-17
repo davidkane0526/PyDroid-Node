@@ -117,16 +117,16 @@ function loadAgentSettings(value: unknown): AgentSettings {
   const saved = value && typeof value === "object" ? value as Partial<AgentSettings> : {};
   const permissions = (saved.permissions && typeof saved.permissions === "object" ? saved.permissions : {}) as Partial<Record<AgentPermission, boolean>>;
   const permissionValue = (permission: AgentPermission) => typeof permissions[permission] === "boolean" ? permissions[permission] : DEFAULT_AGENT_SETTINGS.permissions[permission];
-  // DeepSeek 预设迁移：旧模型名 → V4（2026-07-24 停用）；官方默认接口从 Chat Completions 升级到 Responses API（2026-08-13 起 flash/pro 均支持）
+  // DeepSeek 预设迁移：旧模型名 → V4；把早期试验性的 /responses 配置迁回官方 Chat Completions。
   const rawModel = typeof saved.model === "string" ? saved.model : DEFAULT_AGENT_SETTINGS.model;
   const model = saved.presetId === "deepseek"
     ? rawModel === "deepseek-reasoner" ? "deepseek-v4-pro" : rawModel === "deepseek-chat" ? "deepseek-v4-flash" : rawModel
     : rawModel;
   const rawProvider = saved.provider === "anthropic-messages" || saved.provider === "openai-compatible" ? saved.provider : "openai-responses";
   const rawEndpoint = typeof saved.endpoint === "string" && saved.endpoint.trim() ? saved.endpoint : DEFAULT_AGENT_SETTINGS.endpoint;
-  const isDeepseekOfficialChat = saved.presetId === "deepseek" && rawProvider === "openai-compatible" && rawEndpoint === "https://api.deepseek.com/chat/completions";
-  const provider = isDeepseekOfficialChat ? "openai-responses" : rawProvider;
-  const endpoint = isDeepseekOfficialChat ? "https://api.deepseek.com/responses" : rawEndpoint;
+  const migrateDeepSeekResponses = saved.presetId === "deepseek" && rawProvider === "openai-responses" && rawEndpoint === "https://api.deepseek.com/responses";
+  const provider = migrateDeepSeekResponses ? "openai-compatible" : rawProvider;
+  const endpoint = migrateDeepSeekResponses ? "https://api.deepseek.com/chat/completions" : rawEndpoint;
   return {
     presetId: typeof saved.presetId === "string" ? saved.presetId : DEFAULT_AGENT_SETTINGS.presetId,
     provider,
@@ -148,7 +148,7 @@ function loadAgentSettings(value: unknown): AgentSettings {
 }
 
 function loadAppSettings(): AppSettings {
-  const defaults: AppSettings = { themeMode: "system", runtimePreference: "auto", paletteWidth: 176, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: false, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
+  const defaults: AppSettings = { themeMode: "system", runtimePreference: "auto", paletteWidth: 176, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
     return {
@@ -165,7 +165,7 @@ function loadAppSettings(): AppSettings {
       debugMode: typeof saved.debugMode === "boolean" ? saved.debugMode : defaults.debugMode,
       miniMapMode: saved.miniMapMode === "show" || saved.miniMapMode === "auto" || saved.miniMapMode === "hide" ? saved.miniMapMode : defaults.miniMapMode,
       layoutMode: saved.layoutMode === "auto" || saved.layoutMode === "horizontal" || saved.layoutMode === "vertical" ? saved.layoutMode : defaults.layoutMode,
-      smb: saved.smb && typeof saved.smb === "object" ? { server: String(saved.smb.server ?? ""), share: String(saved.smb.share ?? ""), domain: String(saved.smb.domain ?? ""), username: String(saved.smb.username ?? ""), rememberPassword: Boolean(saved.smb.rememberPassword), guest: Boolean(saved.smb.guest) } : defaults.smb,
+      smb: saved.smb && typeof saved.smb === "object" ? { server: String(saved.smb.server ?? ""), share: String(saved.smb.share ?? ""), domain: String(saved.smb.domain ?? ""), username: String(saved.smb.username ?? ""), rememberPassword: typeof saved.smb.rememberPassword === "boolean" ? saved.smb.rememberPassword : true, guest: Boolean(saved.smb.guest) } : defaults.smb,
       agent: loadAgentSettings(saved.agent),
     };
   } catch { return defaults; }

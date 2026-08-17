@@ -3,18 +3,24 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.8",
+  "version": "1.4.12",
   "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=24.19.0 <25"
+  },
   "main": "desktop/main.cjs",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit -p tsconfig.json && vite build",
-    "check": "pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "test:build-tools": "node scripts/build-tools-smoke.mjs",
+    "test:version": "node scripts/check-version-sync.mjs",
+    "check": "pnpm test:build-tools && pnpm test:version && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
     "audit:notebooks": "node scripts/python-run.mjs scripts/audit-notebooks.py",
+    "version:bump": "node scripts/bump-version.mjs",
     "env:windows": "powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1",
     "preview": "vite preview",
     "desktop": "pnpm desktop:quick",
@@ -84,7 +90,8 @@
     ],
     "win": {
       "target": "dir",
-      "icon": "desktop/icon.png"
+      "icon": "desktop/icon.png",
+      "signExecutable": false
     }
   }
 }

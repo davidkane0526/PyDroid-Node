@@ -565,6 +565,23 @@ def _as_bool(raw: Any) -> bool:
     return bool(raw)
 
 
+def _apply_scientific_notation(axis: Any, params: dict[str, Any], *, x: bool = True, y: bool = True) -> None:
+    """Use compact scientific labels for numeric linear axes when requested."""
+    if not _as_bool(params.get("scientificNotation", True)):
+        return
+    for axis_name, enabled in (("x", x), ("y", y)):
+        if not enabled:
+            continue
+        try:
+            scale = axis.get_xscale() if axis_name == "x" else axis.get_yscale()
+            if scale != "linear":
+                continue
+            axis.ticklabel_format(axis=axis_name, style="sci", scilimits=(-3, 4), useMathText=True)
+        except (AttributeError, TypeError, ValueError):
+            # Matplotlib raises on categorical axes because they do not use ScalarFormatter.
+            continue
+
+
 def _printable(value: Any, limit: int = 8_000, max_rows: int = 20, mode: str = "pretty", include_type: bool = True, encoding: str = "utf-8", encoding_errors: str = "replace", bytes_format: str = "decode") -> str:
     if mode == "repr": text = repr(value)
     elif mode == "text": text = str(value)
@@ -1656,6 +1673,7 @@ def _execute_node(
             if y_label:
                 axis.set_ylabel(y_label)
             axis.grid(_as_bool(params.get("grid", True)), alpha=0.25)
+            _apply_scientific_notation(axis, params, x=True, y=True)
             figure.tight_layout()
             buffer = io.BytesIO()
             figure.savefig(buffer, format="png")
@@ -1686,6 +1704,7 @@ def _execute_node(
             axis.set_xlabel(str(params.get("xLabel", "")))
             axis.set_ylabel(str(params.get("yLabel", "")))
             axis.grid(_as_bool(params.get("grid", True)), alpha=.25)
+            _apply_scientific_notation(axis, params, x=True, y=True)
             figure.tight_layout()
             buffer = io.BytesIO(); figure.savefig(buffer, format="png")
         finally: plt.close(figure)

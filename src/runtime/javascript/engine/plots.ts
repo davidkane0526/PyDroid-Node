@@ -100,7 +100,7 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
     series,
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "line", option };
+  return { type: "line", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 export function scatterPlot(table: Table, params: Record<string, unknown>): PlotChart {
@@ -123,7 +123,7 @@ export function scatterPlot(table: Table, params: Record<string, unknown>): Plot
     series: [{ type: "scatter", data, symbolSize: Math.max(4, pointSize / 2), itemStyle: { opacity: alpha } }],
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "scatter", option };
+  return { type: "scatter", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 export function barPlot(table: Table, params: Record<string, unknown>): PlotChart {
@@ -148,7 +148,7 @@ export function barPlot(table: Table, params: Record<string, unknown>): PlotChar
     series,
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "bar", option };
+  return { type: "bar", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 export function histogramPlot(table: Table, params: Record<string, unknown>): PlotChart {
@@ -185,7 +185,7 @@ export function histogramPlot(table: Table, params: Record<string, unknown>): Pl
     series,
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "histogram", option };
+  return { type: "histogram", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 export function boxPlot(table: Table, params: Record<string, unknown>): PlotChart {
@@ -214,7 +214,7 @@ export function boxPlot(table: Table, params: Record<string, unknown>): PlotChar
     series: [{ type: "boxplot", data }],
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "box", option };
+  return { type: "box", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 export function areaPlot(table: Table, params: Record<string, unknown>): PlotChart {
@@ -239,7 +239,7 @@ export function areaPlot(table: Table, params: Record<string, unknown>): PlotCha
     series,
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "area", option };
+  return { type: "area", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 export function heatmapPlot(table: Table, params: Record<string, unknown>): PlotChart {
@@ -326,7 +326,7 @@ export function heatmapPlot(table: Table, params: Record<string, unknown>): Plot
     series: [{ type: "heatmap", data, emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } } }],
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
   };
-  return { type: "heatmap", option };
+  return { type: "heatmap", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }
 
 function markerSymbol(marker: string): string | null {

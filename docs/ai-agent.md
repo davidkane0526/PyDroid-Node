@@ -17,15 +17,30 @@ PyDroid Flow 的 AI Agent 只能操作版本化的节点流程，不把 Python�
 
 ### 模型兼容性提示
 
-- OpenAI 与 DeepSeek 使用 Responses 接口，Anthropic 使用 Messages 接口，其余
-  供应商使用 OpenAI 兼容 Chat Completions 接口，均由预设自动配置。
-- **DeepSeek：默认走 Responses 接口（`https://api.deepseek.com/responses`，
-  2026-08-13 起 `deepseek-v4-flash` / `deepseek-v4-pro` 均支持）**；若需改用
-  Chat Completions，把接口地址改为 `https://api.deepseek.com/chat/completions`
-  并将协议切换为 OpenAI 兼容模式。旧模型名 `deepseek-chat` / `deepseek-reasoner`
-  已于 2026-07-24 停用，仅 `deepseek-v4-flash` / `deepseek-v4-pro` 可用。
+- OpenAI 默认使用 Responses 接口，Anthropic 使用 Messages 接口；Moonshot、GLM、
+  Qwen 与自定义兼容供应商使用 Chat Completions。
+- DeepSeek V4 官方提供 OpenAI Chat Completions 与 Anthropic 兼容接口。PyDroid Flow 的
+  DeepSeek 预设默认使用“OpenAI 兼容 Chat”，完整接口为
+  `https://api.deepseek.com/chat/completions`；官方 OpenAI 格式 base URL 为
+  `https://api.deepseek.com`。DeepSeek 官方当前没有把 Responses API 作为 V4 的标准接入方式，
+  因此 PyDroid Flow 不会把 DeepSeek 预设路由到 `/responses`。
+- DeepSeek 当前模型使用 `deepseek-v4-flash` / `deepseek-v4-pro`。旧模型名
+  `deepseek-chat` / `deepseek-reasoner` 已于 2026-07-24 弃用；旧配置会迁移到 V4 模型名。
+- 若需要使用 DeepSeek 的 Anthropic 兼容接口，官方 base URL 为
+  `https://api.deepseek.com/anthropic`；直接发送 Messages 请求时对应接口可填写
+  `https://api.deepseek.com/anthropic/v1/messages`。
+- DeepSeek V4 默认开启思考模式。思考模式发生工具调用后，后续请求必须完整回传
+  `reasoning_content`，否则 API 会返回 400。PyDroid Flow 当前 Agent 的职责是让模型一次性
+  生成结构化 `propose_workflow_plan` 工具调用，再由本地权限校验与用户确认执行，因此
+  DeepSeek 连接测试和节点规划会显式设置 `thinking.type=disabled`，避免引入并不需要的
+  多轮推理状态。若未来将 Agent 扩展为多轮外部工具循环，应先实现完整的
+  `reasoning_content` 保存与回传。
+- DeepSeek Chat Completions 的普通 Tool Calls 支持 `tool_choice="required"`，当前规划器
+  只暴露一个 `propose_workflow_plan` 工具，因此可稳定要求模型返回结构化计划。
+  `strict` Tool Calls 仍属于 Beta，需要使用 `https://api.deepseek.com/beta`，并满足其
+  JSON Schema 限制；PyDroid Flow 默认不启用 Beta strict 模式。
 - 若“请求 AI 计划”返回“没有返回工作流计划工具调用”，优先确认所选模型支持
-  function calling / tool use，并检查接口地址与密钥是否正确。
+  function calling / tool use，并检查协议、接口地址、模型名和密钥是否匹配。
 
 ## 可用操作
 

@@ -1,9 +1,35 @@
+## 2026-08-17 — Build GUI RC10 Android PowerShell fix
+
+- Windows desktop packaging is confirmed by user log to complete through Electron packaging plus desktop smoke tests.
+- Fixed Android startup failure `无法覆盖变量 Home，因为该变量为只读变量或常量` by renaming Java helper parameters away from PowerShell automatic `$HOME`.
+- Added a static build-tool regression guard for read-only `$HOME` collisions; shared tool/cache/network behavior remains based on RC9.
+
+## 2026-08-17 — Build GUI RC9 unified shared toolchain
+
+- Unified the RC5-RC8 launcher/network/native-pnpm fixes with the cross-project `DK_TOOL_ROOT` / `DK_CACHE_ROOT` shared toolchain.
+- Shared caches now include pnpm, npm, Corepack, Electron, electron-builder, Gradle and downloads; project package versions remain local and lockfile-controlled.
+- Hardened JDK selection by validating the requested major version and activating that JDK before Android `sdkmanager`; added the legacy native-`pnpm.exe` workspace compatibility patch and path-with-spaces handling for Python installation.
+- Sandbox validation: build-tool Node smoke passed, all project `.mjs`/`.cjs` syntax checks passed, PowerShell lexical/balance regression checks passed, collection-output/`$args` regressions are absent, and `git diff --check` passed. Full WinForms/Electron/Android packaging still requires Windows local validation.
+
+## 2026-08-17 — Build GUI RC8 local compile compatibility
+
+- RC7 Windows 日志确认 `Manual` 代理 `http://127.0.0.1:7890` 已正确传入，pnpm install 直接命中缓存并在 54 ms 完成，网络层本轮通过。
+- 修复 `scripts/desktop-package.mjs` 将 native `pnpm.exe` 错交给 `node.exe` 导致 `ERR_UNKNOWN_FILE_EXTENSION .exe`；包管理器启动方式现按实际 launcher 类型选择。
+- 修复 `src/dialogs.tsx` 的 `<details defaultOpen>` React/TypeScript 类型错误，并增加无依赖 build-tools smoke test 防止 pnpm launcher 回归。
+- Sandbox 已完成 Node 语法检查、build-tools smoke、36 个 TS/TSX 文件语法转译、`git diff --check`；依赖完整的 `desktop:build`/Electron/Android 打包仍需 Windows 本机验证。
+
+## 2026-08-17 — Build GUI RC7 network compatibility
+
+- RC6 local validation exposed pnpm `TimeoutError` during `pnpm install`. Root cause in the wrapper: it did not explicitly bridge the user's Windows/system proxy into pnpm/Electron child processes.
+- Added Auto/Direct/Manual network modes, Windows fixed-proxy detection, manual proxy and registry fields, request timeout/network concurrency controls, persistent-store `--prefer-offline`, whole-install retry, and Electron proxy environment propagation.
+- Still requires Windows local validation because this sandbox cannot run WinForms or perform the dependency-backed Windows/Android package build.
+
 
 > **1.4.9o**：顶部“新建”现在可选择当前标签页新建或新建标签页；未保存修改在当前页重建与标签关闭前均提供保存/不保存/取消，保存后未修改则直接关闭。标签切换会保留当前会话内各自工作流状态。
 - 1.4.9n Android：空白画布触摸改为 10 px 平移阈值 / 520 ms 长按框选的互斥手势状态机，避免框选时 viewport 继续移动；移除固定 null 的 restoredSnapshot 可选链，修复首次 TypeScript 构建的 nodes/edges/requirements `never` 错误。
 # 项目进度与平台一致性
 
-更新时间：2026-08-16
+更新时间：2026-08-17
 
 ## 版本记录要求
 
@@ -12,6 +38,7 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 ## 已完成
 
+- `1.4.9 (32)` 设置/SMB UI 收口（`refactor/settings-smb-ui`，待本地编译验证）：设置窗口改为宽屏双列、窄屏单列的自适应卡片布局，并统一主题滚动条；SMB 重写为设备/共享树 + 地址面包屑 + 可折叠连接设置 + 文件列表的文件管理器结构，底层 SMB API 与凭据安全模型不变。新增 `AGENTS.md` 和 `docs/development-handoff.md` 作为跨会话开发入口。
 - Runtime Adapter 架构重构（`refactor/runtime-architecture`，待本地完整编译/Android 验证）：149p UI 与 Python 执行保持为基线；原 JS 分支的纯 TypeScript 数据流引擎迁回 `src/runtime/javascript/engine/`；统一运行时注册、自动兼容性回退、共享结果协议与 ECharts 交互图表已接入，旧 JS 分支不再作为第二套应用继续同步 UI。
 - `1.4.9` 候选 UI 修复：参数/资源面板标题统一并显示节点名称，资源栏最小宽度固定到可完整显示三类标签；DataGrid 工具按钮按实际内容分配宽度；移动端标签指示线与顶部按钮底端对齐，桌面指示线进一步细化。
 - `1.4.8 (31)`：组合接口从跨边界连线和内部未占用端口共同推导，旧 0 端点组合自动修复；完成组合与框选选择同步，框选期间隐藏连线和删除叉号；资源节点/组合增加右键操作，组合名称卡片和桌面分类拖拽动画完成重做。
@@ -111,10 +138,10 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 ## 下一里程碑
 
-1. 人工操作 Windows 桌面端，验收 CSV→处理→图表→导出的完整交互流程。
-2. 为 Windows 应用补充正式图标、版本信息和发布签名策略。
-3. 在 ARM64 设备上安装 debug APK，验收 CSV→处理→图表→导出的完整交互流程。
-4. 后续新增节点时同时执行两平台一致性回归。
-5. 扩展自定义节点：语法高亮与补全、复合/数据类类型、模板重命名和更细粒度的执行权限。
-- 1.4.9p: restored Android two-finger pinch zoom alongside custom pan/marquee gestures; polished mobile tab close icon placement and dismissal/menu behavior.
+1. 本地完整编译并人工验收 `refactor/settings-smb-ui`：设置窗口、SMB 文件管理器、亮/暗主题、Android 横竖屏与 Windows 桌面端。
+2. 将验证通过的设置/SMB UI 收口回 `refactor/runtime-architecture`。
+3. 新建临时重构分支，引入 `PlatformAdapter`，把 SMB、文件选择、配置目录和局域网宿主能力从 `execution.ts` 兼容门面中抽离。
+4. Platform Adapter 稳定后拆分 Workflow Core：文档模型、会话、多标签 dirty 状态、序列化和 transaction history。
+5. 将运行时兼容性变成节点元数据，使节点添加/连线阶段即可预知 Python/JavaScript 支持情况；随后再扩展 JS parity 与调试器。
 
+最近移动端基线：1.4.9p 已恢复双指缩放并完善标签关闭交互；本分支不应回退这些手势能力。

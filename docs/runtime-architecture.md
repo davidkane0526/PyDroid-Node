@@ -91,17 +91,18 @@ Feature/refactor branches are temporary:
 main
   ↑
 dev
-  └── refactor/runtime-architecture   ← current work
+  └── refactor/runtime-architecture
+       └── refactor/settings-smb-ui   ← current work
 ```
 
 The former JavaScript branch is a migration source, not a second application to keep synchronized. Once this refactor is locally validated and merged, its remaining branch can be archived or deleted because the useful engine now lives in the unified source tree.
 
 ## Next phases
 
-1. Validate Python/JavaScript parity for the supported node set and expand it only where semantics can be matched.
+1. Locally validate the adaptive settings UI and the new SMB file-manager UI without changing the underlying host APIs.
 2. Move SMB, file dialogs, profile storage and host-specific services from compatibility facades into a `PlatformAdapter` layer.
 3. Extract workflow session/history/serialization responsibilities from the large application component into a `workflow-core` module.
 4. Add typed runtime capability metadata to node definitions so the palette can show runtime support before execution.
-5. Consider per-node or segmented mixed-runtime execution only after data transfer semantics and debugging behavior are well defined.
+5. Validate and expand Python/JavaScript parity only where semantics can be matched, then consider mixed-runtime execution after transfer/debugging semantics are defined.
 
 The project should not return to separate Python-UI and JavaScript-UI branches.

@@ -850,6 +850,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       grid: true,
       logX: false,
       logY: false,
+      scientificNotation: true,
       lineStyle: "-",
       marker: "",
       lineWidth: 1.5,
@@ -869,6 +870,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "grid", label: "显示网格", kind: "boolean", rememberDefault: true },
       { key: "logX", label: "X 轴对数", kind: "boolean" },
       { key: "logY", label: "Y 轴对数", kind: "boolean" },
+      { key: "scientificNotation", label: "科学计数法", kind: "boolean", rememberDefault: true, description: "数值轴在过大或过小时自动使用科学计数法。" },
       {
         key: "lineStyle", label: "线型", kind: "select", rememberDefault: true, options: [
           { label: "实线", value: "-" }, { label: "虚线", value: "--" },
@@ -889,7 +891,7 @@ export const NODE_CATALOG: NodeSpec[] = [
   },
   ...([{"nodeType":"plot.scatter","label":"散点图","description":"按 X/Y 数值列绘制散点关系。"},{"nodeType":"plot.bar","label":"柱状图","description":"按分类或数值 X 轴绘制柱状比较。"},{"nodeType":"plot.histogram","label":"直方图","description":"显示一个或多个数值列的分布。"},{"nodeType":"plot.box","label":"箱线图","description":"比较数值列的中位数、四分位数与异常值。"},{"nodeType":"plot.area","label":"面积图","description":"绘制随 X 轴变化的堆叠或重叠面积。"}] as const).map((item): NodeSpec => ({
     ...item, category: "绘图", tags: ["plot", "绘图", item.label],
-    defaults: { xColumn: "", yColumns: "", title: "", xLabel: "", yLabel: "", legend: true, grid: true, bins: 20, pointSize: 24, alpha: .8, figureWidth: 8, figureHeight: 4.5, dpi: 120 },
+    defaults: { xColumn: "", yColumns: "", title: "", xLabel: "", yLabel: "", legend: true, grid: true, scientificNotation: true, bins: 20, pointSize: 24, alpha: .8, figureWidth: 8, figureHeight: 4.5, dpi: 120 },
     inputPorts: TABLE_INPUT, outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
     parameters: [
       { key: "xColumn", label: "X 列", kind: "text", placeholder: item.nodeType === "plot.scatter" ? "散点图必填" : "留空使用行号" },
@@ -897,7 +899,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "title", label: "图表标题", kind: "text" }, { key: "xLabel", label: "X 轴标签", kind: "text" }, { key: "yLabel", label: "Y 轴标签", kind: "text" },
       ...(item.nodeType === "plot.histogram" ? [{ key: "bins", label: "分箱数量", kind: "number", min: 1, max: 500, step: 1 } as ParameterSpec] : []),
       ...(item.nodeType === "plot.scatter" ? [{ key: "pointSize", label: "点大小", kind: "number", min: 1, max: 300, step: 1 } as ParameterSpec] : []),
-      { key: "alpha", label: "透明度", kind: "number", min: 0.05, max: 1, step: 0.05, control: "slider" }, { key: "legend", label: "显示图例", kind: "boolean" }, { key: "grid", label: "显示网格", kind: "boolean" },
+      { key: "alpha", label: "透明度", kind: "number", min: 0.05, max: 1, step: 0.05, control: "slider" }, { key: "legend", label: "显示图例", kind: "boolean" }, { key: "grid", label: "显示网格", kind: "boolean" }, { key: "scientificNotation", label: "科学计数法", kind: "boolean", rememberDefault: true, description: "数值轴在过大或过小时自动使用科学计数法。" },
       { key: "figureWidth", label: "图片宽度", kind: "number", min: 4, max: 16, step: .5 }, { key: "figureHeight", label: "图片高度", kind: "number", min: 3, max: 12, step: .5 }, { key: "dpi", label: "清晰度 DPI", kind: "number", min: 72, max: 300, step: 12 },
     ],
   })),

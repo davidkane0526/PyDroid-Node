@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $toolsDirectory = Join-Path $projectRoot ".tools"
@@ -12,23 +12,37 @@ $archiveMd5 = "FE8EF205F2E9C3BA44D0CF9954E1ABD3"
 $archiveSha256 = "4ACBED6DD1C744B0376E3B1CF57CE906F9DC9E95E68824584C8099A63025A3C3"
 $getPipSha256 = "FB24E693BAB954209A063D90953621412CCAD4A500905A726286E038F508DDF6"
 
-function Get-CertutilHash([string]$path, [string]$algorithm) {
-    return ((& certutil.exe -hashfile $path $algorithm)[1] -replace " ", "").ToUpperInvariant()
+function Get-FileDigest([string]$path, [string]$algorithm) {
+    return (Get-FileHash -LiteralPath $path -Algorithm $algorithm).Hash.ToUpperInvariant()
+}
+
+function Invoke-DownloadWithRetry([string]$uri, [string]$outFile) {
+    $attempts = 3
+    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+        try {
+            Invoke-WebRequest -Uri $uri -OutFile $outFile -UseBasicParsing
+            return
+        } catch {
+            if ($attempt -ge $attempts) { throw }
+            Write-Warning "Download failed ($attempt/$attempts): $($_.Exception.Message)"
+            Start-Sleep -Seconds (2 * $attempt)
+        }
+    }
 }
 
 New-Item -ItemType Directory -Force -Path $downloads | Out-Null
 if (-not (Test-Path -LiteralPath $archive)) {
-    Invoke-WebRequest -Uri "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip" -OutFile $archive
+    Invoke-DownloadWithRetry "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip" $archive
 }
 if (-not (Test-Path -LiteralPath $getPip)) {
-    Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile $getPip
+    Invoke-DownloadWithRetry "https://bootstrap.pypa.io/get-pip.py" $getPip
 }
 
-if ((Get-CertutilHash $archive "MD5") -ne $archiveMd5 -or
-    (Get-CertutilHash $archive "SHA256") -ne $archiveSha256) {
+if ((Get-FileDigest $archive "MD5") -ne $archiveMd5 -or
+    (Get-FileDigest $archive "SHA256") -ne $archiveSha256) {
     throw "Python embedded runtime checksum verification failed"
 }
-if ((Get-CertutilHash $getPip "SHA256") -ne $getPipSha256) {
+if ((Get-FileDigest $getPip "SHA256") -ne $getPipSha256) {
     throw "get-pip.py checksum verification failed"
 }
 

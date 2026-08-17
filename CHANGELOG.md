@@ -1,3 +1,48 @@
+## Build GUI RC10 PowerShell automatic-variable fix — 2026-08-17
+
+- Fixed Android-stage crash on Windows PowerShell caused by using `Home` as a function parameter; PowerShell variable names are case-insensitive, so it collided with the read-only automatic `$HOME` variable.
+- Renamed Java helper parameters to `JavaHomePath` and added a build-tool regression test that rejects future `$HOME` parameter/assignment collisions.
+- Desktop packaging behavior and the RC9 shared-toolchain/cache/proxy baseline are otherwise unchanged.
+
+## Build GUI RC9 unified shared toolchain — 2026-08-17
+
+- 将另一项目使用的 Shared Toolchain 与 RC5-RC8 修复统一：`DK_TOOL_ROOT` / `DK_CACHE_ROOT` 作为跨项目共享工具与缓存基线，Node/JDK/Android SDK/Python 可复用，pnpm/npm/Corepack/Electron/electron-builder/Gradle 共享下载缓存。
+- 保留 CMD 唯一用户入口、GUI 日志、代理网络层、`pnpm.exe` native launcher 兼容与临时工作区修补；Direct 模式进一步清除 npm/pnpm/ALL_PROXY 环境代理。
+- 修复共享工具链的潜在 Android 首装问题：JDK 现在校验主版本，并在运行 `sdkmanager` 前先设置 `JAVA_HOME`/PATH；Python 静默安装的 `TargetDir` 同时支持带空格路径。
+- 构建日志新增项目 `packageManager`、Electron/electron-builder 声明与 lockfile 版本以及实际 Node/pnpm 版本，便于区分“项目版本约束”和“共享缓存”。
+- 当前 PyDroid `package.json` 为 Electron `^43.4.0` / electron-builder `^26.15.3`，`pnpm-lock.yaml` 实际锁定 43.4.0 / 26.15.3；共享工具链不强制其它项目使用相同 Electron。
+
+## Build GUI RC8 local compile fix — 2026-08-17
+
+- 修复 Windows 上 pnpm 11 `@pnpm/exe` 场景：`npm_execpath` 可能直接指向 `pnpm.exe`，桌面打包脚本不再错误地把该 EXE 作为 JavaScript 交给 `node.exe` 加载，而是按 `.exe` / `.cmd` / `.js|.cjs|.mjs` 类型选择正确启动方式。
+- 新增无依赖 `test:build-tools` 回归测试，覆盖 native `pnpm.exe`、Corepack/JS launcher、Windows `.cmd` 与默认 fallback，防止同类启动回归。
+- 修复 SMB 文件管理器连接设置使用 React typings 不支持的 `defaultOpen` 属性导致 `desktop:build` TypeScript 失败；改为 DOM ref + effect，仅在尚未选择共享时自动展开，同时保留用户原生折叠/展开行为。
+- RC7 本地日志确认手动代理已生效，`pnpm install --prefer-offline` 54 ms 完成；本轮失败属于桌面打包调用与 TypeScript 源码错误，不再归因于网络。
+
+## Build GUI RC7 network fix — 2026-08-17
+
+- 修复 RC6 没有显式把 Windows/环境代理传给 pnpm 与 Electron 下载链的问题：默认 `Auto` 模式会读取 `HTTPS_PROXY`/`HTTP_PROXY`，否则读取 Windows 当前用户固定系统代理，并把同一代理传给 pnpm、`@electron/get` 和脚本下载。
+- GUI 新增“网络模式 / 代理地址 / npm Registry / 请求超时 / pnpm 网络并发”设置；支持 Auto / Direct / Manual，手动代理示例为 `http://127.0.0.1:7890`。
+- pnpm 安装默认启用持久 store + `--prefer-offline`，单次网络请求超时提高为 600 s，网络并发限制为 16，并在整次 `pnpm install` 失败后复用已经写入 store 的内容自动重试。
+- 自动模式会先检查本地代理端口是否存活；检测到 PAC 但没有固定代理时给出明确提示，避免长时间等待后才以 `TimeoutError` 结束。
+- 构建日志现在明确记录网络模式、代理、registry、timeout 和 concurrency；最终失败信息也会附带实际生效的网络参数。
+
+## Build GUI RC6 hotfix — 2026-08-17
+
+- 修复 WinForms `RowStyles/ColumnStyles/Controls.Add()` 返回索引未被丢弃，导致 CMD 窗口打印 `0 1 2 3 4` 等无意义数字的问题。
+- GUI 启动器现在将内部 PowerShell 输出写入 `%LOCALAPPDATA%\PyDroidBuild\logs\launcher-last.log`，正常启动时 CMD 不再显示实现细节。
+- 构建日志改为同时实时显示并持久保存到 `<输出目录>\logs\build-YYYYMMDD-HHMMSS.log`，成功/失败均弹出明确结果与日志位置。
+- 构建子进程输出读取改为 `ReadLineAsync()` + WinForms 定时器轮询，避免后台事件回调在不同 PowerShell/.NET 运行时上的 runspace 兼容问题。
+- GUI 正常关闭显式返回退出码 0；真正的 GUI 启动/运行崩溃由顶层 trap 写入诊断日志并返回非零退出码。
+
+## 1.4.9 RC2 — settings / SMB file manager
+
+- 设置窗口改为自适应双列卡片布局：宽屏优先利用横向空间，画布参数以响应式双列呈现，窄屏自动回落为单列；滚动条改为与亮/暗主题一致的细型内嵌滚动条。
+- SMB 文件选择器由“设备/登录/共享/文件”纵向向导重写为文件管理器结构：左侧网络设备与共享树、顶部地址/面包屑、可折叠连接设置、主文件列表和统一底部导入操作。
+- SMB 文件列表按名称/类型/大小显示，文件夹与文件使用统一 SVG 图标；移动端将网络树压缩为横向设备区并保持文件列表为主要可滚动区域。
+- 新增 `AGENTS.md` 与 `docs/development-handoff.md`，用于新会话快速恢复 Git/架构/验证状态；继续坚持单一项目目录、单一共享 UI，不再维护 Python/JS 两套应用。
+- Android 候选版本更新为 `1.4.9 (32)`；本提交由 AI 完成源码与静态检查，完整 pnpm/Android/Windows 编译仍交由本地环境验证。
+
 ## Runtime architecture refactor (unreleased)
 
 - Introduce a shared `RuntimeAdapter`/registry while preserving the 149p UI and Python execution behavior. Auto mode uses the JavaScript engine only when the full workflow is compatible and otherwise falls back to Python; explicit JavaScript mode reports unsupported nodes.

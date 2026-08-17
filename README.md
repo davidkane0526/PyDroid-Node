@@ -2,7 +2,7 @@
 > **1.4.9o**：顶部“新建”现在可选择当前标签页新建或新建标签页；未保存修改在当前页重建与标签关闭前均提供保存/不保存/取消，保存后未修改则直接关闭。标签切换会保留当前会话内各自工作流状态。
 # PyDroid Flow
 
-当前 Android 调试构建版本：`1.4.8 (31)`。
+当前 Android 调试构建版本：`1.4.9 (32)`（重构候选，需本地编译/实机复验）。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -10,6 +10,10 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 所有面向用户的功能、修复和版本号更新均记录在 [CHANGELOG.md](CHANGELOG.md)，并与 Android
 `versionName` / `versionCode` 保持一致。
+
+> **新会话 / Coding AI 开发入口**：先阅读根目录 [AGENTS.md](AGENTS.md) 和
+> [docs/development-handoff.md](docs/development-handoff.md)。它们记录当前 Git 分支、已完成重构、
+> 本地待验证项、下一阶段计划和“只交付一个干净 Git 项目目录”的约束。
 
 ## 项目目标
 
@@ -21,6 +25,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 ## 当前功能
 
 - **Runtime Adapter 架构重构（当前分支，待本地完整编译验证）**：保留 149p 共享 UI 与 Python 能力，取回原 JS 分支中可复用的数据流引擎；“自动”模式仅在整个工作流兼容时选择 JS，否则回退 Python；JS 图表以 ECharts 交互式结果接入现有预览。详见 [docs/runtime-architecture.md](docs/runtime-architecture.md)。
+- **1.4.9 RC2 设置与 SMB 文件管理器（当前分支，待本地验证）**：设置窗口使用宽屏双列/窄屏单列的自适应卡片布局并统一主题滚动条；SMB 改为网络设备与共享树、地址面包屑、可折叠连接设置和名称/类型/大小文件列表。详见 [docs/development-handoff.md](docs/development-handoff.md)。
 - `1.4.9` 候选：修复 Android 长按画布框选与单指平移竞争，框选激活后不再推动画布；首次构建不再因固定为 `null` 的 `restoredSnapshot` 可选链访问产生 `never` 类型错误；并继续统一资源栏、参数面板和节点结果 UI。
 - `1.4.8`：组合会从内部未占用端口自动生成公开输入输出并修复旧 0 端点资源；完成组合与框选计数同步，框选时隐藏连线和删除叉号；节点/组合资源增加右键菜单，组合卡片与桌面拖拽动画重做。
 - `1.4.7`：SMB 文件选择器改为多行设备/登录/共享/文件流程，设备卡显示共享名与 IP，支持访客登录、密码显隐和可读错误；设置页合并为单一文件选择入口；鼠标可拖动连线端点改接或拖到空白处断开，并校准断开按钮；缩窄、减淡资源栏。
@@ -244,6 +249,8 @@ Vg 分文件识别升/降压方向、自动检测全局 Vds 范围与步长、�
 pnpm install
 pnpm env:windows
 ```
+
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。RC10 构建器统一采用共享工具链：优先复用 `DK_TOOL_ROOT`（推荐 `D:\Code`）中的 Node/JDK/Android SDK/Python，并把 pnpm/npm/Corepack/Electron/electron-builder/Gradle 下载缓存集中到 `DK_CACHE_ROOT`（推荐 `D:\Code\BuildCache`）。网络层支持 Auto/Direct/Manual，代理会继续传给 pnpm 与 Electron；构建日志保存在输出目录的 `logs/`。Electron/electron-builder 不要求全局安装，具体版本仍由各项目 `package.json` 与 lockfile 决定。构建器同时兼容 native `pnpm.exe`、Corepack/JavaScript launcher 与传统 `pnpm.cmd`；`pnpm check` 会先运行轻量构建工具回归测试。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 

@@ -254,6 +254,49 @@ export function RemotePairDialog({ policy, error, pinInput, onPinChange, onSubmi
   return <div className="remote-access-backdrop" role="dialog" aria-modal="true" aria-label="Android 计算服务配对"><section className="remote-access-dialog"><header><strong>{policy?.requiresPin ? "输入四位校验码" : "连接 Android 计算服务"}</strong></header>{error ? <p className="validation-error">{error}</p> : <p>{policy ? policy.requiresPin ? "请输入 Android 应用显示的四位数字。" : "正在建立局域网连接…" : "正在检查 Android 服务…"}</p>}{policy?.requiresPin && <><input className="remote-pin-input" autoFocus inputMode="numeric" maxLength={4} value={pinInput} onChange={(event) => onPinChange(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") onSubmitPin(); }} placeholder="0000" /><footer><button className="button primary" onClick={onSubmitPin}>验证并进入</button></footer></>}</section></div>;
 }
 
+function SmbIcon({ kind }: { kind: "network" | "computer" | "share" | "folder" | "file" | "up" | "refresh" | "scan" | "chevron" }) {
+  let content;
+  if (kind === "network") content = <><circle cx="12" cy="12" r="2.3"/><circle cx="5" cy="7" r="1.5"/><circle cx="19" cy="7" r="1.5"/><path d="M6.3 8 10 10.7M17.7 8 14 10.7M12 14.4V19"/></>;
+  else if (kind === "computer") content = <><rect x="3.5" y="4" width="17" height="11" rx="1.8"/><path d="M8.5 20h7M10 15v5M14 15v5"/></>;
+  else if (kind === "share") content = <><path d="M4 7.5h6l1.8 2H20v9.5H4z"/><path d="M4 9.5h16"/></>;
+  else if (kind === "folder") content = <path d="M3.5 7.5h6l1.8 2H20v9H3.5z"/>;
+  else if (kind === "file") content = <><path d="M6 3.5h8l4 4V20H6z"/><path d="M14 3.5V8h4"/></>;
+  else if (kind === "up") content = <><path d="m7 11 5-5 5 5"/><path d="M12 6v12"/></>;
+  else if (kind === "refresh") content = <><path d="M19 8a7 7 0 1 0 1 5"/><path d="M19 4v4h-4"/></>;
+  else if (kind === "scan") content = <><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4"/><path d="M8 12h8"/></>;
+  else content = <path d="m9 6 6 6-6 6"/>;
+  return <svg className="smb-icon" viewBox="0 0 24 24" aria-hidden="true">{content}</svg>;
+}
+
+type SmbFavorite = {
+  id: string;
+  label: string;
+  server: string;
+  share: string;
+  domain: string;
+  username: string;
+  guest: boolean;
+};
+
+const SMB_FAVORITES_KEY = "pydroid-flow.smb-favorites.v1";
+
+function smbFavoriteId(server: string, share: string): string {
+  return `${server.trim().toLocaleLowerCase()}::${share.trim().toLocaleLowerCase()}`;
+}
+
+function loadSmbFavorites(): SmbFavorite[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SMB_FAVORITES_KEY) ?? "[]") as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is SmbFavorite => Boolean(item && typeof item === "object" && typeof (item as SmbFavorite).server === "string" && typeof (item as SmbFavorite).share === "string"))
+      .map((item) => ({ ...item, id: smbFavoriteId(item.server, item.share) }));
+  } catch { return []; }
+}
+
+function saveSmbFavorites(favorites: SmbFavorite[]): void {
+  try { localStorage.setItem(SMB_FAVORITES_KEY, JSON.stringify(favorites)); } catch { /* storage may be unavailable */ }
+}
+
 export function SmbDialog({ open, servers, connection, guest, rememberPassword, passwordVisible, loading, error, path, entries, selected, scannedShares, onClose, onDiscover, onSelectServer, onConnectionChange, onGuestChange, onRememberPasswordChange, onPasswordVisibleChange, onScanShares, onSelectShare, onBrowse, onImportSelection, onToggleSelected }: {
   open: boolean;
   servers: { address: string; name: string; shares?: string[] }[];
@@ -280,16 +323,150 @@ export function SmbDialog({ open, servers, connection, guest, rememberPassword, 
   onImportSelection: (importAll: boolean) => void;
   onToggleSelected: (path: string, checked: boolean) => void;
 }) {
+  const connectionPanelRef = useRef<HTMLDetailsElement | null>(null);
+  const previousLoadingRef = useRef(false);
+  const autoScanServerRef = useRef("");
+  const pendingFavoriteRef = useRef<SmbFavorite | null>(null);
+  const onScanSharesRef = useRef(onScanShares);
+  const onBrowseRef = useRef(onBrowse);
+  onScanSharesRef.current = onScanShares;
+  onBrowseRef.current = onBrowse;
+  const [favorites, setFavorites] = useState<SmbFavorite[]>(() => loadSmbFavorites());
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+
+  useEffect(() => {
+    if (!open) { setFavoritesOpen(false); return; }
+    if (!connection.share && connectionPanelRef.current) connectionPanelRef.current.open = true;
+  }, [open, connection.share]);
+
+  useEffect(() => {
+    const wasLoading = previousLoadingRef.current;
+    previousLoadingRef.current = loading;
+    if (!open || !wasLoading || loading || !connectionPanelRef.current) return;
+    if (error) connectionPanelRef.current.open = true;
+    else if (connection.share) connectionPanelRef.current.open = false;
+  }, [open, loading, error, connection.share]);
+
+  useEffect(() => {
+    if (!open) return;
+    const server = connection.server.trim();
+    if (!server || connection.share.trim() || scannedShares.length || loading || autoScanServerRef.current === server) return;
+    const timer = window.setTimeout(() => {
+      autoScanServerRef.current = server;
+      onScanSharesRef.current();
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [open, connection.server, connection.share, scannedShares.length, loading]);
+
+  useEffect(() => {
+    const favorite = pendingFavoriteRef.current;
+    if (!open || !favorite || loading) return;
+    const ready = connection.server === favorite.server && connection.share === favorite.share && guest === favorite.guest && (favorite.guest || (connection.username === favorite.username && connection.domain === favorite.domain));
+    if (!ready) return;
+    pendingFavoriteRef.current = null;
+    onBrowseRef.current("");
+  }, [open, loading, connection.server, connection.share, connection.username, connection.domain, guest]);
+
   if (!open) return null;
-  return <div className="settings-backdrop smb-backdrop" role="dialog" aria-modal="true" aria-label="内置 SMB 文件浏览器"><section className="smb-dialog">
-    <header><div><strong>局域网 SMB 文件选择</strong><span>选择设备和共享，登录后像文件管理器一样浏览文件</span></div><button aria-label="关闭 SMB 文件选择" onClick={onClose}>×</button></header>
-    <section className="smb-discovery"><div className="smb-section-title"><div><strong>1 · 选择设备</strong><small>扫描会先使用 Windows 的 net view 发现主机名，再补充 445 端口探测；可读取的共享显示在设备卡片上。</small></div><button className="button secondary" disabled={loading} onClick={onDiscover}>{loading ? "正在扫描…" : "扫描设备"}</button></div><div className="smb-server-grid">{servers.map((server) => <button key={server.address} className={connection.server === server.address ? "active" : ""} onClick={() => onSelectServer(server.address, server.shares)}><span>▣</span><strong>{server.name || server.address}</strong><small>{server.shares?.length ? `共享：${server.shares.join("、")}` : `IP · ${server.address}`}</small>{server.name !== server.address && <em>{server.address}</em>}</button>)}</div></section>
-    <section className="smb-login"><div className="smb-section-title"><div><strong>2 · 登录并读取共享</strong><small>填写服务器与账号密码后点“读取共享列表”，像 Windows 资源管理器一样浏览所有共享。</small></div><label className="smb-guest"><input type="checkbox" checked={guest} onChange={(event) => onGuestChange(event.target.checked)} />访客登录</label></div><div className="smb-connection"><label>服务器<input placeholder="IP 或主机名" value={connection.server} onChange={(event) => onConnectionChange({ server: event.target.value })} /></label><label>共享名<input list="smb-shares" placeholder="手动输入或点下方列表" value={connection.share} onChange={(event) => onConnectionChange({ share: event.target.value })} /><datalist id="smb-shares">{scannedShares.map((share) => <option key={share} value={share} />)}</datalist></label>{!guest && <><label className="smb-domain">域（可选）<input value={connection.domain} onChange={(event) => onConnectionChange({ domain: event.target.value })} /></label><label>用户名<input autoComplete="username" value={connection.username} onChange={(event) => onConnectionChange({ username: event.target.value })} /></label><label>密码<span className="password-field"><input type={passwordVisible ? "text" : "password"} autoComplete="current-password" value={connection.password} onChange={(event) => onConnectionChange({ password: event.target.value })} /><button type="button" aria-label={passwordVisible ? "隐藏密码" : "显示密码"} title={passwordVisible ? "隐藏密码" : "显示密码"} onClick={onPasswordVisibleChange}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/>{passwordVisible && <path d="m4 4 16 16"/>}</svg></button></span></label></>}<div className="smb-login-actions"><button disabled={loading || !connection.server.trim()} onClick={onScanShares}>{loading ? "读取中…" : "读取共享列表"}</button><button className="primary" disabled={loading || !connection.server.trim() || !connection.share.trim()} onClick={() => onBrowse("")}>{loading ? "连接中…" : "进入所选共享"}</button></div></div>{scannedShares.length > 0 && <div className="smb-shares-list"><div className="smb-section-title"><div><strong>共享列表</strong><small>点击共享直接进入</small></div></div>{scannedShares.map((share) => <button key={share} className={connection.share === share ? "active" : ""} onClick={() => onSelectShare(share)}><span>▣</span><strong>{share}</strong></button>)}</div>}</section>
-    <div className="smb-path"><button disabled={!path || loading} onClick={() => onBrowse(path.split("/").slice(0, -1).join("/"))}>上一级</button><code>/{path}</code><button disabled={loading || !entries.some((entry) => !entry.directory)} onClick={() => onImportSelection(true)}>导入当前文件夹</button></div>
-    {error && <p className="validation-error">{error}</p>}
-    <div className="smb-list">{entries.map((entry) => entry.directory ? <button className="smb-folder" key={entry.path} onClick={() => onBrowse(entry.path)}><span>▸</span><strong>{entry.name}</strong><small>文件夹</small></button> : <label key={entry.path}><input type="checkbox" checked={selected.includes(entry.path)} onChange={(event) => onToggleSelected(entry.path, event.target.checked)} /><strong>{entry.name}</strong><small>{entry.size > 1024 * 1024 ? `${(entry.size / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(entry.size / 1024)} KB`}</small></label>)}</div>
-    <footer>{!guest && <label className="smb-remember"><input type="checkbox" checked={rememberPassword} onChange={(event) => onRememberPasswordChange(event.target.checked)} />使用系统安全存储保存密码</label>}<span>已选择 {selected.length} 个文件</span><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" disabled={loading || !selected.length} onClick={() => onImportSelection(false)}>导入所选</button></footer>
-  </section></div>;
+  const activeServer = servers.find((server) => server.address === connection.server);
+  const availableShares = scannedShares.length ? scannedShares : activeServer?.shares ?? [];
+  const segments = path.split("/").filter(Boolean);
+  const crumbs = segments.map((segment, index) => ({ label: segment, path: segments.slice(0, index + 1).join("/") }));
+  const formatSize = (size: number) => size >= 1024 * 1024 * 1024 ? `${(size / 1024 / 1024 / 1024).toFixed(1)} GB` : size >= 1024 * 1024 ? `${(size / 1024 / 1024).toFixed(1)} MB` : size >= 1024 ? `${Math.ceil(size / 1024)} KB` : `${size} B`;
+  const fileType = (name: string) => {
+    const extension = name.includes(".") ? name.split(".").pop()?.toUpperCase() : "";
+    return extension ? `${extension} 文件` : "文件";
+  };
+  const currentFavoriteId = connection.server.trim() && connection.share.trim() ? smbFavoriteId(connection.server, connection.share) : "";
+  const currentFavorited = Boolean(currentFavoriteId && favorites.some((item) => item.id === currentFavoriteId));
+  const persistFavorites = (next: SmbFavorite[]) => { setFavorites(next); saveSmbFavorites(next); };
+  const toggleCurrentFavorite = () => {
+    if (!currentFavoriteId) return;
+    if (currentFavorited) { persistFavorites(favorites.filter((item) => item.id !== currentFavoriteId)); return; }
+    const favorite: SmbFavorite = {
+      id: currentFavoriteId,
+      label: `${activeServer?.name || connection.server} · ${connection.share}`,
+      server: connection.server.trim(),
+      share: connection.share.trim(),
+      domain: guest ? "" : connection.domain,
+      username: guest ? "" : connection.username,
+      guest,
+    };
+    persistFavorites([favorite, ...favorites.filter((item) => item.id !== favorite.id)].slice(0, 24));
+  };
+  const openFavorite = (favorite: SmbFavorite) => {
+    pendingFavoriteRef.current = favorite;
+    autoScanServerRef.current = favorite.server;
+    onGuestChange(favorite.guest);
+    onConnectionChange({ server: favorite.server, share: favorite.share, domain: favorite.domain, username: favorite.username });
+    setFavoritesOpen(false);
+  };
+  const removeFavorite = (id: string) => persistFavorites(favorites.filter((item) => item.id !== id));
+
+  return <div className="settings-backdrop smb-backdrop" role="dialog" aria-modal="true" aria-label="内置 SMB 文件浏览器">
+    <section className="smb-dialog smb-file-manager">
+      <header className="smb-manager-header"><div><strong>局域网文件</strong><span>浏览网络设备、共享和文件夹</span></div><button className="dialog-close-button" aria-label="关闭 SMB 文件选择" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
+      <div className="smb-manager-layout">
+        <aside className="smb-navigation" aria-label="网络位置">
+          <div className="smb-navigation__heading"><span><SmbIcon kind="network" /><strong>网络</strong></span><button type="button" className="smb-icon-button" title="扫描局域网设备" disabled={loading} onClick={onDiscover}><SmbIcon kind="scan" /></button></div>
+          <div className="smb-tree">
+            {servers.length === 0 && <div className="smb-tree__empty"><SmbIcon kind="computer" /><span>{loading ? "正在扫描设备…" : "尚未发现设备"}</span><button type="button" onClick={onDiscover} disabled={loading}>扫描设备</button></div>}
+            {servers.map((server) => {
+              const active = connection.server === server.address;
+              const shares = active && scannedShares.length ? scannedShares : server.shares ?? [];
+              return <div className={`smb-tree__server ${active ? "active" : ""}`} key={server.address}>
+                <button type="button" className="smb-tree__server-button" onClick={() => onSelectServer(server.address, server.shares)}><SmbIcon kind="computer" /><span><strong>{server.name || server.address}</strong><small>{server.name !== server.address ? server.address : "SMB 设备"}</small></span><SmbIcon kind="chevron" /></button>
+                {active && <div className="smb-tree__shares">{shares.length ? shares.map((share) => <button type="button" key={share} className={connection.share === share ? "active" : ""} onClick={() => onSelectShare(share)}><SmbIcon kind="share" /><span>{share}</span></button>) : <button type="button" className="smb-tree__load-shares" disabled={loading || !connection.server.trim()} onClick={onScanShares}>{loading ? "读取中…" : "重新读取共享"}</button>}</div>}
+              </div>;
+            })}
+          </div>
+          <div className="smb-navigation__footer"><span>{servers.length} 台设备</span><button type="button" disabled={loading} onClick={onDiscover}><SmbIcon kind="refresh" />刷新</button></div>
+        </aside>
+        <main className="smb-browser">
+          <div className="smb-browser-toolbar">
+            <button type="button" className="smb-icon-button" title="上一级" disabled={!path || loading} onClick={() => onBrowse(segments.slice(0, -1).join("/"))}><SmbIcon kind="up" /></button>
+            <nav className="smb-breadcrumbs" aria-label="当前位置">
+              <button type="button" disabled={!connection.server} onClick={() => { if (connection.share) onBrowse(""); }}>{activeServer?.name || connection.server || "选择设备"}</button>
+              {connection.share && <><SmbIcon kind="chevron" /><button type="button" onClick={() => onBrowse("")}>{connection.share}</button></>}
+              {crumbs.map((crumb) => <span key={crumb.path}><SmbIcon kind="chevron" /><button type="button" onClick={() => onBrowse(crumb.path)}>{crumb.label}</button></span>)}
+            </nav>
+            <div className="smb-favorites">
+              <button type="button" className={`smb-icon-button smb-favorite-button ${currentFavorited ? "active" : ""}`} title="收藏的网络位置" aria-label="收藏的网络位置" onClick={() => setFavoritesOpen((current) => !current)}>★</button>
+              {favoritesOpen && <div className="smb-favorites__panel">
+                {currentFavoriteId && <div className="smb-favorite-row smb-favorite-row--current"><button type="button" onClick={toggleCurrentFavorite}><strong>{currentFavorited ? "取消收藏当前位置" : "收藏当前位置"}</strong><small>{connection.server} / {connection.share}</small></button></div>}
+                {favorites.length === 0 && !currentFavoriteId && <div className="smb-favorites__empty">连接一个共享后即可收藏。</div>}
+                {favorites.map((favorite) => <div className="smb-favorite-row" key={favorite.id}><button type="button" onClick={() => openFavorite(favorite)}><strong>{favorite.label}</strong><small>{favorite.server} / {favorite.share}{favorite.guest ? " · 访客" : favorite.username ? ` · ${favorite.username}` : ""}</small></button><button type="button" className="smb-favorite-row__remove" title="移除收藏" aria-label={`移除收藏 ${favorite.label}`} onClick={() => removeFavorite(favorite.id)}>×</button></div>)}
+              </div>}
+            </div>
+            <button type="button" className="smb-icon-button" title="刷新当前文件夹" disabled={!connection.share || loading} onClick={() => onBrowse(path)}><SmbIcon kind="refresh" /></button>
+          </div>
+
+          <details ref={connectionPanelRef} className="smb-connection-panel">
+            <summary><span><strong>连接设置</strong><small>{guest ? "访客" : connection.username || "账号登录"}{connection.server ? ` · ${connection.server}` : " · 尚未选择设备"}</small></span><span>配置</span></summary>
+            <div className="smb-connection-form smb-connection-form--compact">
+              <label className="smb-field--server">服务器<input placeholder="IP 或主机名" value={connection.server} onChange={(event) => { autoScanServerRef.current = ""; onConnectionChange({ server: event.target.value, share: "" }); }} /></label>
+              <label className="smb-field--share">共享名<input list="smb-shares" placeholder="自动发现或输入共享名" value={connection.share} onChange={(event) => onConnectionChange({ share: event.target.value })} /><datalist id="smb-shares">{availableShares.map((share) => <option key={share} value={share} />)}</datalist></label>
+              {!guest && <><label className="smb-field--username">用户名<input autoComplete="username" value={connection.username} onChange={(event) => onConnectionChange({ username: event.target.value })} /></label><label className="smb-field--password">密码<span className="password-field"><input type={passwordVisible ? "text" : "password"} autoComplete="current-password" value={connection.password} onChange={(event) => onConnectionChange({ password: event.target.value })} /><button type="button" aria-label={passwordVisible ? "隐藏密码" : "显示密码"} onClick={onPasswordVisibleChange}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/>{passwordVisible && <path d="m4 4 16 16"/>}</svg></button></span></label><label className="smb-field--domain">域（可选）<input value={connection.domain} onChange={(event) => onConnectionChange({ domain: event.target.value })} /></label></>}
+              <label className="smb-guest smb-connection-form__guest"><input type="checkbox" checked={guest} onChange={(event) => onGuestChange(event.target.checked)} />访客</label>
+              <div className="smb-connection-form__actions"><button type="button" className="primary" disabled={loading || !connection.server.trim() || !connection.share.trim()} onClick={() => onBrowse("")}>{loading ? "连接中…" : "打开共享"}</button></div>
+            </div>
+          </details>
+
+          {error && <p className="validation-error smb-browser-error">{error}</p>}
+          <div className="smb-file-list" role="table" aria-label="SMB 文件列表">
+            <div className="smb-file-list__header" role="row"><span role="columnheader">名称</span><span role="columnheader">类型</span><span role="columnheader">大小</span></div>
+            <div className="smb-file-list__body">
+              {!connection.share && <div className="smb-file-empty"><SmbIcon kind="share" /><strong>选择一个共享</strong><span>选择左侧共享，或在连接设置中输入服务器后等待自动发现。</span></div>}
+              {connection.share && !loading && entries.length === 0 && !error && <div className="smb-file-empty"><SmbIcon kind="folder" /><strong>此文件夹为空</strong><span>当前位置没有可显示的文件或子文件夹。</span></div>}
+              {loading && <div className="smb-file-empty"><span className="smb-loading-spinner"/><strong>正在读取…</strong><span>正在获取网络位置内容。</span></div>}
+              {!loading && entries.map((entry) => entry.directory ? <button type="button" className="smb-file-row smb-file-row--folder" role="row" key={entry.path} onDoubleClick={() => onBrowse(entry.path)} onClick={() => onBrowse(entry.path)}><span className="smb-file-row__name" role="cell"><SmbIcon kind="folder" /><strong>{entry.name}</strong></span><span role="cell">文件夹</span><span role="cell">—</span></button> : <label className={`smb-file-row ${selected.includes(entry.path) ? "selected" : ""}`} role="row" key={entry.path}><span className="smb-file-row__name" role="cell"><input type="checkbox" checked={selected.includes(entry.path)} onChange={(event) => onToggleSelected(entry.path, event.target.checked)} /><SmbIcon kind="file" /><strong>{entry.name}</strong></span><span role="cell">{fileType(entry.name)}</span><span role="cell">{formatSize(entry.size)}</span></label>)}
+            </div>
+          </div>
+        </main>
+      </div>
+      <footer className="smb-manager-footer"><div>{!guest && <label className="smb-remember"><input type="checkbox" checked={rememberPassword} onChange={(event) => onRememberPasswordChange(event.target.checked)} />安全保存密码</label>}<span>{selected.length ? `已选择 ${selected.length} 个文件` : connection.share ? `/${connection.share}${path ? `/${path}` : ""}` : "未连接共享"}</span></div><div><button className="button secondary" onClick={onClose}>取消</button><button className="button secondary" disabled={loading || !entries.some((entry) => !entry.directory)} onClick={() => onImportSelection(true)}>导入此文件夹</button><button className="button primary" disabled={loading || !selected.length} onClick={() => onImportSelection(false)}>导入所选</button></div></footer>
+    </section>
+  </div>;
 }
 
 export function ReplacementPanel({ node, search, showAll, candidates, onSearch, onToggleShowAll, onSelect, onClose }: {
@@ -408,13 +585,13 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
           <label>接口地址<input value={settings.endpoint} onChange={(event) => onSettingsChange({ endpoint: event.target.value, presetId: "custom" })} /></label>
           <label><span>模型</span><ThemedSelect ariaLabel="模型" value={settings.model} options={[{ value: "", label: "选择或自定义模型" }, ...presetById(settings.presetId).models.map((model) => ({ value: model, label: model }))]} onChange={(value) => onSettingsChange({ model: value })} /></label>
           {presetById(settings.presetId).note && <small className="agent-preset-note">{presetById(settings.presetId).note}</small>}
-          <label>自定义模型<input value={settings.model} placeholder="模型 ID，例如 deepseek-chat" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>
+          <label>自定义模型<input value={settings.model} placeholder="模型 ID，例如 deepseek-v4-pro" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>
           <label>API 密钥<input type="password" autoComplete="off" value={apiKey} placeholder={keyStorageHint} onChange={(event) => onApiKeyChange(event.target.value)} /></label>
           <label><span>规划语言</span><ThemedSelect ariaLabel="规划语言" value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label>
           <div className="agent-inline-actions"><button className="button secondary" disabled={testing} onClick={onTestConnection}>{testing ? "测试中…" : "尝试连接"}</button>{connectionStatus && <small className={connectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{connectionStatus}</small>}</div>
           <small>{keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : keyStorageHint === "synced" ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
         </section>
-        <section><h3>AI 权限</h3>
+        <section className="agent-permissions"><h3>AI 权限</h3>
           <label className="settings-check"><input type="checkbox" checked={permissions.createNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, createNodes: event.target.checked } })} />创建节点</label>
           <label className="settings-check"><input type="checkbox" checked={permissions.groupNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, groupNodes: event.target.checked } })} />组合节点</label>
           <label className="settings-check"><input type="checkbox" checked={permissions.updateParameters} onChange={(event) => onSettingsChange({ permissions: { ...permissions, updateParameters: event.target.checked } })} />修改参数与标签</label>
@@ -464,18 +641,25 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, runti
   onImportSettings: () => void;
 }) {
   if (!open) return null;
-  const range = (label: string, output: string, value: number, min: number, max: number, step: number, key: keyof CanvasSettings) => <label>{label} <output>{output}</output><input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onCanvasChange({ [key]: Number(event.target.value) } as Partial<CanvasSettings>)} /></label>;
+  const range = (label: string, output: string, value: number, min: number, max: number, step: number, key: keyof CanvasSettings) => <label className="settings-range"><span><strong>{label}</strong><output>{output}</output></span><input type="range" min={min} max={max} step={step} value={value} onChange={(event) => onCanvasChange({ [key]: Number(event.target.value) } as Partial<CanvasSettings>)} /></label>;
+  const sectionHeading = (title: string, hint: string) => <div className="settings-section__heading"><h3>{title}</h3><small>{hint}</small></div>;
   return <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label="设置">
-    <section className="settings-dialog">
-      <header><div><strong>设置</strong><span>设置会保存在本机用户配置中</span></div><button aria-label="关闭设置" onClick={onClose}>×</button></header>
-      <div className="settings-dialog__body">
-        <section><h3>外观</h3><label><span>主题</span><ThemedSelect ariaLabel="主题" value={themeMode} options={[{ value: "system", label: "跟随系统" }, { value: "dark", label: "暗色模式" }, { value: "light", label: "亮色模式" }]} onChange={(value) => onThemeModeChange(value as ThemeMode)} /></label><label><span>界面语言</span><ThemedSelect ariaLabel="界面语言" value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label><small>当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}。</small></section>
-        <section className="settings-runtime-section"><h3>执行引擎</h3><label><span>工作流运行时</span><ThemedSelect ariaLabel="工作流运行时" value={runtimePreference} options={[{ value: "auto", label: "自动选择（推荐）" }, { value: "python", label: "Python · 完整兼容" }, { value: "javascript", label: "JavaScript · 实验" }]} onChange={(value) => onRuntimePreferenceChange(value as RuntimePreference)} /></label><p>{runtimePreference === "auto" ? "本机兼容工作流优先使用内置 JavaScript 引擎；遇到 Python 专属节点自动回退。局域网远程会保持宿主 Python 执行。" : runtimePreference === "javascript" ? "纯前端执行，无需 Python 进程，并提供交互式图表；不兼容节点会明确提示。" : "始终使用 Python 引擎，兼容 Notebook、自定义 Python 函数和完整节点目录。"}</p><small>运行时选择不会改变工作流文件结构，后续可随时切换。</small></section>
-        <section><h3>画布</h3>{range("节点尺寸", `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range("端点大小", `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range("连线粗细", `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range("左侧节点栏", `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 176, 360, 4, "paletteWidth")}{range("右侧参数栏", `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range("横屏参数栏高度", `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}{range("结果区高度", `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label><span>缩略图</span><ThemedSelect ariaLabel="缩略图" value={canvas.miniMapMode} options={[{ value: "hide", label: "默认隐藏" }, { value: "auto", label: "自动显示" }, { value: "show", label: "始终显示" }]} onChange={(value) => onCanvasChange({ miniMapMode: value as CanvasSettings["miniMapMode"] })} /></label><label className="settings-check"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />显示节点运行结果</label></section>
-        <section className="settings-smb-summary"><h3>局域网 SMB</h3><p>设备发现、账号或访客登录、共享选择和文件浏览集中在同一个文件选择器中。密码由 Android Keystore 或 Windows 系统安全存储加密保存。</p><dl><dt>当前设备</dt><dd>{smbServer || "尚未选择"}</dd><dt>当前共享</dt><dd>{smbShare || "尚未选择"}</dd><dt>登录方式</dt><dd>{smbGuest ? "访客" : smbUsername || "账号未填写"}</dd></dl><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>选择 SMB 文件</button></section>
-        <section><h3>AI Agent</h3><p>通过顶部星形按钮设置模型、加密密钥及 AI 的画布权限。每次变更都需要在计划预览中确认。</p><button onClick={onOpenAgent}>AI 模型与密钥</button></section>
-        <section><h3>调试与热更新</h3><label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />启用调试模式</label><p>调试模式保留节点执行顺序、单节点耗时、部分结果和运行时堆栈；底部虫形按钮可打开调试面板。</p><p>当前前端热更新：{hotReloadEnabled ? "已连接 HMR" : "未启用（当前为构建版）"}</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div><small>React、CSS 和 TypeScript 可即时更新；Electron 主进程需重启 desktop:dev，Android Java、Manifest、Gradle 和内置 Python 需要重新安装。</small></section>
-        <section className="settings-profile-section"><h3>配置文件</h3><p>设置、自动保存、个人节点模板和用户代码会保存到应用用户配置目录。</p><dl><dt>应用配置目录</dt><dd>{profilePath ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={onConfigureFolder}>选择 / 跳转文件夹</button><button onClick={onExportSettings}>导出设置</button><button onClick={onImportSettings}>导入设置</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
+    <section className="settings-dialog settings-dialog--adaptive">
+      <header><div><strong>设置</strong><span>界面、运行时与平台配置</span></div><button className="dialog-close-button" aria-label="关闭设置" onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
+      <div className="settings-dialog__body settings-layout">
+        <section className="settings-section settings-section--appearance">{sectionHeading("外观", "主题与 AI 规划语言")}<div className="settings-control-grid"><label><span>主题</span><ThemedSelect ariaLabel="主题" value={themeMode} options={[{ value: "system", label: "跟随系统" }, { value: "dark", label: "暗色模式" }, { value: "light", label: "亮色模式" }]} onChange={(value) => onThemeModeChange(value as ThemeMode)} /></label><label><span>AI 规划语言</span><ThemedSelect ariaLabel="AI 规划语言" value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label></div><small className="settings-section__note">当前生效：{resolvedTheme === "dark" ? "暗色" : "亮色"}</small></section>
+
+        <section className="settings-section settings-runtime-section">{sectionHeading("执行引擎", "选择工作流默认运行环境")}<label className="settings-primary-control"><span>工作流运行时</span><ThemedSelect ariaLabel="工作流运行时" value={runtimePreference} options={[{ value: "auto", label: "自动选择（推荐）" }, { value: "python", label: "Python · 完整兼容" }, { value: "javascript", label: "JavaScript · 实验" }]} onChange={(value) => onRuntimePreferenceChange(value as RuntimePreference)} /></label><p>{runtimePreference === "auto" ? "本机兼容工作流优先使用 JavaScript；遇到 Python 专属节点自动回退。" : runtimePreference === "javascript" ? "纯前端执行并支持交互式图表；不兼容节点会明确提示。" : "始终使用 Python，兼容 Notebook、自定义函数与完整节点目录。"}</p></section>
+
+        <section className="settings-section settings-section--canvas">{sectionHeading("画布", "尺寸、线条与面板布局")}<div className="settings-range-grid">{range("节点尺寸", `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range("端点大小", `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range("连线粗细", `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range("左侧节点栏", `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 176, 360, 4, "paletteWidth")}{range("右侧参数栏", `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range("横屏参数栏", `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}{range("结果区高度", `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}</div><div className="settings-canvas-options"><label><span>缩略图</span><ThemedSelect ariaLabel="缩略图" value={canvas.miniMapMode} options={[{ value: "hide", label: "默认隐藏" }, { value: "auto", label: "自动显示" }, { value: "show", label: "始终显示" }]} onChange={(value) => onCanvasChange({ miniMapMode: value as CanvasSettings["miniMapMode"] })} /></label><label className="settings-check"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />显示节点运行结果</label></div></section>
+
+        <section className="settings-section settings-smb-summary">{sectionHeading("局域网 SMB", "网络文件位置")}<div className="settings-summary-list"><span><small>设备</small><strong>{smbServer || "尚未选择"}</strong></span><span><small>共享</small><strong>{smbShare || "尚未选择"}</strong></span><span><small>登录</small><strong>{smbGuest ? "访客" : smbUsername || "账号未填写"}</strong></span></div><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>打开网络文件管理器</button></section>
+
+        <section className="settings-section settings-agent-summary">{sectionHeading("AI Agent", "模型、密钥与操作权限")}<p>模型只能通过受限计划接口修改画布，每次变更都需要预览确认。</p><button onClick={onOpenAgent}>AI 模型与密钥</button></section>
+
+        <section className="settings-section settings-debug-section">{sectionHeading("调试与热更新", "开发与诊断工具")}<label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />启用调试模式</label><p>记录执行顺序、节点耗时、部分结果和运行时堆栈。前端 HMR：{hotReloadEnabled ? "已连接" : "构建版未启用"}。</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div></section>
+
+        <section className="settings-section settings-profile-section">{sectionHeading("配置文件", "本机设置、流程与用户模板")}<dl><dt>应用配置目录</dt><dd>{profilePath ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={onConfigureFolder}>选择 / 跳转文件夹</button><button onClick={onExportSettings}>导出设置</button><button onClick={onImportSettings}>导入设置</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
       </div>
     </section>
   </div>;

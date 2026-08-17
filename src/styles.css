@@ -2963,3 +2963,273 @@ button, input, select, textarea { font: inherit; }
 .plot-lightbox__body--interactive { overflow: hidden; padding: 16px; }
 .plot-lightbox__chart { width: 100%; height: 100%; min-height: 300px; border-radius: 10px; background: var(--surface); }
 .settings-runtime-section p { margin: 2px 0 0; color: var(--text-muted); font-size: var(--font-xs); line-height: 1.55; }
+
+/* 1.4.9 RC2 — adaptive settings and file-manager SMB UI. */
+.dialog-close-button {
+  display: grid !important;
+  width: 32px !important;
+  height: 32px !important;
+  flex: 0 0 32px;
+  padding: 0 !important;
+  place-items: center;
+  border: 0 !important;
+  border-radius: 8px !important;
+  color: var(--text-muted) !important;
+  background: transparent !important;
+  cursor: pointer;
+}
+.dialog-close-button:hover { color: var(--text-bright) !important; background: var(--surface-hover) !important; }
+.dialog-close-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+
+/* Settings uses available width before adding vertical scrolling. Cards become one column only when needed. */
+.settings-dialog.settings-dialog--adaptive {
+  width: min(860px, calc(100vw - 32px));
+  max-height: min(820px, calc(100dvh - 32px));
+  border-radius: 14px;
+  box-shadow: 0 22px 64px #020617a8;
+}
+.settings-dialog--adaptive > header { min-height: 64px; padding: 13px 18px; background: color-mix(in srgb, var(--surface) 92%, var(--surface-raised) 8%); }
+.settings-dialog--adaptive > header strong { font-size: 17px; }
+.settings-layout {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+  padding: 14px;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+.settings-layout::-webkit-scrollbar { width: 10px; }
+.settings-layout::-webkit-scrollbar-track { background: transparent; }
+.settings-layout::-webkit-scrollbar-thumb { border: 3px solid var(--surface); border-radius: 999px; background: var(--border-strong); }
+.settings-layout::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+.settings-layout .settings-section {
+  min-width: 0;
+  gap: 11px;
+  padding: 14px 15px;
+  border-color: color-mix(in srgb, var(--border-soft) 90%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--surface-deep) 90%, var(--surface) 10%);
+}
+.settings-layout .settings-section--canvas { grid-column: 1 / -1; }
+.settings-section__heading { display: grid; gap: 2px; padding-bottom: 3px; }
+.settings-dialog .settings-section__heading h3 {
+  color: var(--text-highlight);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  text-transform: none;
+}
+.settings-section__heading small { color: var(--text-faint); font-size: 11px; line-height: 1.35; }
+.settings-section__note { margin-top: -3px !important; }
+.settings-control-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.settings-control-grid > label,
+.settings-primary-control,
+.settings-canvas-options > label:not(.settings-check) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(138px, auto) !important;
+  min-width: 0;
+  min-height: 38px;
+  align-items: center;
+  gap: 9px;
+}
+.settings-control-grid .themed-select,
+.settings-primary-control .themed-select,
+.settings-canvas-options .themed-select { min-width: 0; width: 100%; }
+.settings-runtime-section p { min-height: 3.1em; }
+.settings-range-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; }
+.settings-dialog label.settings-range { display: grid; grid-template-columns: 1fr; gap: 6px; min-width: 0; }
+.settings-range > span { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 12px; }
+.settings-range > span strong { overflow: hidden; color: var(--text); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.settings-range output { flex: none; color: var(--info-soft); font-size: 11px; }
+.settings-range input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
+.settings-canvas-options { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 12px 18px; padding-top: 2px; }
+.settings-canvas-options .settings-check { min-height: 38px; justify-content: flex-start; padding: 0 4px; }
+.settings-summary-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
+.settings-summary-list > span { display: grid; min-width: 0; gap: 2px; padding: 8px 9px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); }
+.settings-summary-list small { color: var(--text-faint) !important; font-size: 10px !important; }
+.settings-summary-list strong { overflow: hidden; color: var(--text); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.settings-layout .settings-smb-summary > button,
+.settings-layout .settings-agent-summary > button { margin-top: auto; }
+.settings-layout .settings-profile-section dl { margin: 0; }
+.settings-layout .settings-profile-section > div { margin-top: 1px; }
+
+/* SMB now behaves like a small network file manager instead of a vertical wizard. */
+.smb-dialog.smb-file-manager {
+  display: grid;
+  width: min(980px, calc(100vw - 32px));
+  height: min(720px, calc(100dvh - 32px));
+  max-height: none;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  border-radius: 14px;
+  box-shadow: 0 24px 70px #020617b8;
+}
+.smb-manager-header { min-height: 62px; padding: 12px 16px !important; background: color-mix(in srgb, var(--surface) 92%, var(--surface-raised) 8%); }
+.smb-manager-header > div { gap: 2px !important; }
+.smb-manager-header > div > strong { font-size: 16px !important; }
+.smb-manager-layout { display: grid; min-width: 0; min-height: 0; grid-template-columns: 238px minmax(0, 1fr); }
+.smb-navigation { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto minmax(0, 1fr) auto; border-right: 1px solid var(--border-soft); background: color-mix(in srgb, var(--surface-deep) 94%, var(--surface) 6%); }
+.smb-navigation__heading, .smb-navigation__footer { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 11px; }
+.smb-navigation__heading { border-bottom: 1px solid var(--border-soft); }
+.smb-navigation__heading > span { display: inline-flex; min-width: 0; align-items: center; gap: 8px; color: var(--text-highlight); }
+.smb-navigation__heading strong { font-size: 12px; }
+.smb-navigation__footer { border-top: 1px solid var(--border-soft); color: var(--text-faint); font-size: 10px; }
+.smb-navigation__footer button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 6px; border: 0; border-radius: 6px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: 10px; }
+.smb-tree { min-height: 0; padding: 6px; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.smb-tree::-webkit-scrollbar, .smb-file-list__body::-webkit-scrollbar { width: 8px; height: 8px; }
+.smb-tree::-webkit-scrollbar-track, .smb-file-list__body::-webkit-scrollbar-track { background: transparent; }
+.smb-tree::-webkit-scrollbar-thumb, .smb-file-list__body::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: var(--border); background-clip: padding-box; }
+.smb-tree__server { display: grid; gap: 2px; margin-bottom: 2px; }
+.smb-tree__server-button { display: grid; width: 100%; min-width: 0; grid-template-columns: 21px minmax(0, 1fr) 15px; align-items: center; gap: 7px; padding: 7px 8px; border: 0; border-radius: 7px; color: var(--text); background: transparent; text-align: left; cursor: pointer; }
+.smb-tree__server-button:hover, .smb-tree__server.active > .smb-tree__server-button { background: var(--surface-hover); }
+.smb-tree__server-button > span { display: grid; min-width: 0; gap: 1px; }
+.smb-tree__server-button strong { overflow: hidden; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.smb-tree__server-button small { overflow: hidden; color: var(--text-faint); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.smb-tree__server-button > .smb-icon:last-child { width: 13px; opacity: .55; transition: transform .14s ease; }
+.smb-tree__server.active > .smb-tree__server-button > .smb-icon:last-child { transform: rotate(90deg); }
+.smb-tree__shares { display: grid; gap: 1px; margin-left: 21px; padding: 2px 0 4px 9px; border-left: 1px solid var(--border); }
+.smb-tree__shares > button { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 6px 7px; border: 0; border-radius: 6px; color: var(--text-muted); background: transparent; text-align: left; cursor: pointer; font-size: 10.5px; }
+.smb-tree__shares > button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smb-tree__shares > button:hover, .smb-tree__shares > button.active { color: var(--text-highlight); background: var(--accent)1f; }
+.smb-tree__load-shares { justify-content: center; border: 1px dashed var(--border) !important; }
+.smb-tree__empty { display: grid; justify-items: center; gap: 7px; padding: 28px 12px; color: var(--text-faint); text-align: center; font-size: 10px; }
+.smb-tree__empty > .smb-icon { width: 30px; height: 30px; opacity: .6; }
+.smb-tree__empty button { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface-raised); cursor: pointer; }
+.smb-icon { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+.smb-icon-button { display: grid; width: 30px; height: 30px; flex: none; padding: 0; place-items: center; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-muted); background: var(--surface-raised); cursor: pointer; }
+.smb-icon-button:hover:not(:disabled) { color: var(--text-highlight); border-color: var(--border-strong); background: var(--surface-hover); }
+.smb-icon-button:disabled { opacity: .4; cursor: default; }
+.smb-browser { display: grid; min-width: 0; min-height: 0; grid-template-rows: auto auto auto minmax(0, 1fr); background: var(--surface); }
+.smb-browser-toolbar { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border-soft); }
+.smb-breadcrumbs { display: flex; min-width: 0; height: 30px; flex: 1; align-items: center; gap: 2px; padding: 2px 5px; overflow-x: auto; overflow-y: hidden; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--surface-deep); scrollbar-width: none; }
+.smb-breadcrumbs::-webkit-scrollbar { display: none; }
+.smb-breadcrumbs > button, .smb-breadcrumbs > span > button { flex: none; padding: 4px 6px; border: 0; border-radius: 5px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: 10.5px; white-space: nowrap; }
+.smb-breadcrumbs > button:hover:not(:disabled), .smb-breadcrumbs > span > button:hover { color: var(--text-highlight); background: var(--surface-hover); }
+.smb-breadcrumbs > span { display: inline-flex; flex: none; align-items: center; }
+.smb-breadcrumbs .smb-icon { width: 12px; height: 12px; color: var(--text-faint); }
+.smb-connection-panel { margin: 8px 10px 0; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--surface-deep); }
+.smb-connection-panel > summary { display: flex; min-height: 39px; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 10px; color: var(--text); cursor: pointer; list-style: none; }
+.smb-connection-panel > summary::-webkit-details-marker { display: none; }
+.smb-connection-panel > summary > span:first-child { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+.smb-connection-panel > summary strong { font-size: 11px; }
+.smb-connection-panel > summary small { overflow: hidden; color: var(--text-faint); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.smb-connection-panel > summary > span:last-child { flex: none; color: var(--accent-soft); font-size: 10px; }
+.smb-connection-panel[open] > summary { border-bottom: 1px solid var(--border-soft); }
+.smb-connection-form { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 8px; padding: 9px 10px 10px; }
+.smb-connection-form label { display: grid; min-width: 0; gap: 4px; color: var(--text-muted); font-size: 10px; }
+.smb-connection-form input[type="text"], .smb-connection-form input:not([type]) { min-width: 0; }
+.smb-connection-form input { min-width: 0; height: 32px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); }
+.smb-connection-form__guest { display: flex !important; height: 32px; align-items: center; align-self: end; gap: 6px !important; padding: 0 8px; border: 1px solid var(--border-soft); border-radius: 6px; background: var(--surface-raised); }
+.smb-connection-form__guest input { width: 15px; height: 15px; padding: 0; }
+.smb-connection-form__actions { display: flex; grid-column: 1 / -1; justify-content: flex-end; gap: 7px; padding-top: 1px; }
+.smb-connection-form__actions button { min-height: 31px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface-hover); cursor: pointer; }
+.smb-connection-form__actions button.primary { color: #fff; border-color: var(--accent); background: var(--accent); }
+.smb-browser-error { margin: 7px 10px 0 !important; }
+.smb-file-list { display: grid; min-width: 0; min-height: 0; grid-template-rows: 32px minmax(0, 1fr); margin: 8px 10px 10px; overflow: hidden; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--surface-deep); }
+.smb-file-list__header, .smb-file-row { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 125px 86px; align-items: center; gap: 8px; }
+.smb-file-list__header { padding: 0 11px; border-bottom: 1px solid var(--border-soft); color: var(--text-faint); background: var(--surface-raised); font-size: 10px; font-weight: 600; }
+.smb-file-list__body { position: relative; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+.smb-file-row { width: 100%; min-height: 38px; padding: 5px 11px; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent); color: var(--text-muted); background: transparent; text-align: left; font-size: 10px; cursor: default; }
+button.smb-file-row { cursor: pointer; }
+.smb-file-row:hover { background: var(--surface-hover); }
+.smb-file-row.selected { background: var(--accent)1d; }
+.smb-file-row__name { display: flex; min-width: 0; align-items: center; gap: 8px; color: var(--text); }
+.smb-file-row__name input { width: 14px; height: 14px; flex: none; margin: 0; }
+.smb-file-row__name strong { overflow: hidden; font-size: 10.5px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.smb-file-row--folder .smb-file-row__name .smb-icon { color: var(--accent-soft); }
+.smb-file-empty { position: absolute; inset: 0; display: grid; align-content: center; justify-items: center; gap: 6px; padding: 24px; color: var(--text-faint); text-align: center; }
+.smb-file-empty > .smb-icon { width: 34px; height: 34px; opacity: .55; }
+.smb-file-empty strong { color: var(--text-muted); font-size: 11px; }
+.smb-file-empty span { max-width: 320px; font-size: 10px; line-height: 1.45; }
+.smb-loading-spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent-hover); border-radius: 50%; animation: smb-spin .8s linear infinite; }
+@keyframes smb-spin { to { transform: rotate(360deg); } }
+.smb-manager-footer { display: flex !important; min-height: 56px; align-items: center; justify-content: space-between !important; gap: 10px; padding: 9px 12px !important; }
+.smb-manager-footer > div { display: flex; min-width: 0; align-items: center; gap: 10px; }
+.smb-manager-footer > div:first-child { flex: 1; overflow: hidden; }
+.smb-manager-footer > div:first-child > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smb-manager-footer > div:last-child { flex: none; }
+.smb-manager-footer .smb-remember { margin: 0; flex: none; }
+
+.app-shell[data-theme="light"] .settings-layout::-webkit-scrollbar-thumb { border-color: #fff; background: #a6b4c6; }
+.app-shell[data-theme="light"] .settings-layout .settings-section { border-color: #d8e0ea; background: #f8fafc; }
+.app-shell[data-theme="light"] .settings-dialog .settings-section__heading h3 { color: #1e3a5f; }
+.app-shell[data-theme="light"] .settings-summary-list > span { border-color: #dbe3ed; background: #fff; }
+.app-shell[data-theme="light"] .settings-summary-list strong { color: #243b53; }
+.app-shell[data-theme="light"] .smb-navigation { border-color: #dbe3ed; background: #f8fafc; }
+.app-shell[data-theme="light"] .smb-navigation__heading, .app-shell[data-theme="light"] .smb-navigation__footer,
+.app-shell[data-theme="light"] .smb-browser-toolbar, .app-shell[data-theme="light"] .smb-connection-panel,
+.app-shell[data-theme="light"] .smb-file-list { border-color: #dbe3ed; }
+.app-shell[data-theme="light"] .smb-tree__server-button:hover, .app-shell[data-theme="light"] .smb-tree__server.active > .smb-tree__server-button,
+.app-shell[data-theme="light"] .smb-file-row:hover { background: #eef4fb; }
+.app-shell[data-theme="light"] .smb-tree__shares { border-color: #cbd5e1; }
+.app-shell[data-theme="light"] .smb-browser, .app-shell[data-theme="light"] .smb-file-manager { background: #fff; }
+.app-shell[data-theme="light"] .smb-breadcrumbs, .app-shell[data-theme="light"] .smb-connection-panel,
+.app-shell[data-theme="light"] .smb-file-list { background: #fff; }
+.app-shell[data-theme="light"] .smb-file-list__header { background: #f1f5f9; }
+.app-shell[data-theme="light"] .smb-file-row { border-color: #edf1f6; }
+.app-shell[data-theme="light"] .smb-connection-form input { border-color: #cbd5e1; color: #1e293b; background: #fff; }
+.app-shell[data-theme="light"] .smb-connection-form__guest { border-color: #dbe3ed; background: #f8fafc; }
+.app-shell[data-theme="light"] .smb-icon-button { border-color: #dbe3ed; color: #52677f; background: #f8fafc; }
+.app-shell[data-theme="light"] .smb-file-row__name, .app-shell[data-theme="light"] .smb-tree__server-button { color: #1e293b; }
+
+@media (max-width: 760px) {
+  .settings-backdrop { padding: 8px; }
+  .settings-dialog.settings-dialog--adaptive { width: 100%; max-height: calc(100dvh - 16px); border-radius: 12px; }
+  .settings-dialog--adaptive > header { min-height: 56px; padding: 10px 13px; }
+  .settings-layout { grid-template-columns: 1fr; gap: 9px; padding: 10px; scrollbar-gutter: auto; }
+  .settings-layout .settings-section--canvas { grid-column: auto; }
+  .settings-control-grid { grid-template-columns: 1fr; }
+  .settings-range-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 13px; }
+  .settings-summary-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+  .smb-backdrop { padding: 6px; }
+  .smb-dialog.smb-file-manager { display: grid; width: 100%; height: calc(100dvh - 12px); max-height: none; overflow: hidden; border-radius: 12px; }
+  .smb-manager-header { min-height: 54px; padding: 9px 11px !important; }
+  .smb-manager-layout { grid-template-columns: 1fr; grid-template-rows: minmax(92px, 24vh) minmax(0, 1fr); }
+  .smb-navigation { border-right: 0; border-bottom: 1px solid var(--border-soft); }
+  .smb-navigation__heading { padding-block: 7px; }
+  .smb-navigation__footer { display: none; }
+  .smb-tree { display: flex; gap: 5px; padding: 5px 7px 7px; overflow-x: auto; overflow-y: hidden; }
+  .smb-tree__server { min-width: 168px; max-width: 210px; flex: 0 0 auto; align-content: start; }
+  .smb-tree__shares { max-height: 74px; overflow-y: auto; }
+  .smb-tree__empty { min-width: 100%; grid-auto-flow: column; align-items: center; justify-content: start; padding: 12px; }
+  .smb-tree__empty > .smb-icon { width: 24px; height: 24px; }
+  .smb-browser-toolbar { padding: 6px 7px; }
+  .smb-connection-panel { margin: 6px 7px 0; }
+  .smb-connection-form { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; padding: 7px; }
+  .smb-connection-form__actions { grid-column: 1 / -1; }
+  .smb-file-list { margin: 6px 7px 7px; }
+  .smb-file-list__header, .smb-file-row { grid-template-columns: minmax(0, 1fr) 92px 66px; gap: 5px; }
+  .smb-manager-footer { min-height: 52px; padding: 7px !important; }
+  .smb-manager-footer > div:first-child .smb-remember { display: none; }
+  .smb-manager-footer > div:last-child { gap: 5px; }
+  .smb-manager-footer .button { padding-inline: 8px; font-size: 11px; }
+}
+
+@media (max-width: 500px) {
+  .settings-range-grid { grid-template-columns: 1fr; }
+  .settings-canvas-options { grid-template-columns: 1fr; gap: 7px; }
+  .settings-summary-list { grid-template-columns: 1fr; }
+  .settings-control-grid > label, .settings-primary-control, .settings-canvas-options > label:not(.settings-check) { grid-template-columns: minmax(0, 1fr) minmax(122px, 46%) !important; }
+  .smb-manager-layout { grid-template-rows: minmax(86px, 22vh) minmax(0, 1fr); }
+  .smb-file-list__header, .smb-file-row { grid-template-columns: minmax(0, 1fr) 66px; }
+  .smb-file-list__header > :nth-child(2), .smb-file-row > :nth-child(2) { display: none; }
+  .smb-connection-form { grid-template-columns: 1fr; }
+  .smb-connection-form__actions { grid-column: auto; }
+  .smb-connection-form__actions button { flex: 1; min-width: 0; }
+  .smb-manager-footer > div:first-child { display: none; }
+  .smb-manager-footer { justify-content: flex-end !important; }
+  .smb-manager-footer > div:last-child { width: 100%; }
+  .smb-manager-footer .button { flex: 1 1 0; min-width: 0; }
+}
+
+/* Medium-width desktop/tablet windows still benefit from the two-column settings layout. */
+@media (min-width: 621px) and (max-width: 760px) {
+  .settings-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 10px; }
+  .settings-layout .settings-section--canvas { grid-column: 1 / -1; }
+  .settings-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .settings-range-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

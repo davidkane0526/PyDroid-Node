@@ -1,6 +1,13 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
+$variablesFile = Join-Path $projectRoot "android\variables.gradle"
+$compileSdk = 36
+if (Test-Path -LiteralPath $variablesFile) {
+    $variablesText = Get-Content -LiteralPath $variablesFile -Raw
+    $match = [regex]::Match($variablesText, 'compileSdkVersion\s*=\s*(\d+)')
+    if ($match.Success) { $compileSdk = [int]$match.Groups[1].Value }
+}
 $projectJdk = Join-Path $projectRoot ".tools\jdk-21"
 $jdkRoot = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { $projectJdk }
 $sdkRoot = if ($env:ANDROID_HOME) {
@@ -17,8 +24,8 @@ if (-not (Test-Path (Join-Path $jdkRoot "bin\java.exe"))) {
     throw "JDK 21 not found at $jdkRoot. Set JAVA_HOME or extract it to .tools/jdk-21."
 }
 
-if (-not (Test-Path (Join-Path $sdkRoot "platforms\android-36\android.jar"))) {
-    throw "Android SDK platform 36 not found at $sdkRoot."
+if (-not (Test-Path (Join-Path $sdkRoot ("platforms\android-{0}\android.jar" -f $compileSdk)))) {
+    throw "Android SDK platform $compileSdk not found at $sdkRoot."
 }
 
 if ($env:PYDROID_PYTHON_EXECUTABLE) {
@@ -50,7 +57,7 @@ try {
         # D:\PyDroidTemp\PyDroid\generated\android-app-build), Gradle 8's file-system
         # watching holds handles on Chaquopy's pip staging dirs, so its os.renames
         # fails with WinError 5 (Access denied). Disabling the VFS watcher fixes it.
-        .\gradlew.bat assembleDebug --no-watch-fs
+        .\gradlew.bat assembleDebug --no-watch-fs --no-daemon
         if ($LASTEXITCODE -ne 0) {
             throw "Android debug APK build failed."
         }
