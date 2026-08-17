@@ -360,14 +360,23 @@
   .smb-tree { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Version is a first-class Settings datum, not a DOM-injected runtime patch. */
+/* Keep the software version visible without consuming a dedicated settings row. */
 .settings-version-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 7px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  color: var(--text-muted);
-  background: var(--surface-deep);
-  font: 10px/1.2 ui-monospace, "Cascadia Code", Consolas, monospace;
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  color: var(--text-faint);
+  background: transparent;
+  font: 500 10px/1 ui-monospace, "Cascadia Code", Consolas, monospace;
+  letter-spacing: 0.01em;
+  opacity: 0.78;
+  white-space: nowrap;
+  user-select: none;
+}
+.settings-dialog--adaptive > header .settings-version-badge + .dialog-close-button {
+  margin-left: -3px;
+}
+@media (max-width: 520px) {
+  .settings-version-badge { font-size: 9px; opacity: 0.68; }
 }

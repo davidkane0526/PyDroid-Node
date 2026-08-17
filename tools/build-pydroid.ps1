@@ -6,11 +6,12 @@
     - 项目源码目录保持只读，脚本只读取项目，不写入任何项目文件。
     - 脚本把源码同步到 $WorkRoot\builds\<项目名> 临时工作区，在外部完成构建。
     - 自动探测已安装工具，并优先复用 DK_TOOL_ROOT/ToolRoot；缺失工具安装到共享 ToolRoot。
+    - JDK 探测兼容 Windows PowerShell 5.1：独立读取 java/javac 版本输出，并同时识别 JAVA_HOME、bin、java.exe、javac.exe 与 PATH。
     - 最终产物平铺到 $OutputRoot：
           <productName>-<版本>.apk
           <productName>-<版本>-Desktop\    （win-unpacked 未压缩桌面版）
-    - 构建完成后会清理工作区里的 APK/release/dist/android build 等打包产物，
-      不在临时目录残留重复的打包文件。
+    - 构建完成后会清理 release/dist 等可再生打包产物；Android Gradle/增量构建缓存
+      默认保留以加速后续构建，使用 -CleanBuild 可执行完整清理。
 
 .PARAMETER ProjectRoot
     项目源码根目录。缺省时使用当前目录（要求当前目录含 package.json）。
@@ -45,7 +46,17 @@
     只检测工具，缺失时报错并给出提示，不自动下载安装。
 
 .PARAMETER KeepWorkspace
-    构建结束后保留 release/dist/android build 等工作区产物，便于排查问题。
+    构建结束后保留 release/dist 等临时打包产物，便于排查问题。
+    Android 的 Gradle/增量构建缓存默认跨构建保留，以提高后续编译速度。
+
+.PARAMETER CleanBuild
+    执行完整清理构建。启用后会删除 android\.gradle、android\app\build、
+    android\build 和 capacitor-cordova-android-plugins\build。
+    默认不删除这些目录，以复用 Gradle 增量构建缓存。
+
+.PARAMETER DisableGradleDaemon
+    禁用 Gradle daemon。默认启用并复用 daemon；仅当安全软件或系统策略明确阻止
+    Gradle daemon 启动时才建议使用此开关。
 
 .PARAMETER DownloadRetryCount
     网络下载与旧版桌面打包的重试次数，默认 3。
@@ -111,6 +122,8 @@ param(
     [switch]$KeepHistory,
     [switch]$SkipToolInstall,
     [switch]$KeepWorkspace,
+    [switch]$CleanBuild,
+    [switch]$DisableGradleDaemon,
     [int]$DownloadRetryCount = 3,
     [string]$NodeVersion,
     [string]$PythonVersion,
@@ -638,13 +651,20 @@ function Invoke-Pnpm {
     param([string[]]$Arguments)
     Push-Location $workspace
     try {
+        # 关键：原生命令 stdout 不能直接留在 PowerShell 成功输出流中。
+        # Build-Android 等函数需要返回路径；若 pnpm 的 [WARN]/构建日志混入成功输出流，
+        # PowerShell 会把“日志 + 路径”一起赋值给变量，最终导致 Copy-Item/Join-Path
+        # 把日志文本误当成文件路径。这里把 stdout 显式打印到主机，不向调用者返回。
         if ($script:PnpmUseCorepack) {
-            & $script:PnpmCommand "pnpm" @Arguments
+            & $script:PnpmCommand "pnpm" @Arguments |
+                ForEach-Object { Write-Host ([string]$_) }
         } else {
-            & $script:PnpmCommand @Arguments
+            & $script:PnpmCommand @Arguments |
+                ForEach-Object { Write-Host ([string]$_) }
         }
-        if ($LASTEXITCODE -ne 0) {
-            throw "pnpm 命令失败（退出码 $LASTEXITCODE）：pnpm $($Arguments -join ' ')"
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            throw "pnpm 命令失败（退出码 $exitCode）：pnpm $($Arguments -join ' ')"
         }
     } finally {
         Pop-Location
@@ -676,66 +696,173 @@ function Resolve-JavaHomeCandidate {
     $candidate = [Environment]::ExpandEnvironmentVariables($JavaHomePath.Trim().Trim('"'))
     if ([string]::IsNullOrWhiteSpace($candidate)) { return $null }
 
-    # 允许传入 JAVA_HOME、本身的 bin 目录，甚至 java.exe/javac.exe 完整路径。
+    # 允许传入：
+    #   1) 真正的 JAVA_HOME，例如 D:\Code\Language\Java
+    #   2) JDK 的 bin 目录，例如 D:\Code\Language\Java\bin
+    #   3) java.exe / javac.exe 的完整路径。
     if (Test-Path -LiteralPath $candidate -PathType Leaf) {
         $leaf = Split-Path $candidate -Leaf
         if ($leaf -match '^(java|javac)\.exe$') {
             $candidate = Split-Path (Split-Path $candidate -Parent) -Parent
         }
-    } elseif ((Split-Path $candidate -Leaf) -ieq 'bin' -and (Test-Path -LiteralPath (Join-Path $candidate 'java.exe'))) {
-        $candidate = Split-Path $candidate -Parent
+    } elseif ((Split-Path $candidate -Leaf) -ieq 'bin') {
+        $javaInBin = Join-Path $candidate 'java.exe'
+        $javacInBin = Join-Path $candidate 'javac.exe'
+        if ((Test-Path -LiteralPath $javaInBin -PathType Leaf) -or
+            (Test-Path -LiteralPath $javacInBin -PathType Leaf)) {
+            $candidate = Split-Path $candidate -Parent
+        }
     }
 
     try { return [IO.Path]::GetFullPath($candidate) } catch { return $candidate }
 }
 
+function Invoke-JavaVersionProbe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [string]$Arguments = '-version'
+    )
+
+    $result = [ordered]@{
+        Success  = $false
+        ExitCode = $null
+        StdOut   = ''
+        StdErr   = ''
+        Error    = ''
+    }
+
+    if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
+        $result.Error = "文件不存在：$ExecutablePath"
+        return [pscustomobject]$result
+    }
+
+    $process = $null
+    try {
+        # 不使用：& java.exe -version 2>&1
+        # 原因：Windows PowerShell 5.1 下 native stderr 与
+        # $ErrorActionPreference='Stop' 组合时可能把正常的 java -version
+        # 输出当成错误处理。Java 恰好通常把版本信息写到 stderr。
+        # 使用 ProcessStartInfo 分别读取 stdout/stderr，可彻底绕开该问题。
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $ExecutablePath
+        $psi.Arguments = $Arguments
+        $psi.UseShellExecute = $false
+        $psi.RedirectStandardOutput = $true
+        $psi.RedirectStandardError = $true
+        $psi.CreateNoWindow = $true
+
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $psi
+        if (-not $process.Start()) {
+            $result.Error = "无法启动：$ExecutablePath"
+            return [pscustomobject]$result
+        }
+
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+
+        $result.ExitCode = $process.ExitCode
+        $result.StdOut = [string]$stdout
+        $result.StdErr = [string]$stderr
+        $result.Success = ($process.ExitCode -eq 0)
+        return [pscustomobject]$result
+    } catch {
+        $result.Error = $_.Exception.Message
+        return [pscustomobject]$result
+    } finally {
+        if ($process) {
+            try { $process.Dispose() } catch {}
+        }
+    }
+}
+
 function Get-JavaMajorVersion {
     param([string]$JavaHomePath)
+
     $resolved = Resolve-JavaHomeCandidate $JavaHomePath
     if ([string]::IsNullOrWhiteSpace($resolved)) { return $null }
-    $java = Join-Path $resolved "bin\java.exe"
-    $javac = Join-Path $resolved "bin\javac.exe"
-    # Android 构建需要完整 JDK，而不是只有 java.exe 的 JRE。
-    if (-not (Test-Path -LiteralPath $java -PathType Leaf) -or -not (Test-Path -LiteralPath $javac -PathType Leaf)) { return $null }
 
-    # 不同发行版的 java -version 文本并不完全一致。javac -version 的第一项通常
-    # 最稳定（例如 `javac 21.0.8`），所以同时读取 java/javac，再按明确模式解析。
-    $texts = New-Object System.Collections.Generic.List[string]
-    foreach ($probe in @(@($javac, '-version'), @($java, '-version'))) {
-        try {
-            $raw = (& $probe[0] $probe[1] 2>&1 | Out-String).Trim()
-            if ($raw) { [void]$texts.Add($raw) }
-        } catch {}
-    }
-    foreach ($text in $texts) {
+    $java = Join-Path $resolved 'bin\java.exe'
+    $javac = Join-Path $resolved 'bin\javac.exe'
+
+    # Android/Gradle 构建需要完整 JDK，不能只存在 java.exe。
+    if (-not (Test-Path -LiteralPath $java -PathType Leaf)) { return $null }
+    if (-not (Test-Path -LiteralPath $javac -PathType Leaf)) { return $null }
+
+    # 先用 java -version。不同发行版的常见格式包括：
+    #   openjdk version "21.0.8" ...
+    #   java version "1.8.0_..." ...
+    $javaProbe = Invoke-JavaVersionProbe -ExecutablePath $java -Arguments '-version'
+    $javaText = (([string]$javaProbe.StdOut) + "`n" + ([string]$javaProbe.StdErr)).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($javaText)) {
         foreach ($pattern in @(
-            '(?im)\bjavac\s+(?:(?:1)\.)?(\d+)(?:[._\s-]|$)',
-            '(?im)\bversion\s+["'']?(?:(?:1)\.)?(\d+)(?:[._"''\s-]|$)',
-            '(?im)\bopenjdk\s+(?:(?:1)\.)?(\d+)(?:[._\s-]|$)',
-            '(?im)\bjava\s+(?:(?:1)\.)?(\d+)(?:[._\s-]|$)'
+            '(?im)^\s*(?:openjdk|java)\s+version\s+["'']?(?:(?:1)\.)?(\d+)',
+            '(?im)\bversion\s+["'']?(?:(?:1)\.)?(\d+)'
         )) {
-            $m = [regex]::Match($text, $pattern)
+            $m = [regex]::Match($javaText, $pattern)
             if ($m.Success) { return [int]$m.Groups[1].Value }
         }
     }
+
+    # java 的输出格式异常时，再用 javac -version 兜底。
+    # 常见格式：javac 21.0.8
+    $javacProbe = Invoke-JavaVersionProbe -ExecutablePath $javac -Arguments '-version'
+    $javacText = (([string]$javacProbe.StdOut) + "`n" + ([string]$javacProbe.StdErr)).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($javacText)) {
+        $m = [regex]::Match($javacText, '(?im)^\s*javac\s+(?:(?:1)\.)?(\d+)')
+        if ($m.Success) { return [int]$m.Groups[1].Value }
+    }
+
+    Write-Verbose ("JDK 版本解析失败：{0}; java exit={1}; javac exit={2}; java error={3}; javac error={4}" -f `
+        $resolved, $javaProbe.ExitCode, $javacProbe.ExitCode, $javaProbe.Error, $javacProbe.Error)
     return $null
 }
 
-function Get-JavaProbeText {
+function Get-JavaHomeDiagnostic {
     param([string]$JavaHomePath)
+
     $resolved = Resolve-JavaHomeCandidate $JavaHomePath
-    if ([string]::IsNullOrWhiteSpace($resolved)) { return "" }
-    $java = Join-Path $resolved "bin\java.exe"
-    $javac = Join-Path $resolved "bin\javac.exe"
-    $parts = @()
-    foreach ($probe in @(@($javac, '-version'), @($java, '-version'))) {
-        if (-not (Test-Path -LiteralPath $probe[0] -PathType Leaf)) { continue }
-        try {
-            $raw = (& $probe[0] $probe[1] 2>&1 | Out-String).Trim()
-            if ($raw) { $parts += $raw }
-        } catch {}
+    if ([string]::IsNullOrWhiteSpace($resolved)) {
+        return '路径为空或无法解析。'
     }
-    return ($parts -join ' | ')
+
+    if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
+        return "目录不存在：$resolved"
+    }
+
+    $java = Join-Path $resolved 'bin\java.exe'
+    $javac = Join-Path $resolved 'bin\javac.exe'
+    $missing = @()
+    if (-not (Test-Path -LiteralPath $java -PathType Leaf)) { $missing += $java }
+    if (-not (Test-Path -LiteralPath $javac -PathType Leaf)) { $missing += $javac }
+    if ($missing.Count -gt 0) {
+        return ("不是完整 JDK，缺少：{0}" -f ($missing -join '；'))
+    }
+
+    $major = Get-JavaMajorVersion $resolved
+    if ($null -ne $major) {
+        if ($major -eq $JdkMajor) {
+            return "有效 JDK $major：$resolved"
+        }
+        return "检测到完整 JDK $major，但当前构建要求 JDK $JdkMajor：$resolved"
+    }
+
+    $javaProbe = Invoke-JavaVersionProbe -ExecutablePath $java -Arguments '-version'
+    $javacProbe = Invoke-JavaVersionProbe -ExecutablePath $javac -Arguments '-version'
+    $parts = @("完整 JDK 文件存在，但无法解析版本：$resolved")
+    if (-not [string]::IsNullOrWhiteSpace([string]$javaProbe.Error)) {
+        $parts += "java.exe 启动错误：$($javaProbe.Error)"
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$javacProbe.Error)) {
+        $parts += "javac.exe 启动错误：$($javacProbe.Error)"
+    }
+    $rawJava = ((([string]$javaProbe.StdOut) + ' ' + ([string]$javaProbe.StdErr)).Trim() -replace '[\r\n]+', ' ')
+    $rawJavac = ((([string]$javacProbe.StdOut) + ' ' + ([string]$javacProbe.StdErr)).Trim() -replace '[\r\n]+', ' ')
+    if ($rawJava) { $parts += "java -version：$rawJava" }
+    if ($rawJavac) { $parts += "javac -version：$rawJavac" }
+    return ($parts -join "`n")
 }
 
 function Test-JavaHome {
@@ -754,12 +881,15 @@ function Find-JavaHomeInRoot {
     $root = Resolve-JavaHomeCandidate $RootPath
     if ([string]::IsNullOrWhiteSpace($root)) { return $null }
 
-    # 如果用户已经直接给了 JAVA_HOME、bin 目录或 java.exe/javac.exe，直接验证。
+    # 最常见情况：用户直接指定真正的 JAVA_HOME。
+    # 例如 D:\Code\Language\Java，其中 bin\java.exe / bin\javac.exe
+    # 就在下一层 bin 目录内。此处直接验证，不需要递归搜索。
     if (Test-JavaHome $root) { return $root }
     if (-not (Test-Path -LiteralPath $root -PathType Container)) { return $null }
 
-    # 允许用户只填写类似 D:\Code\Language\Java 这样的“Java 容器目录”。
-    # 最多向下两层，避免对整个磁盘做递归扫描。
+    # 兼容把“Java 容器目录”作为根目录的情况，例如：
+    # D:\Code\Language\Java\jdk-21\bin\java.exe
+    # 最多向下 MaxDepth 层，避免对整个磁盘递归扫描。
     $queue = New-Object System.Collections.Queue
     $queue.Enqueue([pscustomobject]@{ Path = $root; Depth = 0 })
     $visited = @{}
@@ -855,77 +985,104 @@ function Get-JavaHomesFromCommonLocations {
     return @($results | Select-Object -Unique)
 }
 
+function Add-JavaHomeFromExecutablePath {
+    param(
+        [System.Collections.Generic.List[string]]$Results,
+        [string]$ExecutablePath
+    )
+    if ($null -eq $Results -or [string]::IsNullOrWhiteSpace($ExecutablePath)) { return }
+
+    $path = $ExecutablePath.Trim().Trim('"')
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
+    $leaf = Split-Path $path -Leaf
+    if ($leaf -notmatch '^(java|javac)\.exe$') { return }
+
+    $bin = Split-Path $path -Parent
+    if ((Split-Path $bin -Leaf) -ieq 'bin') {
+        $candidateHome = Split-Path $bin -Parent
+        if ($candidateHome) { [void]$Results.Add($candidateHome) }
+    }
+}
+
 function Get-JavaHomesFromPath {
     $results = New-Object System.Collections.Generic.List[string]
-    foreach ($whereName in @('java', 'javac')) {
-        try {
-            foreach ($javaPath in @(& where.exe $whereName 2>$null)) {
-                if (-not [string]::IsNullOrWhiteSpace($javaPath)) {
-                    $candidateHome = Split-Path (Split-Path $javaPath.Trim() -Parent) -Parent
-                    if ($candidateHome) { [void]$results.Add($candidateHome) }
-                }
-            }
-        } catch {}
-    }
 
+    # 先使用 PowerShell 自身的命令解析。java.exe 和 javac.exe 都检查，
+    # 避免“where javac 能找到，但脚本只查 where java”的情况。
     foreach ($commandName in @('java.exe', 'javac.exe')) {
         foreach ($command in @(Get-Command $commandName -All -ErrorAction SilentlyContinue)) {
-            if ($command.Source) {
-                $candidateHome = Split-Path (Split-Path $command.Source -Parent) -Parent
-                if ($candidateHome) { [void]$results.Add($candidateHome) }
+            $source = $null
+            if ($command.Source) { $source = [string]$command.Source }
+            elseif ($command.Path) { $source = [string]$command.Path }
+            if ($source) {
+                Add-JavaHomeFromExecutablePath -Results $results -ExecutablePath $source
             }
         }
     }
+
+    # 再兼容用户日常用的 where.exe。这里临时把 native stderr 的处理
+    # 调成 Continue，避免 Windows PowerShell 5.1 + Stop 再次触发同类问题。
+    $whereExe = $null
+    if ($env:SystemRoot) {
+        $candidateWhere = Join-Path $env:SystemRoot 'System32\where.exe'
+        if (Test-Path -LiteralPath $candidateWhere -PathType Leaf) { $whereExe = $candidateWhere }
+    }
+    if (-not $whereExe) {
+        $whereCommand = Get-Command 'where.exe' -ErrorAction SilentlyContinue
+        if ($whereCommand) { $whereExe = [string]$whereCommand.Source }
+    }
+
+    if ($whereExe) {
+        foreach ($name in @('java', 'javac')) {
+            $oldPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $whereOutput = @(& $whereExe $name 2>$null)
+                foreach ($path in $whereOutput) {
+                    if (-not [string]::IsNullOrWhiteSpace([string]$path)) {
+                        Add-JavaHomeFromExecutablePath -Results $results -ExecutablePath ([string]$path)
+                    }
+                }
+            } catch {
+                Write-Verbose "where.exe $name 探测失败：$($_.Exception.Message)"
+            } finally {
+                $ErrorActionPreference = $oldPreference
+            }
+        }
+    }
+
     return @($results | Select-Object -Unique)
 }
 
 function Find-JavaHome {
-    # 0) GUI/命令行手动指定时，它是绝对优先且具有“禁止自动下载”的语义。
-    #    可以填写真正的 JAVA_HOME，也可以填写包含多个 JDK 子目录的 Java 根目录。
+    # 0) GUI/命令行手动指定时绝对优先，并具有“禁止自动下载”的语义。
+    # 可以填写真正的 JAVA_HOME、bin 目录、java.exe/javac.exe，
+    # 也可以填写包含 JDK 子目录的 Java 容器目录。
     if (-not [string]::IsNullOrWhiteSpace($JavaHome)) {
-        $explicitRoot = Resolve-JavaHomeCandidate $JavaHome
-        if ([string]::IsNullOrWhiteSpace($explicitRoot)) { throw "手动指定的 JDK 路径为空。" }
-
-        # 手动路径的含义是“相信用户选择的位置”，因此先检查这个目录本身。
-        # 只要 bin\java.exe 与 bin\javac.exe 都存在，就不应该因为发行版版本文本
-        # 格式不同而误判成“没安装”。若能识别到版本，则仍严格阻止错误主版本。
-        $directJava = Join-Path $explicitRoot 'bin\java.exe'
-        $directJavac = Join-Path $explicitRoot 'bin\javac.exe'
-        if ((Test-Path -LiteralPath $directJava -PathType Leaf) -and (Test-Path -LiteralPath $directJavac -PathType Leaf)) {
-            $directMajor = Get-JavaMajorVersion $explicitRoot
-            if ($null -ne $directMajor -and $directMajor -ne $JdkMajor) {
-                throw ("你手动指定的目录包含完整 JDK，但版本是 {0}，项目要求 JDK {1}：{2}" -f $directMajor, $JdkMajor, $explicitRoot)
-            }
-            if ($null -eq $directMajor) {
-                Write-Step ("JDK 版本文本无法自动解析，但已确认 java.exe/javac.exe 存在；按手动路径继续：{0}" -f $explicitRoot)
-                $probeText = Get-JavaProbeText $explicitRoot
-                if ($probeText) { Write-Step ("JDK 探测输出：{0}" -f $probeText) }
-            } else {
-                Write-Step ("使用手动指定的 JDK {0}：{1}" -f $directMajor, $explicitRoot)
-            }
-            return $explicitRoot
-        }
-
-        # 也允许填写一个 Java 容器目录（例如 D:\Code\Language\Java），
-        # 此时向下寻找真正带 bin\java.exe + bin\javac.exe 的 JDK 目录。
-        $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 3
+        $explicitRoot = [Environment]::ExpandEnvironmentVariables($JavaHome.Trim().Trim('"'))
+        $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 2
         if ($explicit) {
-            Write-Step "使用手动指定目录中的 JDK：$explicit"
+            $major = Get-JavaMajorVersion $explicit
+            Write-Step ("使用手动指定的 JDK {0}：{1}" -f $major, $explicit)
             return $explicit
         }
 
-        # 最后用 where.exe 的实际命中结果兜底。若 PATH 中的 JDK 位于用户所选目录下，
-        # 直接复用它；这覆盖软链接、junction 和某些安装器生成的目录结构。
-        foreach ($pathHome in @(Get-JavaHomesFromPath)) {
-            $resolvedPathHome = Resolve-JavaHomeCandidate $pathHome
-            if (-not $resolvedPathHome) { continue }
-            $underExplicit = $resolvedPathHome.StartsWith($explicitRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase) -or ($resolvedPathHome -ieq $explicitRoot)
-            if ($underExplicit -and (Test-JavaHome $resolvedPathHome)) {
-                Write-Step "通过 PATH/where.exe 找到手动目录中的 JDK：$resolvedPathHome"
-                return $resolvedPathHome
+        # 手动指定失败时必须告诉用户真正原因，不能只说“找不到 Java”。
+        $diagnostics = New-Object System.Collections.Generic.List[string]
+        [void]$diagnostics.Add((Get-JavaHomeDiagnostic $explicitRoot))
+        if (Test-Path -LiteralPath $explicitRoot -PathType Container) {
+            foreach ($dir in @(Get-ChildItem -LiteralPath $explicitRoot -Directory -ErrorAction SilentlyContinue)) {
+                $resolvedDir = Resolve-JavaHomeCandidate $dir.FullName
+                $javaCandidate = Join-Path $resolvedDir 'bin\java.exe'
+                $javacCandidate = Join-Path $resolvedDir 'bin\javac.exe'
+                if ((Test-Path -LiteralPath $javaCandidate -PathType Leaf) -or
+                    (Test-Path -LiteralPath $javacCandidate -PathType Leaf)) {
+                    [void]$diagnostics.Add((Get-JavaHomeDiagnostic $resolvedDir))
+                }
             }
         }
-        throw ("你手动指定了 JDK 目录：{0}`n没有找到可用的 JDK {1}。请确认该目录本身或其子目录包含 bin\java.exe 和 bin\javac.exe。`n脚本不会自动下载 JDK。" -f $explicitRoot, $JdkMajor)
+        $detail = @($diagnostics | Where-Object { $_ } | Select-Object -Unique) -join "`n- "
+        throw ("你手动指定了 Java/JDK：{0}`n但没有找到可用于本次构建的 JDK {1}。`n诊断：`n- {2}`n`n脚本不会在你手动指定 Java 后擅自下载另一个 JDK。" -f $explicitRoot, $JdkMajor, $detail)
     }
 
     # 1) 环境变量优先。环境变量也允许指向 Java 容器目录。
@@ -940,8 +1097,8 @@ function Find-JavaHome {
         (Join-Path $ToolRoot ("Java\jdk-{0}" -f $JdkMajor)),
         (Join-Path $ToolRoot ("JDK\{0}" -f $JdkMajor)),
         (Join-Path $ToolRoot ("jdk-{0}" -f $JdkMajor)),
-        (Join-Path $ToolRoot "Java"),
-        (Join-Path $ToolRoot "Language\Java"),
+        (Join-Path $ToolRoot 'Java'),
+        (Join-Path $ToolRoot 'Language\Java'),
         (Join-Path $WorkRoot ("PyDroid\tools\jdk-{0}" -f $JdkMajor)),
         (Join-Path $WorkRoot ("tools\jdk-{0}" -f $JdkMajor))
     )
@@ -951,12 +1108,12 @@ function Find-JavaHome {
     }
 
     # 3) Windows 已安装 JDK。Microsoft OpenJDK 的 JAVA_HOME 是可选安装项，
-    #    所以即使环境变量没有配置，也必须主动检查注册表和常见安装目录。
+    # 所以即使环境变量没有配置，也主动检查注册表、常见目录、PATH。
     $systemCandidates = @()
     $systemCandidates += @(Get-JavaHomesFromRegistry)
     $systemCandidates += @(Get-JavaHomesFromCommonLocations)
     $systemCandidates += @(Get-JavaHomesFromPath)
-    foreach ($candidate in @($systemCandidates | Select-Object -Unique)) {
+    foreach ($candidate in @($systemCandidates | Where-Object { $_ } | Select-Object -Unique)) {
         $resolved = Find-JavaHomeInRoot -RootPath $candidate -MaxDepth 1
         if ($resolved) { return $resolved }
     }
@@ -1024,20 +1181,59 @@ function Find-AndroidSdk {
 function Install-AndroidSdk {
     param([string]$SdkRoot)
 
-    if ($SkipToolInstall) {
-        throw "未找到 Android SDK（需要 platforms;android-$resolvedAndroidApi），且已指定 -SkipToolInstall。请安装后设置 ANDROID_HOME。"
-    }
     if ([string]::IsNullOrWhiteSpace($SdkRoot)) {
         $SdkRoot = Join-Path $ToolRoot "Android\Sdk"
     }
+
     $sdkRoot = Resolve-AbsolutePath $SdkRoot
-    Write-Step "正在准备 Android SDK：$sdkRoot ..."
+    Write-Step "Android SDK：$sdkRoot"
     New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
 
+    # 先逐项检查。已有组件绝不重复安装，只补真正缺少的部分。
+    $platformToolsAdb = Join-Path $sdkRoot "platform-tools\adb.exe"
+    $platformJar = Join-Path $sdkRoot ("platforms\android-{0}\android.jar" -f $resolvedAndroidApi)
+    $buildToolsVersion = ("{0}.0.0" -f $resolvedAndroidApi)
+    $buildToolsDir = Join-Path $sdkRoot ("build-tools\{0}" -f $buildToolsVersion)
+    $buildToolsAapt2 = Join-Path $buildToolsDir "aapt2.exe"
+
+    $missingPackages = @()
+
+    if (Test-Path -LiteralPath $platformToolsAdb -PathType Leaf) {
+        Write-Host "✓ platform-tools 已存在：$platformToolsAdb" -ForegroundColor DarkGreen
+    } else {
+        Write-Host "✗ platform-tools 缺失" -ForegroundColor DarkYellow
+        $missingPackages += "platform-tools"
+    }
+
+    if (Test-Path -LiteralPath $platformJar -PathType Leaf) {
+        Write-Host ("✓ platforms;android-{0} 已存在：{1}" -f $resolvedAndroidApi, $platformJar) -ForegroundColor DarkGreen
+    } else {
+        Write-Host ("✗ platforms;android-{0} 缺失" -f $resolvedAndroidApi) -ForegroundColor DarkYellow
+        $missingPackages += ("platforms;android-{0}" -f $resolvedAndroidApi)
+    }
+
+    if (Test-Path -LiteralPath $buildToolsAapt2 -PathType Leaf) {
+        Write-Host ("✓ build-tools;{0} 已存在：{1}" -f $buildToolsVersion, $buildToolsDir) -ForegroundColor DarkGreen
+    } else {
+        Write-Host ("✗ build-tools;{0} 缺失" -f $buildToolsVersion) -ForegroundColor DarkYellow
+        $missingPackages += ("build-tools;{0}" -f $buildToolsVersion)
+    }
+
+    if ($missingPackages.Count -eq 0) {
+        Write-Step "Android SDK 所需组件均已存在，无需下载。"
+        return [string]$sdkRoot
+    }
+
+    if ($SkipToolInstall) {
+        throw ("Android SDK 缺少组件：{0}，且已指定 -SkipToolInstall。" -f ($missingPackages -join ", "))
+    }
+
+    # 只有真的需要补包时才要求 sdkmanager。
     $sdkManager = Find-ExistingFile @(
         (Join-Path $sdkRoot "cmdline-tools\latest\bin\sdkmanager.bat"),
         (Join-Path $sdkRoot "cmdline-tools\bin\sdkmanager.bat")
     )
+
     if (-not $sdkManager) {
         $zip = Find-ExistingFile @(
             (Join-Path $WorkRoot "PyDroid\tools\downloads\commandlinetools-win.zip"),
@@ -1050,57 +1246,100 @@ function Install-AndroidSdk {
         }
 
         $temp = Join-Path $CacheRoot ".cmdline-tools-extract"
-        if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
+        if (Test-Path -LiteralPath $temp) {
+            Remove-Item -LiteralPath $temp -Recurse -Force
+        }
         New-Item -ItemType Directory -Force -Path $temp | Out-Null
         Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
 
         $cmdline = Join-Path $temp "cmdline-tools"
         if (-not (Test-Path -LiteralPath $cmdline)) {
-            $cmdline = Get-ChildItem -LiteralPath $temp -Recurse -Directory -Filter "cmdline-tools" | Select-Object -First 1
+            $cmdlineItem = Get-ChildItem -LiteralPath $temp -Recurse -Directory -Filter "cmdline-tools" |
+                Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "bin\sdkmanager.bat") } |
+                Select-Object -First 1
+            if ($cmdlineItem) {
+                $cmdline = $cmdlineItem.FullName
+            }
         }
+
         if (-not $cmdline -or -not (Test-Path -LiteralPath (Join-Path $cmdline "bin\sdkmanager.bat"))) {
             throw "Android commandline-tools 解压后未找到 sdkmanager.bat。"
         }
 
         $latestDir = Join-Path $sdkRoot "cmdline-tools\latest"
-        if (Test-Path -LiteralPath $latestDir) { Remove-Item -LiteralPath $latestDir -Recurse -Force }
+        if (Test-Path -LiteralPath $latestDir) {
+            Remove-Item -LiteralPath $latestDir -Recurse -Force
+        }
         New-Item -ItemType Directory -Force -Path (Split-Path $latestDir -Parent) | Out-Null
         Move-Item -LiteralPath $cmdline -Destination $latestDir
         Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+
+        $sdkManager = Join-Path $latestDir "bin\sdkmanager.bat"
     }
 
-    # 预写许可证，避免 sdkmanager 交互卡住
+    # 预写许可证，避免 sdkmanager 等待交互。
     $licensesDir = Join-Path $sdkRoot "licenses"
     New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
     $licenseFiles = @{
         "android-sdk-license"         = "24333f8a63b6825ea9c5514f83c2829b004d1fee"
         "android-sdk-preview-license" = "84831b9409646a918e30573bab4c9c91346d8abd"
-        "android-sdk-arm-dbt-license"  = "859f317696f67ef3d7f30a50a5560e7834b43903"
+        "android-sdk-arm-dbt-license" = "859f317696f67ef3d7f30a50a5560e7834b43903"
         "google-gdk-license"           = "33b6a2b64607f11b759f320ef9dff4ae5c47d97a"
     }
     foreach ($k in $licenseFiles.Keys) {
         $lf = Join-Path $licensesDir $k
-        if (-not (Test-Path -LiteralPath $lf)) {
+        if (-not (Test-Path -LiteralPath $lf -PathType Leaf)) {
             Set-Content -LiteralPath $lf -Value $licenseFiles[$k] -Encoding ASCII
         }
     }
 
-    if (-not $sdkManager) {
-        $sdkManager = Join-Path $sdkRoot "cmdline-tools\latest\bin\sdkmanager.bat"
-    }
-    $packages = @("platform-tools", ("platforms;android-{0}" -f $resolvedAndroidApi), ("build-tools;{0}.0.0" -f $resolvedAndroidApi))
-    Write-BuildStage -Percent $script:CurrentBuildStagePercent -Message "正在下载/安装 Android SDK 组件"
-    Write-Step "通过 sdkmanager 安装：$($packages -join ', ')"
+    Write-BuildStage -Percent $script:CurrentBuildStagePercent -Message "补齐缺失的 Android SDK 组件"
+    Write-Step ("仅安装缺失组件：{0}" -f ($missingPackages -join ", "))
+
+    # 重要：
+    # PowerShell 函数内 native command 的 stdout 会进入函数成功输出流。
+    # 如果直接写：
+    #   $sdk = Install-AndroidSdk ...
+    # 那么 sdkmanager 的 "Loading package information..." 等文本也会被装进 $sdk。
+    # 这里显式消费所有 sdkmanager 输出并用 Write-Host 显示，保证函数唯一返回值只有 SDK 根目录。
     $yes = (("y`n") * 40)
-    $yes | & $sdkManager "--sdk_root=$sdkRoot" @packages
-    if ($LASTEXITCODE -ne 0) {
-        throw "Android SDK 包安装失败（退出码 $LASTEXITCODE）。"
+    $oldEap = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $yes | & $sdkManager "--sdk_root=$sdkRoot" @missingPackages 2>&1 |
+            ForEach-Object {
+                if ($_ -ne $null) {
+                    Write-Host ([string]$_)
+                }
+            }
+        $sdkExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $oldEap
     }
 
-    if (-not (Test-Path (Join-Path $sdkRoot "platforms\android-$resolvedAndroidApi\android.jar"))) {
-        throw "Android SDK platform $resolvedAndroidApi 仍未安装成功。"
+    if ($sdkExitCode -ne 0) {
+        throw "Android SDK 包安装失败（退出码 $sdkExitCode）。"
     }
-    return $sdkRoot
+
+    # 安装后逐项复核，避免 sdkmanager 返回 0 但组件不完整。
+    $missingAfterInstall = @()
+    if (-not (Test-Path -LiteralPath $platformToolsAdb -PathType Leaf)) {
+        $missingAfterInstall += "platform-tools"
+    }
+    if (-not (Test-Path -LiteralPath $platformJar -PathType Leaf)) {
+        $missingAfterInstall += ("platforms;android-{0}" -f $resolvedAndroidApi)
+    }
+    if (-not (Test-Path -LiteralPath $buildToolsAapt2 -PathType Leaf)) {
+        $missingAfterInstall += ("build-tools;{0}" -f $buildToolsVersion)
+    }
+
+    if ($missingAfterInstall.Count -gt 0) {
+        throw ("sdkmanager 执行结束，但以下组件仍不完整：{0}" -f ($missingAfterInstall -join ", "))
+    }
+
+    Write-Step "Android SDK 缺失组件已补齐。"
+    return [string]$sdkRoot
 }
 
 function Find-Python312 {
@@ -1180,13 +1419,19 @@ function Install-Python312 {
 function Sync-Source {
     Write-BuildStage -Percent 15 -Message "清理临时工作区旧构建缓存"
     Write-Step "清理临时工作区旧构建缓存（静默）..."
+    # 默认保留 Android 的 .gradle/app/build 等目录，让 Gradle daemon、build cache
+    # 和增量编译在连续构建之间真正生效。只有 -CleanBuild 才清理这些目录。
     $transientDirs = @(
-        "android\.gradle",
-        "android\app\build",
-        "android\build",
-        "android\capacitor-cordova-android-plugins\build",
         "release", "dist", "dist-desktop", "temp", ".vite", ".pytest_cache"
     )
+    if ($CleanBuild) {
+        $transientDirs += @(
+            "android\.gradle",
+            "android\app\build",
+            "android\build",
+            "android\capacitor-cordova-android-plugins\build"
+        )
+    }
     foreach ($relative in $transientDirs) {
         $full = Join-Path $workspace $relative
         if (Test-Path -LiteralPath $full) {
@@ -1280,25 +1525,41 @@ function packageManagerInvocation(args) {
 }
 
 function Patch-WorkspaceAndroidPackage {
-    # 当前机器上 Gradle daemon 启动可能被安全软件拦截（CreateProcess error=5）。
-    # 改用 --no-daemon + 匹配的 GRADLE_OPTS，可以稳定绕开 daemon 启动问题。
+    # Gradle daemon 默认应当启用：连续构建可复用 JVM、类加载和项目状态，
+    # 通常明显快于每次重新启动 Gradle。只有用户显式要求时才注入 --no-daemon。
+    if (-not $DisableGradleDaemon) {
+        Write-Host "Gradle daemon：启用（默认，连续构建将复用 daemon）。" -ForegroundColor DarkGreen
+        return
+    }
+
     $file = Join-Path $workspace "scripts\android-package.ps1"
     if (-not (Test-Path -LiteralPath $file)) { return }
     $content = Get-Content -LiteralPath $file -Raw
-    if ($content -match "--no-daemon") { return }
+    if ($content -match "--no-daemon") {
+        Write-Host "Gradle daemon：已禁用（-DisableGradleDaemon）。" -ForegroundColor DarkYellow
+        return
+    }
 
     $content = $content -replace '\.\\gradlew\.bat assembleDebug --no-watch-fs', '.\gradlew.bat assembleDebug --no-watch-fs --no-daemon'
     [System.IO.File]::WriteAllText($file, $content, (New-Object System.Text.UTF8Encoding($true)))
-    Write-Host "已修补工作区 android-package.ps1：Gradle 使用 --no-daemon 构建。" -ForegroundColor DarkYellow
+    Write-Host "Gradle daemon：已禁用（-DisableGradleDaemon）。" -ForegroundColor DarkYellow
 }
 
 function Clear-WorkspaceOutputs {
-    Write-Step "清理工作区中的构建产物：$workspace"
-    $paths = @(
-        "release", "dist", "dist-desktop", "temp",
-        "android\app\build", "android\build",
-        "android\capacitor-cordova-android-plugins\build"
-    )
+    param([switch]$IncludeAndroidBuild)
+
+    Write-Step "清理工作区中的临时构建产物：$workspace"
+    $paths = @("release", "dist", "dist-desktop", "temp")
+
+    if ($IncludeAndroidBuild) {
+        $paths += @(
+            "android\.gradle",
+            "android\app\build",
+            "android\build",
+            "android\capacitor-cordova-android-plugins\build"
+        )
+    }
+
     foreach ($p in $paths) {
         $full = Join-Path $workspace $p
         if (Test-Path -LiteralPath $full) {
@@ -1457,49 +1718,172 @@ function Build-Desktop {
     }
 }
 
+
+function Configure-GradleNetwork {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$WrapperPropertiesPath
+    )
+
+    # Gradle Wrapper is itself a Java process. HTTP_PROXY/HTTPS_PROXY are useful
+    # for pnpm and PowerShell, but the JVM does not reliably consume them as the
+    # Gradle proxy configuration. Pass the resolved proxy explicitly as JVM
+    # system properties so both the Wrapper distribution download and the later
+    # Gradle dependency resolution use the same proxy selected in the GUI.
+    $gradleArgs = @("-Xmx1536m")
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$script:ResolvedProxyUrl)) {
+        try {
+            $proxyUri = [Uri]$script:ResolvedProxyUrl
+            if ($proxyUri.Scheme -notin @("http", "https")) {
+                throw "Gradle 当前仅支持从本脚本自动转换 HTTP/HTTPS 代理，当前代理协议为：$($proxyUri.Scheme)"
+            }
+
+            $proxyHost = $proxyUri.Host
+            $proxyPort = $proxyUri.Port
+            if ($proxyPort -le 0) {
+                $proxyPort = if ($proxyUri.Scheme -eq "https") { 443 } else { 80 }
+            }
+
+            $gradleArgs += "-Dhttp.proxyHost=$proxyHost"
+            $gradleArgs += "-Dhttp.proxyPort=$proxyPort"
+            $gradleArgs += "-Dhttps.proxyHost=$proxyHost"
+            $gradleArgs += "-Dhttps.proxyPort=$proxyPort"
+
+            # Basic-auth proxy is uncommon for local proxy tools, but preserve
+            # credentials if the selected proxy URL explicitly contains them.
+            if (-not [string]::IsNullOrWhiteSpace($proxyUri.UserInfo)) {
+                $userInfoParts = $proxyUri.UserInfo -split ':', 2
+                $proxyUser = [Uri]::UnescapeDataString($userInfoParts[0])
+                $proxyPassword = if ($userInfoParts.Count -gt 1) {
+                    [Uri]::UnescapeDataString($userInfoParts[1])
+                } else {
+                    ""
+                }
+
+                if ($proxyUser -match '\s' -or $proxyPassword -match '\s') {
+                    Write-Warning "Gradle 代理用户名或密码包含空格，无法安全通过 GRADLE_OPTS 传递；将仅配置代理主机和端口。"
+                } else {
+                    $gradleArgs += "-Dhttp.proxyUser=$proxyUser"
+                    $gradleArgs += "-Dhttp.proxyPassword=$proxyPassword"
+                    $gradleArgs += "-Dhttps.proxyUser=$proxyUser"
+                    $gradleArgs += "-Dhttps.proxyPassword=$proxyPassword"
+                }
+            }
+
+            Write-Step ("Gradle 网络代理：{0}:{1}（沿用 GUI/构建网络配置）" -f $proxyHost, $proxyPort)
+        } catch {
+            throw "无法把当前代理配置转换为 Gradle JVM 代理参数：$($script:ResolvedProxyUrl)`n$($_.Exception.Message)"
+        }
+    } else {
+        Write-Step "Gradle 网络代理：直连"
+    }
+
+    $env:GRADLE_OPTS = ($gradleArgs -join " ")
+
+    # Gradle Wrapper 的 distribution 下载默认只有 10 秒网络超时。
+    # 在临时工作区副本中提高 networkTimeout，不修改用户的项目源码。
+    if (Test-Path -LiteralPath $WrapperPropertiesPath -PathType Leaf) {
+        $timeoutMs = [Math]::Max(60000, ($PnpmFetchTimeoutSeconds * 1000))
+        $wrapperText = Get-Content -LiteralPath $WrapperPropertiesPath -Raw
+
+        if ($wrapperText -match '(?m)^\s*networkTimeout\s*=') {
+            $wrapperText = [regex]::Replace(
+                $wrapperText,
+                '(?m)^\s*networkTimeout\s*=.*$',
+                "networkTimeout=$timeoutMs"
+            )
+        } else {
+            if (-not $wrapperText.EndsWith("`n")) {
+                $wrapperText += "`r`n"
+            }
+            $wrapperText += "networkTimeout=$timeoutMs`r`n"
+        }
+
+        [System.IO.File]::WriteAllText(
+            $WrapperPropertiesPath,
+            $wrapperText,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+        Write-Step ("Gradle Wrapper 下载超时：{0} ms（{1} s）" -f $timeoutMs, [int]($timeoutMs / 1000))
+    } else {
+        Write-Warning "未找到 gradle-wrapper.properties，无法调整 Wrapper 下载超时：$WrapperPropertiesPath"
+    }
+}
+
 function Build-Android {
     Write-BuildStage -Percent 68 -Message "检查 Android JDK、SDK 与 Python 3.12"
     Write-Step "构建 Android debug APK ..."
+
     $jdk = Find-JavaHome
-    if (-not $jdk) { $jdk = Install-Jdk }
+    if (-not $jdk) {
+        $jdk = Install-Jdk
+    }
+    $jdk = [string]$jdk
     Write-Step ("JDK {0}：{1}" -f $JdkMajor, $jdk)
-    # sdkmanager 本身就需要 Java，因此必须在准备/补齐 Android SDK 之前启用刚找到的 JDK。
+
+    # sdkmanager 本身依赖 Java，所以必须先启用已经确认的 JDK。
     $env:JAVA_HOME = $jdk
     $env:Path = "$(Join-Path $jdk 'bin');$env:Path"
 
+    # Find-AndroidSdk 负责寻找现有 SDK 根；Install-AndroidSdk 负责逐项检查并只补缺失组件。
     $sdk = Find-AndroidSdk
-    if (-not $sdk -or -not (Test-Path (Join-Path $sdk "platforms\android-$resolvedAndroidApi\android.jar"))) {
-        $sdk = Install-AndroidSdk -SdkRoot $sdk
+    if ([string]::IsNullOrWhiteSpace([string]$sdk)) {
+        $sdk = Join-Path $ToolRoot "Android\Sdk"
     }
+
+    # 防止任何函数/原生命令的附带 stdout 污染 SDK 路径。
+    # Install-AndroidSdk 已保证只向成功输出流返回一个字符串，这里再次强制标量化并校验。
+    $sdkResult = @(Install-AndroidSdk -SdkRoot ([string]$sdk))
+    if ($sdkResult.Count -ne 1) {
+        throw ("Android SDK 准备函数返回了异常数量的结果（{0}）。这通常意味着某个命令输出污染了 SDK 路径。" -f $sdkResult.Count)
+    }
+    $sdk = [string]$sdkResult[0]
+
+    if ([string]::IsNullOrWhiteSpace($sdk) -or -not (Test-Path -LiteralPath $sdk -PathType Container)) {
+        throw "Android SDK 根目录无效：$sdk"
+    }
+
+    $requiredPlatformJar = Join-Path $sdk ("platforms\android-{0}\android.jar" -f $resolvedAndroidApi)
+    if (-not (Test-Path -LiteralPath $requiredPlatformJar -PathType Leaf)) {
+        throw "Android SDK Platform $resolvedAndroidApi 不完整：$requiredPlatformJar"
+    }
+
     $python = Find-Python312
-    if (-not $python) { $python = Install-Python312 }
+    if (-not $python) {
+        $python = Install-Python312
+    }
+    $python = [string]$python
 
     $env:JAVA_HOME = $jdk
     $env:ANDROID_HOME = $sdk
     $env:ANDROID_SDK_ROOT = $sdk
     $env:GRADLE_USER_HOME = $gradleHome
     $env:PYDROID_PYTHON_EXECUTABLE = $python
-    # 与 --no-daemon 配合，避免 Gradle 因 JVM 参数不一致再 fork 单次 daemon
-    $env:GRADLE_OPTS = "-Xmx1536m"
 
-    # 停止旧的 Gradle daemon，避免因旧 daemon 使用不同的 JAVA_HOME
-    # 导致新 daemon 启动时 CreateProcess error=5（拒绝访问）。
+    # Gradle Wrapper 是独立 Java 进程，需要显式配置 JVM 代理。
+    # 同时提高 distribution 下载超时，避免 services.gradle.org 默认 10 秒超时。
+    $gradleWrapperProps = Join-Path $workspace "android\gradle\wrapper\gradle-wrapper.properties"
+    Configure-GradleNetwork -WrapperPropertiesPath $gradleWrapperProps
+
+    Write-Step "Android 构建环境"
+    Write-Host "JAVA_HOME：$env:JAVA_HOME"
+    Write-Host "ANDROID_HOME：$env:ANDROID_HOME"
+    Write-Host "ANDROID_SDK_ROOT：$env:ANDROID_SDK_ROOT"
+    Write-Host "Python：$env:PYDROID_PYTHON_EXECUTABLE"
+
     Write-BuildStage -Percent 78 -Message "准备 Android Gradle 构建"
-    Write-Step "停止旧的 Gradle daemon，确保 Android 构建使用当前 JDK ..."
-    Push-Location (Join-Path $workspace "android")
-    try {
-        & .\gradlew.bat --stop 2>$null
-    } catch {
-        Write-Warning "Gradle daemon 停止失败（可忽略）：$($_.Exception.Message)"
-    } finally {
-        Pop-Location
+    if ($DisableGradleDaemon) {
+        Write-Step "Gradle daemon 已禁用；本次构建使用独立 JVM。"
+    } else {
+        Write-Step "Gradle daemon 已启用；不主动执行 gradlew --stop，以便后续构建复用 JVM 与缓存。"
     }
 
     Write-BuildStage -Percent 82 -Message "编译 Android APK"
     Invoke-Pnpm @("android:package")
 
     $apk = Join-Path $workspace "android\app\build\outputs\apk\debug\app-debug.apk"
-    if (-not (Test-Path -LiteralPath $apk)) {
+    if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) {
         throw "Android 构建完成但未找到 app-debug.apk。"
     }
     return $apk
@@ -1640,7 +2024,7 @@ Sync-Source
 # 修补工作区内的桌面打包脚本，使 electron-builder 缓存位于项目外部
 Patch-WorkspaceDesktopPackage
 
-# 修补工作区内的 Android 打包脚本，使用 --no-daemon 避免 daemon 启动被拦截
+# 默认启用 Gradle daemon；仅在 -DisableGradleDaemon 时修补工作区脚本。
 Patch-WorkspaceAndroidPackage
 
 # 安装 JS 依赖（使用外部 pnpm store，避免重复下载；网络失败时整次安装可重试）
@@ -1667,9 +2051,10 @@ for ($installAttempt = 1; $installAttempt -le $installAttempts; $installAttempt+
 }
 if (-not $installSucceeded) { throw "pnpm install 未完成。" }
 
-# 构建前清理一次，避免旧产物干扰
-Write-BuildStage -Percent 40 -Message "清理旧构建产物"
-Clear-WorkspaceOutputs
+# 默认仅清理最终打包产物，保留 Android 增量构建缓存。
+# 需要彻底重编译时使用 -CleanBuild。
+Write-BuildStage -Percent 40 -Message $(if ($CleanBuild) { "执行完整清理构建" } else { "清理旧打包产物（保留 Android 增量缓存）" })
+Clear-WorkspaceOutputs -IncludeAndroidBuild:$CleanBuild
 
 $apkSource = $null
 $hasApk = -not $SkipAndroid
@@ -1680,14 +2065,23 @@ if ($hasDesktop) {
 }
 
 if ($hasApk) {
-    $apkSource = Build-Android
+    $apkResult = @(Build-Android)
+    if ($apkResult.Count -ne 1) {
+        $preview = ($apkResult | ForEach-Object { [string]$_ } | Select-Object -First 5) -join " | "
+        throw ("Android 构建函数返回了 {0} 个成功输出项，而不是唯一 APK 路径。输出预览：{1}" -f $apkResult.Count, $preview)
+    }
+    $apkSource = [string]$apkResult[0]
+    if ([string]::IsNullOrWhiteSpace($apkSource) -or -not (Test-Path -LiteralPath $apkSource -PathType Leaf)) {
+        throw "Android 构建返回的 APK 路径无效：$apkSource"
+    }
 }
 
 Copy-Outputs -ApkSource $apkSource -HasApk:$hasApk -HasDesktop:$hasDesktop
 
-# 构建后默认清理临时打包产物；需要排查问题时可使用 -KeepWorkspace。
+# 构建后默认仅清理 release/dist 等可再生打包产物。
+# Android Gradle/build 目录默认保留，为下一次增量构建加速。
 if (-not $KeepWorkspace) {
-    Write-BuildStage -Percent 97 -Message "清理临时构建产物"
+    Write-BuildStage -Percent 97 -Message "清理临时打包产物（保留 Android 增量缓存）"
     Clear-WorkspaceOutputs
 } else {
     Write-Host "保留工作区用于排查：$workspace" -ForegroundColor DarkYellow

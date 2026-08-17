@@ -38,43 +38,53 @@ assert.match(
 );
 assert.match(
   buildScript,
-  /Get-Command \$commandName -All/,
-  "JDK discovery should inspect all Java/Javac commands instead of only the first PATH hit",
-);
-assert.match(
-  buildScript,
   /\[string\]\$JavaHome/,
   "build script should accept an explicit JavaHome path from the GUI/CLI",
 );
 assert.match(
   buildScript,
-  /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 3/,
+  /function Resolve-JavaHomeCandidate/,
+  "manual JDK paths should be normalized through one resolver",
+);
+assert.match(
+  buildScript,
+  /\^\(java\|javac\)\\\.exe\$/,
+  "manual JDK selection should accept java.exe or javac.exe paths",
+);
+assert.match(
+  buildScript,
+  /\(Split-Path \$candidate -Leaf\) -ieq 'bin'/,
+  "manual JDK selection should accept a JDK bin directory",
+);
+assert.match(
+  buildScript,
+  /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 2/,
   "manual JDK path should accept a Java container directory and search nested JDK folders",
 );
 assert.match(
   buildScript,
-  /Join-Path \$explicitRoot 'bin\\java\.exe'/,
-  "manual JDK selection should accept a directory which directly contains bin/java.exe",
+  /Join-Path \$resolved 'bin\\java\.exe'/,
+  "JDK validation should require bin/java.exe",
 );
 assert.match(
   buildScript,
-  /Join-Path \$explicitRoot 'bin\\javac\.exe'/,
-  "manual JDK selection should require and accept bin/javac.exe next to java.exe",
+  /Join-Path \$resolved 'bin\\javac\.exe'/,
+  "JDK validation should require bin/javac.exe",
 );
 assert.match(
   buildScript,
-  /foreach \(\$whereName in @\('java', 'javac'\)\)/,
+  /foreach \(\$name in @\('java', 'javac'\)\)/,
   "JDK discovery should query both where java and where javac",
 );
 assert.match(
   buildScript,
-  /版本文本无法自动解析[\s\S]*按手动路径继续/,
-  "an explicit complete JDK path should not be rejected solely because vendor version text is unusual",
+  /Invoke-JavaVersionProbe/,
+  "JDK version probing should isolate native stdout and stderr for Windows PowerShell 5.1",
 );
 assert.match(
   buildScript,
-  /脚本不会自动下载 JDK/,
-  "an invalid manually-selected JDK directory must fail instead of silently downloading another JDK",
+  /脚本不会在你手动指定 Java 后擅自下载另一个 JDK/,
+  "an invalid manually-selected JDK path must fail instead of silently downloading another JDK",
 );
 
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
