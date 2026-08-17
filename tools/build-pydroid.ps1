@@ -116,6 +116,7 @@ param(
     [string]$PythonVersion,
     [int]$AndroidApiLevel = 0,
     [int]$JdkMajor = 21,
+    [string]$JavaHome,
     [string]$ElectronMirror,
     [string]$ElectronBuilderMirror,
     [ValidateSet("Auto", "Direct", "Manual")]
@@ -710,6 +711,43 @@ function Test-JavaHome {
     return ($null -ne $major -and $major -eq $JdkMajor)
 }
 
+function Find-JavaHomeInRoot {
+    param(
+        [string]$RootPath,
+        [int]$MaxDepth = 2
+    )
+    if ([string]::IsNullOrWhiteSpace($RootPath)) { return $null }
+
+    $root = Resolve-JavaHomeCandidate $RootPath
+    if ([string]::IsNullOrWhiteSpace($root)) { return $null }
+
+    # 如果用户已经直接给了 JAVA_HOME、bin 目录或 java.exe/javac.exe，直接验证。
+    if (Test-JavaHome $root) { return $root }
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) { return $null }
+
+    # 允许用户只填写类似 D:\Code\Language\Java 这样的“Java 容器目录”。
+    # 最多向下两层，避免对整个磁盘做递归扫描。
+    $queue = New-Object System.Collections.Queue
+    $queue.Enqueue([pscustomobject]@{ Path = $root; Depth = 0 })
+    $visited = @{}
+    while ($queue.Count -gt 0) {
+        $item = $queue.Dequeue()
+        $currentPath = [string]$item.Path
+        $depth = [int]$item.Depth
+        $key = $currentPath.ToLowerInvariant()
+        if ($visited.ContainsKey($key)) { continue }
+        $visited[$key] = $true
+
+        if ($depth -gt 0 -and (Test-JavaHome $currentPath)) { return $currentPath }
+        if ($depth -ge $MaxDepth) { continue }
+
+        foreach ($dir in @(Get-ChildItem -LiteralPath $currentPath -Directory -ErrorAction SilentlyContinue)) {
+            $queue.Enqueue([pscustomobject]@{ Path = $dir.FullName; Depth = ($depth + 1) })
+        }
+    }
+    return $null
+}
+
 function Get-JavaHomesFromRegistry {
     $results = New-Object System.Collections.Generic.List[string]
 
@@ -807,10 +845,22 @@ function Get-JavaHomesFromPath {
 }
 
 function Find-JavaHome {
-    # 1) 用户显式指定优先。
+    # 0) GUI/命令行手动指定时，它是绝对优先且具有“禁止自动下载”的语义。
+    #    可以填写真正的 JAVA_HOME，也可以填写包含多个 JDK 子目录的 Java 根目录。
+    if (-not [string]::IsNullOrWhiteSpace($JavaHome)) {
+        $explicitRoot = [Environment]::ExpandEnvironmentVariables($JavaHome.Trim().Trim('"'))
+        $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 2
+        if ($explicit) {
+            Write-Step "使用手动指定的 JDK：$explicit"
+            return $explicit
+        }
+        throw ("你手动指定了 JDK 目录：{0}`n但在该目录及其两层子目录中没有找到完整的 JDK {1}（需要 bin\java.exe 和 bin\javac.exe）。`n为避免使用错误工具，脚本不会自动下载 JDK。请在 GUI 中重新选择正确的 Java/JDK 目录。" -f $explicitRoot, $JdkMajor)
+    }
+
+    # 1) 环境变量优先。环境变量也允许指向 Java 容器目录。
     foreach ($envHome in @($env:PYDROID_JAVA_HOME, $env:JAVA_HOME)) {
-        $resolved = Resolve-JavaHomeCandidate $envHome
-        if ($resolved -and (Test-JavaHome $resolved)) { return $resolved }
+        $resolved = Find-JavaHomeInRoot -RootPath $envHome -MaxDepth 2
+        if ($resolved) { return $resolved }
     }
 
     # 2) 已经存在的共享工具链继续优先复用。
@@ -825,8 +875,8 @@ function Find-JavaHome {
         (Join-Path $WorkRoot ("tools\jdk-{0}" -f $JdkMajor))
     )
     foreach ($candidate in $sharedCandidates) {
-        $resolved = Resolve-JavaHomeCandidate $candidate
-        if ($resolved -and (Test-JavaHome $resolved)) { return $resolved }
+        $resolved = Find-JavaHomeInRoot -RootPath $candidate -MaxDepth 2
+        if ($resolved) { return $resolved }
     }
 
     # 3) Windows 已安装 JDK。Microsoft OpenJDK 的 JAVA_HOME 是可选安装项，
@@ -836,8 +886,8 @@ function Find-JavaHome {
     $systemCandidates += @(Get-JavaHomesFromCommonLocations)
     $systemCandidates += @(Get-JavaHomesFromPath)
     foreach ($candidate in @($systemCandidates | Select-Object -Unique)) {
-        $resolved = Resolve-JavaHomeCandidate $candidate
-        if ($resolved -and (Test-JavaHome $resolved)) { return $resolved }
+        $resolved = Find-JavaHomeInRoot -RootPath $candidate -MaxDepth 1
+        if ($resolved) { return $resolved }
     }
 
     return $null

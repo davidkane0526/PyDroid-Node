@@ -134,6 +134,15 @@ $projectDefault = Resolve-InitialProjectRoot
 $toolDefault = Default-ToolRoot $workDefault
 $cacheDefault = Default-CacheRoot $toolDefault
 $outputDefault = $workDefault
+$jdkDefault = if ($env:PYDROID_JAVA_HOME) {
+    $env:PYDROID_JAVA_HOME
+} elseif ($env:JAVA_HOME) {
+    $env:JAVA_HOME
+} elseif (Test-Path -LiteralPath 'D:\Code\Language\Java') {
+    'D:\Code\Language\Java'
+} else {
+    ''
+}
 $settingsDir = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "PyDroidBuild"
 $settingsFile = Join-Path $settingsDir "gui-settings.json"
 
@@ -173,6 +182,7 @@ if ($stored) {
     }
 
     if ($stored.OutputRoot) { $outputDefault = [string]$stored.OutputRoot } else { $outputDefault = $workDefault }
+    if ($stored.JdkHome) { $jdkDefault = [string]$stored.JdkHome }
 }
 
 $form = New-Object System.Windows.Forms.Form
@@ -204,7 +214,7 @@ $pathsPanel.Dock = "Top"
 $pathsPanel.AutoSize = $true
 $pathsPanel.Padding = New-Object System.Windows.Forms.Padding(8)
 $pathsPanel.ColumnCount = 3
-$pathsPanel.RowCount = 5
+$pathsPanel.RowCount = 6
 [void]$pathsPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Absolute", 92)))
 [void]$pathsPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Percent", 100)))
 [void]$pathsPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Absolute", 76)))
@@ -216,6 +226,7 @@ $workBox = $null
 $toolBox = $null
 $cacheBox = $null
 $outputBox = $null
+$jdkBox = $null
 $projectBox = Add-LabeledPathRow $pathsPanel 0 "项目目录" $projectDefault {
     $v = Select-Folder $projectBox.Text
     if ($v) { $projectBox.Text = $v }
@@ -239,6 +250,12 @@ $outputBox = Add-LabeledPathRow $pathsPanel 4 "输出目录" $outputDefault {
     $v = Select-Folder $outputBox.Text
     if ($v) { $outputBox.Text = $v }
 }
+$jdkBox = Add-LabeledPathRow $pathsPanel 5 "JDK 目录" $jdkDefault {
+    $v = Select-Folder $jdkBox.Text
+    if ($v) { $jdkBox.Text = $v }
+}
+$jdkTip = New-Object System.Windows.Forms.ToolTip
+$jdkTip.SetToolTip($jdkBox, "可以填写真正的 JAVA_HOME，也可以填写包含 jdk-* 子目录的 Java 根目录，例如 D:\Code\Language\Java。填写后不会自动下载 JDK。")
 
 $optionsGroup = New-Object System.Windows.Forms.GroupBox
 $optionsGroup.Text = "构建选项"
@@ -335,7 +352,7 @@ function Add-AdvancedCombo([int]$row, [int]$labelCol, [string]$labelText, [strin
 $nodeVersionBox = Add-AdvancedField 0 0 "Node 自动安装版本" $(if ($stored -and $stored.NodeVersion) { [string]$stored.NodeVersion } else { "24.19.0" })
 $pythonVersionBox = Add-AdvancedField 0 2 "Android Python 自动安装版本" $(if ($stored -and $stored.PythonVersion) { [string]$stored.PythonVersion } else { "3.12.10" })
 $androidApiBox = Add-AdvancedField 1 0 "Android API" $(if ($stored -and $null -ne $stored.AndroidApi) { [string]$stored.AndroidApi } else { "0" })
-$jdkMajorBox = Add-AdvancedField 1 2 "JDK 主版本" $(if ($stored -and $stored.JdkMajor) { [string]$stored.JdkMajor } else { "21" })
+$jdkMajorBox = Add-AdvancedField 1 2 "JDK 主版本（校验）" $(if ($stored -and $stored.JdkMajor) { [string]$stored.JdkMajor } else { "21" })
 $electronMirrorBox = Add-AdvancedField 2 0 "Electron 镜像" $(if ($stored -and $stored.ElectronMirror) { [string]$stored.ElectronMirror } else { "" })
 $builderMirrorBox = Add-AdvancedField 2 2 "Builder 镜像" $(if ($stored -and $stored.BuilderMirror) { [string]$stored.BuilderMirror } else { "" })
 
@@ -587,6 +604,7 @@ $startButton.Add_Click({
         $tools = $toolBox.Text.Trim()
         $cache = $cacheBox.Text.Trim()
         $output = $outputBox.Text.Trim()
+        $jdkHome = $jdkBox.Text.Trim()
         if (-not $work) { throw "工作目录不能为空。" }
         if (-not $tools) { throw "共享工具根目录不能为空。" }
         if (-not $cache) { throw "共享缓存目录不能为空。" }
@@ -631,6 +649,7 @@ $startButton.Add_Click({
             PythonVersion = $pythonVersionBox.Text.Trim()
             AndroidApi = $androidApi
             JdkMajor = $jdkMajor
+            JdkHome = $jdkHome
             ElectronMirror = $electronMirrorBox.Text.Trim()
             BuilderMirror = $builderMirrorBox.Text.Trim()
             NetworkMode = $networkMode
@@ -654,6 +673,7 @@ $startButton.Add_Click({
             "-NetworkMode", $networkMode, "-PnpmFetchTimeoutSeconds", ([string]$fetchTimeout),
             "-PnpmNetworkConcurrency", ([string]$networkConcurrency)
         )
+        if ($jdkHome) { $launchArgs += @("-JavaHome", $jdkHome) }
         if (-not $androidCheck.Checked) { $launchArgs += "-SkipAndroid" }
         if (-not $desktopCheck.Checked) { $launchArgs += "-SkipDesktop" }
         if (-not $installCheck.Checked) { $launchArgs += "-SkipToolInstall" }
@@ -675,6 +695,8 @@ Work: $work
 Tools: $tools
 Cache: $cache
 Output: $output
+JDK directory: $jdkHome
+JDK major: $jdkMajor
 Android: $($androidCheck.Checked)
 Desktop: $($desktopCheck.Checked)
 Network mode: $networkMode

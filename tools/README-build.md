@@ -25,6 +25,7 @@ GUI 会调用 `tools/build-pydroid.ps1`，项目源码不会被直接写入；�
 - 工作目录、工具目录、输出目录均可在 GUI 中选择。
 - Android compile SDK 默认从 `android/variables.gradle` 自动读取，GUI 填 `0` 表示自动。
 - Node/Python/JDK 的自动安装版本可由 GUI 调整，不再只能修改脚本源码。
+- GUI 的“JDK 目录”可直接填写 `D:\Code\Language\Java` 或实际 `JAVA_HOME`。填写后该路径优先且禁止自动下载其它 JDK；留空才使用自动探测/按需安装。
 - 下载支持自动重试；构建失败时可选择保留工作区排查。
 - 输出文件名从 `package.json` 的 `build.productName`/`name` 自动生成。
 

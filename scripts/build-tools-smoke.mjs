@@ -41,11 +41,29 @@ assert.match(
   /Get-Command \$commandName -All/,
   "JDK discovery should inspect all Java/Javac commands instead of only the first PATH hit",
 );
+assert.match(
+  buildScript,
+  /\[string\]\$JavaHome/,
+  "build script should accept an explicit JavaHome path from the GUI/CLI",
+);
+assert.match(
+  buildScript,
+  /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 2/,
+  "manual JDK path should accept a Java container directory and search child JDK folders",
+);
+assert.match(
+  buildScript,
+  /脚本不会自动下载 JDK/,
+  "an invalid manually-selected JDK directory must fail instead of silently downloading another JDK",
+);
 
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
 const buildGui = readFileSync(buildGuiPath, "utf8");
 assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");
 assert.match(buildGui, /\^@@PYDROID_STAGE@@/, "build GUI should consume stage events");
+assert.match(buildGui, /"JDK 目录"/, "build GUI should expose an editable JDK directory field");
+assert.match(buildGui, /@\("-JavaHome", \$jdkHome\)/, "build GUI should pass the selected JDK directory to the core build script");
+assert.match(buildGui, /JdkHome = \$jdkHome/, "build GUI should persist the selected JDK directory");
 
 
 const args = ["desktop:build"];

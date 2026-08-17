@@ -1,3 +1,11 @@
+## 1.4.16 (39) — Manual JDK path / no-surprise download — 2026-08-18
+
+- Build GUI 的“路径”区域新增 **JDK 目录**输入框和浏览按钮；本机存在 `D:\Code\Language\Java` 时默认填入该路径，也会保存用户选择供下次构建复用。
+- 手动 JDK 路径具有最高优先级，并通过 `-JavaHome` 明确传给核心构建脚本。既可填写真正的 `JAVA_HOME`，也可直接填写包含多个 `jdk-*` 子目录的 Java 根目录，例如 `D:\Code\Language\Java`。
+- JDK 路径解析最多向下扫描两层，要求同时存在 `bin\java.exe`、`bin\javac.exe` 且实际主版本等于 GUI 中的 JDK 主版本（默认 21）。
+- **只要用户填写了 JDK 目录，就禁止 JDK 自动下载**：指定路径中没有找到有效 JDK 21 时直接给出明确错误，避免再次出现“明明安装了 Java，却转而下载另一套 JDK”的行为。
+- 本地工作分支为 `local/manual-jdk-1.4.16`；`main` 保持原样未修改。
+
 ## 1.4.15 (38) — Windows JDK 21 discovery fix — 2026-08-18
 
 - 修复已安装 Microsoft OpenJDK 21 仍被误判为“未找到 JDK 21”的问题。`JAVA_HOME` 不再是唯一可靠入口；构建器会主动扫描 Microsoft/Temurin/Java/Corretto/Zulu 常见安装目录、JavaSoft 注册表、Windows 卸载元数据，以及 PATH 中全部 `java.exe`/`javac.exe`。

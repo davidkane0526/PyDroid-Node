@@ -2,6 +2,7 @@
 
 > 开发工具与缓存文件一律放在**用户指定文件夹**（本机约定为 `D:\Code\Language`）：
 > JDK 放在 `D:\Code\Language\Java`、Android SDK 放在 `D:\Code\Language\Android`、
+> Build GUI 中可直接把“JDK 目录”填写为 `D:\Code\Language\Java`；脚本会在该目录及两层子目录中寻找 JDK 21。手动填写后不会自动下载其它 JDK。
 > Node.js 在 `D:\Code\Language\NodeJS`、Electron 在 `D:\Code\Language\Electron`，
 > 其余大体积缓存（Gradle、node_modules、Electron 缓存等）放在用户指定的其他
 > OneDrive 之外的位置。**禁止在 `D:\OneDrive\Code\Android\PyDroid Node`
