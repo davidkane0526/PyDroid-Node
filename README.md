@@ -1,6 +1,6 @@
-> **1.4.13 (36)**：Android-first 收口版本。修复节点菜单残留、交互图旋转/展开、SMB 文件管理器布局、设置/Agent 自适应、主题滑块和核心界面语言联动；保持统一 React UI 与 Python/JavaScript Runtime Adapter。
+> **1.4.14 (37)**：构建可视化修正版。在保留 1.4.13 Android-first 修复的基础上，构建 GUI 增加明确的当前阶段与阶段进度条；只有真实联网时才显示“正在下载”，临时 Android/Gradle/Python 构建缓存改为静默清理，源码同步不再刷屏显示成千上万条 `*EXTRA File`。
 
-当前 Android 调试构建版本：`1.4.13 (36)`。当前完整工程工作分支为本地 `local/rebuild-1.4.13`，`main` 保持原样未修改。
+当前 Android 调试构建版本：`1.4.14 (37)`。当前完整工程工作分支为本地 `local/build-gui-1.4.14`，`main` 保持原样未修改。
 
 # PyDroid Flow
 

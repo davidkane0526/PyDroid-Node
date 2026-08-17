@@ -186,7 +186,8 @@ $main = New-Object System.Windows.Forms.TableLayoutPanel
 $main.Dock = "Fill"
 $main.Padding = New-Object System.Windows.Forms.Padding(12)
 $main.ColumnCount = 1
-$main.RowCount = 5
+$main.RowCount = 6
+[void]$main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle("AutoSize")))
 [void]$main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle("AutoSize")))
 [void]$main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle("AutoSize")))
 [void]$main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle("AutoSize")))
@@ -348,6 +349,38 @@ $concurrencyBox = Add-AdvancedField 5 0 "pnpm 网络并发" $(if ($stored -and $
 $networkHintBox = Add-AdvancedField 5 2 "代理示例" "http://127.0.0.1:7890"
 $networkHintBox.ReadOnly = $true
 
+$progressPanel = New-Object System.Windows.Forms.TableLayoutPanel
+$progressPanel.Dock = "Top"
+$progressPanel.AutoSize = $true
+$progressPanel.ColumnCount = 1
+$progressPanel.RowCount = 3
+$progressPanel.Padding = New-Object System.Windows.Forms.Padding(4, 8, 4, 8)
+[void]$main.Controls.Add($progressPanel, 0, 3)
+
+$stageLabel = New-Object System.Windows.Forms.Label
+$stageLabel.Text = "当前步骤：等待开始"
+$stageLabel.AutoSize = $true
+$stageLabel.Dock = "Fill"
+$stageLabel.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
+[void]$progressPanel.Controls.Add($stageLabel, 0, 0)
+
+$progressBar = New-Object System.Windows.Forms.ProgressBar
+$progressBar.Minimum = 0
+$progressBar.Maximum = 100
+$progressBar.Value = 0
+$progressBar.Style = [System.Windows.Forms.ProgressBarStyle]::Continuous
+$progressBar.Dock = "Fill"
+$progressBar.Height = 18
+$progressBar.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 2)
+[void]$progressPanel.Controls.Add($progressBar, 0, 1)
+
+$progressHint = New-Object System.Windows.Forms.Label
+$progressHint.Text = "阶段进度用于说明当前正在做什么；依赖已缓存时不会下载，只有缺失工具/依赖时才会联网。"
+$progressHint.AutoSize = $true
+$progressHint.Dock = "Fill"
+$progressHint.ForeColor = [System.Drawing.SystemColors]::GrayText
+[void]$progressPanel.Controls.Add($progressHint, 0, 2)
+
 $logBox = New-Object System.Windows.Forms.RichTextBox
 $logBox.Dock = "Fill"
 $logBox.ReadOnly = $true
@@ -355,7 +388,7 @@ $logBox.WordWrap = $false
 $logBox.BackColor = [System.Drawing.Color]::FromArgb(28, 28, 28)
 $logBox.ForeColor = [System.Drawing.Color]::Gainsboro
 $logBox.Font = New-Object System.Drawing.Font("Consolas", 9)
-[void]$main.Controls.Add($logBox, 0, 3)
+[void]$main.Controls.Add($logBox, 0, 4)
 
 $bottom = New-Object System.Windows.Forms.TableLayoutPanel
 $bottom.Dock = "Fill"
@@ -366,7 +399,7 @@ $bottom.ColumnCount = 5
 [void]$bottom.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("AutoSize")))
 [void]$bottom.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("AutoSize")))
 [void]$bottom.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("AutoSize")))
-[void]$main.Controls.Add($bottom, 0, 4)
+[void]$main.Controls.Add($bottom, 0, 5)
 
 $statusLabel = New-Object System.Windows.Forms.Label
 $statusLabel.Text = "就绪"
@@ -402,9 +435,30 @@ $script:stdoutTask = $null
 $script:stderrTask = $null
 $script:currentBuildLog = $null
 $script:lastBuildExitCode = $null
+$script:lastStagePercent = 0
+
+function Set-BuildStage([int]$Percent, [string]$Message) {
+    $safePercent = [Math]::Max(0, [Math]::Min(100, $Percent))
+    $script:lastStagePercent = $safePercent
+    $progressBar.Value = $safePercent
+    $stageLabel.Text = "当前步骤：$Message"
+    $statusLabel.Text = ("{0}% · {1}" -f $safePercent, $Message)
+    $statusLabel.ForeColor = [System.Drawing.SystemColors]::ControlText
+}
 
 function Append-BuildLogLine([string]$Line) {
     if ($null -eq $Line) { return }
+    if ($Line -match '^@@PYDROID_STAGE@@\|(\d{1,3})\|(.*)$') {
+        $percent = [int]$matches[1]
+        $message = $matches[2].Trim()
+        Set-BuildStage $percent $message
+        $readable = "[阶段 {0}%] {1}" -f $percent, $message
+        $logBox.AppendText([Environment]::NewLine + $readable + [Environment]::NewLine)
+        if ($script:currentBuildLog) {
+            try { Add-Content -LiteralPath $script:currentBuildLog -Value $readable -Encoding UTF8 } catch {}
+        }
+        return
+    }
     $logBox.AppendText($Line + [Environment]::NewLine)
     if ($script:currentBuildLog) {
         try { Add-Content -LiteralPath $script:currentBuildLog -Value $Line -Encoding UTF8 } catch {}
@@ -474,6 +528,7 @@ $timer.Add_Tick({
             Append-BuildLogLine $resultLine
 
             if ($exitCode -eq 0) {
+                Set-BuildStage 100 "构建完成"
                 $statusLabel.Text = "构建完成"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
                 [System.Windows.Forms.MessageBox]::Show(
@@ -483,6 +538,7 @@ $timer.Add_Tick({
                     "Information"
                 ) | Out-Null
             } else {
+                $stageLabel.Text = "当前步骤：构建失败（请查看最后几行日志）"
                 $statusLabel.Text = "构建失败（退出码 $exitCode）"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
                 [System.Windows.Forms.MessageBox]::Show(
@@ -510,6 +566,7 @@ $cancelButton.Add_Click({
     try {
         & taskkill.exe /PID $script:buildProcess.Id /T /F | Out-Null
         $statusLabel.Text = "已取消"
+        $stageLabel.Text = "当前步骤：已取消"
     } catch {
         [System.Windows.Forms.MessageBox]::Show("取消失败：$($_.Exception.Message)", "PyDroid Build", "OK", "Warning") | Out-Null
     }
@@ -655,7 +712,10 @@ Network concurrency: $networkConcurrency
 
         $logBox.AppendText("`r`n===== 开始构建 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') =====`r`n")
         $logBox.AppendText("日志：$script:currentBuildLog`r`n")
-        $statusLabel.Text = "正在构建..."
+        $progressBar.Value = 0
+        $script:lastStagePercent = 0
+        $stageLabel.Text = "当前步骤：正在启动构建进程"
+        $statusLabel.Text = "正在启动构建..."
         $statusLabel.ForeColor = [System.Drawing.SystemColors]::ControlText
         $startButton.Enabled = $false
         $cancelButton.Enabled = $true

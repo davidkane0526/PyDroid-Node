@@ -13,10 +13,12 @@ main                         <- preserved, do not modify
   \
    refactor/runtime-architecture   (historical local line)
       \
-       local/rebuild-1.4.13        <- current complete-project branch
+       local/rebuild-1.4.13        (Android-first UI baseline)
+          \
+           local/build-gui-1.4.14  <- current complete-project branch
 ```
 
-`local/rebuild-1.4.13` first imports the complete 1.4.12 shared-toolchain source into the user's existing local Git history, then applies the 1.4.13 Android-first fixes. The useful JavaScript engine remains under `src/runtime/javascript/engine/`; there is still only one shared application/UI.
+`local/build-gui-1.4.14` keeps the complete 1.4.13 Android-first application state and adds the transparent/quiet build GUI workflow. The useful JavaScript engine remains under `src/runtime/javascript/engine/`; there is still only one shared application/UI.
 
 ## Current architecture
 
@@ -89,7 +91,7 @@ The underlying SMB host APIs and security model are intentionally unchanged in t
 
 - Added `tools/build-pydroid.ps1` as the compatibility-focused external-workspace builder.
 - Added `tools/build-pydroid-gui.ps1` plus root launcher `Build PyDroid GUI.cmd`.
-- The GUI exposes project/work/tool/output paths, platform targets, retry count, fallback tool versions and optional Electron mirrors, with live log output and cancellation.
+- The GUI exposes project/work/tool/output paths, platform targets, retry count, fallback tool versions and optional Electron mirrors, with live log output and cancellation. Version 1.4.14 adds a dedicated current-stage label and stage progress bar; real downloads are explicitly labeled, while ordinary cached dependency checks are not presented as downloads.
 - `scripts/desktop-package.mjs` now honors external Electron caches, reuses the actual pnpm implementation that launched the script, retries transient network failures and can fall back to packaging without Windows executable resource editing when GitHub helper downloads remain unavailable.
 - `scripts/android-package.ps1` now reads the compile SDK from `android/variables.gradle` and uses `--no-daemon` for the known Windows Gradle daemon permission issue.
 - The standalone builder no longer requires `.git` to recognize a project, derives output names from `package.json`, auto-detects Android compile SDK, supports configurable fallback Node/Python/JDK versions, retries downloads and can preserve the work area for diagnostics.
@@ -99,21 +101,21 @@ The underlying SMB host APIs and security model are intentionally unchanged in t
 - RC7 network fix: build networking defaults to `Auto`, first honoring `HTTPS_PROXY`/`HTTP_PROXY` and then the current user's Windows fixed proxy. The resolved proxy is exported to pnpm and to Electron's `@electron/get` (`ELECTRON_GET_USE_PROXY` + `GLOBAL_AGENT_*`). The GUI also exposes Direct/Manual modes, npm registry override, fetch timeout and pnpm network concurrency.
 - `pnpm install` now uses the persistent external store with `--prefer-offline`, explicit request retry/timeout/concurrency configuration, and whole-install retry while preserving partially downloaded store content. Local proxy endpoints are checked before a long build begins; PAC-only configurations produce an actionable warning because pnpm cannot consume a PAC URL directly.
 - RC8 local-build fix: `desktop-package.mjs` now distinguishes native `pnpm.exe`, `.cmd/.bat`, and JavaScript package-manager launchers before spawning; `pnpm check` includes a dependency-free build-tool invocation smoke test. The SMB connection `<details>` no longer uses unsupported `defaultOpen`; it opens through a DOM ref when no share is selected.
-- RC9/RC10 shared-toolchain baseline: `DK_TOOL_ROOT` and `DK_CACHE_ROOT` centralize reusable Node/JDK/Android SDK/Python installations and pnpm/npm/Corepack/Electron/electron-builder/Gradle/download caches. The builder validates JDK major versions, activates the chosen JDK before `sdkmanager`, patches the legacy `node.exe pnpm.exe` workspace pattern when detected, and logs project-vs-lockfile Electron versions. See `BUILD_TOOLCHAIN.md`.
+- RC9/RC10 shared-toolchain baseline: `DK_TOOL_ROOT` and `DK_CACHE_ROOT` centralize reusable Node/JDK/Android SDK/Python installations and pnpm/npm/Corepack/Electron/electron-builder/Gradle/download caches. Version 1.4.14 additionally clears stale transient Android/Gradle outputs before mirroring source and suppresses raw `robocopy` EXTRA enumeration, so a large old workspace does not look like an unexplained download. The builder validates JDK major versions, activates the chosen JDK before `sdkmanager`, patches the legacy `node.exe pnpm.exe` workspace pattern when detected, and logs project-vs-lockfile Electron versions. See `BUILD_TOOLCHAIN.md`.
 
 ## Version
 
-Current local delivery: `1.4.13 (36)`.
+Current local delivery: `1.4.14 (37)`.
 
-The working copy is committed only on `local/rebuild-1.4.13`; `main` remains unchanged. No GitHub push is required.
+The working copy is committed only on `local/build-gui-1.4.14`; `main` remains unchanged. No GitHub push is required.
 
 ## Validation already done by AI sandbox
 
-- Version synchronization check: passed for `1.4.13` / Android `versionCode 36`.
+- Version synchronization check: passed for `1.4.14` / Android `versionCode 37`.
 - Dependency-free build-tool launcher smoke: passed.
 - Main application and desktop TypeScript type checks: passed in the sandbox using the available cross-platform TypeScript 5.8 checker; the project remains pinned to TypeScript 7.0.2 for the real build.
 - Python suite: 99 passed, 1 skipped; 1 additional environment assertion fails only because the sandbox has Python 3.13.5 while the project intentionally requires Python 3.12.x.
-- Static 1.4.13 invariants and `git diff --check`: passed. `src/main.tsx` does not activate the retired runtime/DOM patches.
+- Static 1.4.14 build-tool/UI invariants and `git diff --check`: passed. `src/main.tsx` does not activate the retired runtime/DOM patches.
 - The sandbox is offline and the uploaded `node_modules` is the Windows install, so Linux Vite/Vitest cannot load the missing native Rolldown binding. Android SDK is also absent. These are environment limits, not reported as successful builds.
 
 ## Local validation requested from user

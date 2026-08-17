@@ -1,3 +1,11 @@
+## 1.4.14 (37) — Build GUI stage visibility / quiet workspace sync — 2026-08-18
+
+- 构建 GUI 新增“当前步骤”与阶段进度条，直接显示读取配置、检查工具链、清理临时缓存、同步源码、检查 JS 依赖、Windows Desktop、Android Gradle/APK、复制产物与最终清理等阶段。
+- 核心构建脚本通过机器可读阶段事件驱动 GUI；真正发生联网下载时，界面会明确显示“正在下载：文件名（重试次数）”，不再让“安装依赖/准备工具”与下载状态混在一起。
+- 同步源码前先静默删除临时工作区中的旧 Android/Gradle/打包产物；`robocopy` 原始枚举输出被抑制，避免历史构建目录产生数千行 `*EXTRA File` / `*EXTRA Dir` 刷屏。
+- JS 依赖阶段明确标注“本地缓存优先，缺失时才联网”；构建日志仍保留简洁的 `[阶段 xx%]` 记录，错误日志与取消行为保持不变。
+- 本地工作分支为 `local/build-gui-1.4.14`；`main` 保持原样未修改。
+
 ## 1.4.13 (36) — Android-first UI / interaction consolidation — 2026-08-18
 
 - Android 节点/选择/流程/资源菜单改为捕获阶段关闭，并在开始拖拽节点、点击空白画布时主动清理，避免菜单停留在旧坐标。

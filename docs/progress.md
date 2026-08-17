@@ -38,8 +38,9 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 ## 当前交付基线
 
-- 版本：`1.4.13 (36)`。
-- 工作分支：本地 `local/rebuild-1.4.13`；`main` 未修改。
+- 版本：`1.4.14 (37)`。
+- 工作分支：本地 `local/build-gui-1.4.14`；`main` 未修改。
+- 构建 GUI 已增加当前阶段/阶段进度显示；只有真实联网时才明确显示“正在下载”。临时工作区旧 Android/Gradle 构建缓存先静默清理，源码同步不再输出海量 `*EXTRA File`。
 - 已统一收口 Android 菜单关闭、交互式 PlotLightbox/旋转重排、白色绘图区、`plot.line` 默认 X/Y、SMB 两行三列与移动端网格、设置版本号/滑块、Agent 自适应布局和核心界面语言联动。
 - 云端检查：版本同步与 build-tool smoke 通过；主应用与桌面 TypeScript 类型检查通过。Python 测试 99 项通过、1 项跳过；另 1 项仅因云端 Python 3.13.5 与项目规定 Python 3.12 不一致而触发环境断言。
 - 云端无法联网下载 Linux 原生 Rolldown/TypeScript 7 绑定，也没有 Android SDK，因此本次不虚构 Vite/Vitest/Gradle 成功；Windows `node_modules` 已保留供本地直接复用，本地仍需用项目标准 Node 24 / Python 3.12 / JDK 21 / Android SDK 做最终打包与真机验证。

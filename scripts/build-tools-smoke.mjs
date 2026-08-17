@@ -16,6 +16,22 @@ assert.doesNotMatch(
   "PowerShell code must not assign to the read-only automatic $HOME variable",
 );
 
+assert.match(
+  buildScript,
+  /@@PYDROID_STAGE@@\|\{0\}\|\{1\}/,
+  "build script should emit machine-readable GUI stage events",
+);
+assert.match(
+  buildScript,
+  /& robocopy @robocopyArgs \| Out-Null/,
+  "source synchronization should suppress robocopy EXTRA-file spam",
+);
+
+const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
+const buildGui = readFileSync(buildGuiPath, "utf8");
+assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");
+assert.match(buildGui, /\^@@PYDROID_STAGE@@/, "build GUI should consume stage events");
+
 
 const args = ["desktop:build"];
 const existsSync = () => true;

@@ -301,8 +301,10 @@ function Invoke-Download {
     $attempts = [Math]::Max(1, $DownloadRetryCount)
     $parent = Split-Path $OutFile -Parent
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    $downloadName = Split-Path $OutFile -Leaf
     for ($attempt = 1; $attempt -le $attempts; $attempt++) {
         try {
+            Write-BuildStage -Percent $script:CurrentBuildStagePercent -Message ("正在下载：{0}（{1}/{2}）" -f $downloadName, $attempt, $attempts)
             Write-Host ("下载 [{0}/{1}] {2}" -f $attempt, $attempts, $Uri) -ForegroundColor DarkGray
             if ($script:ResolvedProxyUrl) {
                 Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -TimeoutSec $PnpmFetchTimeoutSeconds -Proxy $script:ResolvedProxyUrl
@@ -517,6 +519,18 @@ function Write-Step {
     param([string]$Message)
     Write-Host ""
     Write-Host "==> $Message" -ForegroundColor Cyan
+}
+
+# Machine-readable stage events are consumed by build-pydroid-gui.ps1.
+# They are intentionally plain stdout so the CLI build remains usable everywhere.
+$script:CurrentBuildStagePercent = 0
+function Write-BuildStage {
+    param(
+        [ValidateRange(0, 100)][int]$Percent,
+        [Parameter(Mandatory=$true)][string]$Message
+    )
+    $script:CurrentBuildStagePercent = $Percent
+    Write-Host ("@@PYDROID_STAGE@@|{0}|{1}" -f $Percent, ($Message -replace '[\r\n|]+', ' '))
 }
 
 function Test-NativeSuccess {
@@ -827,6 +841,7 @@ function Install-AndroidSdk {
         $sdkManager = Join-Path $sdkRoot "cmdline-tools\latest\bin\sdkmanager.bat"
     }
     $packages = @("platform-tools", ("platforms;android-{0}" -f $resolvedAndroidApi), ("build-tools;{0}.0.0" -f $resolvedAndroidApi))
+    Write-BuildStage -Percent $script:CurrentBuildStagePercent -Message "正在下载/安装 Android SDK 组件"
     Write-Step "通过 sdkmanager 安装：$($packages -join ', ')"
     $yes = (("y`n") * 40)
     $yes | & $sdkManager "--sdk_root=$sdkRoot" @packages
@@ -915,6 +930,23 @@ function Install-Python312 {
 # ---------------------------------------------------------------
 
 function Sync-Source {
+    Write-BuildStage -Percent 15 -Message "清理临时工作区旧构建缓存"
+    Write-Step "清理临时工作区旧构建缓存（静默）..."
+    $transientDirs = @(
+        "android\.gradle",
+        "android\app\build",
+        "android\build",
+        "android\capacitor-cordova-android-plugins\build",
+        "release", "dist", "dist-desktop", "temp", ".vite", ".pytest_cache"
+    )
+    foreach ($relative in $transientDirs) {
+        $full = Join-Path $workspace $relative
+        if (Test-Path -LiteralPath $full) {
+            Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Write-BuildStage -Percent 20 -Message "同步项目源码到临时工作区"
     Write-Step "同步项目源码到临时工作区：$workspace"
     $excludeDirs = @(
         ".git", ".idea", ".vscode", "node_modules", ".tools",
@@ -927,10 +959,15 @@ function Sync-Source {
         $ProjectRoot, $workspace, "/MIR",
         "/XD", $excludeDirs,
         "/XF", $excludeFiles,
-        "/NFL", "/NDL", "/NJH", "/NJS", "/NP"
+        "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/NS", "/NC"
     )
-    & robocopy @robocopyArgs
-    Test-NativeSuccess
+    # robocopy may enumerate thousands of stale Android/Python build products as EXTRA.
+    # Suppress the raw listing here; the GUI already shows the explicit sync stage.
+    & robocopy @robocopyArgs | Out-Null
+    $robocopyExitCode = $LASTEXITCODE
+    if ($robocopyExitCode -ge 8) {
+        throw "源码同步失败，robocopy 退出码 $robocopyExitCode。"
+    }
 }
 
 function Patch-WorkspaceDesktopPackage {
@@ -1029,6 +1066,7 @@ function Ensure-PythonRuntimeForDesktop {
         Write-Step "复用 Python 便携运行时：$runtimeTarget"
         return
     }
+    Write-BuildStage -Percent 48 -Message "首次准备桌面 Python 3.12 运行时（可能需要联网下载）"
     Write-Step "准备桌面版所需的 Python 3.12 便携运行时 ..."
     New-Item -ItemType Directory -Force -Path (Join-Path $workspace ".tools") | Out-Null
     New-Item -ItemType Directory -Force -Path $runtimeTarget | Out-Null
@@ -1126,6 +1164,7 @@ function Invoke-DesktopCompatibilityPackage {
     }
 }
 function Build-Desktop {
+    Write-BuildStage -Percent 48 -Message "准备 Windows Desktop 构建环境"
     Write-Step "构建未压缩桌面版（win-unpacked）..."
     Ensure-PythonRuntimeForDesktop
     # Electron/electron-builder 版本仍由各项目 package.json 决定，二进制缓存跨项目共享。
@@ -1138,6 +1177,7 @@ function Build-Desktop {
     New-Item -ItemType Directory -Force -Path $env:ELECTRON_CACHE | Out-Null
     New-Item -ItemType Directory -Force -Path $env:ELECTRON_BUILDER_CACHE | Out-Null
 
+    Write-BuildStage -Percent 55 -Message "构建 Windows Desktop"
     $desktopPackageFile = Join-Path $workspace "scripts\desktop-package.mjs"
     $packageScriptHandlesRetry = $false
     if (Test-Path -LiteralPath $desktopPackageFile) {
@@ -1170,6 +1210,7 @@ function Build-Desktop {
 }
 
 function Build-Android {
+    Write-BuildStage -Percent 68 -Message "检查 Android JDK、SDK 与 Python 3.12"
     Write-Step "构建 Android debug APK ..."
     $jdk = Find-JavaHome
     if (-not $jdk) { $jdk = Install-Jdk }
@@ -1194,6 +1235,7 @@ function Build-Android {
 
     # 停止旧的 Gradle daemon，避免因旧 daemon 使用不同的 JAVA_HOME
     # 导致新 daemon 启动时 CreateProcess error=5（拒绝访问）。
+    Write-BuildStage -Percent 78 -Message "准备 Android Gradle 构建"
     Write-Step "停止旧的 Gradle daemon，确保 Android 构建使用当前 JDK ..."
     Push-Location (Join-Path $workspace "android")
     try {
@@ -1204,6 +1246,7 @@ function Build-Android {
         Pop-Location
     }
 
+    Write-BuildStage -Percent 82 -Message "编译 Android APK"
     Invoke-Pnpm @("android:package")
 
     $apk = Join-Path $workspace "android\app\build\outputs\apk\debug\app-debug.apk"
@@ -1220,6 +1263,7 @@ function Copy-Outputs {
         [switch]$HasDesktop
     )
 
+    Write-BuildStage -Percent 90 -Message "整理并复制最终构建产物"
     New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
     if (-not $KeepHistory) {
@@ -1269,6 +1313,7 @@ function Copy-Outputs {
 # 主流程
 # ---------------------------------------------------------------
 
+Write-BuildStage -Percent 2 -Message "读取项目与构建配置"
 Write-Step "项目：$ProjectRoot"
 Write-Step "版本：$version"
 if ($packageManagerSpec -or $electronSpec -or $electronBuilderSpec) {
@@ -1292,6 +1337,7 @@ Write-Step "下载重试次数：$DownloadRetryCount"
 Write-Step "网络模式：$NetworkMode"
 
 # Node / pnpm
+Write-BuildStage -Percent 8 -Message "检查 Node、pnpm 与网络配置"
 $script:NodeDir = Find-Node
 if (-not $script:NodeDir) {
     $script:NodeDir = Install-Node
@@ -1349,6 +1395,7 @@ Patch-WorkspaceDesktopPackage
 Patch-WorkspaceAndroidPackage
 
 # 安装 JS 依赖（使用外部 pnpm store，避免重复下载；网络失败时整次安装可重试）
+Write-BuildStage -Percent 30 -Message "检查/更新 JS 依赖（本地缓存优先，缺失时才联网）"
 Write-Step "安装/更新 JS 依赖（pnpm install --frozen-lockfile --prefer-offline）..."
 $installArgs = @("install", "--frozen-lockfile", "--prefer-offline", "--store-dir", $storeDir)
 if ($RegistryUrl) { $installArgs += @("--registry", $RegistryUrl) }
@@ -1372,6 +1419,7 @@ for ($installAttempt = 1; $installAttempt -le $installAttempts; $installAttempt+
 if (-not $installSucceeded) { throw "pnpm install 未完成。" }
 
 # 构建前清理一次，避免旧产物干扰
+Write-BuildStage -Percent 40 -Message "清理旧构建产物"
 Clear-WorkspaceOutputs
 
 $apkSource = $null
@@ -1390,11 +1438,13 @@ Copy-Outputs -ApkSource $apkSource -HasApk:$hasApk -HasDesktop:$hasDesktop
 
 # 构建后默认清理临时打包产物；需要排查问题时可使用 -KeepWorkspace。
 if (-not $KeepWorkspace) {
+    Write-BuildStage -Percent 97 -Message "清理临时构建产物"
     Clear-WorkspaceOutputs
 } else {
     Write-Host "保留工作区用于排查：$workspace" -ForegroundColor DarkYellow
 }
 
+Write-BuildStage -Percent 100 -Message "构建完成"
 Write-Host ""
 Write-Host "提示：如需查看脚本帮助，运行：" -ForegroundColor DarkGray
 Write-Host "  powershell -ExecutionPolicy Bypass -File "$PSCommandPath" -?" -ForegroundColor DarkGray
