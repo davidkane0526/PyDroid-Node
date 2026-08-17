@@ -101,6 +101,8 @@ export function PlotView({ chart, className }: { chart: PlotChart; className?: s
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
   const chartRef = useRef(chart);
+  const resizeFrameRef = useRef<number | null>(null);
+  const resizeTimerRef = useRef<number | null>(null);
   chartRef.current = chart;
 
   const render = () => {
@@ -112,15 +114,37 @@ export function PlotView({ chart, className }: { chart: PlotChart; className?: s
     instance.resize();
   };
 
+  const scheduleResize = () => {
+    if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
+    if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
+    resizeFrameRef.current = requestAnimationFrame(() => {
+      resizeFrameRef.current = requestAnimationFrame(() => {
+        resizeFrameRef.current = null;
+        render();
+      });
+    });
+    // Android WebView can report the new viewport one beat after orientationchange.
+    resizeTimerRef.current = window.setTimeout(() => {
+      resizeTimerRef.current = null;
+      render();
+    }, 120);
+  };
+
   useEffect(() => {
     if (!containerRef.current) return;
     const instance = echarts.init(containerRef.current);
     instanceRef.current = instance;
-    const observer = new ResizeObserver(render);
+    const observer = new ResizeObserver(scheduleResize);
     observer.observe(containerRef.current);
+    window.addEventListener("resize", scheduleResize, { passive: true });
+    window.addEventListener("orientationchange", scheduleResize, { passive: true });
     render();
     return () => {
       observer.disconnect();
+      window.removeEventListener("resize", scheduleResize);
+      window.removeEventListener("orientationchange", scheduleResize);
+      if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
+      if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
       instance.dispose();
       instanceRef.current = null;
     };

@@ -1,28 +1,22 @@
 # Development handoff
 
-Updated: 2026-08-17
+Updated: 2026-08-18
 
 ## Current repository state
 
-This is a **single Git repository**. Do not split it into multiple project folders.
+This is a **single local Git repository**. GitHub is no longer required for development or delivery. Do not split it into multiple project folders.
 
-Current development line:
-
-Current branch head includes the RC10 Android PowerShell fix on top of the RC9 unified shared-toolchain baseline and RC8 local-build compatibility fix. Build tooling now combines the previous CMD/GUI/network/native-pnpm fixes with cross-project `DK_TOOL_ROOT` / `DK_CACHE_ROOT` reuse.
+Current working branch:
 
 ```text
-main / dev        149p stable UI baseline
+main                         <- preserved, do not modify
+  \
+   refactor/runtime-architecture   (historical local line)
       \
-       refactor/runtime-architecture
-             \
-              refactor/settings-smb-ui
-                      \
-                       fix/build-tooling-gui
-                                \
-                                 build/shared-toolchain   <- current branch
+       local/rebuild-1.4.13        <- current complete-project branch
 ```
 
-The useful JavaScript engine from the former JS experiment has already been migrated into the unified tree under `src/runtime/javascript/engine/`. There is no second JS application to keep UI-synchronized.
+`local/rebuild-1.4.13` first imports the complete 1.4.12 shared-toolchain source into the user's existing local Git history, then applies the 1.4.13 Android-first fixes. The useful JavaScript engine remains under `src/runtime/javascript/engine/`; there is still only one shared application/UI.
 
 ## Current architecture
 
@@ -63,7 +57,8 @@ Implemented runtime boundary:
 - Adaptive settings dialog uses two columns on suitable desktop/tablet widths and one column on narrow screens.
 - Canvas sliders are arranged in a responsive range grid instead of one very tall list.
 - Theme-aware custom scrollbar replaces the visually inconsistent native-looking scrollbar.
-- Appearance, runtime, SMB, AI, debug and profile settings use consistent card rhythm and spacing.
+- Settings now shows the real `APP_VERSION`, range controls follow the active theme and use larger coarse-pointer targets, and the Language selector drives core UI chrome instead of only AI planning language.
+- Appearance, runtime, SMB, AI, debug and profile settings use consistent card rhythm and spacing; Agent sections use a balanced two-column grid and collapse to one column on portrait/narrow screens.
 
 ### SMB
 
@@ -76,9 +71,18 @@ The SMB dialog has been rewritten as a network file manager rather than a vertic
 - central file list uses Name / Type / Size columns;
 - folders and files use shared SVG icons and selection states;
 - footer contains selection status and import actions;
-- mobile layout stacks a compact horizontally scrollable network section above the file browser.
+- credential layout is 3 columns × 2 rows on normal widths: Server / Share / Domain, then Username / Password / Guest+Login; Guest is a plain checkbox rather than a button-like control;
+- mobile layout uses an adaptive two-column credential form and a multi-row device/share grid above the file browser.
 
 The underlying SMB host APIs and security model are intentionally unchanged in this branch.
+
+### Android interaction / plots
+
+- Context/selection/flow/resource menus close in pointer-capture phase and are explicitly cleared when node dragging starts or the canvas pane is tapped.
+- Node-result interactive charts open the real `PlotLightbox` instead of the generic text/result detail path.
+- ECharts keeps a white plotting plane in both themes and resizes after `resize` / Android `orientationchange` with a double-frame plus delayed pass.
+- `plot.line` source defaults are `xColumn: "0"` and `yColumns: "1"`; no runtime catalog patch is used.
+- `src/main.tsx` remains a clean React bootstrap and does not install `ui-runtime.ts`, `settings-version.ts`, or `catalog-overrides.ts`.
 
 
 ### Build tooling / GUI
@@ -99,17 +103,18 @@ The underlying SMB host APIs and security model are intentionally unchanged in t
 
 ## Version
 
-Candidate: `1.4.9 (32)`.
+Current local delivery: `1.4.13 (36)`.
 
-This is still a refactor candidate, not yet merged to `dev`/`main`. The build-tooling fixes are isolated on `build/shared-toolchain`, branched from `fix/build-tooling-gui`.
+The working copy is committed only on `local/rebuild-1.4.13`; `main` remains unchanged. No GitHub push is required.
 
 ## Validation already done by AI sandbox
 
-- RC8 TypeScript/TSX syntax transpilation across 36 source/build TypeScript files: 0 syntax errors.
-- RC8 dependency-free build-tool launcher smoke: passed for native `pnpm.exe`, JavaScript/Corepack launcher, `.cmd`, and fallback invocation.
-- Python test suite in the sandbox: 99 passed, 1 skipped, 1 environment-only failure because the sandbox uses Python 3.13.5 while `test_desktop_bridge_reports_python_environment` intentionally requires Python 3.12.x.
-- RC10 build-tool static/regression checks: PowerShell lexical balance passed; collection-output/`$args` regressions absent; Node build-tool smoke and all `.mjs`/`.cjs` syntax checks passed; `git diff --check` passed before commit.
-- No dependency-backed full `pnpm build` is claimed because the clean delivery intentionally contains no `node_modules` and the sandbox cannot reach npm.
+- Version synchronization check: passed for `1.4.13` / Android `versionCode 36`.
+- Dependency-free build-tool launcher smoke: passed.
+- Main application and desktop TypeScript type checks: passed in the sandbox using the available cross-platform TypeScript 5.8 checker; the project remains pinned to TypeScript 7.0.2 for the real build.
+- Python suite: 99 passed, 1 skipped; 1 additional environment assertion fails only because the sandbox has Python 3.13.5 while the project intentionally requires Python 3.12.x.
+- Static 1.4.13 invariants and `git diff --check`: passed. `src/main.tsx` does not activate the retired runtime/DOM patches.
+- The sandbox is offline and the uploaded `node_modules` is the Windows install, so Linux Vite/Vitest cannot load the missing native Rolldown binding. Android SDK is also absent. These are environment limits, not reported as successful builds.
 
 ## Local validation requested from user
 

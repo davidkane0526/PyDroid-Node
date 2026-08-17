@@ -1,3 +1,13 @@
+## 1.4.13 (36) — Android-first UI / interaction consolidation — 2026-08-18
+
+- Android 节点/选择/流程/资源菜单改为捕获阶段关闭，并在开始拖拽节点、点击空白画布时主动清理，避免菜单停留在旧坐标。
+- 节点“本节点结果”中的交互式图表统一进入 PlotLightbox；ECharts 固定白色绘图区，并在窗口 resize / Android orientationchange 后进行双帧与延迟重排，减少旋转后图表裁切。
+- `plot.line` 默认列恢复为 `X=0`、`Y=1`。
+- SMB 连接区按真实文件管理器方式重排：常规宽度为“服务器/共享名/域 + 用户名/密码/访客+登录”两行三列；手机窄屏为智能两列换行，设备树在移动端使用多行网格；访客为普通复选框，不再伪装成按钮。
+- 设置页直接显示真实 `APP_VERSION`，滑块统一暗/亮主题与粗指针触控尺寸；AI Agent 卡片改为响应式双列/单列，不再依赖固定高度制造空白。
+- “语言”从 AI 规划专用选项提升为核心界面语言：主工具栏、资源/参数/结果关键控件、设置、SMB 与 Agent 的主要交互同步切换，同时继续作为 Agent 响应语言。
+- 保持 `src/main.tsx` 为干净 React 启动路径，不重新启用 `ui-runtime.ts`、`settings-version.ts`、`catalog-overrides.ts` 等全局 DOM/运行时补丁。
+
 ## Build GUI RC10 PowerShell automatic-variable fix — 2026-08-17
 
 - Fixed Android-stage crash on Windows PowerShell caused by using `Home` as a function parameter; PowerShell variable names are case-insensitive, so it collided with the read-only automatic `$HOME` variable.

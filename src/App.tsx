@@ -788,6 +788,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [agentConnectionStatus, setAgentConnectionStatus] = useState<string | null>(null);
   const [agentTesting, setAgentTesting] = useState(false);
   const [language, setLanguage] = useState<"zh-CN" | "en">(() => loadAppSettings().agent.language);
+  const ui = (zh: string, en: string) => language === "en" ? en : zh;
   const [agentPlanText, setAgentPlanText] = useState("");
   const [agentPlan, setAgentPlan] = useState<AgentPlan | null>(null);
   const [agentPlanError, setAgentPlanError] = useState<string | null>(null);
@@ -1424,8 +1425,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setFlowMenu(null);
       setResourceMenu(null);
     };
-    window.addEventListener("pointerdown", close);
-    return () => window.removeEventListener("pointerdown", close);
+    window.addEventListener("pointerdown", close, true);
+    return () => window.removeEventListener("pointerdown", close, true);
   }, [contextMenu, selectionMenu, flowMenu, resourceMenu]);
 
   const requestConfirm = useCallback((options: { title: string; message: string; confirmLabel?: string; danger?: boolean }) => new Promise<boolean>((resolve) => {
@@ -3416,9 +3417,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     <section className={`result-panel ${resultDock === "bottom" ? "result-panel--bottom" : ""}`}>
       {resultDock === "bottom" && <div className="result-resizer" role="separator" aria-orientation="horizontal" aria-label="调整底部结果区高度" onPointerDown={startResultResize} />}
       <div className="result-panel__heading">
-        <h3>结果预览</h3>
+        <h3>{ui("结果预览", "Result preview")}</h3>
         <div className="result-actions">
-          <label><input type="checkbox" checked={livePreview} onChange={(event) => setLivePreview(event.target.checked)} />实时预览</label>
+          <label><input type="checkbox" checked={livePreview} onChange={(event) => setLivePreview(event.target.checked)} />{ui("实时预览", "Live preview")}</label>
           <div className="result-dock-switch" role="group" aria-label="结果区域位置">
             <button className={resultDock === "right" ? "active" : ""} title="结果显示在参数栏右侧" aria-label="结果显示在右侧" onClick={() => { setResultDock("right"); setInspectorCollapsed(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
             <button className={resultDock === "bottom" ? "active" : ""} title="结果显示在画布底部" aria-label="结果显示在底部" onClick={() => setResultDock("bottom")}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></svg></button>
@@ -3483,22 +3484,22 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               <svg viewBox="0 0 24 24" aria-hidden="true"><g className="mobile-tools-overflow__dots"><circle cx="6" cy="9" r="1.35"/><circle cx="12" cy="9" r="1.35"/><circle cx="18" cy="9" r="1.35"/></g><path className="mobile-tools-overflow__chevron" d="m8.75 15.5 3.25 3.1 3.25-3.1"/></svg>
             </button>
             {mobileToolsOpen && <div className="mobile-tools-menu" role="menu">
-              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={history.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>撤销</span></button>
-              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={future.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>重做</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={history.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>{ui("撤销", "Undo")}</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={future.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>{ui("重做", "Redo")}</span></button>
               <button type="button" onClick={() => { setMobileToolsOpen(false); setAgentPanelOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.5 5.3L19 10l-5.5 1.7L12 17l-1.5-5.3L5 10l5.5-1.7L12 3Z"/><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"/></svg><span>AI Agent</span></button>
-              <button type="button" onClick={() => { setMobileToolsOpen(false); setSettingsOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="11" cy="18" r="1.7"/></svg><span>设置</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); setSettingsOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="11" cy="18" r="1.7"/></svg><span>{ui("设置", "Settings")}</span></button>
               {canHostRemoteServer() && <button type="button" onClick={() => { setMobileToolsOpen(false); void toggleRemoteServer(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6"/></svg><span>{remoteServer ? "关闭局域网" : "开启局域网"}</span></button>}
-              <button type="button" onClick={() => { setMobileToolsOpen(false); void openPackageManager(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z"/><path d="M12 12v9"/></svg><span>Python 包管理</span></button>
-              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); requestNewWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>新建工作流</span></button>
-              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); workflowInput.current?.click(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg><span>导入工作流</span></button>
-              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); saveWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4"/><path d="M8 20v-6h8v6"/></svg><span>保存工作流</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); void openPackageManager(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z"/><path d="M12 12v9"/></svg><span>{ui("Python 包管理", "Python packages")}</span></button>
+              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); requestNewWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>{ui("新建工作流", "New workflow")}</span></button>
+              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); workflowInput.current?.click(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg><span>{ui("导入工作流", "Import workflow")}</span></button>
+              <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); saveWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4"/><path d="M8 20v-6h8v6"/></svg><span>{ui("保存工作流", "Save workflow")}</span></button>
             </div>}
           </div>
           <i className="topbar-divider" aria-hidden="true" />
-          <button className="button secondary optional-action topbar-file-action" onClick={requestNewWorkflow}>新建</button>
-          <button className="button secondary optional-action topbar-file-action" onClick={() => workflowInput.current?.click()}>导入</button>
-          <button className="button secondary optional-action topbar-file-action" onClick={saveWorkflow}>保存</button>
-          <button className="button primary topbar-run" disabled={isRunning} onClick={() => runPrototype()}>{isRunning ? "运行中…" : "运行"}</button>
+          <button className="button secondary optional-action topbar-file-action" onClick={requestNewWorkflow}>{ui("新建", "New")}</button>
+          <button className="button secondary optional-action topbar-file-action" onClick={() => workflowInput.current?.click()}>{ui("导入", "Import")}</button>
+          <button className="button secondary optional-action topbar-file-action" onClick={saveWorkflow}>{ui("保存", "Save")}</button>
+          <button className="button primary topbar-run" disabled={isRunning} onClick={() => runPrototype()}>{isRunning ? ui("运行中…", "Running…") : ui("运行", "Run")}</button>
         </div>
       </header>
 
@@ -3508,9 +3509,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         <aside className="node-palette">
           <div className="sidebar-resizer sidebar-resizer--palette" role="separator" aria-orientation="vertical" aria-label="调整节点列表宽度" onPointerDown={(event) => startSidebarResize("palette", event)} />
           <div className="palette-fixed">
-            <div className="palette-heading"><h2>资源</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>收起</button></div>
-            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">节点</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">组合</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">流程</span></button></nav>
-            <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder="搜索内置或导入节点" /><span>{matchedCatalog.length}</span></label>
+            <div className="palette-heading"><h2>{ui("资源", "Resources")}</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>{ui("收起", "Collapse")}</button></div>
+            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">{ui("节点", "Nodes")}</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">{ui("组合", "Groups")}</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">{ui("流程", "Flows")}</span></button></nav>
+            <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={ui("搜索内置或导入节点", "Search built-in or imported nodes")} /><span>{matchedCatalog.length}</span></label>
           </div>
           <div className="palette-content">
             {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length} · 可拖拽排序</small></h3>{savedNodeLibrary.map((entry) => { const resource: PaletteResource = { kind: "saved-node", id: entry.id, label: entry.name }; return <button draggable key={entry.id} className={savedNodeDragOverId === entry.id ? "palette-sort-target" : ""} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setSavedNodeDragOverId(entry.id); } }} onDragLeave={() => setSavedNodeDragOverId((current) => current === entry.id ? null : current)} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); setSavedNodeDragOverId(null); const data = event.dataTransfer.getData("application/pydroid-resource"); if (data) { try { const dragged = JSON.parse(data) as PaletteResource; if (dragged.kind === "saved-node") reorderSavedNodes(dragged.id, entry.id); } catch { /* 忽略无效拖拽数据 */ } } }} onDragEnd={clearPaletteDrag} onContextMenu={(event) => { event.preventDefault(); setResourceMenu({ kind: "saved-node", entryId: entry.id, x: event.clientX, y: event.clientY }); }} onClick={() => insertSavedNode(entry)} title="加入保存的节点与参数"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
@@ -3555,7 +3556,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             defaultEdgeOptions={{ type: "default" }}
             isValidConnection={isValidConnection}
             onError={(code, detail) => setMessage(`画布连线提示 ${code}：${detail}`)}
-            onNodeDragStart={pushHistory}
+            onNodeDragStart={() => { setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); pushHistory(); }}
             onNodeDragStop={onNodeDragStop}
             onNodeClick={(_, node) => {
               if (suppressNextNodeClick.current) { suppressNextNodeClick.current = false; return; }
@@ -3584,7 +3585,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               event.preventDefault();
               openSelectionMenu(event.clientX, event.clientY);
             }}
-            onPaneClick={() => { if (!selectionMode) { setSelectedId(null); setSelectedIds([]); } }}
+            onPaneClick={() => { setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); if (!selectionMode) { setSelectedId(null); setSelectedIds([]); } }}
             selectionOnDrag={finePointer && pointerMode === "mouse"}
             panOnDrag={finePointer && pointerMode === "mouse" ? [1, 2] : false}
             deleteKeyCode={null}
@@ -3638,8 +3639,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           {viewMode === "nodes" && currentCanvasId && <nav className="canvas-breadcrumb" aria-label="画布层级"><button onClick={() => leaveSubflowGroup(null)}>← 返回主流程</button>{canvasTrail.map((group, index) => <span key={group.id}>› <button className={index === canvasTrail.length - 1 ? "active" : ""} onClick={() => leaveSubflowGroup(group.id)}>{group.data.label}</button></span>)}</nav>}
           {paletteDragPreview && <div className={`palette-drag-preview palette-drag-preview--${paletteDragPreview.kind} ${paletteDragPreview.overCanvas ? "over-canvas" : ""}`} style={{ left: paletteDragPreview.x, top: paletteDragPreview.y }}><span>{paletteDragPreview.kind === "group" ? "⧉" : paletteDragPreview.kind === "flow" ? "◇" : "◆"}</span><div><strong>{paletteDragPreview.label}</strong><small>{paletteDragPreview.overCanvas ? "松开放置" : "拖到画布"}</small></div></div>}
           {viewMode === "nodes" && currentCanvasId && (() => { const group = nodes.find((node) => node.id === currentCanvasId); return group ? <aside className="group-interface"><span><i>输入</i><span className="group-interface__ports">{(group.data.groupInputs ?? []).map((port) => <b key={port.id}>{port.label} → {nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId}</b>)}</span></span><span><i>输出</i><span className="group-interface__ports">{(group.data.groupOutputs ?? []).map((port) => <b key={port.id}>{nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId} → {port.label}</b>)}</span></span></aside> : null; })()}
-          {paletteCollapsed && <button className="palette-toggle" onClick={() => setPaletteCollapsed(false)}>显示节点</button>}
-          {inspectorCollapsed && <button className="inspector-toggle" onClick={() => setInspectorCollapsed(false)}>显示参数</button>}
+          {paletteCollapsed && <button className="palette-toggle" onClick={() => setPaletteCollapsed(false)}>{ui("显示节点", "Show resources")}</button>}
+          {inspectorCollapsed && <button className="inspector-toggle" onClick={() => setInspectorCollapsed(false)}>{ui("显示参数", "Show parameters")}</button>}
           {contextMenu && (
             <div
               className="context-menu"
@@ -3693,22 +3694,22 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <div className="sidebar-resizer sidebar-resizer--inspector" role="separator" aria-orientation={inspectorDock === "bottom" ? "horizontal" : "vertical"} aria-label={inspectorDock === "bottom" ? "调整参数面板高度" : "调整参数面板宽度"} onPointerDown={(event) => startSidebarResize("inspector", event)} />
           <div className="inspector-scroll">
           <div className="inspector__heading">
-            <h2>参数</h2>
+            <h2>{ui("参数", "Parameters")}</h2>
             <div className="inspector__heading-tools">
               <div className="inspector-dock-switch" role="group" aria-label="参数面板位置">
-                <button type="button" className={inspectorDock === "right" ? "active" : ""} title="参数面板放在右侧" onClick={() => setInspectorDock("right")}>右侧</button>
-                <button type="button" className={inspectorDock === "bottom" ? "active" : ""} title="参数面板放在底部" onClick={() => setInspectorDock("bottom")}>底部</button>
+                <button type="button" className={inspectorDock === "right" ? "active" : ""} title="参数面板放在右侧" onClick={() => setInspectorDock("right")}>{ui("右侧", "Right")}</button>
+                <button type="button" className={inspectorDock === "bottom" ? "active" : ""} title="参数面板放在底部" onClick={() => setInspectorDock("bottom")}>{ui("底部", "Bottom")}</button>
               </div>
             <div className="inspector__actions">
-              {selectedNode && <>{selectedNode.data.nodeType !== "workflow.group" && <button className="download-link" onClick={duplicateSelectedNode}>复制</button>}<button className="danger-link" onClick={deleteSelectedNode}>删除</button></>}
-              <button className="download-link" onClick={() => setInspectorCollapsed(true)}>收起</button>
+              {selectedNode && <>{selectedNode.data.nodeType !== "workflow.group" && <button className="download-link" onClick={duplicateSelectedNode}>{ui("复制", "Duplicate")}</button>}<button className="danger-link" onClick={deleteSelectedNode}>{ui("删除", "Delete")}</button></>}
+              <button className="download-link" onClick={() => setInspectorCollapsed(true)}>{ui("收起", "Collapse")}</button>
             </div>
             </div>
           </div>
           {selectedNode ? (
             <>
               <div className="inspector__selection"><strong className="inspector__node-name">{selectedNode.data.label}</strong><span className="inspector__node-type">{selectedNode.data.nodeType}</span></div>
-              {selectedNodeResult && <section className="node-result-inspector" title="双击展开、编辑和复制" tabIndex={0} onDoubleClick={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined })}><h3>本节点结果 <small>双击展开</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · 本节点结果`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onClick={() => { setPlotZoom(1); setPlotExpandedPreview(preview); }}><PlotPreview preview={preview} className="plot-preview" alt="节点图表结果" /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
+              {selectedNodeResult && <section className="node-result-inspector" title={selectedNodeResult.kind === "plot" ? ui("点击或双击展开交互图", "Click or double-click to expand interactive chart") : ui("双击展开、编辑和复制", "Double-click to expand, edit and copy")} tabIndex={0} onDoubleClick={() => { if (selectedNodeResult.kind === "plot") { setPlotZoom(1); setPlotExpandedPreview(selectedNodeResult); return; } setResultDetail({ title: `${selectedNode.data.label} · ${ui("本节点结果", "Node result")}`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined }); }}><h3>{ui("本节点结果", "Node result")} <small>{selectedNodeResult.kind === "plot" ? ui("点击展开", "Click to expand") : ui("双击展开", "Double-click to expand")}</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · ${ui("本节点结果", "Node result")}`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); setPlotZoom(1); setPlotExpandedPreview(preview); }} onClick={(event) => { event.stopPropagation(); setPlotZoom(1); setPlotExpandedPreview(preview); }}><PlotPreview preview={preview} className="plot-preview" alt={ui("节点图表结果", "Node chart result")} /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
               {selectedNode.data.nodeType === "workflow.group" && <section className="group-settings">
                 <label>组名称<input value={selectedNode.data.label} onChange={(event) => updateSelectedGroupLabel(event.target.value)} /></label>
                 <button className="primary" onClick={() => openSubflowGroup(selectedNode.id)}>进入子流程画布</button>
@@ -3751,8 +3752,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
                   </div>
                   <div className="template-manager">
                     <input value={templateName} placeholder="模板名称（可选）" onChange={(event) => setTemplateName(event.target.value)} />
-                    <button onClick={savePersonalTemplate}>保存</button>
-                    <button onClick={() => templateInput.current?.click()}>导入</button>
+                    <button onClick={savePersonalTemplate}>{ui("保存", "Save")}</button>
+                    <button onClick={() => templateInput.current?.click()}>{ui("导入", "Import")}</button>
                     <button onClick={exportCurrentTemplate}>导出</button>
                   </div>
                 </section>
@@ -3787,7 +3788,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       </footer>
       {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
       {historyOpen && <HistoryDialog entries={historyMeta.current} futureCount={future.current.length} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
-      {smbOpen && <SmbDialog open={smbOpen} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
+      {smbOpen && <SmbDialog open={smbOpen} language={language} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
       {remoteAccessDialog && <RemoteAccessDialog open={remoteAccessDialog} requirePin={remoteRequirePin} onRequirePin={setRemoteRequirePin} onClose={() => setRemoteAccessDialog(false)} onStart={() => void startConfiguredRemoteServer()} />}
       {remoteBrowser && !remotePaired && <RemotePairDialog policy={remoteAccessPolicy} error={remoteAccessError} pinInput={remotePinInput} onPinChange={(value) => { setRemotePinInput(value.replace(/\D/g, "").slice(0, 4)); setRemoteAccessError(null); }} onSubmitPin={() => void submitRemotePin()} />}
       {inputDialogNode && <InputDialog node={inputDialogNode} value={inputDialogValue} onValueChange={setInputDialogValue} onSubmit={() => void submitInputDialog()} onCancel={() => setInputDialogNode(null)} />}

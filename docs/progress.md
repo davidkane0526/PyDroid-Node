@@ -29,12 +29,20 @@
 - 1.4.9n Android：空白画布触摸改为 10 px 平移阈值 / 520 ms 长按框选的互斥手势状态机，避免框选时 viewport 继续移动；移除固定 null 的 restoredSnapshot 可选链，修复首次 TypeScript 构建的 nodes/edges/requirements `never` 错误。
 # 项目进度与平台一致性
 
-更新时间：2026-08-17
+更新时间：2026-08-18
 
 ## 版本记录要求
 
 所有用户可见功能、修复和 APK 版本更新都必须同步更新 `CHANGELOG.md`、`README.md` 与本文件；
 Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经记录的改动不得交付。
+
+## 当前交付基线
+
+- 版本：`1.4.13 (36)`。
+- 工作分支：本地 `local/rebuild-1.4.13`；`main` 未修改。
+- 已统一收口 Android 菜单关闭、交互式 PlotLightbox/旋转重排、白色绘图区、`plot.line` 默认 X/Y、SMB 两行三列与移动端网格、设置版本号/滑块、Agent 自适应布局和核心界面语言联动。
+- 云端检查：版本同步与 build-tool smoke 通过；主应用与桌面 TypeScript 类型检查通过。Python 测试 99 项通过、1 项跳过；另 1 项仅因云端 Python 3.13.5 与项目规定 Python 3.12 不一致而触发环境断言。
+- 云端无法联网下载 Linux 原生 Rolldown/TypeScript 7 绑定，也没有 Android SDK，因此本次不虚构 Vite/Vitest/Gradle 成功；Windows `node_modules` 已保留供本地直接复用，本地仍需用项目标准 Node 24 / Python 3.12 / JDK 21 / Android SDK 做最终打包与真机验证。
 
 ## 已完成
 

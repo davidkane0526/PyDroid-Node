@@ -841,8 +841,8 @@ export const NODE_CATALOG: NodeSpec[] = [
     label: "折线图",
     category: "绘图",
     defaults: {
-      xColumn: "",
-      yColumns: "",
+      xColumn: "0",
+      yColumns: "1",
       title: "",
       xLabel: "",
       yLabel: "",
