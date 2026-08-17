@@ -1,2 +1,3 @@
-export { javascriptRuntime, JAVASCRIPT_SUPPORTED_NODE_TYPES } from "./adapter";
+export { javascriptRuntime } from "./adapter";
+export { JAVASCRIPT_SUPPORTED_NODE_TYPES, isJavascriptSupportedNodeType } from "./support";
 export * as JavaScriptEngine from "./engine";

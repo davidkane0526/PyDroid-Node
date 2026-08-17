@@ -59,6 +59,37 @@ describe("工作流执行", () => {
     expect(preview.rows).toEqual([[2, 0.3], [3, 0.4]]);
   });
 
+  it("原生随机数源可直接连接到打印节点，并在 JS 后端复现", () => {
+    const workflow = {
+      nodes: [
+        node("random", "generate.random_table", { count: 4, seed: 2024, min: 0, max: 1 }),
+        node("print", "python.print"),
+      ],
+      edges: [edge("random", "print", { sourceHandle: "output", targetHandle: "input" })],
+    };
+    const first = run(workflow);
+    const second = run(workflow);
+    expect(first.status).toBe("success");
+    expect(second.status).toBe("success");
+    const firstRandom = (first.nodeResults as Record<string, { kind: string; preview?: { columns: string[]; rows: unknown[][] } }>).random;
+    const secondRandom = (second.nodeResults as Record<string, { kind: string; preview?: { columns: string[]; rows: unknown[][] } }>).random;
+    expect(firstRandom.kind).toBe("table");
+    expect(firstRandom.preview?.columns).toEqual(["index", "value"]);
+    expect(firstRandom.preview?.rows).toHaveLength(4);
+    expect(secondRandom.preview?.rows).toEqual(firstRandom.preview?.rows);
+  });
+
+  it("原生空列表和空 DataFrame 在 JS 后端可作为显式数据源", () => {
+    const emptyList = run({ nodes: [node("list", "generate.empty_list")], edges: [] });
+    expect(emptyList.status).toBe("success");
+    expect((emptyList.nodeResults as Record<string, { kind: string; text?: string }>).list).toEqual({ kind: "value", text: "[]" });
+
+    const emptyTable = run({ nodes: [node("table", "generate.empty_table", { columns: ["x", "y"] })], edges: [] });
+    expect(emptyTable.status).toBe("success");
+    expect((emptyTable.preview as { columns: string[]; rows: unknown[][] }).columns).toEqual(["x", "y"]);
+    expect((emptyTable.preview as { columns: string[]; rows: unknown[][] }).rows).toEqual([]);
+  });
+
   it("plot.line 产出 ECharts 配置", () => {
     const result = run({
       nodes: [

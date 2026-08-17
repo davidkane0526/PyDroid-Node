@@ -696,13 +696,46 @@ function Get-JavaMajorVersion {
     $java = Join-Path $resolved "bin\java.exe"
     $javac = Join-Path $resolved "bin\javac.exe"
     # Android 构建需要完整 JDK，而不是只有 java.exe 的 JRE。
-    if (-not (Test-Path -LiteralPath $java) -or -not (Test-Path -LiteralPath $javac)) { return $null }
-    try {
-        $text = (& $java -version 2>&1 | Out-String)
-        $m = [regex]::Match($text, 'version\s+"(?:(?:1)\.)?(\d+)')
-        if ($m.Success) { return [int]$m.Groups[1].Value }
-    } catch {}
+    if (-not (Test-Path -LiteralPath $java -PathType Leaf) -or -not (Test-Path -LiteralPath $javac -PathType Leaf)) { return $null }
+
+    # 不同发行版的 java -version 文本并不完全一致。javac -version 的第一项通常
+    # 最稳定（例如 `javac 21.0.8`），所以同时读取 java/javac，再按明确模式解析。
+    $texts = New-Object System.Collections.Generic.List[string]
+    foreach ($probe in @(@($javac, '-version'), @($java, '-version'))) {
+        try {
+            $raw = (& $probe[0] $probe[1] 2>&1 | Out-String).Trim()
+            if ($raw) { [void]$texts.Add($raw) }
+        } catch {}
+    }
+    foreach ($text in $texts) {
+        foreach ($pattern in @(
+            '(?im)\bjavac\s+(?:(?:1)\.)?(\d+)(?:[._\s-]|$)',
+            '(?im)\bversion\s+["'']?(?:(?:1)\.)?(\d+)(?:[._"''\s-]|$)',
+            '(?im)\bopenjdk\s+(?:(?:1)\.)?(\d+)(?:[._\s-]|$)',
+            '(?im)\bjava\s+(?:(?:1)\.)?(\d+)(?:[._\s-]|$)'
+        )) {
+            $m = [regex]::Match($text, $pattern)
+            if ($m.Success) { return [int]$m.Groups[1].Value }
+        }
+    }
     return $null
+}
+
+function Get-JavaProbeText {
+    param([string]$JavaHomePath)
+    $resolved = Resolve-JavaHomeCandidate $JavaHomePath
+    if ([string]::IsNullOrWhiteSpace($resolved)) { return "" }
+    $java = Join-Path $resolved "bin\java.exe"
+    $javac = Join-Path $resolved "bin\javac.exe"
+    $parts = @()
+    foreach ($probe in @(@($javac, '-version'), @($java, '-version'))) {
+        if (-not (Test-Path -LiteralPath $probe[0] -PathType Leaf)) { continue }
+        try {
+            $raw = (& $probe[0] $probe[1] 2>&1 | Out-String).Trim()
+            if ($raw) { $parts += $raw }
+        } catch {}
+    }
+    return ($parts -join ' | ')
 }
 
 function Test-JavaHome {
@@ -824,14 +857,16 @@ function Get-JavaHomesFromCommonLocations {
 
 function Get-JavaHomesFromPath {
     $results = New-Object System.Collections.Generic.List[string]
-    try {
-        foreach ($javaPath in @(& where.exe java 2>$null)) {
-            if (-not [string]::IsNullOrWhiteSpace($javaPath)) {
-                $candidateHome = Split-Path (Split-Path $javaPath.Trim() -Parent) -Parent
-                if ($candidateHome) { [void]$results.Add($candidateHome) }
+    foreach ($whereName in @('java', 'javac')) {
+        try {
+            foreach ($javaPath in @(& where.exe $whereName 2>$null)) {
+                if (-not [string]::IsNullOrWhiteSpace($javaPath)) {
+                    $candidateHome = Split-Path (Split-Path $javaPath.Trim() -Parent) -Parent
+                    if ($candidateHome) { [void]$results.Add($candidateHome) }
+                }
             }
-        }
-    } catch {}
+        } catch {}
+    }
 
     foreach ($commandName in @('java.exe', 'javac.exe')) {
         foreach ($command in @(Get-Command $commandName -All -ErrorAction SilentlyContinue)) {
@@ -848,13 +883,49 @@ function Find-JavaHome {
     # 0) GUI/命令行手动指定时，它是绝对优先且具有“禁止自动下载”的语义。
     #    可以填写真正的 JAVA_HOME，也可以填写包含多个 JDK 子目录的 Java 根目录。
     if (-not [string]::IsNullOrWhiteSpace($JavaHome)) {
-        $explicitRoot = [Environment]::ExpandEnvironmentVariables($JavaHome.Trim().Trim('"'))
-        $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 2
+        $explicitRoot = Resolve-JavaHomeCandidate $JavaHome
+        if ([string]::IsNullOrWhiteSpace($explicitRoot)) { throw "手动指定的 JDK 路径为空。" }
+
+        # 手动路径的含义是“相信用户选择的位置”，因此先检查这个目录本身。
+        # 只要 bin\java.exe 与 bin\javac.exe 都存在，就不应该因为发行版版本文本
+        # 格式不同而误判成“没安装”。若能识别到版本，则仍严格阻止错误主版本。
+        $directJava = Join-Path $explicitRoot 'bin\java.exe'
+        $directJavac = Join-Path $explicitRoot 'bin\javac.exe'
+        if ((Test-Path -LiteralPath $directJava -PathType Leaf) -and (Test-Path -LiteralPath $directJavac -PathType Leaf)) {
+            $directMajor = Get-JavaMajorVersion $explicitRoot
+            if ($null -ne $directMajor -and $directMajor -ne $JdkMajor) {
+                throw ("你手动指定的目录包含完整 JDK，但版本是 {0}，项目要求 JDK {1}：{2}" -f $directMajor, $JdkMajor, $explicitRoot)
+            }
+            if ($null -eq $directMajor) {
+                Write-Step ("JDK 版本文本无法自动解析，但已确认 java.exe/javac.exe 存在；按手动路径继续：{0}" -f $explicitRoot)
+                $probeText = Get-JavaProbeText $explicitRoot
+                if ($probeText) { Write-Step ("JDK 探测输出：{0}" -f $probeText) }
+            } else {
+                Write-Step ("使用手动指定的 JDK {0}：{1}" -f $directMajor, $explicitRoot)
+            }
+            return $explicitRoot
+        }
+
+        # 也允许填写一个 Java 容器目录（例如 D:\Code\Language\Java），
+        # 此时向下寻找真正带 bin\java.exe + bin\javac.exe 的 JDK 目录。
+        $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 3
         if ($explicit) {
-            Write-Step "使用手动指定的 JDK：$explicit"
+            Write-Step "使用手动指定目录中的 JDK：$explicit"
             return $explicit
         }
-        throw ("你手动指定了 JDK 目录：{0}`n但在该目录及其两层子目录中没有找到完整的 JDK {1}（需要 bin\java.exe 和 bin\javac.exe）。`n为避免使用错误工具，脚本不会自动下载 JDK。请在 GUI 中重新选择正确的 Java/JDK 目录。" -f $explicitRoot, $JdkMajor)
+
+        # 最后用 where.exe 的实际命中结果兜底。若 PATH 中的 JDK 位于用户所选目录下，
+        # 直接复用它；这覆盖软链接、junction 和某些安装器生成的目录结构。
+        foreach ($pathHome in @(Get-JavaHomesFromPath)) {
+            $resolvedPathHome = Resolve-JavaHomeCandidate $pathHome
+            if (-not $resolvedPathHome) { continue }
+            $underExplicit = $resolvedPathHome.StartsWith($explicitRoot.TrimEnd('\') + '\', [System.StringComparison]::OrdinalIgnoreCase) -or ($resolvedPathHome -ieq $explicitRoot)
+            if ($underExplicit -and (Test-JavaHome $resolvedPathHome)) {
+                Write-Step "通过 PATH/where.exe 找到手动目录中的 JDK：$resolvedPathHome"
+                return $resolvedPathHome
+            }
+        }
+        throw ("你手动指定了 JDK 目录：{0}`n没有找到可用的 JDK {1}。请确认该目录本身或其子目录包含 bin\java.exe 和 bin\javac.exe。`n脚本不会自动下载 JDK。" -f $explicitRoot, $JdkMajor)
     }
 
     # 1) 环境变量优先。环境变量也允许指向 Java 容器目录。

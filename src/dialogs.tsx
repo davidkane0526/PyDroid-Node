@@ -580,17 +580,26 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
   if (!open) return null;
   const permissions = settings.permissions;
   const L = (zh: string, en: string) => language === "en" ? en : zh;
+  const selectedPreset = presetById(settings.presetId);
+  const deepSeekPreset = settings.presetId === "deepseek" || settings.presetId === "deepseek-anthropic";
+  const protocolOptions = deepSeekPreset
+    ? [{ value: settings.provider, label: settings.provider === "anthropic-messages" ? "DeepSeek Anthropic Messages" : "DeepSeek Chat Completions" }]
+    : [
+        { value: "openai-responses", label: "OpenAI Responses" },
+        { value: "openai-compatible", label: L("OpenAI Chat Completions", "OpenAI Chat Completions") },
+        { value: "anthropic-messages", label: "Anthropic Messages" },
+      ];
   return <div className="settings-backdrop" role="dialog" aria-modal="true" aria-label={L("AI Agent 设置", "AI Agent settings")}>
     <section className="settings-dialog agent-dialog">
       <header><div><strong>{L("AI Agent 设置", "AI Agent settings")}</strong><span>{L("AI 只提出计划；画布变更仍需确认", "AI proposes a plan; canvas changes still require confirmation")}</span></div><button aria-label={L("关闭 AI Agent", "Close AI Agent")} onClick={onClose}>×</button></header>
       <div className="settings-dialog__body">
-        <section><h3>{L("模型与连接", "Model & connection")}</h3>
+        <section className="agent-connection"><h3>{L("模型与连接", "Model & connection")}</h3>
           <label><span>{L("供应商", "Provider")}</span><ThemedSelect ariaLabel={L("供应商", "Provider")} value={settings.presetId} options={AGENT_PRESETS.map((preset) => ({ value: preset.id, label: preset.label }))} onChange={onPresetSelect} /></label>
-          <label><span>{L("协议", "Protocol")}</span><ThemedSelect ariaLabel={L("协议", "Protocol")} value={settings.provider} options={[{ value: "openai-responses", label: "OpenAI Responses" }, { value: "openai-compatible", label: "OpenAI 兼容 Chat" }, { value: "anthropic-messages", label: "Anthropic Messages" }]} onChange={(value) => onSettingsChange({ provider: value as AgentSettings["provider"], presetId: "custom" })} /></label>
+          <label><span>{L("协议", "Protocol")}</span><ThemedSelect ariaLabel={L("协议", "Protocol")} value={settings.provider} options={protocolOptions} onChange={(value) => onSettingsChange({ provider: value as AgentSettings["provider"], presetId: "custom" })} /></label>
           <label>{L("接口地址", "Endpoint")}<input value={settings.endpoint} onChange={(event) => onSettingsChange({ endpoint: event.target.value, presetId: "custom" })} /></label>
-          <label><span>{L("模型", "Model")}</span><ThemedSelect ariaLabel={L("模型", "Model")} value={settings.model} options={[{ value: "", label: L("选择或自定义模型", "Select or enter a model") }, ...presetById(settings.presetId).models.map((model) => ({ value: model, label: model }))]} onChange={(value) => onSettingsChange({ model: value })} /></label>
-          {presetById(settings.presetId).note && <small className="agent-preset-note">{presetById(settings.presetId).note}</small>}
-          <label>{L("自定义模型", "Custom model")}<input value={settings.model} placeholder="模型 ID，例如 deepseek-v4-pro" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>
+          <label><span>{L("模型", "Model")}</span><ThemedSelect ariaLabel={L("模型", "Model")} value={settings.model} options={[{ value: "", label: L("选择模型", "Select a model") }, ...selectedPreset.models.map((model) => ({ value: model, label: model }))]} onChange={(value) => onSettingsChange({ model: value })} /></label>
+          {selectedPreset.note && <small className="agent-preset-note">{selectedPreset.note}</small>}
+          {settings.presetId === "custom" && <label>{L("自定义模型", "Custom model")}<input value={settings.model} placeholder="模型 ID" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>}
           <label>{L("API 密钥", "API key")}<input type="password" autoComplete="off" value={apiKey} placeholder={keyStorageHint} onChange={(event) => onApiKeyChange(event.target.value)} /></label>
           <label><span>{L("语言（同步界面）", "Language (synced with UI)")}</span><ThemedSelect ariaLabel={L("语言", "Language")} value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label>
           <div className="agent-inline-actions"><button className="button secondary" disabled={testing} onClick={onTestConnection}>{testing ? L("测试中…", "Testing…") : L("尝试连接", "Test connection")}</button>{connectionStatus && <small className={connectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{connectionStatus}</small>}</div>

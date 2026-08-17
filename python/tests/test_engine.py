@@ -49,6 +49,33 @@ def execute(nodes, edges, csv_text="1,10\n2,20\n3,30\n4,40\n"):
     return json.loads(execute_workflow(json.dumps({"nodes": nodes, "edges": edges}), csv_text))
 
 
+def test_cross_runtime_source_generators_have_expected_python_shapes():
+    outputs, table_result, _, _ = _execute_node("generate.empty_list", {}, None, "", [])
+    assert outputs["output"] == []
+    assert table_result is None
+
+    outputs, table_result, _, _ = _execute_node("generate.empty_table", {"columns": "x,y"}, None, "", [])
+    assert list(outputs["output"].columns) == ["x", "y"]
+    assert outputs["output"].empty
+    assert table_result is outputs["output"]
+
+    first, first_table, _, _ = _execute_node("generate.random_table", {"count": 4, "seed": 7, "min": 0, "max": 1}, None, "", [])
+    second, second_table, _, _ = _execute_node("generate.random_table", {"count": 4, "seed": 7, "min": 0, "max": 1}, None, "", [])
+    assert list(first["output"].columns) == ["index", "value"]
+    assert first_table.equals(second_table)
+    assert first["output"].shape == (4, 2)
+
+
+def test_native_random_source_connects_directly_to_print():
+    result = execute(
+        [node("random", "generate.random_table", {"count": 5, "seed": 1}), node("print", "python.print")],
+        [edge("random", "print")],
+    )
+    assert result["status"] == "success"
+    assert result["executionOrder"] == ["random", "print"]
+    assert result["nodeResults"]["print"]["kind"] in {"table", "text", "value"}
+
+
 def test_failure_keeps_completed_node_results_and_debug_trace():
     result = execute([node("read", "io.read_csv"), node("bad", "pandas.query", {"expression": "missing > 1"})], [edge("read", "bad")])
     assert result["status"] == "error"

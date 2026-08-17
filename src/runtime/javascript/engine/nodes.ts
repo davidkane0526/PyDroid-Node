@@ -627,6 +627,55 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
       const value = readCsvBatch(context, params);
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
+    case "generate.empty_list": {
+      return { outputs: { output: [] }, tableResult, plotResult, exportResult };
+    }
+    case "generate.empty_table": {
+      const columns = parameterList(params.columns).map(String).map((item) => item.trim()).filter(Boolean);
+      const value = new Table(columns, []);
+      return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
+    case "generate.random_table": {
+      const count = Math.trunc(Number(params.count ?? 100));
+      if (!Number.isFinite(count) || count < 1 || count > 1_000_000) throw new Error("Random table count must be between 1 and 1,000,000");
+      const distribution = String(params.distribution ?? "uniform");
+      const seed = (Math.trunc(Number(params.seed ?? 0)) >>> 0);
+      let state = seed || 0x6d2b79f5;
+      const random = () => {
+        state = (state + 0x6d2b79f5) >>> 0;
+        let t = state;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+      const minimum = Number(params.min ?? 0);
+      const maximum = Number(params.max ?? 1);
+      const mean = Number(params.mean ?? 0);
+      const std = Number(params.std ?? 1);
+      if (![minimum, maximum, mean, std].every(Number.isFinite)) throw new Error("Random table parameters must be finite numbers");
+      if (distribution !== "normal" && maximum < minimum) throw new Error("Random max must be greater than or equal to min");
+      if (distribution === "normal" && std < 0) throw new Error("Random normal std must be non-negative");
+      const values: number[] = [];
+      for (let index = 0; index < count; index += 1) {
+        if (distribution === "normal") {
+          const u1 = Math.max(random(), Number.EPSILON);
+          const u2 = random();
+          values.push(mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2));
+        } else if (distribution === "integer") {
+          const low = Math.ceil(minimum);
+          const high = Math.floor(maximum);
+          if (high < low) throw new Error("Random integer range contains no integer values");
+          values.push(low + Math.floor(random() * (high - low + 1)));
+        } else {
+          values.push(minimum + random() * (maximum - minimum));
+        }
+      }
+      const indexColumn = String(params.indexColumn ?? "index").trim() || "index";
+      const valueColumn = String(params.valueColumn ?? "value").trim() || "value";
+      if (indexColumn === valueColumn) throw new Error("Random table indexColumn and valueColumn must be different");
+      const value = new Table([indexColumn, valueColumn], values.map((item, index) => [index, item]));
+      return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
     case "table.concat": {
       const axis = Number(params.axis ?? 0);
       if (axis !== 0 && axis !== 1) throw new Error("Concat axis must be 0 or 1");

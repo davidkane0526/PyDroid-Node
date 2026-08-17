@@ -1,3 +1,14 @@
+## 1.4.17 (40) — Agent contract / DeepSeek / UI / JDK reliability — 2026-08-18
+
+- SMB 登录区重新对齐：访客复选框与登录按钮保持 32 px 输入行高度，并在同一认证单元内紧凑排列，避免宽屏下被拉到两端。
+- AI Agent 设置页移除等高卡片造成的空白，权限区改为紧凑两列；窄桌面自动切单列；对设置内容滚动条使用主题化细滚动条，避免系统滚动条破坏暗/亮色一致性。
+- DeepSeek 预设明确使用官方 `/chat/completions`；Agent 优先 Tool Calls / Function Calling，若工具调用缺失则使用 `response_format: {"type":"json_object"}` 的 JSON Output 兜底。新增官方 Anthropic 兼容预设 `https://api.deepseek.com/anthropic/v1/messages`；DeepSeek 预设不再允许误选 OpenAI Responses 协议。
+- Agent 节点契约升级为本地硬校验：规划上下文提供节点角色、运行时支持、参数键、输入/输出类型和 required 标记；所有新增节点的必需输入都必须存在真实 `connect`，动态 `custom.python_function` 按函数签名解析端口；当前运行时为 JavaScript 时拒绝仅 Python 支持的节点。手工粘贴计划也经过同一校验。
+- 新增跨 Python/JavaScript 后端原生数据源：`generate.random_table`（无输入随机数表）、`generate.empty_table`（空 DataFrame）和 `generate.empty_list`（空列表）。因此“创建随机数并打印”应直接生成 `generate.random_table → python.print`，不再用伪造空表或临时 Python 函数充当随机数源。
+- JDK 手动路径再次加固：若用户选择的目录本身含 `bin\java.exe` 和 `bin\javac.exe`，直接接受该 JDK；可解析到主版本时仍阻止错误版本，厂商版本文本无法解析时不再误报“未找到”。容器目录最多向下三层扫描，同时 `where java` 与 `where javac` 都参与兜底；手动路径永不自动下载另一套 JDK。
+- 正式源码交付恢复“干净工程”策略：ZIP 保留完整源码与 `.git`，但不包含 `node_modules`、Gradle/Android/Vite/Desktop 构建缓存和输出产物，依赖由构建工具/本机缓存按锁文件恢复。
+- 本地工作分支为 `local/ui-agent-runtime-1.4.17`；`main` 保持原样未修改。
+
 ## 1.4.16 (39) — Manual JDK path / no-surprise download — 2026-08-18
 
 - Build GUI 的“路径”区域新增 **JDK 目录**输入框和浏览按钮；本机存在 `D:\Code\Language\Java` 时默认填入该路径，也会保存用户选择供下次构建复用。

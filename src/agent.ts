@@ -1,4 +1,6 @@
-import { NODE_CATALOG, areValueTypesCompatible, type NodeSpec } from "./nodeCatalog";
+import { NODE_CATALOG, areValueTypesCompatible, getNodeSpec, type NodeSpec } from "./nodeCatalog";
+import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
+import { isJavascriptSupportedNodeType } from "./runtime/javascript/support";
 
 export type AgentPermission = "createNodes" | "groupNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";
 export type AgentProvider = "openai-responses" | "openai-compatible" | "anthropic-messages";
@@ -10,11 +12,19 @@ export const AGENT_PRESETS: AgentPreset[] = [
   { id: "anthropic", label: "Anthropic Claude", provider: "anthropic-messages", endpoint: "https://api.anthropic.com/v1/messages", models: ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-5"] },
   {
     id: "deepseek",
-    label: "DeepSeek",
+    label: "DeepSeek · Chat Completions",
     provider: "openai-compatible",
     endpoint: "https://api.deepseek.com/chat/completions",
     models: ["deepseek-v4-flash", "deepseek-v4-pro"],
-    note: "DeepSeek V4 官方默认接入使用 OpenAI Chat Completions。节点规划会关闭思考模式并要求结构化工具调用；如改用 Anthropic 兼容协议，请使用 https://api.deepseek.com/anthropic/v1/messages。",
+    note: "DeepSeek 官方 OpenAI 兼容入口是 /chat/completions。response_format 属于该接口的 JSON Output，不是 OpenAI Responses API。Agent 优先 Function Calling，必要时再用 JSON Output 兜底。",
+  },
+  {
+    id: "deepseek-anthropic",
+    label: "DeepSeek · Anthropic",
+    provider: "anthropic-messages",
+    endpoint: "https://api.deepseek.com/anthropic/v1/messages",
+    models: ["deepseek-v4-flash", "deepseek-v4-pro"],
+    note: "DeepSeek 官方同时支持 Anthropic Messages 格式；完整接口为 https://api.deepseek.com/anthropic/v1/messages。",
   },
   { id: "kimi", label: "Moonshot Kimi", provider: "openai-compatible", endpoint: "https://api.moonshot.cn/v1/chat/completions", models: ["kimi-k2-0905-preview", "moonshot-v1-8k", "moonshot-v1-32k"] },
   { id: "glm", label: "智谱 GLM", provider: "openai-compatible", endpoint: "https://open.bigmodel.cn/api/paas/v4/chat/completions", models: ["glm-4.6", "glm-4.5-air", "glm-4-flash"] },
@@ -40,7 +50,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 export function presetById(id: string): AgentPreset { return AGENT_PRESETS.find((preset) => preset.id === id) ?? AGENT_PRESETS[AGENT_PRESETS.length - 1]; }
 
 export type AgentOperation =
-  | { type: "add_node"; id: string; nodeType: string; parameters?: Record<string, string | number | boolean | null>; x?: number; y?: number }
+  | { type: "add_node"; id: string; nodeType: string; label?: string; parameters?: Record<string, string | number | boolean | null>; x?: number; y?: number }
   | { type: "set_parameter"; nodeId: string; key: string; value: string | number | boolean | null }
   | { type: "connect"; source: string; target: string; sourceHandle?: string; targetHandle?: string }
   | { type: "disconnect"; source?: string; target?: string; nodeId?: string }
@@ -63,8 +73,9 @@ export type AgentCatalogEntry = {
     defaultValue?: string | number | boolean | null;
     options?: Array<{ label: string; value: string | number | boolean }>;
   }>;
-  inputPorts: Array<{ id: string; valueType: string }>;
+  inputPorts: Array<{ id: string; valueType: string; required?: boolean }>;
   outputPorts: Array<{ id: string; valueType: string }>;
+  runtimeSupport?: Array<"python" | "javascript">;
 };
 export type AgentConnectionResult = { ok: boolean; message: string };
 
@@ -86,12 +97,16 @@ export const AGENT_SELF_CHALLENGES = [
 
 const planSchema = { type: "object", additionalProperties: false, required: ["summary", "operations"], properties: { summary: { type: "string" }, operations: { type: "array", items: { type: "object", required: ["type"], properties: { type: { type: "string", enum: ["add_node", "set_parameter", "connect", "disconnect", "group_nodes", "arrange", "delete_node", "run_workflow"] }, id: { type: "string" }, label: { type: "string" }, nodeIds: { type: "array", items: { type: "string" } }, direction: { type: "string", enum: ["horizontal", "vertical"] }, nodeType: { type: "string" }, parameters: { type: "object", additionalProperties: { type: ["string", "number", "boolean", "null"] } }, x: { type: "number" }, y: { type: "number" }, nodeId: { type: "string" }, key: { type: "string" }, value: { type: ["string", "number", "boolean", "null"] }, source: { type: "string" }, target: { type: "string" }, sourceHandle: { type: "string" }, targetHandle: { type: "string" } } } } } } as const;
 
-const plannerInstructions = `You are PyDroid Flow's workflow-planning agent. Always respond by calling propose_workflow_plan.
-Prefer native catalog nodes. Use only supplied node types, parameter keys and typed ports. Every add_node and group_nodes id must be unique and safe.
+const plannerInstructions = `You are PyDroid Flow's workflow-planning agent. Always return a complete propose_workflow_plan.
+Treat the supplied node catalog as an executable type system, not as suggestions. Use ONLY listed nodeType values, parameter keys, input ports and output ports. Respect runtimeSupport: when runtimePreference is javascript, every added node must support javascript; prefer python+javascript nodes when portability matters.
+Prefer native nodes. In particular, use generate.random_table for new random data, generate.empty_table for an explicit empty DataFrame, and generate.empty_list for an explicit empty list when those nodes are available.
+A workflow is not complete until every REQUIRED input port of every newly added node has an incoming connect operation. Creating two nodes without connecting them is invalid. Sinks such as python.print require their input connection. Source nodes have no required input.
+For every connect operation, choose an existing source output port and target input port with compatible value types. If the handles are not literally output/input, set sourceHandle and targetHandle explicitly. Never invent ports.
+Every add_node and group_nodes id must be unique and safe. Use short stable IDs. Optional label may be used for readable canvas labels.
 Build behavior from typed connections. Use logic.if_subflow, logic.for_each_subflow and logic.while_subflow plus group_nodes for reusable structured behavior rather than hiding control flow in one opaque node.
-If a requested computation has no native primitive, you MAY use custom.python_function as a last-resort computation node. Its code must be a deterministic or explicitly seeded, self-contained Python function with a typed PyDroid return annotation. Pure numerical/table computation and standard-library algorithms are allowed. Do not read arbitrary files, access network, spawn processes, call eval/exec, inspect secrets, or mutate the host. The user will still review the plan before it is applied.
-Never use notebook.code_cell or raw notebook block nodes to manufacture hidden behavior. Prefer one small custom function over a chain of opaque code cells. Use disconnect before replacing incompatible wiring and arrange after structural edits.
-When connecting a port that is not literally named output/input, always set sourceHandle/targetHandle explicitly. Do not invent node types, port IDs or parameter keys. If neither native nodes nor the constrained custom-function fallback can express the request, state the exact missing capability in summary.`;
+If a requested computation has no native primitive, you MAY use custom.python_function only as a last resort on a Python-capable workflow. Its function signature is authoritative: annotated table/any inputs become REQUIRED ports unless optional/defaulted; scalar annotations become parameters; the annotated return type becomes output ports. A source-style custom function must therefore declare no required data input. Its code must be deterministic or explicitly seeded and self-contained. Do not read arbitrary files, access network, spawn processes, call eval/exec, inspect secrets, or mutate the host.
+Never use notebook.code_cell or raw notebook block nodes to manufacture hidden behavior. Prefer native cross-runtime nodes whenever the workflow may use JavaScript. Use disconnect before replacing incompatible wiring and arrange after structural edits.
+If neither native nodes nor the constrained fallback can express the request, state the exact missing capability in summary instead of fabricating a plan.`;
 
 function errorText(payload: unknown, fallback: string): string {
   if (payload && typeof payload === "object" && "error" in payload) {
@@ -138,8 +153,9 @@ function enrichedEntry(entry: AgentCatalogEntry): AgentCatalogEntry & { tags?: s
       defaultValue: parameter.defaultValue ?? spec.defaults[parameter.key] ?? null,
       options: parameter.options,
     })),
-    inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
+    inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType, required: port.required })),
     outputPorts: spec.outputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
+    runtimeSupport: isJavascriptSupportedNodeType(spec.nodeType) ? ["python", "javascript"] : ["python"],
   };
 }
 
@@ -174,7 +190,7 @@ export function buildAgentPlanningContext(instruction: string, catalog: AgentCat
   const available = new Set(catalog.map((entry) => entry.nodeType));
   const enriched = catalog.map(enrichedEntry);
   const terms = instructionTerms(instruction);
-  const mandatory = new Set(["custom.python_function", "plot.line", "plot.scatter", "logic.for_range", "pandas.sample"]);
+  const mandatory = new Set(["generate.random_table", "generate.empty_table", "generate.empty_list", "python.print", "convert.to_table", "custom.python_function", "plot.line", "plot.scatter", "logic.for_range", "pandas.sample"]);
   const detailed = enriched
     .map((entry) => ({ entry, score: scoreEntry(entry, terms) + (mandatory.has(entry.nodeType) ? 2 : 0) }))
     .filter(({ entry, score }) => score > 0 || mandatory.has(entry.nodeType))
@@ -183,30 +199,58 @@ export function buildAgentPlanningContext(instruction: string, catalog: AgentCat
     .map(({ entry }) => entry);
   const index = NODE_CATALOG
     .filter((spec) => available.has(spec.nodeType))
-    .map((spec) => ({ nodeType: spec.nodeType, label: spec.label, inputs: spec.inputPorts.map((port) => `${port.id}:${port.valueType}`), outputs: spec.outputPorts.map((port) => `${port.id}:${port.valueType}`) }));
+    .map((spec) => ({
+      nodeType: spec.nodeType,
+      label: spec.label,
+      role: spec.inputPorts.length === 0 ? "source" : spec.outputPorts.length === 0 ? "sink" : "transform",
+      runtimeSupport: isJavascriptSupportedNodeType(spec.nodeType) ? ["python", "javascript"] : ["python"],
+      parameterKeys: spec.parameters.map((parameter) => parameter.key),
+      inputs: spec.inputPorts.map((port) => `${port.id}:${port.valueType}${port.required ? "!required" : ""}`),
+      outputs: spec.outputPorts.map((port) => `${port.id}:${port.valueType}`),
+    }));
   return { index, detailed, diagnostic: agentPlanningDiagnostic(instruction) };
 }
 
-type ContextNode = { id: string; nodeType: string; parameterKeys?: string[]; inputs?: Array<{ id: string; type?: string; valueType?: string }>; outputs?: Array<{ id: string; type?: string; valueType?: string }> };
+type ContextNode = { id: string; nodeType: string; parameterKeys?: string[]; inputs?: Array<{ id: string; type?: string; valueType?: string; required?: boolean }>; outputs?: Array<{ id: string; type?: string; valueType?: string }> };
+type ContextEdge = { source: string; target: string; sourceHandle?: string; targetHandle?: string };
 function contextNodes(workflowContext: unknown): ContextNode[] {
   if (!workflowContext || typeof workflowContext !== "object" || !("nodes" in workflowContext) || !Array.isArray((workflowContext as { nodes?: unknown }).nodes)) return [];
   return ((workflowContext as { nodes: unknown[] }).nodes).filter((node): node is ContextNode => Boolean(node && typeof node === "object" && typeof (node as ContextNode).id === "string" && typeof (node as ContextNode).nodeType === "string"));
 }
-
-function specPorts(spec: NodeSpec | undefined, direction: "input" | "output"): Array<{ id: string; valueType: string }> {
-  return (direction === "input" ? spec?.inputPorts : spec?.outputPorts)?.map((port) => ({ id: port.id, valueType: port.valueType })) ?? [];
+function contextEdges(workflowContext: unknown): ContextEdge[] {
+  if (!workflowContext || typeof workflowContext !== "object" || !("edges" in workflowContext) || !Array.isArray((workflowContext as { edges?: unknown }).edges)) return [];
+  return ((workflowContext as { edges: unknown[] }).edges).filter((edge): edge is ContextEdge => Boolean(edge && typeof edge === "object" && typeof (edge as ContextEdge).source === "string" && typeof (edge as ContextEdge).target === "string"));
 }
 
-export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { nodes: [] }): string[] {
+type ValidationPort = { id: string; valueType: string; required?: boolean };
+type ValidationNode = { nodeType: string; parameterKeys: Set<string>; inputs: ValidationPort[]; outputs: ValidationPort[] };
+
+function specPorts(spec: NodeSpec | undefined, direction: "input" | "output"): ValidationPort[] {
+  return (direction === "input" ? spec?.inputPorts : spec?.outputPorts)?.map((port) => ({ id: port.id, valueType: port.valueType, required: port.required })) ?? [];
+}
+
+function connectionKey(nodeId: string, handle: string): string { return `${nodeId}\u0000${handle}`; }
+
+export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { nodes: [], edges: [] }): string[] {
   const errors: string[] = [];
-  const current = contextNodes(workflowContext);
-  const nodes = new Map<string, { nodeType: string; parameterKeys: Set<string>; inputs: Array<{ id: string; valueType: string }>; outputs: Array<{ id: string; valueType: string }> }>();
-  for (const node of current) {
-    const spec = NODE_CATALOG.find((candidate) => candidate.nodeType === node.nodeType);
+  const nodes = new Map<string, ValidationNode>();
+  const addedNodeIds = new Set<string>();
+  const connectedInputs = new Set<string>();
+  const runtimePreference = workflowContext && typeof workflowContext === "object" && "runtimePreference" in workflowContext
+    ? String((workflowContext as { runtimePreference?: unknown }).runtimePreference ?? "auto")
+    : "auto";
+
+  for (const edge of contextEdges(workflowContext)) connectedInputs.add(connectionKey(edge.target, edge.targetHandle ?? "input"));
+  for (const node of contextNodes(workflowContext)) {
+    const spec = getNodeSpec(node.nodeType);
     nodes.set(node.id, {
       nodeType: node.nodeType,
       parameterKeys: new Set(node.parameterKeys ?? spec?.parameters.map((parameter) => parameter.key) ?? []),
-      inputs: node.inputs?.map((port) => ({ id: port.id, valueType: String(port.type ?? port.valueType ?? "any") })) ?? specPorts(spec, "input"),
+      inputs: node.inputs?.map((port) => ({
+        id: port.id,
+        valueType: String(port.type ?? port.valueType ?? "any"),
+        required: port.required ?? spec?.inputPorts.find((candidate) => candidate.id === port.id)?.required,
+      })) ?? specPorts(spec, "input"),
       outputs: node.outputs?.map((port) => ({ id: port.id, valueType: String(port.type ?? port.valueType ?? "any") })) ?? specPorts(spec, "output"),
     });
   }
@@ -216,11 +260,20 @@ export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { 
     if (operation.type === "add_node") {
       if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(operation.id)) { errors.push(`${at}: 节点 ID 不安全：${operation.id}`); continue; }
       if (nodes.has(operation.id)) { errors.push(`${at}: 节点 ID 已存在：${operation.id}`); continue; }
-      const spec = NODE_CATALOG.find((candidate) => candidate.nodeType === operation.nodeType);
-      if (!spec) { errors.push(`${at}: 未知节点类型 ${operation.nodeType}`); continue; }
+      const baseSpec = getNodeSpec(operation.nodeType);
+      if (!baseSpec) { errors.push(`${at}: 未知节点类型 ${operation.nodeType}`); continue; }
+      if (runtimePreference === "javascript" && !isJavascriptSupportedNodeType(operation.nodeType)) {
+        errors.push(`${at}: 当前工作流明确使用 JavaScript 后端，但 ${operation.nodeType} 仅支持 Python；请改用标记为 python+javascript 的节点`);
+      }
+      if (operation.nodeType === "custom.python_function") {
+        const signature = parsePythonFunctionSignature(String(operation.parameters?.code ?? baseSpec.defaults.code ?? ""));
+        if (signature.error) errors.push(`${at}: Python 函数签名无效：${signature.error}`);
+      }
+      const spec = resolveNodeSpec(baseSpec, operation.parameters ?? {}) ?? baseSpec;
       const keys = new Set(spec.parameters.map((parameter) => parameter.key));
       for (const key of Object.keys(operation.parameters ?? {})) if (!keys.has(key)) errors.push(`${at}: ${operation.nodeType} 不存在参数 ${key}`);
       nodes.set(operation.id, { nodeType: operation.nodeType, parameterKeys: keys, inputs: specPorts(spec, "input"), outputs: specPorts(spec, "output") });
+      addedNodeIds.add(operation.id);
       continue;
     }
     if (operation.type === "set_parameter") {
@@ -240,6 +293,7 @@ export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { 
       if (!sourcePort) errors.push(`${at}: ${operation.source} 没有输出端口 ${sourceHandle}`);
       if (!targetPort) errors.push(`${at}: ${operation.target} 没有输入端口 ${targetHandle}`);
       if (sourcePort && targetPort && !areValueTypesCompatible(sourcePort.valueType as never, targetPort.valueType as never)) errors.push(`${at}: 端口类型不兼容 ${sourcePort.valueType} → ${targetPort.valueType}`);
+      if (sourcePort && targetPort) connectedInputs.add(connectionKey(operation.target, targetHandle));
       continue;
     }
     if (operation.type === "group_nodes") {
@@ -252,10 +306,31 @@ export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { 
     }
     if (operation.type === "delete_node") {
       if (!nodes.has(operation.nodeId)) errors.push(`${at}: 找不到要删除的节点 ${operation.nodeId}`);
-      else nodes.delete(operation.nodeId);
+      else {
+        nodes.delete(operation.nodeId);
+        addedNodeIds.delete(operation.nodeId);
+        for (const key of [...connectedInputs]) if (key.startsWith(`${operation.nodeId}\u0000`)) connectedInputs.delete(key);
+      }
       continue;
     }
-    if (operation.type === "disconnect" && !operation.nodeId && !operation.source && !operation.target) errors.push(`${at}: disconnect 至少需要 nodeId、source 或 target`);
+    if (operation.type === "disconnect") {
+      if (!operation.nodeId && !operation.source && !operation.target) { errors.push(`${at}: disconnect 至少需要 nodeId、source 或 target`); continue; }
+      if (operation.nodeId) {
+        for (const key of [...connectedInputs]) if (key.startsWith(`${operation.nodeId}\u0000`)) connectedInputs.delete(key);
+      } else if (operation.target) {
+        for (const key of [...connectedInputs]) if (key.startsWith(`${operation.target}\u0000`)) connectedInputs.delete(key);
+      }
+    }
+  }
+
+  // The most damaging Agent failure mode was creating useful-looking nodes but never
+  // wiring them. Required inputs are therefore a hard local invariant for new nodes.
+  for (const nodeId of addedNodeIds) {
+    const node = nodes.get(nodeId);
+    if (!node) continue;
+    for (const port of node.inputs.filter((input) => input.required)) {
+      if (!connectedInputs.has(connectionKey(nodeId, port.id))) errors.push(`节点 ${nodeId}（${node.nodeType}）的必需输入端口 ${port.id}:${port.valueType} 没有连线`);
+    }
   }
   return errors;
 }
@@ -298,8 +373,27 @@ async function requestPlanToolCall(settings: AgentSettings, apiKey: string, inpu
     tools: [{ type: "function", function: { name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema } }],
     tool_choice: toolChoice,
     ...(deepSeek ? { thinking: { type: "disabled" } } : {}),
-  }) as { choices?: Array<{ message?: { tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
-  return payload.choices?.[0]?.message?.tool_calls?.find((call) => call.function?.name === "propose_workflow_plan")?.function?.arguments;
+  }) as { choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
+  const toolArguments = payload.choices?.[0]?.message?.tool_calls?.find((call) => call.function?.name === "propose_workflow_plan")?.function?.arguments;
+  if (toolArguments || !deepSeek) return toolArguments;
+
+  // DeepSeek officially supports JSON Output via response_format on /chat/completions.
+  // This is NOT the OpenAI Responses API. Use it only as a second attempt if the
+  // model unexpectedly omits the required function call.
+  const jsonPayload = await post(settings, apiKey, {
+    model: settings.model,
+    messages: [
+      { role: "system", content: `${plannerInstructions}
+Return JSON only. The JSON object MUST match this shape: {"summary":"...","operations":[{"type":"add_node"}]}. Do not wrap JSON in markdown.` },
+      { role: "user", content: `${input}
+
+Return the complete workflow plan as JSON.` },
+    ],
+    response_format: { type: "json_object" },
+    max_tokens: 3072,
+    thinking: { type: "disabled" },
+  }) as { choices?: Array<{ message?: { content?: string | null } }> };
+  return jsonPayload.choices?.[0]?.message?.content ?? undefined;
 }
 
 export async function requestAgentPlan(settings: AgentSettings, apiKey: string, instruction: string, catalog: AgentCatalogEntry[], workflowContext: unknown): Promise<AgentPlan> {
@@ -323,7 +417,7 @@ export async function requestAgentPlan(settings: AgentSettings, apiKey: string, 
       const validation = validateAgentPlan(plan, workflowContext);
       if (!validation.length) return plan;
       lastError = validation.join("；");
-      repair = `Errors: ${lastError}\nPrevious plan: ${JSON.stringify(plan)}\nUse exact node types, parameter keys and port IDs from the supplied context. If the request needs a missing primitive such as generating random values, use the constrained custom.python_function fallback.`;
+      repair = `Errors: ${lastError}\nPrevious plan: ${JSON.stringify(plan)}\nUse exact node types, parameter keys and port IDs from the supplied context. Use native source/generator nodes when available (for random values use generate.random_table). Only use constrained custom.python_function when no native node exists. Ensure every required input has an explicit connect operation.`;
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
       repair = `Parser/validation error: ${lastError}. Produce a valid propose_workflow_plan tool call using the supplied catalog.`;

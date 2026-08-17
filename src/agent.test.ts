@@ -7,7 +7,7 @@ const catalog: AgentCatalogEntry[] = NODE_CATALOG.map((spec) => ({
   label: spec.label,
   description: spec.description,
   parameters: spec.parameters.map((parameter) => ({ key: parameter.key, kind: parameter.kind, required: parameter.required })),
-  inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
+  inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType, required: port.required })),
   outputPorts: spec.outputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
 }));
 
@@ -46,24 +46,32 @@ describe("AI Agent plan parser", () => {
     }))).toThrow("不支持的 AI 操作");
   });
 
-  it("uses the official DeepSeek V4 Chat Completions preset", () => {
-    const preset = presetById("deepseek");
-    expect(preset.provider).toBe("openai-compatible");
-    expect(preset.endpoint).toBe("https://api.deepseek.com/chat/completions");
-    expect(preset.models).toEqual(["deepseek-v4-flash", "deepseek-v4-pro"]);
+  it("uses DeepSeek Chat Completions and Anthropic-compatible presets", () => {
+    const chatPreset = presetById("deepseek");
+    expect(chatPreset.provider).toBe("openai-compatible");
+    expect(chatPreset.endpoint).toBe("https://api.deepseek.com/chat/completions");
+    expect(chatPreset.models).toEqual(["deepseek-v4-flash", "deepseek-v4-pro"]);
+
+    const anthropicPreset = presetById("deepseek-anthropic");
+    expect(anthropicPreset.provider).toBe("anthropic-messages");
+    expect(anthropicPreset.endpoint).toBe("https://api.deepseek.com/anthropic/v1/messages");
   });
 });
 
 describe("AI Agent capability planning", () => {
-  it("detects the native random-generator gap instead of confusing it with pandas.sample", () => {
+  it("recognizes the native no-input random generator", () => {
     const diagnostic = agentPlanningDiagnostic(AGENT_SELF_CHALLENGES[0]);
-    expect(diagnostic.likelyGap).toContain("随机数生成节点");
+    expect(diagnostic.likelyGap).toBeNull();
+    expect(diagnostic.nativeMatches).toContain("generate.random_table");
     expect(diagnostic.codeFallbackAvailable).toBe(true);
   });
 
-  it("enriches the planning prompt with exact defaults/options and the constrained fallback", () => {
+  it("enriches the planning prompt with native sources, exact ports/defaults and constrained fallback", () => {
     const context = buildAgentPlanningContext(AGENT_SELF_CHALLENGES[0], catalog);
     const detailed = context.detailed as AgentCatalogEntry[];
+    expect(detailed.some((entry) => entry.nodeType === "generate.random_table")).toBe(true);
+    expect(detailed.some((entry) => entry.nodeType === "generate.empty_table")).toBe(true);
+    expect(detailed.some((entry) => entry.nodeType === "generate.empty_list")).toBe(true);
     expect(detailed.some((entry) => entry.nodeType === "custom.python_function")).toBe(true);
     expect(detailed.some((entry) => entry.nodeType === "plot.line")).toBe(true);
     const line = detailed.find((entry) => entry.nodeType === "plot.line");
@@ -71,24 +79,53 @@ describe("AI Agent capability planning", () => {
     expect(line?.parameters.some((parameter) => parameter.defaultValue !== undefined)).toBe(true);
   });
 
-  it("accepts a safe random-series fallback connected to a native plot", () => {
+  it("accepts native random source connected directly to print", () => {
     const plan = parseAgentPlan(JSON.stringify({
-      summary: "生成可复现随机序列并绘图",
+      summary: "生成可复现随机数并打印",
+      operations: [
+        { type: "add_node", id: "random", nodeType: "generate.random_table", parameters: { count: 10, seed: 2024 } },
+        { type: "add_node", id: "print", nodeType: "python.print" },
+        { type: "connect", source: "random", target: "print", sourceHandle: "output", targetHandle: "input" },
+        { type: "arrange", direction: "horizontal" },
+      ],
+    }));
+    expect(validateAgentPlan(plan, { nodes: [], edges: [] })).toEqual([]);
+  });
+
+  it("rejects the previously observed random/print plan when required inputs have no connections", () => {
+    const plan = parseAgentPlan(JSON.stringify({
+      summary: "错误的随机数打印计划",
       operations: [
         {
           type: "add_node",
-          id: "random_series",
+          id: "gen_rand",
           nodeType: "custom.python_function",
           parameters: {
-            code: "def make_random(count: int = 100, seed: int = 0) -> 'table':\n    import random, pandas as pd\n    rng = random.Random(seed)\n    return pd.DataFrame({'x': range(count), 'random': [rng.random() for _ in range(count)]})",
+            code: "def transform(table: 'table') -> 'table':\n    import numpy as np\n    return np.random.default_rng(2024).uniform(0, 100, size=10)",
           },
         },
-        { type: "add_node", id: "random_plot", nodeType: "plot.line", parameters: { xColumn: "x", yColumns: "random" } },
-        { type: "connect", source: "random_series", target: "random_plot" },
-        { type: "arrange", direction: "vertical" },
+        { type: "add_node", id: "print_rand", nodeType: "python.print" },
       ],
     }));
-    expect(validateAgentPlan(plan, { nodes: [] })).toEqual([]);
+    const errors = validateAgentPlan(plan, { nodes: [], edges: [] });
+    expect(errors.some((error) => error.includes("gen_rand") && error.includes("table") && error.includes("没有连线"))).toBe(true);
+    expect(errors.some((error) => error.includes("print_rand") && error.includes("input") && error.includes("没有连线"))).toBe(true);
+  });
+
+  it("rejects Python custom-function fallback for a JavaScript workflow", () => {
+    const plan = parseAgentPlan(JSON.stringify({
+      summary: "JS 后端错误回退",
+      operations: [
+        {
+          type: "add_node",
+          id: "custom",
+          nodeType: "custom.python_function",
+          parameters: { code: "def source() -> 'table':\n    return []" },
+        },
+      ],
+    }));
+    const errors = validateAgentPlan(plan, { nodes: [], edges: [], runtimePreference: "javascript" });
+    expect(errors.some((error) => error.includes("JavaScript 后端") && error.includes("custom.python_function"))).toBe(true);
   });
 
   it("catches hallucinated parameters and ports before the plan reaches the canvas", () => {
@@ -100,7 +137,7 @@ describe("AI Agent capability planning", () => {
         { type: "connect", source: "read", target: "plot", sourceHandle: "not-a-port" },
       ],
     }));
-    const errors = validateAgentPlan(plan, { nodes: [] });
+    const errors = validateAgentPlan(plan, { nodes: [], edges: [] });
     expect(errors.some((error) => error.includes("inventedParameter"))).toBe(true);
     expect(errors.some((error) => error.includes("not-a-port"))).toBe(true);
   });

@@ -48,8 +48,28 @@ assert.match(
 );
 assert.match(
   buildScript,
-  /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 2/,
-  "manual JDK path should accept a Java container directory and search child JDK folders",
+  /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 3/,
+  "manual JDK path should accept a Java container directory and search nested JDK folders",
+);
+assert.match(
+  buildScript,
+  /Join-Path \$explicitRoot 'bin\\java\.exe'/,
+  "manual JDK selection should accept a directory which directly contains bin/java.exe",
+);
+assert.match(
+  buildScript,
+  /Join-Path \$explicitRoot 'bin\\javac\.exe'/,
+  "manual JDK selection should require and accept bin/javac.exe next to java.exe",
+);
+assert.match(
+  buildScript,
+  /foreach \(\$whereName in @\('java', 'javac'\)\)/,
+  "JDK discovery should query both where java and where javac",
+);
+assert.match(
+  buildScript,
+  /版本文本无法自动解析[\s\S]*按手动路径继续/,
+  "an explicit complete JDK path should not be rejected solely because vendor version text is unusual",
 );
 assert.match(
   buildScript,

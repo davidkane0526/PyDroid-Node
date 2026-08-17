@@ -57,7 +57,7 @@ Node/JDK/Android SDK/Python are reusable machine tools. Electron, electron-build
 - Persistent pnpm store with `--prefer-offline`, retry, timeout and concurrency controls.
 - Shared npm/Corepack/Electron/electron-builder/Gradle/download caches.
 - `desktop-package.mjs` compatibility guard handles native `pnpm.exe` correctly instead of passing it to `node.exe`.
-- JDK major version is validated and the selected JDK is activated before `sdkmanager` runs. The Build GUI exposes a dedicated **JDK directory** field. When filled, that path is authoritative: it may point either to the actual `JAVA_HOME` or to a container such as `D:\Code\Language\Java`, in which case the builder searches up to two child levels for a matching JDK. An invalid manual path fails clearly and never falls back to downloading another JDK. When the field is blank, automatic JDK 21 discovery checks explicit environment variables, the shared toolchain, Windows Java/uninstall registry metadata, Microsoft/Temurin/Java/Corretto/Zulu common install folders, and all Java/Javac entries on PATH before any download is attempted.
+- JDK major version is validated and the selected JDK is activated before `sdkmanager` runs. The Build GUI exposes a dedicated **JDK directory** field. When filled, that path is authoritative: it may point to the actual `JAVA_HOME`, its `bin` directory / `java.exe` / `javac.exe`, or to a container such as `D:\Code\Language\Java`. If the selected directory itself contains `bin\java.exe` and `bin\javac.exe`, the builder accepts it directly; if vendor-specific version text cannot be parsed, an explicit complete JDK path is trusted instead of being misreported as missing. Container paths are searched up to three child levels, and both `where java` and `where javac` are used as fallbacks. An invalid manual path fails clearly and never downloads another JDK. When the field is blank, automatic JDK 21 discovery checks explicit environment variables, the shared toolchain, Windows Java/uninstall registry metadata, Microsoft/Temurin/Java/Corretto/Zulu common install folders, and all Java/Javac entries on PATH before any download is attempted.
 - Project source remains read-only; compatibility patches are applied only to the temporary workspace.
 
 ## Current PyDroid Electron policy
@@ -66,3 +66,8 @@ Node/JDK/Android SDK/Python are reusable machine tools. Electron, electron-build
 `pnpm-lock.yaml` currently locks them to Electron **43.4.0** and electron-builder **26.15.3**. Because normal builds use `pnpm install --frozen-lockfile`, that lockfile is the effective reproducible version until it is intentionally updated.
 
 Electron is therefore **not globally fixed by the shared toolchain**. Another project may use another Electron version and reuse the same `DK_CACHE_ROOT`; each project still installs/locks its own package version.
+
+
+## Clean source archive
+
+Formal source ZIPs contain the project source tree and `.git`, but intentionally omit `node_modules`, `dist`, `release`, `.gradle`, `android/.gradle`, `android/build`, `android/app/build` and other generated caches/artifacts. The Windows build GUI restores JS dependencies from `pnpm-lock.yaml` and prefers the configured shared/local caches before network downloads.

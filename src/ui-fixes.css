@@ -57,37 +57,6 @@
   }
 }
 
-/* AI permissions should read as a compact, symmetric matrix rather than a vertical checkbox column. */
-.agent-permissions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-content: start;
-  gap: 7px 12px !important;
-}
-.agent-permissions > h3,
-.agent-permissions > small { grid-column: 1 / -1; }
-.agent-permissions > label.settings-check {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  min-height: 30px;
-  align-items: center;
-  justify-content: start;
-  gap: 7px !important;
-  margin: 0;
-  padding: 4px 6px;
-  border-radius: 6px;
-}
-.agent-permissions > label.settings-check input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-}
-@media (max-width: 420px) {
-  .agent-permissions { grid-template-columns: minmax(0, 1fr); }
-  .agent-permissions > h3,
-  .agent-permissions > small { grid-column: auto; }
-}
-
 .smb-browser-toolbar .smb-favorite-button.active {
   color: #d99a00;
   border-color: color-mix(in srgb, #d99a00 45%, var(--border));
@@ -213,24 +182,96 @@
   .settings-range input[type="range"]::-moz-range-thumb { width: 19px; height: 19px; }
 }
 
-/* Agent sections form a balanced two-column dashboard instead of uneven cards with dead space. */
+/* Agent: compact desktop dashboard, clean scrollbars, and no equal-height dead space. */
+.agent-dialog {
+  width: min(920px, calc(100vw - 28px));
+  max-height: min(820px, calc(100dvh - 28px));
+  border-radius: 14px;
+}
 .agent-dialog .settings-dialog__body {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-auto-rows: auto;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .85fr);
+  grid-auto-rows: max-content;
+  align-items: start;
   gap: 12px;
+  min-width: 0;
+  padding: 14px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
 }
+.agent-dialog .settings-dialog__body::-webkit-scrollbar { width: 9px; }
+.agent-dialog .settings-dialog__body::-webkit-scrollbar-track { background: transparent; }
+.agent-dialog .settings-dialog__body::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: var(--border-strong);
+  background-clip: padding-box;
+}
+.agent-dialog .settings-dialog__body::-webkit-scrollbar-thumb:hover { background: var(--text-faint); background-clip: padding-box; }
 .agent-dialog .settings-dialog__body > section {
   min-width: 0;
-  height: 100%;
+  height: auto !important;
   align-content: start;
+  padding: 13px 14px;
 }
-.agent-dialog .agent-permissions { align-content: start; }
+.agent-dialog .agent-connection { grid-column: 1; }
+.agent-dialog .agent-permissions { grid-column: 2; align-content: start; }
+.agent-dialog .agent-request,
+.agent-dialog .agent-plan,
+.agent-dialog .agent-plan + section { grid-column: 1 / -1; }
+.agent-dialog label { grid-template-columns: minmax(88px, 112px) minmax(0, 1fr); }
+.agent-dialog .themed-select,
+.agent-dialog label > input { min-width: 0; width: 100%; }
+.agent-dialog .agent-preset-note {
+  display: block;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-raised) 72%, transparent);
+  line-height: 1.5;
+}
 .agent-dialog .agent-inline-actions { margin-top: 2px; }
-@media (max-width: 760px), (orientation: portrait) and (max-width: 900px) {
-  .agent-dialog .settings-dialog__body { grid-template-columns: minmax(0, 1fr); }
-  .agent-dialog .settings-dialog__body > section:nth-child(n) { min-height: 0; height: auto; }
+.app-shell[data-theme="light"] .agent-dialog .settings-dialog__body::-webkit-scrollbar-thumb { background: #a6b4c6; background-clip: padding-box; }
+
+/* AI permissions are dense rows, not stretched cards. */
+.agent-permissions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(30px, auto);
+  gap: 6px 8px !important;
+}
+.agent-permissions > h3,
+.agent-permissions > small { grid-column: 1 / -1; }
+.agent-permissions > label.settings-check {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) !important;
+  min-width: 0;
+  min-height: 30px;
+  align-items: center;
+  justify-content: start;
+  gap: 7px !important;
+  margin: 0;
+  padding: 3px 4px;
+  border-radius: 6px;
+}
+.agent-permissions > label.settings-check input { width: 16px; height: 16px; margin: 0; }
+
+@media (max-width: 860px) {
+  .agent-dialog { width: min(700px, calc(100vw - 20px)); }
+  .agent-dialog .settings-dialog__body { grid-template-columns: minmax(0, 1fr); padding: 10px; scrollbar-gutter: auto; }
+  .agent-dialog .agent-connection,
+  .agent-dialog .agent-permissions,
+  .agent-dialog .agent-request,
+  .agent-dialog .agent-plan,
+  .agent-dialog .agent-plan + section { grid-column: 1; }
+}
+@media (max-width: 560px) {
+  .agent-dialog label { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .agent-permissions { grid-template-columns: minmax(0, 1fr); }
+  .agent-permissions > h3,
+  .agent-permissions > small { grid-column: 1; }
 }
 
 /* SMB credentials: exactly 3 columns x 2 rows whenever space permits. */
@@ -249,19 +290,20 @@
 .smb-field--password { grid-area: password; }
 .smb-connection-form__auth {
   grid-area: auth;
-  display: grid;
+  display: flex;
   min-width: 0;
   height: 32px;
-  grid-template-columns: minmax(0, 1fr) minmax(72px, auto);
   align-items: center;
-  gap: 7px;
+  justify-content: flex-end;
+  gap: 10px;
 }
 .smb-connection-form--compact .smb-connection-form__guest,
 .smb-connection-form__guest {
   display: inline-flex;
   width: auto;
-  min-width: 0;
+  min-width: max-content;
   height: 32px;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: flex-start;
   gap: 7px !important;
@@ -275,9 +317,11 @@
 }
 .smb-connection-form__guest input { width: 16px !important; height: 16px !important; margin: 0; accent-color: var(--accent); }
 .smb-connection-form__auth > button {
+  box-sizing: border-box;
   height: 32px;
-  min-width: 72px;
-  padding: 0 10px;
+  min-width: 84px;
+  flex: 0 0 auto;
+  padding: 0 12px;
   border: 1px solid var(--accent);
   border-radius: 6px;
   color: #fff;
@@ -310,7 +354,7 @@
       "username password"
       "auth auth";
   }
-  .smb-connection-form__auth { grid-template-columns: minmax(0, 1fr) minmax(92px, .75fr); }
+  .smb-connection-form__auth { justify-content: flex-end; }
 }
 @media (max-width: 350px) {
   .smb-tree { grid-template-columns: minmax(0, 1fr); }

@@ -39,7 +39,7 @@ MAX_INPUT_FILES_JSON_CHARS = 96 * 1024 * 1024
 # lifetime so repeated runs of an edited workflow only recompute what changed.
 _node_result_cache: dict[str, tuple[dict[str, Any], pd.DataFrame | None, str | None, str | None]] = {}
 _CACHEABLE_FRAME_LIMIT = 20_000
-_CACHEABLE_NODE_PREFIXES = ("table.", "pandas.", "convert.", "plot.", "analysis.", "pulse.", "python.")
+_CACHEABLE_NODE_PREFIXES = ("table.", "pandas.", "convert.", "plot.", "analysis.", "pulse.", "python.", "generate.")
 
 
 def _clear_node_result_cache() -> None:
@@ -1395,6 +1395,55 @@ def _execute_node(
         table_result = value
     elif node_type == "io.read_csv_batch":
         value = _read_csv_batch(input_files, params)
+        table_result = value
+    elif node_type == "generate.empty_list":
+        value = []
+    elif node_type == "generate.empty_table":
+        raw_columns = params.get("columns", "")
+        if isinstance(raw_columns, list):
+            columns = [str(item).strip() for item in raw_columns if str(item).strip()]
+        else:
+            text = str(raw_columns or "").strip()
+            if text.startswith("["):
+                try:
+                    decoded = json.loads(text)
+                    columns = [str(item).strip() for item in decoded] if isinstance(decoded, list) else []
+                except Exception:
+                    columns = [item.strip() for item in text.split(",") if item.strip()]
+            else:
+                columns = [item.strip() for item in text.split(",") if item.strip()]
+        value = pd.DataFrame(columns=columns)
+        table_result = value
+    elif node_type == "generate.random_table":
+        count = int(params.get("count", 100))
+        if count < 1 or count > 1_000_000:
+            raise ValueError("Random table count must be between 1 and 1,000,000")
+        distribution = str(params.get("distribution", "uniform"))
+        seed = int(params.get("seed", 0))
+        rng = np.random.default_rng(seed)
+        if distribution == "normal":
+            mean = float(params.get("mean", 0))
+            std = float(params.get("std", 1))
+            if std < 0:
+                raise ValueError("Random normal std must be non-negative")
+            values = rng.normal(mean, std, size=count)
+        elif distribution == "integer":
+            minimum = int(float(params.get("min", 0)))
+            maximum = int(float(params.get("max", 1)))
+            if maximum < minimum:
+                raise ValueError("Random integer max must be greater than or equal to min")
+            values = rng.integers(minimum, maximum + 1, size=count)
+        else:
+            minimum = float(params.get("min", 0))
+            maximum = float(params.get("max", 1))
+            if maximum < minimum:
+                raise ValueError("Random uniform max must be greater than or equal to min")
+            values = rng.uniform(minimum, maximum, size=count)
+        index_column = str(params.get("indexColumn", "index") or "index").strip() or "index"
+        value_column = str(params.get("valueColumn", "value") or "value").strip() or "value"
+        if index_column == value_column:
+            raise ValueError("Random table indexColumn and valueColumn must be different")
+        value = pd.DataFrame({index_column: np.arange(count), value_column: values})
         table_result = value
     elif node_type == "table.concat":
         axis = int(params.get("axis", 0))

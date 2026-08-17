@@ -314,3 +314,6 @@ bash scripts/cloud-check.sh
 - 不提交密钥、本机路径、`node_modules`、`.tools`、SDK、构建产物或缓存。
 - 提交前运行 `pnpm check`；平台安装包还需执行相应的本机打包与设备验收。
 - 一个提交只处理一个可说明的目标，并同步更新进度与环境文档。
+### Developer references
+
+- AI Agent planning/validation contract: `docs/AI_AGENT_CONTRACT.md`

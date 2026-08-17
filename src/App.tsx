@@ -53,7 +53,7 @@ import {
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
 import { analyzeNotebook, analyzePythonSignature, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, resolveExecutionRuntime, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setExecutionRuntimePreference, startRemoteServer, stopRemoteServer, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RemoteAccessPolicy, type RemoteServerInfo, type RuntimePreference, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
-import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
+import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
@@ -3251,11 +3251,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         label: spec.label,
         description: spec.description,
         parameters: spec.parameters.map((parameter) => ({ key: parameter.key, kind: parameter.kind, required: parameter.required })),
-        inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
+        inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType, required: port.required })),
         outputPorts: spec.outputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
       })), {
-        nodes: nodes.map((node) => ({ id: node.id, label: node.data.label, nodeType: node.data.nodeType, parentId: node.parentId ?? node.data.canvasParentId, branch: node.data.branch, parameterKeys: nodeSpecFor(node)?.parameters.map((parameter) => parameter.key) ?? [], inputs: nodeSpecFor(node)?.inputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [], outputs: nodeSpecFor(node)?.outputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [] })),
+        nodes: nodes.map((node) => ({ id: node.id, label: node.data.label, nodeType: node.data.nodeType, parentId: node.parentId ?? node.data.canvasParentId, branch: node.data.branch, parameterKeys: nodeSpecFor(node)?.parameters.map((parameter) => parameter.key) ?? [], inputs: nodeSpecFor(node)?.inputPorts.map((port) => ({ id: port.id, type: port.valueType, required: port.required })) ?? [], outputs: nodeSpecFor(node)?.outputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [] })),
         edges: edges.map((edge) => ({ source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle ?? "output", targetHandle: edge.targetHandle ?? "input" })),
+        runtimePreference,
       });
       setAgentPlanText(JSON.stringify(nextPlan, null, 2));
       setAgentPlan(nextPlan);
@@ -3295,6 +3296,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         const permission = agentPermissionFor(operation);
         if (!agentSettings.permissions[permission]) throw new Error(`未授权 AI 执行：${permission}`);
       }
+      const validation = validateAgentPlan(nextPlan, {
+        nodes: nodes.map((node) => ({ id: node.id, nodeType: node.data.nodeType, parameterKeys: nodeSpecFor(node)?.parameters.map((parameter) => parameter.key) ?? [], inputs: nodeSpecFor(node)?.inputPorts.map((port) => ({ id: port.id, type: port.valueType, required: port.required })) ?? [], outputs: nodeSpecFor(node)?.outputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [] })),
+        edges: edges.map((edge) => ({ source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle ?? "output", targetHandle: edge.targetHandle ?? "input" })),
+        runtimePreference,
+      });
+      if (validation.length) throw new Error(validation.join("；"));
       setAgentPlan(nextPlan);
       setAgentPlanError(null);
       setMessage(`AI 计划已检查：${nextPlan.operations.length} 项操作等待确认`);
@@ -3326,6 +3333,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           const x = Number.isFinite(operation.x) ? Math.max(-10000, Math.min(10000, Number(operation.x))) : 80 + (draftNodes.length % 5) * 210;
           const y = Number.isFinite(operation.y) ? Math.max(-10000, Math.min(10000, Number(operation.y))) : 80 + Math.floor(draftNodes.length / 5) * 140;
           const node = createNode(operation.id, operation.nodeType, x, y, parameters);
+          if (operation.label?.trim()) node.data.label = operation.label.trim().slice(0, 80);
           node.data.canvasParentId = currentCanvasId ?? undefined;
           draftNodes.push(node);
         } else if (operation.type === "set_parameter") {
