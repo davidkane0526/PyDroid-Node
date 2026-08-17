@@ -26,6 +26,21 @@ assert.match(
   /& robocopy @robocopyArgs \| Out-Null/,
   "source synchronization should suppress robocopy EXTRA-file spam",
 );
+assert.match(
+  buildScript,
+  /Microsoft\\jdk-\*/,
+  "JDK discovery should scan Microsoft OpenJDK common install directories",
+);
+assert.match(
+  buildScript,
+  /Get-JavaHomesFromRegistry/,
+  "JDK discovery should inspect Windows registry/uninstall metadata",
+);
+assert.match(
+  buildScript,
+  /Get-Command \$commandName -All/,
+  "JDK discovery should inspect all Java/Javac commands instead of only the first PATH hit",
+);
 
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
 const buildGui = readFileSync(buildGuiPath, "utf8");

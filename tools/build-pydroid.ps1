@@ -668,11 +668,34 @@ function Get-PnpmVersion {
 # Java / Android SDK / Python
 # ---------------------------------------------------------------
 
-function Get-JavaMajorVersion {
+function Resolve-JavaHomeCandidate {
     param([string]$JavaHomePath)
     if ([string]::IsNullOrWhiteSpace($JavaHomePath)) { return $null }
-    $java = Join-Path $JavaHomePath "bin\java.exe"
-    if (-not (Test-Path -LiteralPath $java)) { return $null }
+
+    $candidate = [Environment]::ExpandEnvironmentVariables($JavaHomePath.Trim().Trim('"'))
+    if ([string]::IsNullOrWhiteSpace($candidate)) { return $null }
+
+    # 允许传入 JAVA_HOME、本身的 bin 目录，甚至 java.exe/javac.exe 完整路径。
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+        $leaf = Split-Path $candidate -Leaf
+        if ($leaf -match '^(java|javac)\.exe$') {
+            $candidate = Split-Path (Split-Path $candidate -Parent) -Parent
+        }
+    } elseif ((Split-Path $candidate -Leaf) -ieq 'bin' -and (Test-Path -LiteralPath (Join-Path $candidate 'java.exe'))) {
+        $candidate = Split-Path $candidate -Parent
+    }
+
+    try { return [IO.Path]::GetFullPath($candidate) } catch { return $candidate }
+}
+
+function Get-JavaMajorVersion {
+    param([string]$JavaHomePath)
+    $resolved = Resolve-JavaHomeCandidate $JavaHomePath
+    if ([string]::IsNullOrWhiteSpace($resolved)) { return $null }
+    $java = Join-Path $resolved "bin\java.exe"
+    $javac = Join-Path $resolved "bin\javac.exe"
+    # Android 构建需要完整 JDK，而不是只有 java.exe 的 JRE。
+    if (-not (Test-Path -LiteralPath $java) -or -not (Test-Path -LiteralPath $javac)) { return $null }
     try {
         $text = (& $java -version 2>&1 | Out-String)
         $m = [regex]::Match($text, 'version\s+"(?:(?:1)\.)?(\d+)')
@@ -687,14 +710,111 @@ function Test-JavaHome {
     return ($null -ne $major -and $major -eq $JdkMajor)
 }
 
-function Find-JavaHome {
-    # 显式环境变量优先，但必须匹配 GUI/参数指定的 JDK 主版本。
-    foreach ($envHome in @($env:PYDROID_JAVA_HOME, $env:JAVA_HOME)) {
-        if ($envHome -and (Test-JavaHome $envHome)) { return $envHome }
+function Get-JavaHomesFromRegistry {
+    $results = New-Object System.Collections.Generic.List[string]
+
+    # Oracle-compatible JavaSoft keys. Microsoft OpenJDK only writes these when
+    # FeatureOracleJavaSoft was selected, so this is useful but not sufficient alone.
+    foreach ($root in @(
+        'HKLM:\SOFTWARE\JavaSoft\JDK',
+        'HKLM:\SOFTWARE\WOW6432Node\JavaSoft\JDK',
+        'HKCU:\SOFTWARE\JavaSoft\JDK'
+    )) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+            try {
+                $javaHome = (Get-ItemProperty -LiteralPath $key.PSPath -Name JavaHome -ErrorAction Stop).JavaHome
+                if ($javaHome) { [void]$results.Add([string]$javaHome) }
+            } catch {}
+        }
     }
 
-    # 共享工具目录优先于系统 PATH，避免其它软件安装的 Java 抢占构建环境。
-    $candidates = @(
+    # Native EXE/MSI installers normally expose InstallLocation in Windows uninstall metadata.
+    foreach ($root in @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
+        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
+    )) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+            try {
+                $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
+                $displayName = [string]$item.DisplayName
+                $installLocation = [string]$item.InstallLocation
+                if ($displayName -match '(?i)(OpenJDK|JDK|Java)' -and $installLocation) {
+                    [void]$results.Add($installLocation)
+                }
+            } catch {}
+        }
+    }
+
+    return @($results | Select-Object -Unique)
+}
+
+function Get-JavaHomesFromCommonLocations {
+    $results = New-Object System.Collections.Generic.List[string]
+    $patterns = New-Object System.Collections.Generic.List[string]
+
+    if ($env:ProgramFiles) {
+        foreach ($relative in @(
+            'Microsoft\jdk-*',
+            'Eclipse Adoptium\jdk-*',
+            'Java\jdk-*',
+            'Amazon Corretto\jdk*',
+            'Zulu\zulu*'
+        )) { [void]$patterns.Add((Join-Path $env:ProgramFiles $relative)) }
+    }
+    if (${env:ProgramFiles(x86)}) {
+        foreach ($relative in @('Microsoft\jdk-*', 'Java\jdk-*')) {
+            [void]$patterns.Add((Join-Path ${env:ProgramFiles(x86)} $relative))
+        }
+    }
+    if ($env:LOCALAPPDATA) {
+        foreach ($relative in @(
+            'Programs\Microsoft\jdk-*',
+            'Programs\Eclipse Adoptium\jdk-*'
+        )) { [void]$patterns.Add((Join-Path $env:LOCALAPPDATA $relative)) }
+    }
+
+    foreach ($pattern in $patterns) {
+        foreach ($dir in @(Get-Item -Path $pattern -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer })) {
+            [void]$results.Add($dir.FullName)
+        }
+    }
+    return @($results | Select-Object -Unique)
+}
+
+function Get-JavaHomesFromPath {
+    $results = New-Object System.Collections.Generic.List[string]
+    try {
+        foreach ($javaPath in @(& where.exe java 2>$null)) {
+            if (-not [string]::IsNullOrWhiteSpace($javaPath)) {
+                $candidateHome = Split-Path (Split-Path $javaPath.Trim() -Parent) -Parent
+                if ($candidateHome) { [void]$results.Add($candidateHome) }
+            }
+        }
+    } catch {}
+
+    foreach ($commandName in @('java.exe', 'javac.exe')) {
+        foreach ($command in @(Get-Command $commandName -All -ErrorAction SilentlyContinue)) {
+            if ($command.Source) {
+                $candidateHome = Split-Path (Split-Path $command.Source -Parent) -Parent
+                if ($candidateHome) { [void]$results.Add($candidateHome) }
+            }
+        }
+    }
+    return @($results | Select-Object -Unique)
+}
+
+function Find-JavaHome {
+    # 1) 用户显式指定优先。
+    foreach ($envHome in @($env:PYDROID_JAVA_HOME, $env:JAVA_HOME)) {
+        $resolved = Resolve-JavaHomeCandidate $envHome
+        if ($resolved -and (Test-JavaHome $resolved)) { return $resolved }
+    }
+
+    # 2) 已经存在的共享工具链继续优先复用。
+    $sharedCandidates = @(
         (Join-Path $ToolRoot ("Java\temurin-{0}\current" -f $JdkMajor)),
         (Join-Path $ToolRoot ("Java\jdk-{0}" -f $JdkMajor)),
         (Join-Path $ToolRoot ("JDK\{0}" -f $JdkMajor)),
@@ -704,15 +824,22 @@ function Find-JavaHome {
         (Join-Path $WorkRoot ("PyDroid\tools\jdk-{0}" -f $JdkMajor)),
         (Join-Path $WorkRoot ("tools\jdk-{0}" -f $JdkMajor))
     )
-    foreach ($c in $candidates) {
-        if (Test-JavaHome $c) { return $c }
+    foreach ($candidate in $sharedCandidates) {
+        $resolved = Resolve-JavaHomeCandidate $candidate
+        if ($resolved -and (Test-JavaHome $resolved)) { return $resolved }
     }
 
-    $javaCommand = Get-Command java -ErrorAction SilentlyContinue
-    if ($javaCommand -and $javaCommand.Source) {
-        $candidateHome = Split-Path (Split-Path $javaCommand.Source -Parent) -Parent
-        if (Test-JavaHome $candidateHome) { return $candidateHome }
+    # 3) Windows 已安装 JDK。Microsoft OpenJDK 的 JAVA_HOME 是可选安装项，
+    #    所以即使环境变量没有配置，也必须主动检查注册表和常见安装目录。
+    $systemCandidates = @()
+    $systemCandidates += @(Get-JavaHomesFromRegistry)
+    $systemCandidates += @(Get-JavaHomesFromCommonLocations)
+    $systemCandidates += @(Get-JavaHomesFromPath)
+    foreach ($candidate in @($systemCandidates | Select-Object -Unique)) {
+        $resolved = Resolve-JavaHomeCandidate $candidate
+        if ($resolved -and (Test-JavaHome $resolved)) { return $resolved }
     }
+
     return $null
 }
 
@@ -1214,6 +1341,7 @@ function Build-Android {
     Write-Step "构建 Android debug APK ..."
     $jdk = Find-JavaHome
     if (-not $jdk) { $jdk = Install-Jdk }
+    Write-Step ("JDK {0}：{1}" -f $JdkMajor, $jdk)
     # sdkmanager 本身就需要 Java，因此必须在准备/补齐 Android SDK 之前启用刚找到的 JDK。
     $env:JAVA_HOME = $jdk
     $env:Path = "$(Join-Path $jdk 'bin');$env:Path"

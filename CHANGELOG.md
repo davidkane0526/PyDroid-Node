@@ -1,3 +1,10 @@
+## 1.4.15 (38) — Windows JDK 21 discovery fix — 2026-08-18
+
+- 修复已安装 Microsoft OpenJDK 21 仍被误判为“未找到 JDK 21”的问题。`JAVA_HOME` 不再是唯一可靠入口；构建器会主动扫描 Microsoft/Temurin/Java/Corretto/Zulu 常见安装目录、JavaSoft 注册表、Windows 卸载元数据，以及 PATH 中全部 `java.exe`/`javac.exe`。
+- JDK 候选会统一规范化，支持直接传入 JDK 根目录、`bin` 目录或 `java.exe`/`javac.exe` 路径；同时要求 `java.exe` 与 `javac.exe` 都存在，避免误把 JRE 当作 Android 构建 JDK。
+- Android 构建开始时明确打印实际采用的 `JDK 21：<路径>`；只有所有已安装候选都校验失败后才会下载 Microsoft OpenJDK 到共享工具目录。
+- 本地工作分支为 `local/jdk-detection-1.4.15`；`main` 保持原样未修改。
+
 ## 1.4.14 (37) — Build GUI stage visibility / quiet workspace sync — 2026-08-18
 
 - 构建 GUI 新增“当前步骤”与阶段进度条，直接显示读取配置、检查工具链、清理临时缓存、同步源码、检查 JS 依赖、Windows Desktop、Android Gradle/APK、复制产物与最终清理等阶段。

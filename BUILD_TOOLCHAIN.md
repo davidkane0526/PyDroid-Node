@@ -57,7 +57,7 @@ Node/JDK/Android SDK/Python are reusable machine tools. Electron, electron-build
 - Persistent pnpm store with `--prefer-offline`, retry, timeout and concurrency controls.
 - Shared npm/Corepack/Electron/electron-builder/Gradle/download caches.
 - `desktop-package.mjs` compatibility guard handles native `pnpm.exe` correctly instead of passing it to `node.exe`.
-- JDK major version is validated and the selected JDK is activated before `sdkmanager` runs.
+- JDK major version is validated and the selected JDK is activated before `sdkmanager` runs. JDK 21 discovery checks explicit environment variables, the shared toolchain, Windows Java/uninstall registry metadata, Microsoft/Temurin/Java/Corretto/Zulu common install folders, and all Java/Javac entries on PATH before any download is attempted.
 - Project source remains read-only; compatibility patches are applied only to the temporary workspace.
 
 ## Current PyDroid Electron policy

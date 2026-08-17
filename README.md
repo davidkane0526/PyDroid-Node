@@ -1,6 +1,6 @@
-> **1.4.14 (37)**：构建可视化修正版。在保留 1.4.13 Android-first 修复的基础上，构建 GUI 增加明确的当前阶段与阶段进度条；只有真实联网时才显示“正在下载”，临时 Android/Gradle/Python 构建缓存改为静默清理，源码同步不再刷屏显示成千上万条 `*EXTRA File`。
+> **1.4.15 (38)**：JDK 探测修正版。在保留 1.4.14 构建阶段可视化的基础上，构建器现在会主动识别系统已安装的 JDK 21，包括 Microsoft OpenJDK 默认安装目录、Windows 注册表/卸载信息以及 PATH 中的全部 Java/Javac；只有确实找不到兼容 JDK 21 时才下载。
 
-当前 Android 调试构建版本：`1.4.14 (37)`。当前完整工程工作分支为本地 `local/build-gui-1.4.14`，`main` 保持原样未修改。
+当前 Android 调试构建版本：`1.4.15 (38)`。当前完整工程工作分支为本地 `local/jdk-detection-1.4.15`，`main` 保持原样未修改。
 
 # PyDroid Flow
 
