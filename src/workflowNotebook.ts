@@ -816,7 +816,7 @@ export function serializeJupyterNotebookCells(name: string, cells: NotebookCell[
       ...notebookMetadata,
       ...(!importedMetadata ? {
         kernelspec: { display_name: "Python 3", language: "python", name: "python3" },
-        language_info: { name: "python", version: "3.12" },
+        language_info: { name: "python", version: "3.13" },
         pydroid_flow: { name, schemaVersion: 1 },
       } : {}),
     },

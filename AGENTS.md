@@ -59,7 +59,7 @@ When the environment is provisioned, run the portable validation suite with:
 bash scripts/cloud-check.sh
 ```
 
-On Windows, run `pnpm check`. Desktop packaging additionally uses `pnpm desktop:package`. Android packaging requires JDK 21, Python 3.12, and an Android SDK with platform 36. Set `PYDROID_PYTHON_EXECUTABLE` only when Python 3.12 is not discoverable as `py -3.12` on Windows or `python3.12` on Linux.
+On Windows, run `pnpm check`. Desktop packaging additionally uses `pnpm desktop:package`. Android packaging requires JDK 21, Python 3.13, and an Android SDK with platform 36. Set `PYDROID_PYTHON_EXECUTABLE` only when Python 3.13 is not discoverable as `py -3.13` on Windows or `python3.13` on Linux.
 
 Before delivery, at minimum:
 

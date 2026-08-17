@@ -350,7 +350,7 @@ function Add-AdvancedCombo([int]$row, [int]$labelCol, [string]$labelText, [strin
 }
 
 $nodeVersionBox = Add-AdvancedField 0 0 "Node 自动安装版本" $(if ($stored -and $stored.NodeVersion) { [string]$stored.NodeVersion } else { "24.19.0" })
-$pythonVersionBox = Add-AdvancedField 0 2 "Android Python 自动安装版本" $(if ($stored -and $stored.PythonVersion) { [string]$stored.PythonVersion } else { "3.12.10" })
+$pythonVersionBox = Add-AdvancedField 0 2 "Android Python 自动安装版本" $(if ($stored -and $stored.PythonVersion) { [string]$stored.PythonVersion } else { "3.13.15" })
 $androidApiBox = Add-AdvancedField 1 0 "Android API" $(if ($stored -and $null -ne $stored.AndroidApi) { [string]$stored.AndroidApi } else { "0" })
 $jdkMajorBox = Add-AdvancedField 1 2 "JDK 主版本（校验）" $(if ($stored -and $stored.JdkMajor) { [string]$stored.JdkMajor } else { "21" })
 $electronMirrorBox = Add-AdvancedField 2 0 "Electron 镜像" $(if ($stored -and $stored.ElectronMirror) { [string]$stored.ElectronMirror } else { "" })

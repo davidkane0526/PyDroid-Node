@@ -105,18 +105,18 @@ The underlying SMB host APIs and security model are intentionally unchanged in t
 
 ## Version
 
-Current local delivery: `1.4.15 (38)`.
+Current local delivery: `1.4.19 (42)`.
 
-The working copy is committed only on `local/jdk-detection-1.4.15`; `main` remains unchanged. No GitHub push is required.
+The working copy is committed only on `local/python313-ui-1.4.19`; `main` remains unchanged. No GitHub push is required.
 
 ## Validation already done by AI sandbox
 
-- Version synchronization check: passed for `1.4.15` / Android `versionCode 38`.
-- Dependency-free build-tool smoke: passed, including JDK-discovery invariants and the PowerShell `$HOME` collision guard.
-- Main application and desktop TypeScript were unchanged from 1.4.14. The 1.4.15 sandbox cannot execute the uploaded Windows-only TypeScript 7 platform binary on Linux; the previous 1.4.14 source type checks passed, and this version changes only PowerShell build tooling/version metadata/docs.
-- Python suite: 99 passed, 1 skipped; 1 additional environment assertion fails only because the sandbox has Python 3.13.5 while the project intentionally requires Python 3.12.x.
-- Static 1.4.15 build-tool invariants and `git diff --check`: passed. `src/main.tsx` does not activate the retired runtime/DOM patches.
-- The sandbox is offline and the uploaded `node_modules` is the Windows install, so Linux Vite/Vitest cannot load the missing native Rolldown binding. Android SDK is also absent. These are environment limits, not reported as successful builds.
+- Version synchronization check: target is `1.4.19` / Android `versionCode 42`.
+- Dependency-free build-tool smoke: passed, including the user-provided builder's launcher/JDK invariants.
+- Main and desktop TypeScript source checks pass with the sandbox's global TypeScript 5.8.3. The project's locked TypeScript 7 package in the available dependency cache contains only its Windows native platform package, so that exact binary cannot run on Linux.
+- Python 3.13.5 suite: 102 passed, 1 skipped. Python baseline is now 3.13.x on Android, desktop and build tooling.
+- `git diff --check`, version synchronization (`1.4.19`, Android `42`) and active-code scans for stale `3.12`/`python312` references pass. `src/main.tsx` does not activate the retired runtime/DOM patches.
+- Vitest/Vite cannot start in this Linux sandbox because the available `node_modules` is the Windows install and lacks the Linux Rolldown native binding. Android SDK is also absent. These environment limits are not reported as successful builds.
 
 ## Local validation requested from user
 

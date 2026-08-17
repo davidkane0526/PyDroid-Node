@@ -6,9 +6,9 @@ cd "$project_root"
 
 corepack enable
 pnpm install --frozen-lockfile
-python3.12 -m pip install --user -r requirements-dev.txt
+python3.13 -m pip install --user -r requirements-dev.txt
 pnpm test
-python3.12 -m pytest -q
+python3.13 -m pytest -q
 pnpm build
 
 if [[ -n "${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}" ]]; then

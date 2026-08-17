@@ -152,8 +152,8 @@ describe("workflow notebook DSL", () => {
     expect(source).not.toContain("Notebook exporter does not support logic.");
     expect(source).toContain("node_range = pd.DataFrame");
     expect(source).not.toMatch(/^range\s*=/m);
-    const localPython = join(process.cwd(), ".tools", "python312-runtime", process.platform === "win32" ? "python.exe" : "bin/python3.12");
-    const python = process.env.PYDROID_PYTHON_EXECUTABLE || (existsSync(localPython) ? localPython : "python3.12");
+    const localPython = join(process.cwd(), ".tools", "python313-runtime", process.platform === "win32" ? "python.exe" : "bin/python3.13");
+    const python = process.env.PYDROID_PYTHON_EXECUTABLE || (existsSync(localPython) ? localPython : "python3.13");
     const output = execFileSync(python, ["-c", source], { encoding: "utf8", timeout: 30_000, env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" } });
     expect(output).toContain("逻辑控制结果");
   }, 60_000);

@@ -18,14 +18,14 @@
 | --- | --- | --- | --- | --- |
 | Node.js | 当前检测 24.18.0，CI 使用 24 | 系统已有，具体位置由 `Get-Command node` 查询；本机便携运行时在 `D:/Code/Language/NodeJS` | Web/Electron 构建 | 系统原有，本项目不自动卸载 |
 | pnpm | 当前检测 11.16.0 | 系统已有 | JS 包管理 | 系统原有，本项目不自动卸载 |
-| Python | 3.12.10 | 系统安装，由 `py -3.12` 发现；可由 `PYDROID_PYTHON_EXECUTABLE` 覆盖 | 使用已校验的 python.org 安装器；Android/Chaquopy 构建要求完整标准库和 `venv` | 项目不自动卸载；如确认无其他项目使用，可在 Windows“已安装的应用”卸载 Python 3.12.10 |
-| Python 3.12 用户包修复依赖 | python-dateutil 2.9.0.post0、pytz 2026.3.post1、six 1.17.0 | Python 用户 site-packages，由 `py -3.12 -m site --user-site` 查询 | 补齐既有 `iztro-py` 与 `LunarCalendar` 的缺失依赖；`py -3.12 -m pip check` 已通过 | `py -3.12 -m pip uninstall -y python-dateutil pytz six`，但卸载后上述既有包会重新出现依赖缺失 |
+| Python | 3.13.15 | 系统安装，由 `py -3.13` 发现；可由 `PYDROID_PYTHON_EXECUTABLE` 覆盖 | 使用已校验的 python.org 安装器；Android/Chaquopy 构建要求完整标准库和 `venv` | 项目不自动卸载；如确认无其他项目使用，可在 Windows“已安装的应用”卸载 Python 3.13.15 |
+| Python 3.13 用户包修复依赖 | python-dateutil 2.9.0.post0、pytz 2026.3.post1、six 1.17.0 | Python 用户 site-packages，由 `py -3.13 -m site --user-site` 查询 | 补齐既有 `iztro-py` 与 `LunarCalendar` 的缺失依赖；`py -3.13 -m pip check` 已通过 | `py -3.13 -m pip uninstall -y python-dateutil pytz six`，但卸载后上述既有包会重新出现依赖缺失 |
 | Rust/Cargo | 当前检测 1.86.0 | 系统已有 | 当前桌面方案不依赖，仅记录检测结果 | 系统原有，本项目不自动卸载 |
 | JS 项目依赖 | 锁文件确定；Electron 43.3.0、electron-builder 26.15.3 | 用户指定缓存目录（本机为 OneDrive 之外的位置）；**不在项目目录内创建 `node_modules` 或任何联接** | `pnpm install`；含 React、Capacitor、Electron；仅允许锁定的 `electron-winstaller` 安装脚本 | 删除用户指定缓存目录 |
 | Windows SMB2 客户端 | `node-smb2` 1.3.5，MIT | 随 JS 项目依赖一并安装于用户指定缓存目录 | `pnpm add node-smb2@1.3.5`；供 Electron 主进程认证 SMB2、列目录与读取文件，不安装系统驱动或挂载盘符 | `pnpm remove node-smb2` |
 | Electron 下载缓存 | Electron 43.3.0 | 用户指定缓存目录（OneDrive 之外） | Electron 本地运行与打包 | 删除该缓存目录 |
 | Electron Builder 缓存 | electron-builder 26.15.3 所需工具 | 用户指定缓存目录（OneDrive 之外） | `pnpm desktop:package` 自动下载 Windows 打包工具 | 删除该缓存目录 |
-| Python 便携运行时 | 3.12.10 x64；依赖见 `requirements-dev.txt` | 用户指定文件夹（OneDrive 之外） | `pnpm env:windows` 下载 python.org 嵌入式包（官方 MD5 `FE8EF205F2E9C3BA44D0CF9954E1ABD3`、SHA-256 `4ACBED6DD1C744B0376E3B1CF57CE906F9DC9E95E68824584C8099A63025A3C3`）及固定 SHA-256 的 PyPA `get-pip.py`，不复制系统包 | 删除该目录 |
+| Python 便携运行时 | 3.13.15 x64；依赖见 `requirements-dev.txt` | 用户指定文件夹（OneDrive 之外） | `pnpm env:windows` 下载 Python 3.13.15 x64 嵌入式包（SHA-256 `D1F04D990AEE1253D8569E8E5104E30FA9F5FA830899F14843448872D936A2CF`）及固定 SHA-256 的 PyPA `get-pip.py`，不复制系统包 | 删除该目录 |
 | Android 本机配置 | 按 README 约束 | 环境变量（`JAVA_HOME`、`ANDROID_HOME`、`ANDROID_SDK_ROOT`）或 `android/local.properties` | APK 构建 | 删除 `android/local.properties`；SDK/JDK 仅在确认为本项目单独安装时删除 |
 | Microsoft Build of OpenJDK | 21.0.12 LTS，Windows x64 ZIP | `D:/Code/Language/Java`（用户指定，`JAVA_HOME` 指向此处） | 从 Microsoft 官方 `https://aka.ms/download-jdk/microsoft-jdk-21-windows-x64.zip` 下载并解压；供 Android Gradle/Chaquopy 构建使用 | 删除 `D:/Code/Language/Java` 下替换进去的 JDK |
 | Android SDK | platforms;android-36、build-tools;36.0.0、platform-tools、cmdline-tools | `D:/Code/Language/Android`（用户指定，`ANDROID_HOME`/`ANDROID_SDK_ROOT` 指向此处） | 使用 Android command-line tools 安装；供 APK 构建与模拟器使用 | 删除 `D:/Code/Language/Android` |

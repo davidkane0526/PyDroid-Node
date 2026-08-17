@@ -445,9 +445,9 @@ if (-not $WorkRoot) { $WorkRoot = Get-DefaultWorkRoot }
 if (-not $ToolRoot) { $ToolRoot = Get-DefaultToolRoot -ResolvedWorkRoot $WorkRoot }
 if (-not $CacheRoot) { $CacheRoot = Get-DefaultCacheRoot -ResolvedToolRoot $ToolRoot -ResolvedWorkRoot $WorkRoot }
 if (-not $NodeVersion) { $NodeVersion = if ($env:PYDROID_NODE_VERSION) { $env:PYDROID_NODE_VERSION } else { "24.19.0" } }
-if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { "3.12.10" } }
+if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { "3.13.15" } }
 $pythonVersionParts = $PythonVersion.Split(".")
-if ($pythonVersionParts.Count -lt 2) { throw "PythonVersion 必须至少包含主版本和次版本，例如 3.12.10。" }
+if ($pythonVersionParts.Count -lt 2) { throw "PythonVersion 必须至少包含主版本和次版本，例如 3.13.15。" }
 $pythonMajor = [int]$pythonVersionParts[0]
 $pythonMinor = [int]$pythonVersionParts[1]
 $pythonSeries = ("{0}.{1}" -f $pythonMajor, $pythonMinor)
@@ -1569,14 +1569,14 @@ function Clear-WorkspaceOutputs {
 }
 
 function Ensure-PythonRuntimeForDesktop {
-    $runtimeLink = Join-Path $workspace ".tools\python312-runtime"
-    $runtimeTarget = Join-Path $ToolRoot "Python\runtime-3.12"
+    $runtimeLink = Join-Path $workspace ".tools\python313-runtime"
+    $runtimeTarget = Join-Path $ToolRoot "Python\runtime-3.13"
     if (Test-Path -LiteralPath (Join-Path $runtimeLink "python.exe")) {
         Write-Step "复用 Python 便携运行时：$runtimeTarget"
         return
     }
-    Write-BuildStage -Percent 48 -Message "首次准备桌面 Python 3.12 运行时（可能需要联网下载）"
-    Write-Step "准备桌面版所需的 Python 3.12 便携运行时 ..."
+    Write-BuildStage -Percent 48 -Message "首次准备桌面 Python 3.13 运行时（可能需要联网下载）"
+    Write-Step "准备桌面版所需的 Python 3.13 便携运行时 ..."
     New-Item -ItemType Directory -Force -Path (Join-Path $workspace ".tools") | Out-Null
     New-Item -ItemType Directory -Force -Path $runtimeTarget | Out-Null
     if (-not (Test-Path -LiteralPath $runtimeLink)) {
@@ -1812,7 +1812,7 @@ function Configure-GradleNetwork {
 }
 
 function Build-Android {
-    Write-BuildStage -Percent 68 -Message "检查 Android JDK、SDK 与 Python 3.12"
+    Write-BuildStage -Percent 68 -Message "检查 Android JDK、SDK 与 Python 3.13"
     Write-Step "构建 Android debug APK ..."
 
     $jdk = Find-JavaHome

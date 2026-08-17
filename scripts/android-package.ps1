@@ -34,9 +34,9 @@ if ($env:PYDROID_PYTHON_EXECUTABLE) {
     }
 }
 else {
-    & py -3.12 -c "import sys; assert sys.version_info[:2] == (3, 12)"
+    & py -3.13 -c "import sys; assert sys.version_info[:2] == (3, 13)"
     if ($LASTEXITCODE -ne 0) {
-        throw "Python 3.12 not found. Set PYDROID_PYTHON_EXECUTABLE."
+        throw "Python 3.13 not found. Set PYDROID_PYTHON_EXECUTABLE."
     }
 }
 

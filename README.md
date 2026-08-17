@@ -1,6 +1,6 @@
-> **1.4.15 (38)**：JDK 探测修正版。在保留 1.4.14 构建阶段可视化的基础上，构建器现在会主动识别系统已安装的 JDK 21，包括 Microsoft OpenJDK 默认安装目录、Windows 注册表/卸载信息以及 PATH 中的全部 Java/Javac；只有确实找不到兼容 JDK 21 时才下载。
+> **1.4.19 (42)**：Python 运行时统一升级到 3.13，并细化设置、SMB 与 AI Agent 设置布局。Android 使用 Chaquopy 17.0 + Python 3.13；桌面/构建工具统一使用 Python 3.13.x。设置标题改为单行“设置 | 版本号”，SMB 访客/登录认证行统一高度，AI 审计移动到权限区右下方。
 
-当前 Android 调试构建版本：`1.4.15 (38)`。当前完整工程工作分支为本地 `local/jdk-detection-1.4.15`，`main` 保持原样未修改。
+当前 Android 调试构建版本：`1.4.19 (42)`。当前完整工程工作分支为本地 `local/python313-ui-1.4.19`，`main` 保持原样未修改。
 
 # PyDroid Flow
 
@@ -265,7 +265,7 @@ pnpm desktop:dev
 pnpm desktop:package
 ```
 
-Windows x64 便携版输出到 `release/PyDroid Flow 0.1.0.exe`。它包含 Python 3.12、
+Windows x64 便携版输出到 `release/PyDroid Flow 0.1.0.exe`。它包含 Python 3.13、
 pandas 和 Matplotlib，不要求目标电脑另行安装 Python。`release/` 是可再生成目录，不进入 Git。
 
 Android 快速开发：
@@ -286,10 +286,10 @@ pnpm android:emulator
 子进程，可直接读取源码更新。Notebook AST 识别器位于
 `python/pydroid_flow/notebook.py`，对应测试位于 `python/tests/test_notebook.py`。
 
-Android 打包需要 JDK 21、Python 3.12、Android SDK platform 36，以及 ARM64
-设备或模拟器。Windows 开发和打包使用项目内 `.tools/python312-runtime/`，该运行时会
+Android 打包需要 JDK 21、Python 3.13、Android SDK platform 36，以及 ARM64
+设备或模拟器。Windows 开发和打包使用项目内 `.tools/python313-runtime/`，该运行时会
 连同桌面安装包发布；开发时也可以通过
-`PYDROID_PYTHON_EXECUTABLE` 指定其他 Python 3.12 可执行文件。
+`PYDROID_PYTHON_EXECUTABLE` 指定其他 Python 3.13 可执行文件。
 `android:package` 优先使用 `JAVA_HOME`，否则使用项目内 `.tools/jdk-21/`，debug APK
 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
 本机 x86_64 模拟器通过 Google APIs 镜像的 NDK translation 运行 ARM64-only APK，

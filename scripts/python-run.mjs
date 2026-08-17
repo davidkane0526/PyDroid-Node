@@ -6,17 +6,17 @@ import process from "node:process";
 const root = path.resolve(import.meta.dirname, "..");
 const configured = process.env.PYDROID_PYTHON_EXECUTABLE?.trim();
 const localPython = process.platform === "win32"
-  ? path.join(root, ".tools", "python312-runtime", "python.exe")
-  : path.join(root, ".tools", "python312-runtime", "bin", "python");
+  ? path.join(root, ".tools", "python313-runtime", "python.exe")
+  : path.join(root, ".tools", "python313-runtime", "bin", "python");
 
 const candidates = configured
   ? [{ command: configured, prefix: [] }]
   : [
       ...(existsSync(localPython) ? [{ command: localPython, prefix: [] }] : []),
       ...(process.platform === "win32"
-        ? [{ command: "py", prefix: ["-3.12"] }]
+        ? [{ command: "py", prefix: ["-3.13"] }]
         : [
-            { command: "python3.12", prefix: [] },
+            { command: "python3.13", prefix: [] },
             { command: "python", prefix: [] },
           ]),
     ];
@@ -31,5 +31,5 @@ for (const candidate of candidates) {
   if (!result.error) process.exit(result.status ?? 1);
 }
 
-console.error("Python 3.12 was not found. Run `pnpm env:windows` or set PYDROID_PYTHON_EXECUTABLE.");
+console.error("Python 3.13 was not found. Run `pnpm env:windows` or set PYDROID_PYTHON_EXECUTABLE.");
 process.exit(1);

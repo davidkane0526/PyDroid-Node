@@ -7,9 +7,9 @@ PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflo
 ## 必备环境
 
 - Node.js 24、pnpm（版本以 `pnpm-lock.yaml` 为准）。
-- Python 3.12；无法通过 `py -3.12` 找到时，设置
-  `PYDROID_PYTHON_EXECUTABLE` 为 Python 3.12 可执行文件。
-- 桌面打包使用用户指定文件夹中的 `python312-runtime` 便携运行时。
+- Python 3.13；无法通过 `py -3.13` 找到时，设置
+  `PYDROID_PYTHON_EXECUTABLE` 为 Python 3.13 可执行文件。
+- 桌面打包使用用户指定文件夹中的 `python313-runtime` 便携运行时。
 - 工具、依赖、缓存和构建产物统一放在用户指定文件夹（OneDrive 之外，
   本机约定 `D:\Code\Language`），通过环境变量指向，不在项目内建立 Junction/联接。
 
@@ -78,7 +78,7 @@ pnpm android:live
 `android/` 下的 Java/Manifest/资源、Chaquopy 依赖、Gradle 配置、Capacitor 原生插件接口。
 Android Python 并非日常每次都重新编译；只有 APK 构建阶段才由 Chaquopy 重新收集和打包。
 
-打包前确认用户指定文件夹中的 `python312-runtime/python.exe` 存在，且能导入
+打包前确认用户指定文件夹中的 `python313-runtime/python.exe` 存在，且能导入
 `pandas`、`matplotlib` 和 `pytest`。输出目录 `release/` 是用户指定文件夹下的可再生成产物，
 不应提交或同步到 OneDrive。
 
@@ -89,5 +89,5 @@ Android Python 并非日常每次都重新编译；只有 APK 构建阶段才由
 - 工具/缓存目录移动后：更新对应的环境变量（`JAVA_HOME`、`ANDROID_HOME`、
   `GRADLE_USER_HOME` 等）即可，项目内不存在需要重建的链接。
 - Python 解释器启动失败：先运行 `pnpm env:windows`；开发时也可设置
-  `PYDROID_PYTHON_EXECUTABLE` 指向有效的 Python 3.12。
+  `PYDROID_PYTHON_EXECUTABLE` 指向有效的 Python 3.13。
 - 跨平台行为不一致：先运行 `pnpm check`，并在 `docs/progress.md` 记录尚未完成的差异。

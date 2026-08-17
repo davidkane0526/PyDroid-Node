@@ -1,3 +1,12 @@
+## 1.4.19 (42) — Python 3.13 / settings layout refinement — 2026-08-18
+
+- 项目 Python 基线由 3.12 升级到 3.13：Android Chaquopy 使用 Python 3.13，并固定 Android 可用的 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；Android 仍不声明 SciPy，因为 Chaquopy Android wheel 仓库目前没有 CPython 3.13 的 SciPy wheel。
+- Windows/桌面便携 Python 改为 3.13.15，开发依赖同步到 pandas 2.2.3、Matplotlib 3.10.8、SciPy 1.17.0；所有启动器、Notebook 元数据、测试、CI 配置和构建脚本统一使用 Python 3.13。
+- 设置页标题栏精简为单行“设置 | v1.4.19”，删除“界面、运行时与平台配置”副标题，不再为版本号额外占用纵向空间。
+- SMB 认证行重新对齐：访客复选框从“域”列左缘开始，字号/间距增大；登录按钮与密码输入框同为 32 px 高，并填充认证单元的剩余宽度。
+- AI Agent 设置将“审计”移动到右侧权限区下方的空白区域；窄窗口仍自动恢复单列，避免错位和溢出。
+- 本地工作分支为 `local/python313-ui-1.4.19`；`main` 保持原样未修改。
+
 ## 1.4.17 (40) — Agent contract / DeepSeek / UI / JDK reliability — 2026-08-18
 
 - SMB 登录区重新对齐：访客复选框与登录按钮保持 32 px 输入行高度，并在同一认证单元内紧凑排列，避免宽屏下被拉到两端。

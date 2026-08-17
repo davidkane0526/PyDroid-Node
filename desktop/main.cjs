@@ -737,13 +737,13 @@ function pythonCommand(scriptPath, pythonRoot) {
   if (process.platform === "win32") {
     const projectPython = app.isPackaged
       ? path.join(process.resourcesPath, "python-runtime", "python.exe")
-      : path.join(path.dirname(pythonRoot), ".tools", "python312-runtime", "python.exe");
+      : path.join(path.dirname(pythonRoot), ".tools", "python313-runtime", "python.exe");
     if (require("node:fs").existsSync(projectPython)) {
       return { executable: projectPython, args: [scriptPath] };
     }
-    return { executable: "py", args: ["-3.12", scriptPath] };
+    return { executable: "py", args: ["-3.13", scriptPath] };
   }
-  return { executable: "python3.12", args: [scriptPath] };
+  return { executable: "python3.13", args: [scriptPath] };
 }
 
 function runPythonRequest(payload) {
@@ -780,7 +780,7 @@ function runPythonRequest(payload) {
 
     child.stdout.on("data", collect(stdout));
     child.stderr.on("data", collect(stderr));
-    child.on("error", (error) => reject(new Error(`Unable to start Python 3.12: ${error.message}`)));
+    child.on("error", (error) => reject(new Error(`Unable to start Python 3.13: ${error.message}`)));
     child.on("close", (code) => {
       const errorText = Buffer.concat(stderr).toString("utf8").trim();
       if (code !== 0) {

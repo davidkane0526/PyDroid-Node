@@ -33,8 +33,8 @@ D:\Code\
   NodeJs\
   Java\jdk-21\
   Android\Sdk\
-  Python\3.12\
-  Python\runtime-3.12\
+  Python\3.13\
+  Python\runtime-3.13\
   BuildCache\
     downloads\
     pnpm-store\

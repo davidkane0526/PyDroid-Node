@@ -38,12 +38,12 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 ## 当前交付基线
 
-- 版本：`1.4.15 (38)`。
-- 工作分支：本地 `local/jdk-detection-1.4.15`；`main` 未修改。
-- 构建 GUI 已增加当前阶段/阶段进度显示；只有真实联网时才明确显示“正在下载”。临时工作区旧 Android/Gradle 构建缓存先静默清理，源码同步不再输出海量 `*EXTRA File`。
-- 已统一收口 Android 菜单关闭、交互式 PlotLightbox/旋转重排、白色绘图区、`plot.line` 默认 X/Y、SMB 两行三列与移动端网格、设置版本号/滑块、Agent 自适应布局和核心界面语言联动。
-- 云端检查：版本同步与 build-tool smoke 通过；主应用与桌面 TypeScript 类型检查通过。Python 测试 99 项通过、1 项跳过；另 1 项仅因云端 Python 3.13.5 与项目规定 Python 3.12 不一致而触发环境断言。
-- 云端无法联网下载 Linux 原生 Rolldown/TypeScript 7 绑定，也没有 Android SDK，因此本次不虚构 Vite/Vitest/Gradle 成功；Windows `node_modules` 已保留供本地直接复用，本地仍需用项目标准 Node 24 / Python 3.12 / JDK 21 / Android SDK 做最终打包与真机验证。
+- 版本：`1.4.19 (42)`。
+- 工作分支：本地 `local/python313-ui-1.4.19`；`main` 未修改。
+- Python 运行时统一到 3.13：Android 使用 Chaquopy 17.0 + Python 3.13；桌面/构建优先 Python 3.13.15。Android 固定 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；SciPy 仍仅用于桌面/开发环境。
+- 设置标题栏精简为“设置 | v1.4.19”；SMB 访客/登录认证行统一高度和排布；AI Agent 审计区移动到权限区右下方，窄桌面/移动端继续单列回退。
+- 1.4.17 的 Agent 节点契约、DeepSeek Chat Completions/JSON Output 兜底、原生随机/空表/空列表数据源，以及 JDK/构建器修复全部保留。
+- 云端验证：Python 3.13.5 测试 102 通过/1 跳过；主应用与桌面 TypeScript 源码检查通过；构建工具 smoke、版本同步、`git diff --check` 和 3.12 残留扫描通过。可用依赖缓存是 Windows 版本，Linux 无法加载 Rolldown 原生绑定，因此不虚构 Vite/Vitest/Android Gradle 成品构建成功。
 
 ## 已完成
 

@@ -1,4 +1,4 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $localRoot = if ($env:PYDROID_LOCAL_ROOT) { $env:PYDROID_LOCAL_ROOT } else { "D:\PyDroidTemp\PyDroid" }
@@ -10,7 +10,7 @@ $links = [ordered]@{
     ".tools\downloads" = "tools\downloads"
     ".tools\electron-cache" = "tools\electron-cache"
     ".tools\electron-builder-cache" = "tools\electron-builder-cache"
-    ".tools\python312-runtime" = "tools\python312-runtime"
+    ".tools\python313-runtime" = "tools\python313-runtime"
     "node_modules" = "dependencies\node_modules"
     "dist" = "generated\dist"
     "dist-desktop" = "generated\dist-desktop"

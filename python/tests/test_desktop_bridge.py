@@ -62,7 +62,7 @@ def test_desktop_bridge_contains_legacy_literal_parse_errors_in_result():
 
 def test_desktop_bridge_reports_python_environment():
     result = json.loads(execute_request({"action": "environment"}))
-    assert result["pythonVersion"].startswith("3.12")
+    assert result["pythonVersion"].startswith("3.13")
     assert any(item["name"] == "pandas" for item in result["packages"])
 
 

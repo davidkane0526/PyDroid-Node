@@ -3,13 +3,12 @@
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $toolsDirectory = Join-Path $projectRoot ".tools"
 $downloads = Join-Path $toolsDirectory "downloads"
-$runtime = Join-Path $toolsDirectory "python312-runtime"
+$runtime = Join-Path $toolsDirectory "python313-runtime"
 $python = Join-Path $runtime "python.exe"
-$archive = Join-Path $downloads "python-3.12.10-embed-amd64.zip"
+$archive = Join-Path $downloads "python-3.13.15-embed-amd64.zip"
 $getPip = Join-Path $downloads "get-pip.py"
 
-$archiveMd5 = "FE8EF205F2E9C3BA44D0CF9954E1ABD3"
-$archiveSha256 = "4ACBED6DD1C744B0376E3B1CF57CE906F9DC9E95E68824584C8099A63025A3C3"
+$archiveSha256 = "D1F04D990AEE1253D8569E8E5104E30FA9F5FA830899F14843448872D936A2CF"
 $getPipSha256 = "FB24E693BAB954209A063D90953621412CCAD4A500905A726286E038F508DDF6"
 
 function Get-FileDigest([string]$path, [string]$algorithm) {
@@ -32,14 +31,13 @@ function Invoke-DownloadWithRetry([string]$uri, [string]$outFile) {
 
 New-Item -ItemType Directory -Force -Path $downloads | Out-Null
 if (-not (Test-Path -LiteralPath $archive)) {
-    Invoke-DownloadWithRetry "https://www.python.org/ftp/python/3.12.10/python-3.12.10-embed-amd64.zip" $archive
+    Invoke-DownloadWithRetry "https://www.python.org/ftp/python/3.13.15/python-3.13.15-embed-amd64.zip" $archive
 }
 if (-not (Test-Path -LiteralPath $getPip)) {
     Invoke-DownloadWithRetry "https://bootstrap.pypa.io/get-pip.py" $getPip
 }
 
-if ((Get-FileDigest $archive "MD5") -ne $archiveMd5 -or
-    (Get-FileDigest $archive "SHA256") -ne $archiveSha256) {
+if ((Get-FileDigest $archive "SHA256") -ne $archiveSha256) {
     throw "Python embedded runtime checksum verification failed"
 }
 if ((Get-FileDigest $getPip "SHA256") -ne $getPipSha256) {
@@ -50,7 +48,7 @@ if (-not (Test-Path -LiteralPath $python)) {
     Expand-Archive -LiteralPath $archive -DestinationPath $runtime
 }
 
-$pathConfig = Join-Path $runtime "python312._pth"
+$pathConfig = Join-Path $runtime "python313._pth"
 $pathLines = @(Get-Content -LiteralPath $pathConfig)
 if ($pathLines -notcontains "Lib\site-packages") {
     $pathLines += "Lib\site-packages"
