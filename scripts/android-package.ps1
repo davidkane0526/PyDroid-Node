@@ -59,6 +59,31 @@ $env:ANDROID_HOME = $sdkRoot
 $env:ANDROID_SDK_ROOT = $sdkRoot
 $disableGradleDaemon = ([string]$env:PYDROID_DISABLE_GRADLE_DAEMON) -eq "1"
 
+$script:androidStage = 82
+function Write-AndroidStage {
+    param([int]$Percent, [string]$Message)
+    if ($Percent -lt $script:androidStage) { return }
+    $script:androidStage = $Percent
+    Write-Host ("@@PYDROID_STAGE@@|{0}|{1}" -f $Percent, $Message)
+}
+
+function Update-GradleProgressFromLine {
+    param([string]$Line)
+    if ([string]::IsNullOrWhiteSpace($Line)) { return }
+    if ($Line -match 'Chaquopy|generate.*Python|pip install|buildPython|Python requirements') {
+        Write-AndroidStage 85 "准备 Android Python / Chaquopy 依赖"
+    }
+    elseif ($Line -match '> Task :app:(compile|merge|process|check|javaPreCompile)|Kotlin|javac') {
+        Write-AndroidStage 86 "编译 Android Java/Kotlin 与资源"
+    }
+    elseif ($Line -match '> Task :app:(dex|mergeExtDex|mergeLibDex|package|assemble)|D8|R8|APK') {
+        Write-AndroidStage 87 "生成 DEX 并封装 Android APK"
+    }
+    elseif ($Line -match 'BUILD SUCCESSFUL') {
+        Write-AndroidStage 87 "Gradle 已完成，正在确认 APK 与回收构建客户端"
+    }
+}
+
 function Invoke-GradleLogged {
     param(
         [Parameter(Mandatory = $true)]
@@ -106,15 +131,46 @@ function Invoke-GradleLogged {
     if (-not $process.Start()) { throw "Unable to start Gradle command shell." }
 
     $seenLines = 0
+    $startedAt = [DateTime]::UtcNow
+    $lastHeartbeatAt = $startedAt
+    $buildSuccessfulAt = $null
+    $forcedSuccessfulExit = $false
     try {
         do {
             if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
                 $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
                 if ($lines.Count -gt $seenLines) {
-                    for ($i = $seenLines; $i -lt $lines.Count; $i++) { Write-Host ([string]$lines[$i]) }
+                    for ($i = $seenLines; $i -lt $lines.Count; $i++) {
+                        $line = [string]$lines[$i]
+                        Write-Host $line
+                        Update-GradleProgressFromLine -Line $line
+                        if ($line -match 'BUILD SUCCESSFUL') { $buildSuccessfulAt = [DateTime]::UtcNow }
+                    }
                     $seenLines = $lines.Count
                 }
             }
+
+            $now = [DateTime]::UtcNow
+            if (-not $process.HasExited -and ($now - $lastHeartbeatAt).TotalSeconds -ge 20) {
+                $elapsed = [Math]::Max(1, [int]($now - $startedAt).TotalSeconds)
+                Write-AndroidStage $script:androidStage ("Android Gradle 仍在运行 · 已用时 {0}s（可在构建窗口点击取消）" -f $elapsed)
+                $lastHeartbeatAt = $now
+            }
+
+            # A successful Gradle build has already produced the APK. On a small subset of
+            # Windows machines cmd.exe can remain alive after gradlew has printed success.
+            # Do not leave the GUI apparently frozen at 82% for minutes: after a grace period,
+            # close only the short-lived wrapper and continue once the APK is confirmed.
+            if (-not $process.HasExited -and $null -ne $buildSuccessfulAt -and ($now - $buildSuccessfulAt).TotalSeconds -ge 12) {
+                $debugApk = Join-Path $projectRoot "android\app\build\outputs\apk\debug\app-debug.apk"
+                if (Test-Path -LiteralPath $debugApk -PathType Leaf) {
+                    Write-Warning "Gradle 已报告 BUILD SUCCESSFUL 且 APK 已生成，但命令包装进程仍未退出；结束包装进程并继续。"
+                    try { $process.Kill(); [void]$process.WaitForExit(2000) } catch {}
+                    $forcedSuccessfulExit = $true
+                    break
+                }
+            }
+
             if (-not $process.HasExited) { Start-Sleep -Milliseconds 180 }
             try { $process.Refresh() } catch {}
         } while (-not $process.HasExited)
@@ -124,9 +180,14 @@ function Invoke-GradleLogged {
         if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
             $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
             if ($lines.Count -gt $seenLines) {
-                for ($i = $seenLines; $i -lt $lines.Count; $i++) { Write-Host ([string]$lines[$i]) }
+                for ($i = $seenLines; $i -lt $lines.Count; $i++) {
+                    $line = [string]$lines[$i]
+                    Write-Host $line
+                    Update-GradleProgressFromLine -Line $line
+                }
             }
         }
+        if ($forcedSuccessfulExit) { return 0 }
         return [int]$process.ExitCode
     }
     finally {
@@ -170,11 +231,13 @@ function Clear-PyDroidGradleDaemonState {
 
 Push-Location $projectRoot
 try {
+    Write-AndroidStage 82 "同步 Web 资源与 Capacitor Android 工程"
     pnpm android:sync
     if ($LASTEXITCODE -ne 0) {
         throw "Capacitor Android sync failed."
     }
 
+    Write-AndroidStage 84 "Capacitor 同步完成，启动 Gradle / Chaquopy 构建"
     Push-Location "android"
     try {
         # --no-watch-fs: with the local-storage junction layout (android/app/build ->
@@ -214,6 +277,8 @@ try {
     }
 
     $apk = Join-Path $projectRoot "android\app\build\outputs\apk\debug\app-debug.apk"
+    if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) { throw "Gradle returned success but Android debug APK was not found: $apk" }
+    Write-AndroidStage 87 "Android APK 已生成，准备返回主构建流程"
     Write-Host "Android debug APK: $apk"
 }
 finally {

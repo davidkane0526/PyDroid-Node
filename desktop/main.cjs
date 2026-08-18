@@ -672,7 +672,8 @@ function startDesktopRemoteServer(requirePin) {
             response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); return response.end(raw);
           } finally { remoteExecutionIds.delete(executionId); }
         }
-        if (url.pathname === "/api/cancel") return sendJson(response, 200, { cancelled: cancelPythonRequest(String(body.executionId ?? "")) });
+        if (url.pathname === "/api/cancel") return sendJson(response, 200, await cancelPythonRequestAndWait(String(body.executionId ?? "")));
+        if (url.pathname === "/api/execution-status") return sendJson(response, 200, hostExecutionStatus());
         if (url.pathname === "/api/environment") return response.end(await runPythonRequest({ action: "environment" }));
         if (url.pathname === "/api/analyze-notebook") return response.end(await runPythonRequest({ action: "analyze_notebook", notebook: String(body.notebook ?? "") }));
         if (url.pathname === "/api/analyze-signature") return response.end(await runPythonRequest({ action: "analyze_signature", code: String(body.code ?? "") }));
@@ -805,8 +806,28 @@ function runPythonRequest(payload) {
   });
 }
 
+function hostExecutionStatus() {
+  const executionId = activeWorkflowExecutionId || null;
+  return {
+    active: Boolean(executionId),
+    executionId,
+    source: executionId ? (remoteExecutionIds.has(executionId) ? "remote" : "local") : null,
+  };
+}
+
 function cancelPythonRequest(executionId) {
   return pythonProcessController.cancel(executionId);
+}
+
+async function cancelPythonRequestAndWait(executionId, waitMs = 2500) {
+  const id = String(executionId || "").trim();
+  const cancelled = cancelPythonRequest(id);
+  if (!cancelled) return { cancelled: false, released: activeWorkflowExecutionId !== id };
+  const deadline = Date.now() + Math.max(0, waitMs);
+  while (activeWorkflowExecutionId === id && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  return { cancelled: true, released: activeWorkflowExecutionId !== id };
 }
 
 function createWindow() {
@@ -951,7 +972,8 @@ app.whenReady().then(() => {
   ipcMain.on("pydroid:window-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle("pydroid:window-is-maximized", (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
   ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload));
-  ipcMain.handle("pydroid:cancel-workflow", (_event, executionId) => ({ cancelled: cancelPythonRequest(executionId) }));
+  ipcMain.handle("pydroid:cancel-workflow", async (_event, executionId) => cancelPythonRequestAndWait(executionId));
+  ipcMain.handle("pydroid:get-execution-status", () => hostExecutionStatus());
   ipcMain.handle("pydroid:get-environment", () => runPythonRequest({ action: "environment" }));
   ipcMain.handle("pydroid:analyze-notebook", (_event, notebook) => runPythonRequest({ action: "analyze_notebook", notebook }));
   ipcMain.handle("pydroid:analyze-signature", (_event, code) => runPythonRequest({ action: "analyze_signature", code }));

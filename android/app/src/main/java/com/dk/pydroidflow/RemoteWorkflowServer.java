@@ -183,12 +183,19 @@ final class RemoteWorkflowServer {
                 PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, () -> {
                     Python python = Python.getInstance();
                     PyObject module = python.getModule("pydroid_flow.engine");
-                    return module.callAttr("execute_workflow", workflow, csvText, inputFiles == null ? "[]" : inputFiles.toString()).toString();
+                    return module.callAttr("execute_workflow", workflow, csvText, inputFiles == null ? "[]" : inputFiles.toString(), executionId).toString();
                 });
                 sendJsonText(output, 200, executionController.await(execution));
             } finally { remoteExecutionIds.remove(executionId); }
         } else if ("/api/cancel".equals(request.path)) {
             sendJson(output, 200, new JSONObject().put("cancelled", executionController.cancel(payload.optString("executionId", ""))));
+        } else if ("/api/execution-status".equals(request.path)) {
+            String activeExecutionId = executionController.currentExecutionId();
+            JSONObject status = new JSONObject();
+            status.put("active", activeExecutionId != null);
+            status.put("executionId", activeExecutionId == null ? JSONObject.NULL : activeExecutionId);
+            status.put("source", activeExecutionId == null ? JSONObject.NULL : (remoteExecutionIds.contains(activeExecutionId) ? "remote" : "local"));
+            sendJson(output, 200, status);
         } else if ("/api/runtime-stats".equals(request.path)) {
             sendJson(output, 200, new JSONObject().put("memoryBytes", (long) android.os.Debug.getPss() * 1024L));
         } else if ("/api/environment".equals(request.path)) {
@@ -211,6 +218,10 @@ final class RemoteWorkflowServer {
         } else {
             sendJson(output, 404, new JSONObject().put("error", "Unknown API endpoint"));
         }
+    }
+
+    boolean ownsExecution(String executionId) {
+        return executionId != null && remoteExecutionIds.contains(executionId);
     }
 
     private JSONObject readSettings() {

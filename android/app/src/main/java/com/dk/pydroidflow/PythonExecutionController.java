@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -15,6 +15,10 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Owns workflow-execution lifecycle on Android. Utility Python calls deliberately stay outside this
  * controller so one long workflow cannot silently share lifecycle state with SMB/profile work.
+ *
+ * Cancellation is cooperative for the embedded Chaquopy interpreter: the logical wait returns
+ * immediately, but the execution slot remains occupied until the worker callable really exits.
+ * This prevents the UI from reporting idle and then surfacing EXECUTION_BUSY on an immediate rerun.
  */
 final class PythonExecutionController implements AutoCloseable {
     static final long DEFAULT_TIMEOUT_MS = 10L * 60L * 1000L;
@@ -26,11 +30,11 @@ final class PythonExecutionController implements AutoCloseable {
     static final class ControlledExecution {
         final String executionId;
         final long timeoutMs;
-        final Future<String> future;
+        final FutureTask<String> future;
         final AtomicReference<EndReason> endReason;
         volatile ScheduledFuture<?> timeoutFuture;
 
-        ControlledExecution(String executionId, long timeoutMs, Future<String> future, AtomicReference<EndReason> endReason) {
+        ControlledExecution(String executionId, long timeoutMs, FutureTask<String> future, AtomicReference<EndReason> endReason) {
             this.executionId = executionId;
             this.timeoutMs = timeoutMs;
             this.future = future;
@@ -70,14 +74,24 @@ final class PythonExecutionController implements AutoCloseable {
         }
         long timeoutMs = normalizeTimeout(requestedTimeoutMs);
         AtomicReference<EndReason> reason = new AtomicReference<>(EndReason.NONE);
-        Future<String> future = executionWorker.submit(callable);
-        ControlledExecution execution = new ControlledExecution(executionId, timeoutMs, future, reason);
-        if (active.putIfAbsent(executionId, execution) != null) {
-            future.cancel(true);
-            throw new IllegalStateException("Execution " + executionId + " is already active");
-        }
+        AtomicReference<ControlledExecution> holder = new AtomicReference<>();
+        FutureTask<String> task = new FutureTask<>(() -> {
+            try {
+                return callable.call();
+            } finally {
+                ControlledExecution execution = holder.get();
+                if (execution != null) cleanupWhenWorkerExited(execution);
+            }
+        });
+        ControlledExecution execution = new ControlledExecution(executionId, timeoutMs, task, reason);
+        holder.set(execution);
+        if (active.putIfAbsent(executionId, execution) != null) throw new IllegalStateException("Execution " + executionId + " is already active");
+        executionWorker.execute(task);
         execution.timeoutFuture = timeoutWorker.schedule(() -> {
-            if (reason.compareAndSet(EndReason.NONE, EndReason.TIMEOUT)) future.cancel(true);
+            if (reason.compareAndSet(EndReason.NONE, EndReason.TIMEOUT)) {
+                PythonExecutionCancellation.cancel(executionId);
+                task.cancel(true);
+            }
         }, timeoutMs, TimeUnit.MILLISECONDS);
         return execution;
     }
@@ -100,22 +114,28 @@ final class PythonExecutionController implements AutoCloseable {
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
             throw interrupted;
-        } finally {
-            cleanup(execution);
         }
     }
 
     boolean cancel(String executionId) {
         ControlledExecution execution = active.get(executionId == null ? "" : executionId.trim());
         if (execution == null) return false;
-        if (execution.endReason.compareAndSet(EndReason.NONE, EndReason.CANCELLED)) execution.future.cancel(true);
+        if (execution.endReason.compareAndSet(EndReason.NONE, EndReason.CANCELLED)) {
+            PythonExecutionCancellation.cancel(execution.executionId);
+            execution.future.cancel(true);
+        }
         return true;
     }
 
     int activeCount() { return active.size(); }
 
-    private void cleanup(ControlledExecution execution) {
+    String currentExecutionId() {
+        return active.isEmpty() ? null : active.keySet().iterator().next();
+    }
+
+    private void cleanupWhenWorkerExited(ControlledExecution execution) {
         active.remove(execution.executionId, execution);
+        PythonExecutionCancellation.clear(execution.executionId);
         ScheduledFuture<?> timeout = execution.timeoutFuture;
         if (timeout != null) timeout.cancel(false);
     }

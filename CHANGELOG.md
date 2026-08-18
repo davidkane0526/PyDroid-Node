@@ -1,13 +1,24 @@
-﻿## 1.4.28 (51) — Phase 2 ExecutionController — 2026-08-19
+﻿## 1.4.29 (52) — Phase 3 Workflow Core + Phase 2 reliability closure — 2026-08-19
+
+- Phase 2 cancellation race fixed: renderer cancellation now stays in `cancelling` until host cleanup completes. Windows keeps the execution slot until the Python child actually emits `close`; Android keeps its slot until the Chaquopy worker callable really exits. A user-visible idle state therefore means the host slot is actually reusable instead of allowing an immediate `EXECUTION_BUSY` rerun.
+- Host execution observability added end-to-end. Desktop and Android expose execution status locally and through Remote Web; when a browser starts a remote workflow, the host run control now shows **停止远程** and can cancel that execution instead of continuing to display **运行**.
+- Android pure-Python / Notebook cancellation is improved with an execution cancellation token and Python tracing checks. Native C/NumPy calls remain cooperative-only and are still not advertised as hard-killable.
+- `ui.alert` no longer reads stale `result` from the previous run. On the first run it computes only the upstream subgraph feeding the `content` port, then opens the dialog with that run's current value/plot/table preview.
+- Phase 3 begins the Workflow Core extraction: history/undo-redo, workflow snapshot/persistence signatures, guarded localStorage writes, per-tab dirty session state, graph slicing, structural validation, serialization helpers and migration infrastructure now live under `src/workflow-core/`. `App.tsx` consumes these services rather than owning parallel history/session implementations.
+- Android build progress no longer appears frozen at 82%: `android-package.ps1` emits nested 82/84/85/86/87 stages and a 20-second Gradle heartbeat. If Gradle has already printed `BUILD SUCCESSFUL` and the APK exists but the short-lived wrapper lingers, the wrapper is closed after a grace period. The existing GUI Cancel action remains valid during this stage and terminates the build tree plus PyDroid Gradle daemon.
+- Build script revision is now `1.4.29-dev-r5-phase3`; the Node >=24.19 gate and MSI-independent CPython NuGet fallback remain part of the dev baseline.
+- Added Workflow Core Vitest coverage, architecture smoke guards, Android cancellation-token regression coverage and stronger execution architecture checks.
+
+## 1.4.28 (51) — Phase 2 ExecutionController — 2026-08-19
 
 - `dev` 完成 Phase 2 执行生命周期重构：新增共享 `ExecutionController`，统一 `executionId`、`queued/running/cancelling/cancelled/success/failed/timeout` 状态、单活动执行策略、默认 10 分钟超时和可配置 timeout。
 - `App.tsx` 不再自行维护独立运行布尔状态，运行状态订阅共享控制器；原“运行”按钮在执行期间切换为“停止/取消中”，Notebook 与节点工作流共用同一执行状态与取消入口，UI 视觉结构不做重写。
 - Windows Desktop 新增 `desktop/execution/PythonProcessController.cjs`：每个 Python 工作流映射到独立 child process，取消/超时会清理 registry 并终止进程；Windows 额外使用 `taskkill /T /F` 清理进程树。Electron preload/IPC 增加 `cancelWorkflow(executionId)`。
-- Android 新增 `PythonExecutionController.java`：工作流执行从 SMB/Profile 共用 worker 中剥离，采用独立单线程 execution worker、Future registry 与 timeout scheduler；Capacitor 增加 `cancelWorkflow`。取消/超时后 Java Future/registry 会释放，不再占用平台能力 worker。
+- Android 新增 `PythonExecutionController.java`：工作流执行从 SMB/Profile 共用 worker 中剥离，采用独立单线程 execution worker、Future registry 与 timeout scheduler；Capacitor 增加 `cancelWorkflow`。1.4.29 起取消会立即结束调用方等待，但 registry 保留到实际 worker 退出，避免假空闲。
 - Remote Web 的 `/api/execute` 现在携带同一个 `executionId/timeoutMs`，Desktop 与 Android 均增加 `/api/cancel`；浏览器取消会同时 abort HTTP 请求并通知宿主取消真实 Python 任务。关闭 Remote Web 服务时会取消该服务仍在跟踪的远程执行。
 - Desktop/Android 宿主均拒绝第二个并发工作流，避免多个 UI/远程客户端同时覆盖结果或争用 Python；环境、签名分析等 utility Python 请求与工作流生命周期分离。
 - 新增 `src/execution-controller.test.ts`、`scripts/execution-architecture-smoke.mjs` 和真实子进程 `scripts/execution-controller-smoke.mjs`；Desktop 打包清单明确包含 `desktop/execution/**/*`。
-- Android 限制：Chaquopy 使用应用内嵌 Python，`Future.cancel(true)` 属于线程级 best-effort 中断；纯 Java/Future 生命周期可及时释放，但正在不可中断 native C/NumPy 调用中的 Python 线程无法像 Windows 独立子进程一样被安全强杀。后续如要求 Android 绝对强制终止，需要进程隔离架构，而不是继续增强 Future.cancel。
+- Android 限制：Chaquopy 使用应用内嵌 Python，`Future.cancel(true)` 属于线程级 best-effort 中断；1.4.29 增加纯 Python tracing cancellation，但正在不可中断 native C/NumPy 调用中的 Python 线程仍无法像 Windows 独立子进程一样被安全强杀。后续如要求 Android 绝对强制终止，需要进程隔离架构，而不是继续增强 Future.cancel。
 
 ## dev — Architecture & Reliability / Phase 1 PlatformAdapter — 2026-08-18
 

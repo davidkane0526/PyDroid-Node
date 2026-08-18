@@ -16,6 +16,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.ActivityCallback;
+import org.json.JSONObject;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.io.ByteArrayOutputStream;
@@ -586,7 +587,7 @@ public class PythonExecutorPlugin extends Plugin {
             PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, () -> {
                 Python python = Python.getInstance();
                 PyObject module = python.getModule("pydroid_flow.engine");
-                return module.callAttr("execute_workflow", workflow, csvText, inputFiles).toString();
+                return module.callAttr("execute_workflow", workflow, csvText, inputFiles, executionId).toString();
             });
             remoteRequests.execute(() -> {
                 try {
@@ -609,6 +610,16 @@ public class PythonExecutorPlugin extends Plugin {
         String executionId = call.getString("executionId", "").trim();
         JSObject response = new JSObject();
         response.put("cancelled", !executionId.isEmpty() && executionController.cancel(executionId));
+        call.resolve(response);
+    }
+
+    @PluginMethod
+    public void getExecutionStatus(PluginCall call) {
+        String executionId = executionController.currentExecutionId();
+        JSObject response = new JSObject();
+        response.put("active", executionId != null);
+        response.put("executionId", executionId == null ? JSONObject.NULL : executionId);
+        response.put("source", executionId == null ? JSONObject.NULL : (remoteServer != null && remoteServer.ownsExecution(executionId) ? "remote" : "local"));
         call.resolve(response);
     }
 

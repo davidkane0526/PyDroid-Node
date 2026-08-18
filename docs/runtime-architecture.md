@@ -69,7 +69,7 @@ Phase 2 adds `src/execution-controller.ts` as the renderer-side authority for on
 Host cancellation is intentionally platform-specific behind the runtime transport:
 
 - **Windows Desktop:** `desktop/execution/PythonProcessController.cjs` owns the `executionId -> child process` registry. Cancellation and timeout terminate the Python child and also use `taskkill /T /F` on Windows to clean descendant processes. Application shutdown cancels all remaining executions.
-- **Android:** `PythonExecutionController.java` owns a dedicated workflow executor, timeout scheduler and `Future` registry. Workflow execution is separated from the generic platform worker used by SMB/profile operations. `Future.cancel(true)` releases Java-side waiting/registry state and interrupts the workflow thread. Because Chaquopy embeds Python in the app process, this is **best-effort cancellation** for Python/native work; an uninterruptible native C/NumPy call cannot be safely hard-killed without moving Python execution into a separate Android process.
+- **Android:** `PythonExecutionController.java` owns a dedicated workflow executor, timeout scheduler and `Future` registry. Workflow execution is separated from the generic platform worker used by SMB/profile operations. `Future.cancel(true)` interrupts the workflow thread, while the execution registry remains occupied until the worker callable actually exits. Because Chaquopy embeds Python in the app process, this is **best-effort cancellation** for Python/native work; an uninterruptible native C/NumPy call cannot be safely hard-killed without moving Python execution into a separate Android process.
 - **LAN Remote Web:** the same `executionId` crosses `/api/execute`. Browser abort additionally calls `/api/cancel`, so cancellation reaches the host instead of merely stopping `fetch`.
 - **JavaScript runtime:** the shared controller can classify cancellation/timeout at the orchestration layer, but the current JavaScript engine executes synchronously in the renderer. A CPU-bound synchronous JS node cannot be forcibly interrupted while it blocks the event loop. Hard cancellation for JS requires future worker isolation and is not claimed by Phase 2.
 
@@ -121,3 +121,16 @@ The former JavaScript branch is a migration source, not a second application to 
 The authoritative architecture/reliability roadmap is `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`.
 
 The project should not return to separate Python-UI and JavaScript-UI branches.
+
+### Phase 2 reliability closure in 1.4.29
+
+- Cancellation handlers are asynchronous barriers: renderer lifecycle stays `cancelling` until the host reports that the matching `executionId` has been released.
+- Desktop `PythonProcessController` keeps an execution registered until the OS reports child `close`; cancellation uses `taskkill /T /F` on Windows and confirms closure before publishing idle.
+- Android keeps the controller slot until the Chaquopy worker callable exits. `PythonExecutionCancellation` plus Python tracing makes pure-Python/Notebook code cooperative; native C/NumPy remains best-effort.
+- `/api/execution-status` and native host `getExecutionStatus` make Remote Web work visible to the host UI. A remote run changes the host button to “停止远程”.
+
+## Workflow Core (Phase 3)
+
+`src/workflow-core/` is now the home for workflow state semantics which previously lived in `App.tsx`: snapshot persistence signatures, history, per-tab session/dirty state, guarded persistence, serialization, migration/validation and reusable graph commands. UI components should invoke these abstractions rather than recreate equivalent arrays/maps/localStorage logic.
+
+`ui.alert` currently uses the core `upstreamSubgraph` command to execute only the graph feeding its `content` port before opening the dialog. This fixes stale previous-run popup data without changing the visual UI.

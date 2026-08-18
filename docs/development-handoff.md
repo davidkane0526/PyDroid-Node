@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.28 (51)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController.
+- `dev`: `1.4.29 (52)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController reliability closure + Phase 3 Workflow Core extraction.
 
 Current working branch: `dev`.
 
@@ -84,6 +84,23 @@ Phase 1 production-boundary checks:
 
 The sandbox cannot currently download pnpm from npm (`EAI_AGAIN registry.npmjs.org`), therefore dependency-backed Vitest/Vite production builds cannot be rerun from a fresh clean ZIP in this environment. This is an environment/network limitation, not a passing build claim. The committed Vitest tests will run when dependencies are available.
 
+## Phase 3 cloud validation snapshot
+
+For the 1.4.29 Phase 3 delivery, the coding environment completed:
+
+- Python suite: `103 passed, 1 skipped`;
+- Desktop Python bridge: `6 passed`;
+- real desktop Python cancellation sentinel test: cancellation prevented the slow workflow from writing its late-completion marker;
+- Desktop process lifecycle smoke: success/cancel/timeout plus no-late-output cancellation;
+- Android `PythonExecutionController` JDK 21 harness: success, cancel, timeout, slot-retained-until-worker-exit;
+- Workflow Core runtime harness: history/session/upstream graph/migration;
+- strict TypeScript subset checks for Workflow Core, ExecutionController and Android plugin bridge;
+- full TS/TSX parser pass and Node CJS/MJS syntax checks;
+- build-tool, PlatformAdapter, ExecutionController and Workflow Core architecture smoke guards;
+- version sync, `git diff --check` and `git fsck`.
+
+A full dependency-backed Electron/Android package build cannot be claimed in the Linux cloud environment because it does not provide the user's Windows/Android SDK toolchain. The user remains responsible only for the final Windows/Android real-host run/build verification.
+
 ## User acceptance scope
 
 The user should only need to confirm real-host behavior:
@@ -108,7 +125,7 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 2 status — ExecutionController
 
-**Implemented on `dev` as 1.4.28 (51); pending user Windows/Android runtime acceptance.**
+**Implemented and user-tested; reliability closure is included in `dev` 1.4.29 (52).**
 
 Shared lifecycle:
 
@@ -123,7 +140,7 @@ Windows host:
 
 - `desktop/execution/PythonProcessController.cjs` owns Python child processes;
 - `desktop/main.cjs` maps executionId to the host process lifecycle;
-- timeout/cancel removes registry state and terminates the Python process; Windows also calls `taskkill /T /F`;
+- timeout/cancel terminates the Python process (`taskkill /T /F` on Windows) and keeps registry state until the child actually closes; the renderer remains `cancelling` until host release is confirmed;
 - `desktop/preload.cjs` / `desktop/renderer/bridge.ts` expose `cancelWorkflow`;
 - Desktop Remote Web exposes `/api/cancel` and cancels tracked remote executions when the server stops.
 
@@ -131,14 +148,35 @@ Android host:
 
 - `PythonExecutionController.java` owns a dedicated workflow executor, Future registry and timeout scheduler;
 - workflow execution no longer occupies the generic SMB/Profile `worker`;
-- `PythonExecutorPlugin.cancelWorkflow` and Remote `/api/cancel` use the same controller;
+- `PythonExecutorPlugin.cancelWorkflow` and Remote `/api/cancel` use the same controller; execution status is exposed locally and remotely so the host UI can show/stop browser-started work;
 - Remote Web and local Android execution therefore share one host concurrency policy.
 
-Known Android limitation: Chaquopy is embedded in the app process. `Future.cancel(true)` releases Java-side waiting/registry state and interrupts the execution thread, but native C/NumPy code may ignore thread interruption until it returns. Do not claim Android has Windows-style hard process termination. A strict hard-kill guarantee would require a separate process architecture.
+Known Android limitation: Chaquopy is embedded in the app process. Cancellation marks a shared token, interrupts the Future and keeps the host execution slot occupied until the worker really exits. Pure-Python/Notebook code also observes the token through tracing, but native C/NumPy code may ignore interruption until it returns. Do not claim Android has Windows-style hard process termination. A strict hard-kill guarantee would require a separate process architecture.
+
+## Phase 3 status — Workflow Core
+
+**Started on `dev` as 1.4.29 (52). UI layout is intentionally unchanged.**
+
+New core modules under `src/workflow-core/` own:
+
+- persistent `WorkflowSnapshot` cloning/signatures;
+- `WorkflowHistory` undo/redo/restore behavior;
+- `WorkspaceSessionStore` per-tab dirty/saved state;
+- guarded localStorage writes with quota/unavailable classification;
+- structural workflow validation and version migration infrastructure;
+- serialization helpers;
+- reusable upstream graph slicing, currently used by `ui.alert` preflight.
+
+The popup interaction fix deliberately computes only the ancestors feeding the alert `content` port before showing the dialog. The final workflow still executes after the user chooses a button, so side-effecting upstream nodes can execute again; avoid adding hidden side effects to alert-content preparation until the future command/cache layer can resume from a preflight result.
+
+### Android build 82% interpretation
+
+The old single 82% stage covered several expensive operations: production TypeScript/Vite build, Capacitor sync, Gradle startup, Chaquopy Python packaging, Java/resource compilation, DEX merge and APK packaging. `scripts/android-package.ps1` now emits 82/84/85/86/87 nested stage events and a 20-second heartbeat. The build GUI Cancel action is valid throughout this period and terminates the current build process tree and PyDroid Gradle daemon.
 
 ## Next development task
 
-After the user confirms Phase 2 host behavior, start **Phase 3 — Workflow Core**. Extract workflow document/session/history/serialization/migration behavior from `App.tsx` without redesigning the UI. Do not start Node Contract or broad host modularization before Workflow Core is stable.
+Continue Phase 3 by reducing the remaining workflow command/state ownership in `App.tsx` without changing UI layout. After the Workflow Core contract stabilizes, proceed to NodeSpec runtime metadata and Python/JavaScript parity tests.
+
 
 
 ### Production TypeScript vs test TypeScript

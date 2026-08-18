@@ -1069,3 +1069,34 @@ def test_linear_fit_computes_linregress_statistics():
     assert rows[0] == 2.0  # slope
     assert rows[1] == 0.0  # intercept
     assert abs(rows[2] - 1.0) < 1e-9  # r_value
+
+
+def test_android_notebook_cancel_trace_interrupts_pure_python(monkeypatch):
+    import sys
+    import types
+    from pydroid_flow import engine as engine_module
+
+    class Cancellation:
+        checks = 0
+
+        @classmethod
+        def isCancelled(cls, execution_id):
+            cls.checks += 1
+            return execution_id == "exec-cancel" and cls.checks >= 2
+
+    com = types.ModuleType("com")
+    dk = types.ModuleType("com.dk")
+    pydroidflow = types.ModuleType("com.dk.pydroidflow")
+    pydroidflow.PythonExecutionCancellation = Cancellation
+    monkeypatch.setitem(sys.modules, "com", com)
+    monkeypatch.setitem(sys.modules, "com.dk", dk)
+    monkeypatch.setitem(sys.modules, "com.dk.pydroidflow", pydroidflow)
+
+    def busy_python():
+        total = 0
+        for value in range(50_000):
+            total += value
+        return total
+
+    with pytest.raises(KeyboardInterrupt, match="cancelled"):
+        engine_module._run_with_cancel_trace("exec-cancel", busy_python)

@@ -22,6 +22,7 @@ export type PythonExecutorPlugin = {
   analyzeSignature(options: { code: string }): Promise<NativeExecutionResponse>;
   runWorkflow(options: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number }): Promise<NativeExecutionResponse>;
   cancelWorkflow(options: { executionId: string }): Promise<{ cancelled: boolean }>;
+  getExecutionStatus(): Promise<{ active: boolean; executionId: string | null; source: "local" | "remote" | null }>;
   pickCsv(options: { mode: FilePickMode }): Promise<{ files: Array<{ name: string; base64: string }> }>;
   listSmb(options: SmbConnection & { path: string }): Promise<{ entries: SmbEntry[] }>;
   scanSmbShares(options: Omit<SmbConnection, "share">): Promise<{ shares: string[] }>;

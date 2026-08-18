@@ -11,6 +11,7 @@ import type {
 export type DesktopRuntimeBridge = {
   runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number }): Promise<string>;
   cancelWorkflow(executionId: string): Promise<{ cancelled: boolean }>;
+  getExecutionStatus(): Promise<{ active: boolean; executionId: string | null; source: "local" | "remote" | null }>;
   getEnvironment(): Promise<string>;
   getRuntimeStats(): Promise<RuntimeStats>;
   analyzeNotebook(notebook: string): Promise<string>;

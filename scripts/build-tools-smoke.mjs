@@ -151,7 +151,7 @@ assert.match(
 
 assert.match(
   buildScript,
-  /\$script:BuildScriptRevision = "1\.4\.28-dev-r4-msi-independent"/,
+  /\$script:BuildScriptRevision = "1\.4\.29-dev-r5-phase3"/,
   "the build script should expose an explicit revision marker so stale-script runs are diagnosable",
 );
 assert.match(
@@ -367,6 +367,21 @@ assert.match(
   androidPackage,
   /Do not wait for descendants/,
   "Android packaging should exit after the Gradle client finishes instead of waiting for the reusable daemon",
+);
+assert.match(
+  androidPackage,
+  /@@PYDROID_STAGE@@\|\{0\}\|\{1\}/,
+  "Android packaging should emit nested progress stages between 82% and 88%",
+);
+assert.match(
+  androidPackage,
+  /Android Gradle 仍在运行 · 已用时/,
+  "long Android builds should emit a heartbeat instead of appearing frozen at 82%",
+);
+assert.match(
+  androidPackage,
+  /BUILD SUCCESSFUL 且 APK 已生成/,
+  "Android packaging should recover if the short-lived Gradle wrapper lingers after a confirmed successful APK build",
 );
 assert.match(
   androidPackage,

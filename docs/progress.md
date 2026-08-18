@@ -1,4 +1,14 @@
-﻿## 2026-08-19 — dev Phase 2 ExecutionController / 1.4.28 (51)
+﻿## 2026-08-19 — dev Phase 3 Workflow Core / 1.4.29 (52)
+
+- User runtime feedback closed a Phase 2 reliability gap: after Stop, UI no longer declares idle until the host execution slot is truly released. Windows waits for child-process `close`; Android retains the slot until the embedded Python worker exits.
+- Local host UI now observes externally-started Remote Web workflows through `getExecutionStatus` / `/api/execution-status`. The run button becomes “停止远程” and can cancel the browser-started execution.
+- Android adds `PythonExecutionCancellation` tokens and Python trace checks for pure-Python/Notebook cells. This improves the supplied slow-workflow test while preserving the documented limitation for uninterruptible native C/NumPy calls.
+- Popup node fix: `ui.alert` precomputes the current upstream `content` subgraph before opening, so the first run shows the current result rather than a previous-run preview.
+- Phase 3 introduces `src/workflow-core/`: snapshot model/signature, `WorkflowHistory`, `WorkspaceSessionStore`, guarded persistence, serialization, graph commands, validation and schema migration infrastructure.
+- Android packaging now emits nested progress and 20 s heartbeats within the previous broad 82% phase. 82% contains `pnpm build`/Capacitor sync followed by Gradle/Chaquopy/Java/resource/dex/APK work; the GUI Cancel action remains available and kills the build process tree plus Gradle daemon.
+- Version: 1.4.29; Android versionCode 52; build-script revision `1.4.29-dev-r5-phase3`.
+
+## 2026-08-19 — dev Phase 2 ExecutionController / 1.4.28 (51)
 
 - 用户已完成 Phase 1 Windows/Android 实机构建与运行验收，未发现问题，因此 Phase 1 PlatformAdapter 视为冻结接口。
 - `dev` 进入 Phase 2：新增共享 `src/execution-controller.ts`，统一 executionId、状态机、默认 10 分钟超时、取消与单活动执行策略。

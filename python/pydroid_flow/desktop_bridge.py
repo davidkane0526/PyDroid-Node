@@ -36,7 +36,7 @@ def execute_request(request: dict[str, Any]) -> str:
         raise ValueError("workflow and csvText are required")
     if not isinstance(input_files, str):
         raise ValueError("inputFiles must be a JSON string")
-    return execute_workflow(workflow, csv_text, input_files)
+    return execute_workflow(workflow, csv_text, input_files, str(request.get("executionId", "")))
 
 
 def main() -> int:

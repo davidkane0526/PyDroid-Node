@@ -3,6 +3,7 @@ import type { RuntimeId } from "./runtime/types";
 export const DEFAULT_EXECUTION_TIMEOUT_MS = 10 * 60 * 1000;
 export const MIN_EXECUTION_TIMEOUT_MS = 1_000;
 export const MAX_EXECUTION_TIMEOUT_MS = 24 * 60 * 60 * 1000;
+const CANCELLATION_CLEANUP_TIMEOUT_MS = 5_000;
 
 export type ExecutionPhase = "idle" | "queued" | "running" | "cancelling" | "cancelled" | "success" | "failed" | "timeout";
 
@@ -20,6 +21,7 @@ export type ExecutionControl = {
   executionId: string;
   timeoutMs: number;
   signal: AbortSignal;
+  registerCancellationHandler(handler: () => Promise<unknown> | unknown): () => void;
 };
 
 export class ExecutionBusyError extends Error {
@@ -44,6 +46,7 @@ export class ExecutionTimeoutError extends Error {
 }
 
 type Listener = (status: ExecutionStatus) => void;
+type CancelHandler = () => Promise<unknown> | unknown;
 type ActiveExecution = {
   control: ExecutionControl;
   abortController: AbortController;
@@ -52,6 +55,8 @@ type ActiveExecution = {
   timeoutHandle: ReturnType<typeof setTimeout>;
   timeoutTriggered: boolean;
   abortReject: (reason: unknown) => void;
+  cancelHandlers: Set<CancelHandler>;
+  cancellationPromise: Promise<void> | null;
 };
 
 function normalizeTimeout(timeoutMs?: number): number {
@@ -75,6 +80,10 @@ function looksLikeCancellation(error: unknown): boolean {
   return text.includes("[EXECUTION_CANCELLED]") || /execution[_ ]?cancelled/i.test(text);
 }
 
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export class ExecutionController {
   private active: ActiveExecution | null = null;
   private status: ExecutionStatus = { executionId: null, phase: "idle" };
@@ -94,6 +103,18 @@ export class ExecutionController {
     for (const listener of this.listeners) listener(this.getStatus());
   }
 
+  private beginCancellation(active: ActiveExecution, reason: Error): Promise<void> {
+    if (active.cancellationPromise) return active.cancellationPromise;
+    if (!active.abortController.signal.aborted) active.abortController.abort(reason);
+    const handlers = [...active.cancelHandlers];
+    active.cancellationPromise = (async () => {
+      if (!handlers.length) return;
+      const cleanup = Promise.allSettled(handlers.map((handler) => Promise.resolve().then(handler))).then(() => undefined);
+      await Promise.race([cleanup, wait(CANCELLATION_CLEANUP_TIMEOUT_MS)]);
+    })();
+    return active.cancellationPromise;
+  }
+
   async execute<T>(
     runtimeId: RuntimeId,
     runner: (control: ExecutionControl) => Promise<T>,
@@ -107,21 +128,33 @@ export class ExecutionController {
     const startedAt = Date.now();
     let abortReject: ((reason: unknown) => void) | null = null;
     const abortPromise = new Promise<never>((_resolve, reject) => { abortReject = reject; });
+    const cancelHandlers = new Set<CancelHandler>();
+    const control: ExecutionControl = {
+      executionId,
+      timeoutMs,
+      signal: abortController.signal,
+      registerCancellationHandler(handler) {
+        cancelHandlers.add(handler);
+        return () => cancelHandlers.delete(handler);
+      },
+    };
 
     this.publish({ executionId, phase: "queued", runtimeId, timeoutMs });
 
     const active: ActiveExecution = {
-      control: { executionId, timeoutMs, signal: abortController.signal },
+      control,
       abortController,
       runtimeId,
       startedAt,
       timeoutTriggered: false,
       abortReject: (reason) => abortReject?.(reason),
+      cancelHandlers,
+      cancellationPromise: null,
       timeoutHandle: setTimeout(() => {
         if (this.active !== active) return;
         active.timeoutTriggered = true;
         const error = new ExecutionTimeoutError(executionId, timeoutMs);
-        abortController.abort(error);
+        void this.beginCancellation(active, error);
         active.abortReject(error);
       }, timeoutMs),
     };
@@ -135,11 +168,13 @@ export class ExecutionController {
     } catch (error) {
       if (active.timeoutTriggered || error instanceof ExecutionTimeoutError || looksLikeTimeout(error)) {
         const timeoutError = error instanceof ExecutionTimeoutError ? error : new ExecutionTimeoutError(executionId, timeoutMs);
+        await this.beginCancellation(active, timeoutError);
         this.publish({ executionId, phase: "timeout", runtimeId, timeoutMs, startedAt, finishedAt: Date.now(), message: timeoutError.message });
         throw timeoutError;
       }
       if (abortController.signal.aborted || error instanceof ExecutionCancelledError || looksLikeCancellation(error)) {
         const cancelled = error instanceof ExecutionCancelledError ? error : new ExecutionCancelledError(executionId);
+        await this.beginCancellation(active, cancelled);
         this.publish({ executionId, phase: "cancelled", runtimeId, timeoutMs, startedAt, finishedAt: Date.now(), message: cancelled.message });
         throw cancelled;
       }
@@ -164,9 +199,8 @@ export class ExecutionController {
         startedAt: active.startedAt,
       });
       const error = new ExecutionCancelledError(active.control.executionId);
-      active.abortController.abort(error);
+      void this.beginCancellation(active, error);
       active.abortReject(error);
-      // The host adapters also receive this signal and terminate the underlying Python work.
     }
     return true;
   }

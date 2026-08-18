@@ -43,4 +43,24 @@ describe("ExecutionController", () => {
     expect(aborted).toBe(true);
     expect(controller.getStatus().phase).toBe("timeout");
   });
+  it("does not publish cancelled until host cancellation cleanup finishes", async () => {
+    const controller = new ExecutionController();
+    let releaseHost!: () => void;
+    const hostReleased = new Promise<void>((resolve) => { releaseHost = resolve; });
+    const run = controller.execute("python", async ({ registerCancellationHandler }) => {
+      registerCancellationHandler(() => hostReleased);
+      return new Promise<string>(() => {});
+    }, { executionId: "exec-host-release" });
+
+    expect(controller.cancel()).toBe(true);
+    await Promise.resolve();
+    expect(controller.getStatus().phase).toBe("cancelling");
+    expect(controller.isActive()).toBe(true);
+
+    releaseHost();
+    await expect(run).rejects.toBeInstanceOf(ExecutionCancelledError);
+    expect(controller.getStatus().phase).toBe("cancelled");
+    expect(controller.isActive()).toBe(false);
+  });
+
 });

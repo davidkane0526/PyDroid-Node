@@ -35,6 +35,24 @@ export type {
 } from "../../src/runtime";
 
 export type PythonEnvironment = { pythonVersion: string; packages: Array<{ name: string; version: string }> };
+
+export type HostExecutionStatus = { active: boolean; executionId: string | null; source: "local" | "remote" | null };
+
+function normalizeLifecycleError(error: unknown): never {
+  const message = error instanceof Error ? error.message : String(error ?? "执行失败");
+  const busy = message.match(/\[EXECUTION_BUSY\].*?已有工作流正在执行（([^）]+)）/);
+  if (busy) throw new ExecutionBusyError(busy[1]);
+  throw error;
+}
+
+async function waitForHostRelease(getStatus: () => Promise<HostExecutionStatus>, executionId: string, timeoutMs = 3000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const status = await getStatus().catch(() => ({ active: false, executionId: null, source: null } satisfies HostExecutionStatus));
+    if (!status.active || status.executionId !== executionId) return;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+  }
+}
 export type NotebookCellAnalysis = {
   index: number;
   recognized: boolean;
@@ -95,35 +113,44 @@ async function executePythonWorkflow(
     const platform = getPlatformAdapter();
     const executionId = control?.executionId ?? `remote-${Date.now().toString(36)}`;
     const timeoutMs = control?.timeoutMs ?? 10 * 60 * 1000;
-    const cancelRemote = () => { void platform.remote.request("/api/cancel", { executionId }).catch(() => undefined); };
-    control?.signal.addEventListener("abort", cancelRemote, { once: true });
+    const unregisterCancel = control?.registerCancellationHandler(async () => {
+      await platform.remote.request("/api/cancel", { executionId }).catch(() => undefined);
+      await waitForHostRelease(() => platform.remote.request<HostExecutionStatus>("/api/execution-status"), executionId);
+    });
     try {
-      const result = await platform.remote.request<ExecutionResult | ExecutionErrorResult>("/api/execute", {
-        workflow,
-        csvText,
-        inputFiles,
-        executionId,
-        timeoutMs,
-      }, { signal: control?.signal });
+      let result: ExecutionResult | ExecutionErrorResult;
+      try {
+        result = await platform.remote.request<ExecutionResult | ExecutionErrorResult>("/api/execute", {
+          workflow,
+          csvText,
+          inputFiles,
+          executionId,
+          timeoutMs,
+        }, { signal: control?.signal });
+      } catch (error) { normalizeLifecycleError(error); }
       if (result.status === "error") {
         throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, { ...result, runtimeId: "python" });
       }
       return { ...result, runtimeId: "python" };
     } finally {
-      control?.signal.removeEventListener("abort", cancelRemote);
+      unregisterCancel?.();
     }
   }
   const bridge = getDesktopBridge();
   if (!bridge) throw new Error("Windows desktop bridge is unavailable");
   const executionId = control?.executionId ?? `desktop-${Date.now().toString(36)}`;
   const timeoutMs = control?.timeoutMs ?? 10 * 60 * 1000;
-  const cancelDesktop = () => { void bridge.cancelWorkflow(executionId).catch(() => undefined); };
-  control?.signal.addEventListener("abort", cancelDesktop, { once: true });
+  const unregisterCancel = control?.registerCancellationHandler(async () => {
+    await bridge.cancelWorkflow(executionId).catch(() => undefined);
+    await waitForHostRelease(() => bridge.getExecutionStatus(), executionId);
+  });
   let response: string;
   try {
-    response = await bridge.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs });
+    try {
+      response = await bridge.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs });
+    } catch (error) { normalizeLifecycleError(error); }
   } finally {
-    control?.signal.removeEventListener("abort", cancelDesktop);
+    unregisterCancel?.();
   }
   const result = JSON.parse(response) as ExecutionResult | ExecutionErrorResult;
   if (result.status === "error") {
@@ -173,6 +200,20 @@ export async function executeWorkflowWithRuntime(
 ): Promise<ExecutionResult> {
   const runtime = getRuntime(runtimeId);
   return executionController.execute(runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control }), options);
+}
+
+export async function getHostExecutionStatus(): Promise<HostExecutionStatus> {
+  if (isRemoteRuntime()) return getPlatformAdapter().remote.request<HostExecutionStatus>("/api/execution-status");
+  return (await getDesktopBridge()?.getExecutionStatus?.()) ?? { active: false, executionId: null, source: null };
+}
+
+export async function cancelHostExecution(executionId: string): Promise<boolean> {
+  if (!executionId) return false;
+  if (isRemoteRuntime()) {
+    const result = await getPlatformAdapter().remote.request<{ cancelled: boolean }>("/api/cancel", { executionId });
+    return Boolean(result.cancelled);
+  }
+  return Boolean((await getDesktopBridge()?.cancelWorkflow?.(executionId))?.cancelled);
 }
 
 export function cancelActiveExecution(): boolean { return executionController.cancel(); }

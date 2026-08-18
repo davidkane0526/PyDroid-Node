@@ -79,3 +79,9 @@ Formal source ZIPs contain the project source tree and `.git`, but intentionally
 `DK_TOOL_ROOT` / `ToolRoot` 只用于发现和复用已经安装好的 Node、JDK、Android SDK 与完整 Python，构建器不会向其中创建、覆盖、下载或补装任何文件。缺失工具统一安装到 `WorkRoot\tools\<project>`；缓存使用 `CacheRoot`，默认不再落入 ToolRoot。
 
 Android 的 Chaquopy `buildPython` 必须是带 `venv`/`ensurepip` 的完整 Python 3.13。桌面 Electron 随包携带的 embeddable Python 3.13 没有 `venv`，两者不能混用。
+
+## Android 82% progress / cancellation
+
+The top-level 82% marker means control has entered `pnpm android:package`; it is not one Gradle compile task. It includes the production Vite build and Capacitor sync, then Gradle startup, Chaquopy Python packaging, Java/resources, DEX merge and APK packaging. `scripts/android-package.ps1` emits nested 82/84/85/86/87 markers and a heartbeat every 20 seconds so a long first build no longer appears frozen.
+
+The GUI Cancel button remains active during this stage. Cancellation terminates the current build PowerShell/pnpm/Gradle process tree and runs `gradlew --stop` for the isolated PyDroid Gradle home. If Gradle has already reported `BUILD SUCCESSFUL` and the APK exists but the short-lived command wrapper does not exit within its grace period, the wrapper is closed and the build proceeds.

@@ -51,12 +51,13 @@ import {
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
-import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, executeWorkflow, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
+import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelHostExecution, executeWorkflow, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getHostExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type HostExecutionStatus, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
 import { canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
+import { WorkflowHistory, WorkspaceSessionStore, cloneWorkflowSnapshot, createWorkspaceRuntimeState, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, workflowSnapshotSignature, writeStorage, type WorkflowSnapshot, type WorkspaceRuntimeState } from "./workflow-core";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -169,8 +170,6 @@ function loadAppSettings(): AppSettings {
   } catch { return defaults; }
 }
 
-type WorkflowSnapshot = { nodes: WorkflowNode[]; edges: Edge[]; requirements?: string[] };
-type WorkspaceRuntimeState = { snapshot: WorkflowSnapshot; savedSignature: string };
 type FlowLibraryEntry = { id: string; name: string; savedAt: string; document: string; uri?: string; external?: boolean; locked?: boolean };
 type GroupLibraryEntry = { id: string; name: string; description: string; nodes: WorkflowNode[]; edges: Edge[]; builtIn?: boolean; locked?: boolean };
 type SavedNodeEntry = { id: string; name: string; node: WorkflowNode; savedAt: string; locked?: boolean };
@@ -329,33 +328,6 @@ function loadNodeGroups(): Record<string, string[]> {
   } catch {
     return {};
   }
-}
-
-function cloneSnapshot(snapshot: WorkflowSnapshot): WorkflowSnapshot {
-  return JSON.parse(JSON.stringify(snapshot)) as WorkflowSnapshot;
-}
-
-function workflowSnapshotForPersistence(snapshot: WorkflowSnapshot): WorkflowSnapshot {
-  return {
-    nodes: snapshot.nodes.map((node) => {
-      const { selected: _selected, dragging: _dragging, measured: _measured, className: _className, ...rest } = node;
-      const { status: _status, ...data } = node.data;
-      return { ...rest, data } as WorkflowNode;
-    }),
-    edges: snapshot.edges.map((edge) => {
-      const { selected: _selected, ...rest } = edge;
-      return rest as Edge;
-    }),
-    requirements: [...(snapshot.requirements ?? [])],
-  };
-}
-
-function workflowSnapshotSignature(snapshot: WorkflowSnapshot): string {
-  return JSON.stringify(workflowSnapshotForPersistence(snapshot));
-}
-
-function workflowHasContent(snapshot: WorkflowSnapshot): boolean {
-  return snapshot.nodes.length > 0 || snapshot.edges.length > 0 || Boolean(snapshot.requirements?.length);
 }
 
 function downloadTextFile(text: string, name: string, type: string) {
@@ -810,8 +782,23 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [plotZoom, setPlotZoom] = useState(1);
   const [livePreview, setLivePreview] = useState(false);
   const [executionLifecycle, setExecutionLifecycle] = useState(() => getExecutionStatus());
-  const isRunning = ["queued", "running", "cancelling"].includes(executionLifecycle.phase);
+  const [hostExecutionLifecycle, setHostExecutionLifecycle] = useState<HostExecutionStatus>({ active: false, executionId: null, source: null });
+  const localExecutionActive = ["queued", "running", "cancelling"].includes(executionLifecycle.phase);
+  const hostExecutionActive = hostExecutionLifecycle.active && hostExecutionLifecycle.executionId !== executionLifecycle.executionId;
+  const isRunning = localExecutionActive || hostExecutionLifecycle.active;
+  const visibleExecutionId = executionLifecycle.executionId ?? hostExecutionLifecycle.executionId;
   useEffect(() => subscribeExecutionStatus(setExecutionLifecycle), []);
+  useEffect(() => {
+    if (remoteBrowser) return;
+    let stopped = false;
+    const refresh = async () => {
+      const status = await getHostExecutionStatus().catch(() => ({ active: false, executionId: null, source: null } satisfies HostExecutionStatus));
+      if (!stopped) setHostExecutionLifecycle(status);
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 400);
+    return () => { stopped = true; window.clearInterval(timer); };
+  }, [remoteBrowser]);
   const [resultDock, setResultDock] = useState<"right" | "bottom">("right");
   const [inspectorWidth, setInspectorWidth] = useState(() => loadAppSettings().inspectorWidth);
   const [inspectorHeight, setInspectorHeight] = useState(() => loadAppSettings().inspectorHeight);
@@ -889,6 +876,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [inputDialogNode, setInputDialogNode] = useState<WorkflowNode | null>(null);
   const [inputDialogValue, setInputDialogValue] = useState("");
   const [alertDialogNode, setAlertDialogNode] = useState<WorkflowNode | null>(null);
+  const [alertDialogPreview, setAlertDialogPreview] = useState<NodeExecutionPreview | undefined>(undefined);
   const interactiveRunContext = useRef<{ nodes: WorkflowNode[]; edges: Edge[]; completed: Set<string> } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const directoryInput = useRef<HTMLInputElement>(null);
@@ -956,10 +944,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const palettePointerDragHandled = useRef(false);
   const suppressNextNodeClick = useRef(false);
   const nextNodeNumber = useRef(1);
-  const history = useRef<WorkflowSnapshot[]>([]);
-  const future = useRef<WorkflowSnapshot[]>([]);
-  const historyMeta = useRef<Array<{ id: number; at: Date; summary: string }>>([]);
-  const futureMeta = useRef<Array<{ id: number; at: Date; summary: string }>>([]);
+  const historyManager = useRef(new WorkflowHistory(50));
   const [, setHistoryRevision] = useState(0);
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
@@ -970,7 +955,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const alertInputSourceId = alertDialogNode ? edges.find((edge) => edge.target === alertDialogNode.id && edge.targetHandle === "content")?.source : undefined;
   const alertInputSource = alertInputSourceId ? nodes.find((node) => node.id === alertInputSourceId) : undefined;
   const alertInputValue = alertInputSource?.data.nodeType === "ui.input_dialog" ? String(alertInputSource.data.parameters.value ?? "") : "";
-  const alertInputPreview: NodeExecutionPreview | undefined = (alertInputSourceId ? result?.nodeResults[alertInputSourceId] : undefined) ?? (alertInputValue ? alertInputValue.startsWith("data:image/") ? { kind: "plot", plotPngBase64: alertInputValue.split(",", 2)[1] ?? "" } : { kind: "value", text: alertInputValue } : undefined);
+  const alertInputPreview: NodeExecutionPreview | undefined = alertDialogPreview ?? (alertInputValue ? alertInputValue.startsWith("data:image/") ? { kind: "plot", plotPngBase64: alertInputValue.split(",", 2)[1] ?? "" } : { kind: "value", text: alertInputValue } : undefined);
   const selectedSignature = selectedNode?.data.nodeType === "custom.python_function"
     ? parsePythonFunctionSignature(String(selectedNode.data.parameters.code ?? ""))
     : undefined;
@@ -1081,14 +1066,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     return trail;
   }, [currentCanvasId, nodes]);
 
-  const currentSnapshot = () => cloneSnapshot({ nodes, edges, requirements });
+  const currentSnapshot = () => cloneWorkflowSnapshot({ nodes, edges, requirements });
 
   const pushHistory = () => {
-    history.current.push(currentSnapshot());
-    historyMeta.current.push({ id: Date.now() + historyMeta.current.length, at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
-    if (history.current.length > 50) { history.current.shift(); historyMeta.current.shift(); }
-    future.current = [];
-    futureMeta.current = [];
+    historyManager.current.push(currentSnapshot());
     setHistoryRevision((value) => value + 1);
   };
 
@@ -1104,34 +1085,24 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const undo = () => {
-    const previous = history.current.pop();
+    const previous = historyManager.current.undo(currentSnapshot());
     if (!previous) return;
-    future.current.push(currentSnapshot());
-    futureMeta.current.push({ id: Date.now(), at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
-    historyMeta.current.pop();
     restoreSnapshot(previous);
     setMessage("已撤销上一步");
     setHistoryRevision((value) => value + 1);
   };
 
   const redo = () => {
-    const next = future.current.pop();
+    const next = historyManager.current.redo(currentSnapshot());
     if (!next) return;
-    history.current.push(currentSnapshot());
-    historyMeta.current.push({ id: Date.now(), at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
-    futureMeta.current.pop();
     restoreSnapshot(next);
     setMessage("已重做上一步");
     setHistoryRevision((value) => value + 1);
   };
 
   const restoreHistoryAt = (index: number) => {
-    const snapshot = history.current[index];
+    const snapshot = historyManager.current.restoreAt(index, currentSnapshot());
     if (!snapshot) return;
-    future.current.push(currentSnapshot());
-    futureMeta.current.push({ id: Date.now(), at: new Date(), summary: `${nodes.length} 个节点 · ${edges.length} 条连线` });
-    history.current = history.current.slice(0, index);
-    historyMeta.current = historyMeta.current.slice(0, index);
     restoreSnapshot(snapshot);
     setHistoryOpen(false);
     setMessage("已恢复所选历史版本；可使用重做返回恢复前状态");
@@ -1139,20 +1110,21 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const clearHistory = () => {
-    history.current = [];
-    future.current = [];
-    historyMeta.current = [];
-    futureMeta.current = [];
+    historyManager.current.clear();
     setHistoryRevision((value) => value + 1);
     setMessage("历史记录已清空");
   };
 
+  const autosaveErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      localStorage.setItem(
-        autosaveKey,
-        JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements)),
-      );
+      const saved = writeStorage(localStorage, autosaveKey, JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements)));
+      if (!saved.ok) {
+        const message = saved.reason === "quota" ? "自动保存空间不足，请导出工作流后清理浏览器存储" : `自动保存失败：${saved.message}`;
+        if (autosaveErrorRef.current !== message) { autosaveErrorRef.current = message; setMessage(message); }
+      } else {
+        autosaveErrorRef.current = null;
+      }
     }, 400);
     return () => window.clearTimeout(timer);
   }, [autosaveKey, edges, nodes, requirements]);
@@ -2116,7 +2088,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     pushHistory();
     const id = `${selectedNode.data.nodeType.replaceAll(".", "-")}-${Date.now()}-copy`;
     const copy: WorkflowNode = {
-      ...cloneSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0],
+      ...cloneWorkflowSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0],
       id,
       selected: false,
       position: { x: selectedNode.position.x + 40, y: selectedNode.position.y + 40 },
@@ -2178,14 +2150,14 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") { setMessage("请先选择一个组合"); return; }
     const groupId = selectedNode.id;
     const memberIds = new Set(nodes.filter((node) => node.data.canvasParentId === groupId).map((node) => node.id));
-    const entry: GroupLibraryEntry = { id: `group-template-${Date.now()}`, name: selectedNode.data.label, description: String(selectedNode.data.parameters.description ?? ""), nodes: cloneSnapshot({ nodes: nodes.filter((node) => node.id === groupId || memberIds.has(node.id)), edges: [] }).nodes, edges: cloneSnapshot({ nodes: [], edges: edges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target)) }).edges };
+    const entry: GroupLibraryEntry = { id: `group-template-${Date.now()}`, name: selectedNode.data.label, description: String(selectedNode.data.parameters.description ?? ""), nodes: cloneWorkflowSnapshot({ nodes: nodes.filter((node) => node.id === groupId || memberIds.has(node.id)), edges: [] }).nodes, edges: cloneWorkflowSnapshot({ nodes: [], edges: edges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target)) }).edges };
     setGroupLibrary((current) => [entry, ...current]);
     setMessage(`已将“${entry.name}”保存到组合资源`);
   };
 
   const saveSelectedNodeToLibrary = () => {
     if (!selectedNode || selectedNode.data.nodeType === "workflow.group") { setMessage("请先选择一个普通节点"); return; }
-    const cleanNode = cloneSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0];
+    const cleanNode = cloneWorkflowSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0];
     cleanNode.data.canvasParentId = undefined;
     cleanNode.parentId = undefined;
     cleanNode.extent = undefined;
@@ -2209,7 +2181,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const insertSavedNode = (template: SavedNodeEntry) => {    pushHistory();
     const id = `${template.node.data.nodeType.replaceAll(".", "-")}-${Date.now()}-${nextNodeNumber.current++}`;
-    const node = cloneSnapshot({ nodes: [template.node], edges: [] }).nodes[0];
+    const node = cloneWorkflowSnapshot({ nodes: [template.node], edges: [] }).nodes[0];
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
     node.id = id;
     node.position = resolvedLayoutDirection === "vertical"
@@ -2233,7 +2205,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const offset = dropPosition
       ? { x: dropPosition.x - sourceGroup.position.x, y: dropPosition.y - sourceGroup.position.y }
       : { x: 90 + (nodes.length % 4) * 28, y: 90 + (nodes.length % 3) * 35 };
-    const nextNodes: WorkflowNode[] = repairedTemplate.nodes.map((node) => ({ ...cloneSnapshot({ nodes: [node], edges: [] }).nodes[0], id: mapping.get(node.id)!, selected: false, className: node.id === sourceGroup.id ? "node-entering node-entering--group" : undefined, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, data: { ...node.data, label: node.id === sourceGroup.id ? `${template.name}` : node.data.label, canvasParentId: node.id === sourceGroup.id ? currentCanvasId ?? undefined : targetGroupId, groupInputs: node.data.groupInputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), groupOutputs: node.data.groupOutputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), status: "idle" as const } }));
+    const nextNodes: WorkflowNode[] = repairedTemplate.nodes.map((node) => ({ ...cloneWorkflowSnapshot({ nodes: [node], edges: [] }).nodes[0], id: mapping.get(node.id)!, selected: false, className: node.id === sourceGroup.id ? "node-entering node-entering--group" : undefined, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, data: { ...node.data, label: node.id === sourceGroup.id ? `${template.name}` : node.data.label, canvasParentId: node.id === sourceGroup.id ? currentCanvasId ?? undefined : targetGroupId, groupInputs: node.data.groupInputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), groupOutputs: node.data.groupOutputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), status: "idle" as const } }));
     const nextEdges = repairedTemplate.edges.map((edge) => ({ ...edge, id: `${edge.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, source: mapping.get(edge.source)!, target: mapping.get(edge.target)! }));
     setNodes((current) => [...current, ...nextNodes]);
     window.setTimeout(() => setNodes((current) => current.map((node) => node.id === targetGroupId ? { ...node, className: undefined } : node)), 420);
@@ -2648,7 +2620,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
       setMessage(throughIndex === undefined ? `Notebook 已运行 ${cells.filter((cell) => cell.cellType === "code").length} 个代码单元格` : `已运行到第 ${throughIndex + 1} 个单元格`);
     } catch (error) {
-      if (error instanceof ExecutionCancelledError) {
+      if (error instanceof ExecutionBusyError) {
+        setMessage(`上一次执行仍在退出（${error.executionId}），请等待宿主释放后再运行`);
+        setExecutionError(null);
+        return;
+      } else if (error instanceof ExecutionCancelledError) {
         setNotebookError(null);
         setMessage("Notebook 执行已取消");
         return;
@@ -3136,6 +3112,43 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
   };
 
+  const workflowInputPayload = (workflowNodes: WorkflowNode[]) => {
+    let effectiveCsvText = csvText;
+    let effectiveInputFiles: Array<{ name: string; text: string; base64?: string }> = [];
+    if (csvBytes) {
+      const reader = workflowNodes.find((node) => ["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json"].includes(node.data.nodeType));
+      const requestedEncoding = String(reader?.data.parameters.encoding ?? "utf-8");
+      const encoding = requestedEncoding === "utf-8-sig" ? "utf-8" : requestedEncoding;
+      const errors = String(reader?.data.parameters.encodingErrors ?? "strict");
+      effectiveCsvText = reader ? new TextDecoder(encoding, { fatal: errors === "strict" }).decode(csvBytes) : "";
+      if (errors === "ignore") effectiveCsvText = effectiveCsvText.replaceAll("�", "");
+      effectiveInputFiles = csvFiles.map((file) => {
+        let text = "";
+        try { text = new TextDecoder(encoding, { fatal: errors === "strict" }).decode(file.bytes); } catch { if (reader) throw new Error(`${file.name} 无法按 ${encoding} 解码`); }
+        if (errors === "ignore") text = text.replaceAll("�", "");
+        return { name: file.name, text, base64: bytesToBase64(file.bytes) };
+      });
+    }
+    return { effectiveCsvText, effectiveInputFiles };
+  };
+
+  const prepareAlertPreview = async (alertNode: WorkflowNode, workflowNodes: WorkflowNode[], workflowEdges: Edge[]): Promise<NodeExecutionPreview | undefined> => {
+    const contentEdge = workflowEdges.find((edge) => edge.target === alertNode.id && edge.targetHandle === "content");
+    if (!contentEdge) return undefined;
+    const sourceNode = workflowNodes.find((node) => node.id === contentEdge.source);
+    if (sourceNode?.data.nodeType === "ui.input_dialog") {
+      const value = String(sourceNode.data.parameters.value ?? "");
+      if (!value) return undefined;
+      return value.startsWith("data:image/") ? { kind: "plot", plotPngBase64: value.split(",", 2)[1] ?? "" } : { kind: "value", text: value };
+    }
+    const slice = upstreamSubgraph(workflowNodes, workflowEdges, [contentEdge.source]);
+    if (!slice.nodes.length) return undefined;
+    setMessage(`正在准备“${alertNode.data.label}”的当前内容…`);
+    const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(slice.nodes);
+    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference);
+    return previewResult.nodeResults[contentEdge.source] ?? (previewResult.preview.totalRows || previewResult.preview.totalColumns ? { kind: "table", preview: previewResult.preview } : undefined);
+  };
+
   const submitInputDialog = async () => {
     if (!inputDialogNode) return;
     const kind = String(inputDialogNode.data.parameters.inputKind ?? "text");
@@ -3158,11 +3171,32 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const completed = new Set(context.completed).add(alertDialogNode.id);
     setNodes(nextNodes);
     setAlertDialogNode(null);
+    setAlertDialogPreview(undefined);
     await runPrototype(nextNodes, context.edges, completed);
+  };
+
+  const stopCurrentExecution = async () => {
+    if (localExecutionActive) {
+      if (cancelActiveExecution()) setMessage("正在取消执行并等待宿主释放…");
+      return;
+    }
+    const executionId = hostExecutionLifecycle.executionId;
+    if (!hostExecutionLifecycle.active || !executionId) return;
+    setMessage(`正在停止${hostExecutionLifecycle.source === "remote" ? "网页远程" : "宿主"}执行…`);
+    const cancelled = await cancelHostExecution(executionId).catch(() => false);
+    if (!cancelled) setMessage("宿主执行已结束或无法找到对应执行任务");
+    const status = await getHostExecutionStatus().catch(() => ({ active: false, executionId: null, source: null } satisfies HostExecutionStatus));
+    setHostExecutionLifecycle(status);
   };
 
   async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string) {
     if (["queued", "running", "cancelling"].includes(getExecutionStatus().phase)) return;
+    const hostStatus = await getHostExecutionStatus().catch(() => ({ active: false, executionId: null, source: null } satisfies HostExecutionStatus));
+    setHostExecutionLifecycle(hostStatus);
+    if (hostStatus.active) {
+      setMessage(`已有${hostStatus.source === "remote" ? "网页远程" : "宿主"}工作流正在执行${hostStatus.executionId ? `（${hostStatus.executionId}）` : ""}`);
+      return;
+    }
     const fullOrder = nodesInExecutionOrder(workflowNodes, workflowEdges);
     const stopAt = requestedStopAt ?? (debugMode ? fullOrder.find((node) => debugBreakpoints.has(node.id))?.id : undefined);
     if (stopAt) {
@@ -3184,7 +3218,16 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         setInputDialogNode(interactiveNode);
         setInputDialogValue(String(interactiveNode.data.parameters.value ?? ""));
       } else {
-        setAlertDialogNode(interactiveNode);
+        try {
+          setAlertDialogPreview(await prepareAlertPreview(interactiveNode, workflowNodes, workflowEdges));
+          setAlertDialogNode(interactiveNode);
+        } catch (error) {
+          if (error instanceof ExecutionCancelledError) { setMessage("弹窗内容计算已取消"); return; }
+          if (error instanceof ExecutionBusyError) { setMessage(`上一次执行仍在退出（${error.executionId}），请稍后重试`); return; }
+          const detail = error instanceof Error ? error.message : "弹窗内容计算失败";
+          setExecutionError({ title: "弹窗内容计算失败", message: detail });
+          setMessage(detail);
+        }
       }
       return;
     }
@@ -3201,22 +3244,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setErrorDetailOpen(false);
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
     try {
-      let effectiveCsvText = csvText;
-      let effectiveInputFiles: Array<{ name: string; text: string; base64?: string }> = [];
-      if (csvBytes) {
-        const reader = workflowNodes.find((node) => ["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json"].includes(node.data.nodeType));
-        const requestedEncoding = String(reader?.data.parameters.encoding ?? "utf-8");
-        const encoding = requestedEncoding === "utf-8-sig" ? "utf-8" : requestedEncoding;
-        const errors = String(reader?.data.parameters.encodingErrors ?? "strict");
-        effectiveCsvText = reader ? new TextDecoder(encoding, { fatal: errors === "strict" }).decode(csvBytes) : "";
-        if (errors === "ignore") effectiveCsvText = effectiveCsvText.replaceAll("�", "");
-        effectiveInputFiles = csvFiles.map((file) => {
-          let text = "";
-          try { text = new TextDecoder(encoding, { fatal: errors === "strict" }).decode(file.bytes); } catch { if (reader) throw new Error(`${file.name} 无法按 ${encoding} 解码`); }
-          if (errors === "ignore") text = text.replaceAll("�", "");
-          return { name: file.name, text, base64: bytesToBase64(file.bytes) };
-        });
-      }
+      const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(workflowNodes);
       const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference);
       setResult(nextResult);
       setExecutionError(null);
@@ -3225,7 +3253,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const completed = new Set(nextResult.executionOrder ?? workflowNodes.map((node) => node.id));
       setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: completed.has(node.id) ? "success" : "idle" } })));
     } catch (error) {
-      if (error instanceof ExecutionCancelledError) {
+      if (error instanceof ExecutionBusyError) {
+        setMessage(`上一次执行仍在退出（${error.executionId}），请等待宿主释放后再运行`);
+        setExecutionError(null);
+        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+      } else if (error instanceof ExecutionCancelledError) {
         setMessage("执行已取消");
         setExecutionError(null);
         setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
@@ -3483,10 +3515,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <input ref={notebookInput} className="file-input" type="file" accept=".ipynb,application/x-ipynb+json,application/json" onChange={importNotebook} />
           <input ref={templateInput} className="file-input" type="file" accept=".json,application/json" onChange={importCustomTemplate} />
           <input ref={settingsInput} className="file-input" type="file" accept=".json,application/json" onChange={importSettings} />
-          <button className="button secondary icon-button topbar-tool-action" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={history.current.length === 0} onClick={undo}>
+          <button className="button secondary icon-button topbar-tool-action" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={!historyManager.current.canUndo} onClick={undo}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5" /><path d="M4 12h9a7 7 0 0 1 7 7" /></svg>
           </button>
-          <button className="button secondary icon-button topbar-tool-action" title="重做（Ctrl+Y）" aria-label="重做" disabled={future.current.length === 0} onClick={redo}>
+          <button className="button secondary icon-button topbar-tool-action" title="重做（Ctrl+Y）" aria-label="重做" disabled={!historyManager.current.canRedo} onClick={redo}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M20 12h-9a7 7 0 0 0-7 7" /></svg>
           </button>
           <button className="button secondary icon-button topbar-tool-action" title="AI Agent" aria-label="AI Agent" onClick={() => setAgentPanelOpen(true)}>
@@ -3506,8 +3538,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               <svg viewBox="0 0 24 24" aria-hidden="true"><g className="mobile-tools-overflow__dots"><circle cx="6" cy="9" r="1.35"/><circle cx="12" cy="9" r="1.35"/><circle cx="18" cy="9" r="1.35"/></g><path className="mobile-tools-overflow__chevron" d="m8.75 15.5 3.25 3.1 3.25-3.1"/></svg>
             </button>
             {mobileToolsOpen && <div className="mobile-tools-menu" role="menu">
-              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={history.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>{ui("撤销", "Undo")}</span></button>
-              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={future.current.length === 0}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>{ui("重做", "Redo")}</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={!historyManager.current.canUndo}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>{ui("撤销", "Undo")}</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={!historyManager.current.canRedo}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>{ui("重做", "Redo")}</span></button>
               <button type="button" onClick={() => { setMobileToolsOpen(false); setAgentPanelOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.5 5.3L19 10l-5.5 1.7L12 17l-1.5-5.3L5 10l5.5-1.7L12 3Z"/><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"/></svg><span>AI Agent</span></button>
               <button type="button" onClick={() => { setMobileToolsOpen(false); setSettingsOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="11" cy="18" r="1.7"/></svg><span>{ui("设置", "Settings")}</span></button>
               {canHostRemoteServer() && <button type="button" onClick={() => { setMobileToolsOpen(false); void toggleRemoteServer(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6"/></svg><span>{remoteServer ? "关闭局域网" : "开启局域网"}</span></button>}
@@ -3521,7 +3553,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <button className="button secondary optional-action topbar-file-action" onClick={requestNewWorkflow}>{ui("新建", "New")}</button>
           <button className="button secondary optional-action topbar-file-action" onClick={() => workflowInput.current?.click()}>{ui("导入", "Import")}</button>
           <button className="button secondary optional-action topbar-file-action" onClick={saveWorkflow}>{ui("保存", "Save")}</button>
-          <button className="button primary topbar-run" title={isRunning ? `停止当前执行${executionLifecycle.executionId ? ` · ${executionLifecycle.executionId}` : ""}` : "运行工作流"} onClick={() => { if (isRunning) { if (cancelActiveExecution()) setMessage("正在取消执行…"); } else void runPrototype(); }}>{isRunning ? (executionLifecycle.phase === "cancelling" ? ui("取消中…", "Cancelling…") : ui("停止", "Stop")) : ui("运行", "Run")}</button>
+          <button className="button primary topbar-run" title={isRunning ? `停止当前执行${visibleExecutionId ? ` · ${visibleExecutionId}` : ""}` : "运行工作流"} onClick={() => { if (isRunning) void stopCurrentExecution(); else void runPrototype(); }}>{isRunning ? (executionLifecycle.phase === "cancelling" ? ui("取消中…", "Cancelling…") : hostExecutionActive ? ui("停止远程", "Stop remote") : ui("停止", "Stop")) : ui("运行", "Run")}</button>
         </div>
       </header>
 
@@ -3809,7 +3841,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
       </footer>
       {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
-      {historyOpen && <HistoryDialog entries={historyMeta.current} futureCount={future.current.length} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
+      {historyOpen && <HistoryDialog entries={historyManager.current.entries} futureCount={historyManager.current.futureCount} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
       {smbOpen && <SmbDialog open={smbOpen} language={language} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
       {remoteAccessDialog && <RemoteAccessDialog open={remoteAccessDialog} requirePin={remoteRequirePin} onRequirePin={setRemoteRequirePin} onClose={() => setRemoteAccessDialog(false)} onStart={() => void startConfiguredRemoteServer()} />}
       {remoteBrowser && !remotePaired && <RemotePairDialog policy={remoteAccessPolicy} error={remoteAccessError} pinInput={remotePinInput} onPinChange={(value) => { setRemotePinInput(value.replace(/\D/g, "").slice(0, 4)); setRemoteAccessError(null); }} onSubmitPin={() => void submitRemotePin()} />}
@@ -4120,11 +4152,11 @@ function MultiTabWorkspace() {
     if (isNativePlatform()) void setSystemTheme(resolvedTheme === "dark").catch(() => undefined);
   }, [resolvedTheme]);
   // A new app session always starts from one predictable, empty workspace.
-  const emptySnapshot: WorkflowSnapshot = { nodes: [], edges: [], requirements: [] };
-  const emptyRuntimeState: WorkspaceRuntimeState = { snapshot: emptySnapshot, savedSignature: workflowSnapshotSignature(emptySnapshot) };
+  const emptySnapshot = emptyWorkflowSnapshot();
+  const emptyRuntimeState = createWorkspaceRuntimeState(emptySnapshot);
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
   const [activeId, setActiveId] = useState<string>("default");
-  const runtimeStatesRef = useRef<Map<string, WorkspaceRuntimeState>>(new Map([["default", emptyRuntimeState]]));
+  const sessionStoreRef = useRef(new WorkspaceSessionStore("default", emptySnapshot));
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -4134,7 +4166,7 @@ function MultiTabWorkspace() {
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
 
   const updateRuntimeState = useCallback((tabId: string, state: WorkspaceRuntimeState) => {
-    runtimeStatesRef.current.set(tabId, state);
+    sessionStoreRef.current.set(tabId, state);
   }, []);
 
   const addTab = useCallback(() => {
@@ -4144,7 +4176,7 @@ function MultiTabWorkspace() {
       let number = 1;
       while (usedNumbers.has(number)) number += 1;
       const name = `工作流 ${number}`;
-      runtimeStatesRef.current.set(id, { snapshot: { nodes: [], edges: [], requirements: [] }, savedSignature: workflowSnapshotSignature({ nodes: [], edges: [], requirements: [] }) });
+      sessionStoreRef.current.ensure(id, emptyWorkflowSnapshot());
       return [...current, { id, name }];
     });
     setActiveId(id);
@@ -4159,7 +4191,7 @@ function MultiTabWorkspace() {
         const neighbor = next[Math.max(0, index - 1)];
         if (neighbor) setActiveId(neighbor.id);
       }
-      runtimeStatesRef.current.delete(id);
+      sessionStoreRef.current.delete(id);
       localStorage.removeItem(`${AUTOSAVE_KEY}.${id}`);
       return next;
     });
@@ -4167,7 +4199,7 @@ function MultiTabWorkspace() {
 
   const closeTab = useCallback((id: string) => {
     if (tabs.length <= 1) return;
-    const state = runtimeStatesRef.current.get(id) ?? emptyRuntimeState;
+    const state = sessionStoreRef.current.get(id) ?? emptyRuntimeState;
     if (workflowSnapshotSignature(state.snapshot) === state.savedSignature) {
       performCloseTab(id);
       return;
@@ -4178,11 +4210,11 @@ function MultiTabWorkspace() {
   const savePendingTabAndClose = useCallback(() => {
     if (!pendingCloseTabId) return;
     const tab = tabs.find((item) => item.id === pendingCloseTabId);
-    const state = runtimeStatesRef.current.get(pendingCloseTabId);
+    const state = sessionStoreRef.current.get(pendingCloseTabId);
     if (!tab || !state) { setPendingCloseTabId(null); return; }
     persistWorkflowSnapshot(state.snapshot, tab.name);
     const savedSignature = workflowSnapshotSignature(state.snapshot);
-    runtimeStatesRef.current.set(pendingCloseTabId, { ...state, savedSignature });
+    sessionStoreRef.current.set(pendingCloseTabId, { ...state, savedSignature });
     const id = pendingCloseTabId;
     setPendingCloseTabId(null);
     performCloseTab(id);
@@ -4218,7 +4250,7 @@ function MultiTabWorkspace() {
     <TabsContext.Provider value={api}>
       <div className="workspace-shell" data-theme={resolvedTheme}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor tabId={activeTab.id} tabName={activeTab.name} initialRuntimeState={runtimeStatesRef.current.get(activeTab.id)} onRuntimeStateChange={updateRuntimeState} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor tabId={activeTab.id} tabName={activeTab.name} initialRuntimeState={sessionStoreRef.current.get(activeTab.id)} onRuntimeStateChange={updateRuntimeState} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
         <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>

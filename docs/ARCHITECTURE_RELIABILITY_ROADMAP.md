@@ -2,7 +2,7 @@
 
 更新时间：2026-08-19
 长期开发分支：`dev`
-稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.28 (51)`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.29 (52)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -179,7 +179,7 @@ Current WorkflowDocument
 
 ## 4. Phase 1 — Platform Adapter
 
-状态：**已在 `dev` 实现第一阶段，等待 Windows/Android 实机运行验收。**
+状态：**已在 `dev` 实现并通过用户 Windows/Android 实机验收，接口冻结。**
 
 ### 4.1 目标
 
@@ -304,7 +304,9 @@ desktop/renderer/
 
 ## 5. Phase 2 — Execution Controller
 
-优先级：**P0。已于 `dev` 1.4.28 实现，等待 Windows/Android Phase 2 实机验收。**
+状态：**已实现并完成用户实机验证；1.4.29 进一步关闭假空闲/远程可观测性问题。**
+
+优先级：**P0。1.4.28 完成主体，1.4.29 根据用户实测关闭取消竞态与远程可观测性问题。**
 
 目标 API：
 
@@ -349,6 +351,8 @@ Android 限制：Chaquopy 为应用内嵌解释器，Future/线程中断不能�
 ---
 
 ## 6. Phase 3 — Workflow Core
+
+状态：**1.4.29 已开始实现：history/session/persistence/validation/migration/graph commands 已进入 `src/workflow-core/`，继续小步抽离。**
 
 优先级：P0/P1。
 
@@ -518,8 +522,8 @@ desktop/
 当前 `dev` 分支在 Phase 1 完成云端测试后，应按以下顺序推进：
 
 1. Phase 1 PlatformAdapter 已完成 Windows/Android 实机验收并冻结接口。
-2. Phase 2 `ExecutionController` 已在 `dev` 1.4.28 实现，当前只等待用户确认 Desktop/Android 正常运行与 Stop/timeout 无回归。
-3. Phase 2 验收后进入 Workflow Core，而不是继续大改 UI。
+2. Phase 2 `ExecutionController` 已完成实机验证；1.4.29 继续修正假空闲、远程状态和 Android cooperative cancellation。
+3. Phase 3 Workflow Core 已启动，继续抽离 workflow command/session/history/serialization，而不是继续大改 UI。
 5. Node Contract 与 Runtime parity 紧随 Workflow Core。
 6. 最后再拆 Python engine、Desktop/Android host 和 Build Tool。
 

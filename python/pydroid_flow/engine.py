@@ -2073,7 +2073,45 @@ def _flatten_workflow_groups(workflow: dict[str, Any]) -> dict[str, Any]:
     return {**workflow, "nodes": flat_nodes, "edges": flat_edges}
 
 
-def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = "[]") -> str:
+
+def _android_execution_cancelled(execution_id: str) -> bool:
+    if not execution_id:
+        return False
+    try:
+        from com.dk.pydroidflow import PythonExecutionCancellation  # type: ignore[import-not-found]
+        return bool(PythonExecutionCancellation.isCancelled(execution_id))
+    except Exception:
+        return False
+
+
+def _raise_if_execution_cancelled(execution_id: str) -> None:
+    if _android_execution_cancelled(execution_id):
+        raise KeyboardInterrupt("PyDroid workflow execution cancelled")
+
+
+def _run_with_cancel_trace(execution_id: str, callback):
+    if not execution_id:
+        return callback()
+    try:
+        from com.dk.pydroidflow import PythonExecutionCancellation  # type: ignore[import-not-found]
+    except Exception:
+        return callback()
+    previous = sys.gettrace()
+    counter = 0
+    def trace(frame, event, arg):
+        nonlocal counter
+        counter += 1
+        if counter % 32 == 0 and PythonExecutionCancellation.isCancelled(execution_id):
+            raise KeyboardInterrupt("PyDroid workflow execution cancelled")
+        return trace
+    sys.settrace(trace)
+    try:
+        return callback()
+    finally:
+        sys.settrace(previous)
+
+
+def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = "[]", execution_id: str = "") -> str:
     if not isinstance(workflow_json, str) or len(workflow_json) > MAX_WORKFLOW_JSON_CHARS:
         raise ValueError("Workflow document is missing or exceeds the 16 MiB safety limit")
     if not isinstance(csv_text, str) or len(csv_text) > MAX_INPUT_TEXT_CHARS:
@@ -2131,6 +2169,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
     variables: dict[str, Any] = {}
 
     for node in ordered_nodes:
+        _raise_if_execution_cancelled(execution_id)
         node_id = node["id"]
         if node_id in loop_body_ids:
             continue
@@ -2140,9 +2179,9 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
         node_started = time.perf_counter()
         try:
             if isinstance(params.get("notebookSource"), str):
-                outputs, table_result, plot_result, export_result = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
+                outputs, table_result, plot_result, export_result = _run_with_cancel_trace(execution_id, lambda: _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace))
             elif node_type == "notebook.code_cell":
-                outputs, table_result, plot_result, export_result = _execute_notebook_cell(str(params.get("source", "")), notebook_namespace)
+                outputs, table_result, plot_result, export_result = _run_with_cancel_trace(execution_id, lambda: _execute_notebook_cell(str(params.get("source", "")), notebook_namespace))
             elif node_type == "notebook.markdown_cell":
                 text = str(params.get("source", ""))
                 outputs, table_result, plot_result, export_result = {"next": text, "output": text}, None, None, None
