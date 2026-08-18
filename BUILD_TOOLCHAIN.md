@@ -22,8 +22,8 @@ This Node.js version controls development scripts, tests and packaging. Electron
 Preferred environment variables:
 
 ```text
-DK_TOOL_ROOT=D:\Code
-DK_CACHE_ROOT=D:\Code\BuildCache
+DK_TOOL_ROOT=D:\Code   # 只读工具来源
+DK_CACHE_ROOT=D:\PyDroidTemp
 ```
 
 Recommended shared layout:
@@ -34,7 +34,7 @@ D:\Code\
   Java\jdk-21\
   Android\Sdk\
   Python\3.13\
-  Python\runtime-3.13\
+  # 不再由构建器向此处创建 Python runtime
   BuildCache\
     downloads\
     pnpm-store\
@@ -71,3 +71,9 @@ Electron is therefore **not globally fixed by the shared toolchain**. Another pr
 ## Clean source archive
 
 Formal source ZIPs contain the project source tree and `.git`, but intentionally omit `node_modules`, `dist`, `release`, `.gradle`, `android/.gradle`, `android/build`, `android/app/build` and other generated caches/artifacts. The Windows build GUI restores JS dependencies from `pnpm-lock.yaml` and prefers the configured shared/local caches before network downloads.
+
+## 共享工具根目录写入策略
+
+`DK_TOOL_ROOT` / `ToolRoot` 只用于发现和复用已经安装好的 Node、JDK、Android SDK 与完整 Python，构建器不会向其中创建、覆盖、下载或补装任何文件。缺失工具统一安装到 `WorkRoot\tools\<project>`；缓存使用 `CacheRoot`，默认不再落入 ToolRoot。
+
+Android 的 Chaquopy `buildPython` 必须是带 `venv`/`ensurepip` 的完整 Python 3.13。桌面 Electron 随包携带的 embeddable Python 3.13 没有 `venv`，两者不能混用。

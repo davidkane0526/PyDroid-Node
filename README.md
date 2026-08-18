@@ -1,4 +1,4 @@
-> **1.4.20 (43)**：保留 1.4.19 的 Python 3.13 与 UI/Agent 改进，并修正 Android 构建器的 Gradle daemon 状态矛盾。默认构建显式使用常驻 daemon；只有用户主动选择禁用时才使用 `--no-daemon`，同时同步客户端/构建 JVM 参数，避免 single-use daemon。
+> **1.4.23 (46)**：Android 构建与桌面运行时的 Python 角色彻底分离。桌面版继续使用便携 Python 3.13；Chaquopy `buildPython` 改为强制使用带 `venv` 的完整 Python 3.13。共享工具目录（如 `D:\Code`）只读，缺失工具、下载和缓存全部进入 `D:\PyDroidTemp`。
 
 当前 Android 调试构建版本：`1.4.20 (43)`。当前完整工程工作分支为本地 `local/gradle-daemon-fix-1.4.20`，`main` 保持原样未修改。
 
@@ -250,7 +250,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。RC10 构建器统一采用共享工具链：优先复用 `DK_TOOL_ROOT`（推荐 `D:\Code`）中的 Node/JDK/Android SDK/Python，并把 pnpm/npm/Corepack/Electron/electron-builder/Gradle 下载缓存集中到 `DK_CACHE_ROOT`（推荐 `D:\Code\BuildCache`）。网络层支持 Auto/Direct/Manual，代理会继续传给 pnpm 与 Electron；构建日志保存在输出目录的 `logs/`。Electron/electron-builder 不要求全局安装，具体版本仍由各项目 `package.json` 与 lockfile 决定。构建器同时兼容 native `pnpm.exe`、Corepack/JavaScript launcher 与传统 `pnpm.cmd`；`pnpm check` 会先运行轻量构建工具回归测试。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。RC10 构建器统一采用共享工具链：优先**只读复用** `DK_TOOL_ROOT`（推荐 `D:\Code`）中的 Node/JDK/Android SDK/Python。构建器不会向共享工具目录安装、更新或写入任何文件；缺失工具与临时运行时统一放入 `WorkRoot`（推荐 `D:\PyDroidTemp`）下的项目临时工具目录。pnpm/npm/Corepack/Electron/electron-builder/Gradle 下载缓存使用 `DK_CACHE_ROOT`；若未指定，则默认落到 `WorkRoot\cache`。网络层支持 Auto/Direct/Manual，代理会继续传给 pnpm 与 Electron；构建日志保存在输出目录的 `logs/`。Electron/electron-builder 不要求全局安装，具体版本仍由各项目 `package.json` 与 lockfile 决定。构建器同时兼容 native `pnpm.exe`、Corepack/JavaScript launcher 与传统 `pnpm.cmd`；`pnpm check` 会先运行轻量构建工具回归测试。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 

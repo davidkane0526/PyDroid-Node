@@ -41,12 +41,16 @@ if ($env:PYDROID_PYTHON_EXECUTABLE) {
         } catch {}
         throw "Android requires Python 3.13, but PYDROID_PYTHON_EXECUTABLE points to Python $detectedVersion`: $configuredPython"
     }
-    Write-Host "Android buildPython: $configuredPython (Python 3.13)"
+    & $configuredPython -c "import venv, ensurepip" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "Android buildPython must be a full Python 3.13 installation with the venv module. The embeddable/portable desktop Python cannot be used: $configuredPython"
+    }
+    Write-Host "Android buildPython: $configuredPython (Python 3.13, venv available)"
 }
 else {
-    & py -3.13 -c "import sys; assert sys.version_info[:2] == (3, 13)"
+    & py -3.13 -c "import sys, venv, ensurepip; assert sys.version_info[:2] == (3, 13)"
     if ($LASTEXITCODE -ne 0) {
-        throw "Python 3.13 not found. Set PYDROID_PYTHON_EXECUTABLE."
+        throw "Full Python 3.13 with venv was not found. Set PYDROID_PYTHON_EXECUTABLE."
     }
 }
 

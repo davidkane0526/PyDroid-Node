@@ -38,7 +38,7 @@ This repository is the **only project copy**. Do not create or maintain separate
 ## Environment and cleanup rules
 
 - Use repository-relative paths in committed files. Never commit machine SDK, JDK, Python, Node, or workspace paths.
-- Prefer project-local package dependencies, but reuse the documented shared machine toolchain/cache (`DK_TOOL_ROOT` / `DK_CACHE_ROOT`) for Node/JDK/Android SDK/Python and downloads. Do not reintroduce per-project copies of those machine tools unless isolation is explicitly required.
+- Prefer project-local package dependencies, but reuse the documented shared machine toolchain (`DK_TOOL_ROOT`) read-only for Node/JDK/Android SDK/Python. Never install or update tools inside `DK_TOOL_ROOT`; missing tools and writable build helpers belong under `WorkRoot`, while downloads/caches use `DK_CACHE_ROOT` or the WorkRoot cache.
 - Before installing software, add its purpose, version, location, installation method, and removal command to `docs/environment.md`.
 - Never commit `android/local.properties`, `node_modules`, `.tools`, Gradle output, Python virtual environments, build output, or downloaded toolchains.
 - Do not install development tools to C: unless the user explicitly approves it.

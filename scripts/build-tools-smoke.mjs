@@ -125,18 +125,64 @@ assert.match(
 );
 assert.match(
   buildScript,
-  /Python\\runtime-3\.13\\python\.exe/,
-  "Android should reuse the shared validated Python 3.13 desktop runtime when available",
+  /function Test-PythonBuildHost/,
+  "Android build Python should have a dedicated full-runtime capability check",
 );
 assert.match(
   buildScript,
-  /忽略 PYDROID_PYTHON_EXECUTABLE=.*Android 需要 Python/,
-  "a stale PYDROID_PYTHON_EXECUTABLE must not be accepted only because its file exists",
+  /import venv, ensurepip/,
+  "Android build Python must provide venv/ensurepip rather than reusing the embeddable desktop runtime",
+);
+assert.doesNotMatch(
+  buildScript,
+  /Join-Path \$ToolRoot "Python\\runtime-3\.13"/,
+  "the desktop Python runtime must not be created inside the read-only shared ToolRoot",
 );
 assert.match(
   buildScript,
-  /预检 Android Python 3\.13/,
+  /Join-Path \$privateToolsRoot "Python\\runtime-3\.13"/,
+  "the desktop Python runtime should live under the writable WorkRoot tools directory",
+);
+assert.match(
+  buildScript,
+  /移除旧桌面 Python 运行时联接/,
+  "legacy desktop-runtime junctions pointing into ToolRoot should be detached before reuse",
+);
+assert.match(
+  buildScript,
+  /忽略 PYDROID_PYTHON_EXECUTABLE=/,
+  "a stale PYDROID_PYTHON_EXECUTABLE must be diagnosed instead of accepted only because its file exists",
+);
+assert.match(
+  buildScript,
+  /缺少 venv\/ensurepip/,
+  "an embeddable Python without venv must be rejected as Android buildPython",
+);
+assert.match(
+  buildScript,
+  /预检 Android 完整 Python 3\.13/,
   "Android Python compatibility should be checked before expensive packaging",
+);
+
+assert.match(
+  buildScript,
+  /共享工具目录（只读）：\$ToolRoot/,
+  "the build log should explicitly mark ToolRoot as read-only",
+);
+assert.doesNotMatch(
+  buildScript,
+  /foreach \(\$d in @\(\$ToolRoot,/,
+  "initialization must not create or touch the shared ToolRoot",
+);
+assert.match(
+  buildScript,
+  /\$privateToolsRoot = Join-Path \$WorkRoot "tools\\\$projectKey"/,
+  "missing tools should be installed into the WorkRoot-scoped private tools directory",
+);
+assert.match(
+  buildScript,
+  /New-TemporaryAndroidSdkOverlay/,
+  "an incomplete shared Android SDK should be overlaid into a writable temporary SDK instead of modified in place",
 );
 
 const androidPackagePath = fileURLToPath(new URL("../scripts/android-package.ps1", import.meta.url));
@@ -171,6 +217,11 @@ assert.match(
   androidPackage,
   /sys\.version_info\[:2\] == \(3, 13\)/,
   "android-package.ps1 should reject an incorrect PYDROID_PYTHON_EXECUTABLE before Gradle starts",
+);
+assert.match(
+  androidPackage,
+  /import venv, ensurepip/,
+  "android-package.ps1 should reject an embeddable Python without venv before Gradle starts",
 );
 
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));

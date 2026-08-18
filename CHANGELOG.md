@@ -1,3 +1,11 @@
+## 1.4.23 (46) — Android full Python build host / read-only shared tool root — 2026-08-18
+
+- Split Python responsibilities: the packaged Windows desktop keeps the embeddable Python 3.13 runtime, while Android Chaquopy buildPython now requires a full Python 3.13 installation with `venv` and `ensurepip`.
+- Added early validation for `venv`, preventing the build from reaching Gradle with an incompatible embeddable Python runtime.
+- Missing full Python 3.13 is installed only under the writable `WorkRoot` temporary tools directory.
+- `ToolRoot` / `DK_TOOL_ROOT` is now treated as strictly read-only. Missing Node/JDK/Android SDK/Python components and all caches are written under `WorkRoot` / `CacheRoot` instead.
+- If a read-only shared Android SDK is incomplete, the build creates a writable temporary SDK overlay and installs only the missing components there.
+
 ## 1.4.22 (45) — Gradle daemon isolation / GUI process cleanup — 2026-08-18
 
 - Android Gradle 使用 `CacheRoot\gradle\<project>` 独立 Gradle User Home，避免旧项目或其它 Gradle 构建留下的 daemon registry 与 JVM 参数发生冲突。

@@ -1,11 +1,11 @@
 ﻿<#
 .SYNOPSIS
-    构建 PyDroid Flow：Android debug APK + Windows 未压缩桌面版（win-unpacked），并复用 DK 共享工具链/缓存。
+    构建 PyDroid Flow：Android debug APK + Windows 未压缩桌面版（win-unpacked），只读复用 DK 共享工具链，并将写入集中到独立临时目录/缓存。
 
 .DESCRIPTION
     - 项目源码目录保持只读，脚本只读取项目，不写入任何项目文件。
     - 脚本把源码同步到 $WorkRoot\builds\<项目名> 临时工作区，在外部完成构建。
-    - 自动探测已安装工具，并优先复用 DK_TOOL_ROOT/ToolRoot；缺失工具安装到共享 ToolRoot。
+    - 自动探测已安装工具，并只读复用 DK_TOOL_ROOT/ToolRoot；缺失工具安装到 WorkRoot 下的 PyDroid 临时工具目录。
     - JDK 探测兼容 Windows PowerShell 5.1：独立读取 java/javac 版本输出，并同时识别 JAVA_HOME、bin、java.exe、javac.exe 与 PATH。
     - 最终产物平铺到 $OutputRoot：
           <productName>-<版本>.apk
@@ -17,10 +17,10 @@
     项目源码根目录。缺省时使用当前目录（要求当前目录含 package.json）。
 
 .PARAMETER ToolRoot
-    跨项目共享工具根目录。优先 DK_TOOL_ROOT，其次 PYDROID_TOOL_ROOT；当前机器可自动复用 D:\Code。
+    跨项目共享工具根目录（只读）。优先 DK_TOOL_ROOT，其次 PYDROID_TOOL_ROOT；当前机器可自动复用 D:\Code。构建器不会向此目录写入、安装或更新任何文件。
 
 .PARAMETER CacheRoot
-    跨项目共享下载缓存。默认读取 DK_CACHE_ROOT；否则使用 ToolRoot\BuildCache。用于 pnpm store、npm、Electron、electron-builder、Gradle 与下载缓存。
+    构建缓存目录。默认读取 DK_CACHE_ROOT；否则使用 WorkRoot\cache。用于 pnpm store、npm、Electron、electron-builder、Gradle 与下载缓存；不会默认落到 ToolRoot。
 
 .PARAMETER WorkRoot
     临时工作区目录。默认读取 PYDROID_BUILD_HOME；若已有 D:\PyDroidTemp 则复用，否则使用 LocalAppData\PyDroidBuild。
@@ -94,7 +94,7 @@
     powershell -ExecutionPolicy Bypass -File D:\PyDroidTemp\build-pydroid.ps1 `
         -ProjectRoot "E:\Code\PyDroid Node" `
         -ToolRoot "D:\Code" `
-        -CacheRoot "D:\Code\BuildCache" `
+        -CacheRoot "D:\PyDroidTemp" `
         -WorkRoot "D:\PyDroidTemp" `
         -OutputRoot "D:\PyDroidTemp"
 
@@ -168,7 +168,6 @@ function Get-DefaultToolRoot {
 function Get-DefaultCacheRoot {
     param([string]$ResolvedToolRoot,[string]$ResolvedWorkRoot)
     if ($env:DK_CACHE_ROOT) { return $env:DK_CACHE_ROOT }
-    if ($ResolvedToolRoot) { return (Join-Path $ResolvedToolRoot "BuildCache") }
     return (Join-Path $ResolvedWorkRoot "cache")
 }
 
@@ -344,6 +343,21 @@ function Resolve-AbsolutePath {
     return [System.IO.Path]::GetFullPath($Path)
 }
 
+function Test-PathWithinRoot {
+    param(
+        [string]$Path,
+        [string]$Root
+    )
+    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Root)) { return $false }
+    try {
+        $candidate = [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]'\/') + [System.IO.Path]::DirectorySeparatorChar
+        $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd([char[]]'\/') + [System.IO.Path]::DirectorySeparatorChar
+        return $candidate.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        return $false
+    }
+}
+
 function Get-PackageDependencySpec {
     param($PackageObject, [string]$Name)
     foreach ($sectionName in @('devDependencies', 'dependencies', 'optionalDependencies')) {
@@ -468,6 +482,15 @@ $WorkRoot    = Resolve-AbsolutePath $WorkRoot
 if (-not $OutputRoot) { $OutputRoot = $WorkRoot }
 $OutputRoot  = Resolve-AbsolutePath $OutputRoot
 
+# ToolRoot is strictly read-only. If an old configuration points CacheRoot into ToolRoot,
+# move caches to WorkRoot instead of writing into the shared tool tree.
+if ((Test-PathWithinRoot -Path $CacheRoot -Root $ToolRoot) -and
+    -not (Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
+    $oldCacheRoot = $CacheRoot
+    $CacheRoot = Resolve-AbsolutePath (Join-Path $WorkRoot "cache")
+    Write-Warning ("缓存目录 {0} 位于只读共享工具目录 {1} 内，已改用临时缓存：{2}" -f $oldCacheRoot, $ToolRoot, $CacheRoot)
+}
+
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) {
     throw "项目根目录缺少 package.json：$ProjectRoot"
 }
@@ -507,6 +530,7 @@ if ([string]::IsNullOrWhiteSpace($projectKey)) {
 $projectKey = ($projectKey -replace '[^A-Za-z0-9._-]', '-').Trim([char[]]'-')
 if (-not $projectKey) { $projectKey = "pydroid-flow" }
 
+$privateToolsRoot = Join-Path $WorkRoot "tools\$projectKey"
 $workspace = Join-Path $WorkRoot "builds\$projectKey"
 $projectPrefix = $ProjectRoot.TrimEnd([char[]]'\/') + [IO.Path]::DirectorySeparatorChar
 $workspaceFull = [IO.Path]::GetFullPath($workspace)
@@ -521,7 +545,7 @@ $electronBuilderCache = Join-Path $CacheRoot "electron-builder"
 $npmCache = Join-Path $CacheRoot "npm"
 $corepackCache = Join-Path $CacheRoot "corepack"
 
-foreach ($d in @($ToolRoot, $CacheRoot, $WorkRoot, $OutputRoot, $workspace, $downloads, $storeDir, $gradleHome, $electronCache, $electronBuilderCache, $npmCache, $corepackCache)) {
+foreach ($d in @($CacheRoot, $WorkRoot, $OutputRoot, $privateToolsRoot, $workspace, $downloads, $storeDir, $gradleHome, $electronCache, $electronBuilderCache, $npmCache, $corepackCache)) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
 }
 
@@ -620,7 +644,7 @@ function Install-Node {
     if ($SkipToolInstall) {
         throw "未找到 Node.js，且已指定 -SkipToolInstall。请安装可用的 Node.js 后重试。"
     }
-    Write-Step "未找到 Node.js，正在下载便携版 Node.js 到共享工具目录 $ToolRoot\NodeJs ..."
+    Write-Step "未找到 Node.js，正在下载便携版 Node.js 到临时工具目录 $privateToolsRoot\NodeJs ..."
     $zip = Join-Path $downloads ("node-v{0}-win-x64.zip" -f $NodeVersion)
     if (-not (Test-Path -LiteralPath $zip)) {
         Invoke-Download -Uri ("https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip" -f $NodeVersion) -OutFile $zip
@@ -633,7 +657,7 @@ function Install-Node {
     $inner = Get-ChildItem -LiteralPath $temp -Directory | Where-Object { Test-Path (Join-Path $_.FullName "node.exe") } | Select-Object -First 1
     if (-not $inner) { throw "Node.js 压缩包解压后未找到 node.exe。" }
 
-    $dest = Join-Path $ToolRoot "NodeJs"
+    $dest = Join-Path $privateToolsRoot "NodeJs"
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
     Move-Item -LiteralPath $inner.FullName -Destination $dest
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
@@ -1099,6 +1123,7 @@ function Find-JavaHome {
         (Join-Path $ToolRoot ("jdk-{0}" -f $JdkMajor)),
         (Join-Path $ToolRoot 'Java'),
         (Join-Path $ToolRoot 'Language\Java'),
+        (Join-Path $privateToolsRoot ("Java\jdk-{0}" -f $JdkMajor)),
         (Join-Path $WorkRoot ("PyDroid\tools\jdk-{0}" -f $JdkMajor)),
         (Join-Path $WorkRoot ("tools\jdk-{0}" -f $JdkMajor))
     )
@@ -1125,7 +1150,7 @@ function Install-Jdk {
     if ($SkipToolInstall) {
         throw "未找到 JDK $JdkMajor，且已指定 -SkipToolInstall。请安装兼容 JDK 后设置 JAVA_HOME/PYDROID_JAVA_HOME。"
     }
-    Write-Step "未找到 JDK $JdkMajor，正在下载 Microsoft OpenJDK 到共享工具目录 $ToolRoot\Java\jdk-$JdkMajor ..."
+    Write-Step "未找到 JDK $JdkMajor，正在下载 Microsoft OpenJDK 到临时工具目录 $privateToolsRoot\Java\jdk-$JdkMajor ..."
     $zip = Join-Path $downloads ("microsoft-jdk-{0}-windows-x64.zip" -f $JdkMajor)
     if (-not (Test-Path -LiteralPath $zip)) {
         Invoke-Download -Uri ("https://aka.ms/download-jdk/microsoft-jdk-{0}-windows-x64.zip" -f $JdkMajor) -OutFile $zip
@@ -1138,7 +1163,7 @@ function Install-Jdk {
     $inner = Get-ChildItem -LiteralPath $temp -Directory | Where-Object { Test-Path (Join-Path $_.FullName "bin\java.exe") } | Select-Object -First 1
     if (-not $inner) { throw "JDK 压缩包解压后未找到 java.exe。" }
 
-    $dest = Join-Path $ToolRoot ("Java\jdk-{0}" -f $JdkMajor)
+    $dest = Join-Path $privateToolsRoot ("Java\jdk-{0}" -f $JdkMajor)
     New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
     if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
     Move-Item -LiteralPath $inner.FullName -Destination $dest
@@ -1156,6 +1181,7 @@ function Find-AndroidSdk {
     $candidates += (Join-Path $ToolRoot "android-sdk")
     if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA "Android\Sdk") }
     $candidates += @(
+        (Join-Path $privateToolsRoot "Android\Sdk"),
         (Join-Path $WorkRoot "tools\android-sdk"),
         (Join-Path $WorkRoot "PyDroid\tools\android-sdk")
     )
@@ -1178,16 +1204,57 @@ function Find-AndroidSdk {
     return $null
 }
 
+function Add-AndroidSdkOverlayDirectory {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) { return }
+    if (Test-Path -LiteralPath $Destination) { return }
+    New-Item -ItemType Directory -Force -Path (Split-Path $Destination -Parent) | Out-Null
+    try {
+        New-Item -ItemType Junction -Path $Destination -Target $Source | Out-Null
+    } catch {
+        # Junction creation should normally work on local NTFS volumes. Fall back to copying
+        # only inside WorkRoot, never into the read-only shared ToolRoot.
+        Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
+    }
+}
+
+function New-TemporaryAndroidSdkOverlay {
+    param([string]$SharedSdkRoot)
+
+    $overlay = Join-Path $privateToolsRoot "Android\Sdk"
+    New-Item -ItemType Directory -Force -Path $overlay | Out-Null
+    $buildToolsVersion = ("{0}.0.0" -f $resolvedAndroidApi)
+
+    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "cmdline-tools") -Destination (Join-Path $overlay "cmdline-tools")
+    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "platform-tools") -Destination (Join-Path $overlay "platform-tools")
+    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("platforms\android-{0}" -f $resolvedAndroidApi)) -Destination (Join-Path $overlay ("platforms\android-{0}" -f $resolvedAndroidApi))
+    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("build-tools\{0}" -f $buildToolsVersion)) -Destination (Join-Path $overlay ("build-tools\{0}" -f $buildToolsVersion))
+
+    $sharedLicenses = Join-Path $SharedSdkRoot "licenses"
+    $overlayLicenses = Join-Path $overlay "licenses"
+    if ((Test-Path -LiteralPath $sharedLicenses -PathType Container) -and -not (Test-Path -LiteralPath $overlayLicenses)) {
+        Copy-Item -LiteralPath $sharedLicenses -Destination $overlayLicenses -Recurse -Force
+    }
+
+    Write-Warning ("共享 Android SDK 只读且缺少组件；不会修改 {0}，改在临时 SDK 视图中补齐：{1}" -f $SharedSdkRoot, $overlay)
+    return $overlay
+}
+
 function Install-AndroidSdk {
     param([string]$SdkRoot)
 
     if ([string]::IsNullOrWhiteSpace($SdkRoot)) {
-        $SdkRoot = Join-Path $ToolRoot "Android\Sdk"
+        $SdkRoot = Join-Path $privateToolsRoot "Android\Sdk"
     }
 
     $sdkRoot = Resolve-AbsolutePath $SdkRoot
     Write-Step "Android SDK：$sdkRoot"
-    New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
+    if (-not (Test-Path -LiteralPath $sdkRoot -PathType Container)) {
+        New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
+    }
 
     # 先逐项检查。已有组件绝不重复安装，只补真正缺少的部分。
     $platformToolsAdb = Join-Path $sdkRoot "platform-tools\adb.exe"
@@ -1222,6 +1289,12 @@ function Install-AndroidSdk {
     if ($missingPackages.Count -eq 0) {
         Write-Step "Android SDK 所需组件均已存在，无需下载。"
         return [string]$sdkRoot
+    }
+
+    if ((Test-PathWithinRoot -Path $sdkRoot -Root $ToolRoot) -and
+        -not (Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
+        $overlayRoot = New-TemporaryAndroidSdkOverlay -SharedSdkRoot $sdkRoot
+        return (Install-AndroidSdk -SdkRoot $overlayRoot)
     }
 
     if ($SkipToolInstall) {
@@ -1360,6 +1433,24 @@ function Test-PythonSeries {
     }
 }
 
+function Test-PythonBuildHost {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable
+    )
+
+    if (-not (Test-PythonSeries -Executable $Executable)) { return $false }
+    try {
+        # Chaquopy invokes `python -m venv` while preparing build packages.
+        # The Windows embeddable distribution intentionally omits venv and is therefore
+        # suitable for the packaged desktop runtime, but NOT for Android buildPython.
+        & $Executable -c "import venv, ensurepip" 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
 function Get-PythonVersionLabel {
     param([string]$Executable)
     if ([string]::IsNullOrWhiteSpace($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
@@ -1373,49 +1464,45 @@ function Get-PythonVersionLabel {
 }
 
 function Find-Python313 {
-    # 环境变量可以作为用户显式偏好，但不能仅因为文件存在就接受：
-    # Chaquopy 要求 buildPython 的 major/minor 与应用 Python 完全一致。
+    # Android buildPython must be a FULL Python 3.13 installation with venv.
+    # Do not reuse the embeddable desktop runtime: it has no `venv` module by design.
     if ($env:PYDROID_PYTHON_EXECUTABLE) {
         $configured = [string]$env:PYDROID_PYTHON_EXECUTABLE
-        if (Test-PythonSeries -Executable $configured) {
+        if (Test-PythonBuildHost -Executable $configured) {
             return $configured
         }
         if (Test-Path -LiteralPath $configured -PathType Leaf) {
-            Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：检测到 Python {1}，Android 需要 Python {2}。" -f $configured, (Get-PythonVersionLabel $configured), $pythonSeries)
+            $reason = if (Test-PythonSeries -Executable $configured) { "缺少 venv/ensurepip（便携精简运行时不能作为 Chaquopy buildPython）" } else { "检测到 Python $(Get-PythonVersionLabel $configured)，Android 需要 Python $pythonSeries" }
+            Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：{1}。" -f $configured, $reason)
         } else {
             Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：文件不存在。" -f $configured)
         }
     }
 
-    # 桌面构建已经准备好的 3.13 便携运行时也是有效的 Chaquopy buildPython。
-    # 优先复用它，避免同一次构建桌面用 3.13、Android 却误用系统 3.12。
     $candidates = @(
-        (Join-Path $ToolRoot "Python\runtime-3.13\python.exe"),
-        (Join-Path $workspace ".tools\python313-runtime\python.exe"),
+        (Join-Path $privateToolsRoot ("Python\{0}\python.exe" -f $pythonSeries)),
         (Join-Path $ToolRoot ("Python\{0}\python.exe" -f $pythonSeries)),
         (Join-Path $ToolRoot "Python\python.exe"),
         (Join-Path $ToolRoot "Language\Python\python.exe"),
         (Join-Path $WorkRoot ("tools\{0}\python.exe" -f $pythonToolDirName))
     )
     foreach ($candidate in $candidates) {
-        if (Test-PythonSeries -Executable $candidate) {
+        if (Test-PythonBuildHost -Executable $candidate) {
             return $candidate
         }
     }
 
-    # Windows py launcher can select the requested major/minor explicitly.
     try {
         $pyOutput = & py ("-{0}" -f $pythonSeries) -c "import sys; print(sys.executable)" 2>$null
         if ($LASTEXITCODE -eq 0 -and $pyOutput) {
             $candidate = ([string]($pyOutput | Select-Object -Last 1)).Trim()
-            if (Test-PythonSeries -Executable $candidate) { return $candidate }
+            if (Test-PythonBuildHost -Executable $candidate) { return $candidate }
         }
     } catch {}
 
-    # Finally inspect the generic python command, but accept it only if it really is 3.13.
     $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
     if (-not $pythonCommand) { $pythonCommand = Get-Command python -ErrorAction SilentlyContinue }
-    if ($pythonCommand -and (Test-PythonSeries -Executable $pythonCommand.Source)) {
+    if ($pythonCommand -and (Test-PythonBuildHost -Executable $pythonCommand.Source)) {
         return $pythonCommand.Source
     }
 
@@ -1424,30 +1511,34 @@ function Find-Python313 {
 
 function Install-Python313 {
     if ($SkipToolInstall) {
-        throw "未找到 Python $pythonSeries（完整版），且已指定 -SkipToolInstall。请安装后设置 PYDROID_PYTHON_EXECUTABLE。"
+        throw "未找到带 venv 的完整 Python $pythonSeries，且已指定 -SkipToolInstall。请安装完整 Python 3.13，或设置 PYDROID_PYTHON_EXECUTABLE。"
     }
-    Write-Step "未找到 Python $pythonSeries，正在安装到共享工具目录 $ToolRoot\Python\$pythonSeries ..."
+    $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
+    Write-Step "未找到带 venv 的完整 Python $pythonSeries，正在安装到临时工具目录 $dest ..."
     $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $PythonVersion)
     if (-not (Test-Path -LiteralPath $installer)) {
         Invoke-Download -Uri ("https://www.python.org/ftp/python/{0}/python-{0}-amd64.exe" -f $PythonVersion) -OutFile $installer
     }
-    $dest = Join-Path $ToolRoot ("Python\{0}" -f $pythonSeries)
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+    if (Test-Path -LiteralPath $dest) {
+        Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction SilentlyContinue
+    }
     $installerArgs = @(
         "/quiet",
         "InstallAllUsers=0",
         "PrependPath=0",
         "Include_launcher=0",
+        "Include_pip=1",
         "Include_test=0",
         "Include_doc=0",
         "Include_debug=0",
-        "Include_dev=0",
         "Shortcuts=0",
         ('TargetDir="{0}"' -f $dest)
     )
     $proc = Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -PassThru
     $pythonExe = Join-Path $dest "python.exe"
-    if ($proc.ExitCode -ne 0 -or -not (Test-PythonSeries -Executable $pythonExe)) {
-        throw "Python $pythonSeries 安装失败或安装后的版本不匹配。"
+    if ($proc.ExitCode -ne 0 -or -not (Test-PythonBuildHost -Executable $pythonExe)) {
+        throw "完整 Python $pythonSeries 安装失败，或安装后缺少 venv/ensurepip：$pythonExe"
     }
     return $pythonExe
 }
@@ -1611,15 +1702,26 @@ function Clear-WorkspaceOutputs {
 
 function Ensure-PythonRuntimeForDesktop {
     $runtimeLink = Join-Path $workspace ".tools\python313-runtime"
-    $runtimeTarget = Join-Path $ToolRoot "Python\runtime-3.13"
-    if (Test-Path -LiteralPath (Join-Path $runtimeLink "python.exe")) {
-        Write-Step "复用 Python 便携运行时：$runtimeTarget"
-        return
-    }
-    Write-BuildStage -Percent 48 -Message "首次准备桌面 Python 3.13 运行时（可能需要联网下载）"
-    Write-Step "准备桌面版所需的 Python 3.13 便携运行时 ..."
+    $runtimeTarget = Join-Path $privateToolsRoot "Python\runtime-3.13"
     New-Item -ItemType Directory -Force -Path (Join-Path $workspace ".tools") | Out-Null
     New-Item -ItemType Directory -Force -Path $runtimeTarget | Out-Null
+
+    # Older builds could leave a workspace junction pointing into D:\Code. ToolRoot is now
+    # read-only, so detach that legacy junction and recreate it against the WorkRoot target.
+    if (Test-Path -LiteralPath $runtimeLink) {
+        $item = Get-Item -LiteralPath $runtimeLink -Force
+        if ($item.LinkType -eq "Junction") {
+            $actualTarget = [string]$item.Target
+            $expectedTarget = [System.IO.Path]::GetFullPath($runtimeTarget).TrimEnd([char[]]'\/')
+            $actualTargetFull = $null
+            try { $actualTargetFull = [System.IO.Path]::GetFullPath($actualTarget).TrimEnd([char[]]'\/') } catch {}
+            if (-not $actualTargetFull -or -not $actualTargetFull.Equals($expectedTarget, [StringComparison]::OrdinalIgnoreCase)) {
+                Write-Step "移除旧桌面 Python 运行时联接（不会删除原目标）：$runtimeLink -> $actualTarget"
+                & cmd.exe /c rmdir "`"$runtimeLink`"" | Out-Null
+            }
+        }
+    }
+
     if (-not (Test-Path -LiteralPath $runtimeLink)) {
         New-Item -ItemType Junction -Path $runtimeLink -Target $runtimeTarget | Out-Null
     } else {
@@ -1629,6 +1731,14 @@ function Ensure-PythonRuntimeForDesktop {
             $runtimeTarget = $runtimeLink
         }
     }
+
+    if (Test-Path -LiteralPath (Join-Path $runtimeLink "python.exe")) {
+        Write-Step "复用桌面 Python 便携运行时（临时目录）：$runtimeTarget"
+        return
+    }
+
+    Write-BuildStage -Percent 48 -Message "首次准备桌面 Python 3.13 运行时（可能需要联网下载）"
+    Write-Step "准备桌面版所需的 Python 3.13 便携运行时（仅写入临时目录）..."
     & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $workspace "scripts\setup-windows.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "Python 便携运行时初始化失败。"
@@ -1928,7 +2038,7 @@ function Build-Android {
     # Find-AndroidSdk 负责寻找现有 SDK 根；Install-AndroidSdk 负责逐项检查并只补缺失组件。
     $sdk = Find-AndroidSdk
     if ([string]::IsNullOrWhiteSpace([string]$sdk)) {
-        $sdk = Join-Path $ToolRoot "Android\Sdk"
+        $sdk = Join-Path $privateToolsRoot "Android\Sdk"
     }
 
     # 防止任何函数/原生命令的附带 stdout 污染 SDK 路径。
@@ -1953,8 +2063,8 @@ function Build-Android {
         $python = Install-Python313
     }
     $python = [string]$python
-    if (-not (Test-PythonSeries -Executable $python)) {
-        throw ("Android 构建要求 Python {0}，但解析到的解释器无效：{1}（检测版本：{2}）。" -f $pythonSeries, $python, (Get-PythonVersionLabel $python))
+    if (-not (Test-PythonBuildHost -Executable $python)) {
+        throw ("Android 构建要求带 venv 的完整 Python {0}，但解析到的解释器不满足要求：{1}（检测版本：{2}）。" -f $pythonSeries, $python, (Get-PythonVersionLabel $python))
     }
     Write-Step ("Android buildPython：{0}（Python {1}）" -f $python, (Get-PythonVersionLabel $python))
 
@@ -2070,7 +2180,8 @@ if ($packageManagerSpec -or $electronSpec -or $electronBuilderSpec) {
         Write-Host "electron-builder：package.json=$electronBuilderSpec$lockedText"
     }
 }
-Write-Step "共享工具目录：$ToolRoot"
+Write-Step "共享工具目录（只读）：$ToolRoot"
+Write-Step "PyDroid 临时工具目录（可写）：$privateToolsRoot"
 Write-Step "共享缓存目录：$CacheRoot"
 Write-Step "工作目录：$WorkRoot"
 Write-Step "最终输出目录：$OutputRoot"
@@ -2084,7 +2195,7 @@ $script:NodeDir = Find-Node
 if (-not $script:NodeDir) {
     $script:NodeDir = Install-Node
 }
-# 先把共享 Node 放到 PATH，再探测 pnpm/corepack，避免系统中其它 Node 目录抢占。
+# 共享 ToolRoot 只读；仅把已存在的 Node 放到 PATH，再探测 pnpm/corepack。
 $env:Path = "$script:NodeDir;$ToolRoot\NodeJs;$ToolRoot\NodeJS;$env:Path"
 $script:PnpmCommand = Find-Pnpm
 if (-not $script:PnpmCommand) {
@@ -2171,24 +2282,20 @@ $hasDesktop = -not $SkipDesktop
 $script:ResolvedAndroidPython = $null
 
 # Fail fast on Android build-Python problems before spending time on Electron packaging.
-# When Desktop is also requested, prepare its shared Python 3.13 runtime first so both
-# targets can reuse exactly the same validated interpreter.
+# Android buildPython and the packaged desktop Python are intentionally separate:
+# Chaquopy needs a FULL Python 3.13 with venv; the desktop runtime is the embeddable build.
 if ($hasApk) {
-    Write-BuildStage -Percent 45 -Message "预检 Android Python 3.13"
+    Write-BuildStage -Percent 45 -Message "预检 Android 完整 Python 3.13（需要 venv）"
     $pythonPreflight = Find-Python313
-    if (-not $pythonPreflight -and $hasDesktop) {
-        Ensure-PythonRuntimeForDesktop
-        $pythonPreflight = Find-Python313
-    }
     if (-not $pythonPreflight) {
         $pythonPreflight = Install-Python313
     }
     $pythonPreflight = [string]$pythonPreflight
-    if (-not (Test-PythonSeries -Executable $pythonPreflight)) {
-        throw ("Android Python 预检失败：需要 Python {0}，当前解释器为 {1}（检测版本：{2}）。" -f $pythonSeries, $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
+    if (-not (Test-PythonBuildHost -Executable $pythonPreflight)) {
+        throw ("Android Python 预检失败：需要带 venv 的完整 Python {0}，当前解释器为 {1}（检测版本：{2}）。" -f $pythonSeries, $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
     }
     $script:ResolvedAndroidPython = $pythonPreflight
-    Write-Step ("Android Python 预检通过：{0}（Python {1}）" -f $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
+    Write-Step ("Android 完整 Python 预检通过：{0}（Python {1}，venv 可用）" -f $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
 }
 
 if ($hasDesktop) {
