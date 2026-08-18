@@ -1,4 +1,4 @@
-## 2026-08-19 — dev Phase 2 ExecutionController / 1.4.28 (51)
+﻿## 2026-08-19 — dev Phase 2 ExecutionController / 1.4.28 (51)
 
 - 用户已完成 Phase 1 Windows/Android 实机构建与运行验收，未发现问题，因此 Phase 1 PlatformAdapter 视为冻结接口。
 - `dev` 进入 Phase 2：新增共享 `src/execution-controller.ts`，统一 executionId、状态机、默认 10 分钟超时、取消与单活动执行策略。
@@ -215,3 +215,4 @@ Resolution:
 - on failure, report installer exit code, Python version/module diagnostics, log path and the tail of the installer log.
 
 Cloud verification: build-tool smoke, PlatformAdapter architecture smoke, ExecutionController architecture smoke, version sync and Python tests (`102 passed, 1 skipped`) pass. The python.org Windows bootstrapper itself cannot be executed in the Linux cloud environment, so final installer behavior remains a Windows build validation item.
+- 2026-08-19：构建脚本加入显式修订号/真实脚本路径日志，并以 smoke test 强制保证 Node 版本门禁与 Python 1601→CPython NuGet fallback，便于识别误替换的旧 build-pydroid.ps1。

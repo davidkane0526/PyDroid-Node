@@ -1,4 +1,4 @@
-## 1.4.28 (51) — Phase 2 ExecutionController — 2026-08-19
+﻿## 1.4.28 (51) — Phase 2 ExecutionController — 2026-08-19
 
 - `dev` 完成 Phase 2 执行生命周期重构：新增共享 `ExecutionController`，统一 `executionId`、`queued/running/cancelling/cancelled/success/failed/timeout` 状态、单活动执行策略、默认 10 分钟超时和可配置 timeout。
 - `App.tsx` 不再自行维护独立运行布尔状态，运行状态订阅共享控制器；原“运行”按钮在执行期间切换为“停止/取消中”，Notebook 与节点工作流共用同一执行状态与取消入口，UI 视觉结构不做重写。
@@ -471,3 +471,4 @@
 - 增加工作流自动保存、恢复、撤销/重做、结果预览、图表放大与 CSV 导出。
 
 - 1.4.9l UI: rebalance DataGrid action widths and use responsive multi-column controls when the Parameters panel is docked at the bottom.
+- Build: add an explicit build-script revision/path marker and regression guards so stale local scripts are immediately visible; preserve Node >=24.19 and MSI-independent CPython NuGet fallback behavior.

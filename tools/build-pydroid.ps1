@@ -142,6 +142,8 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
+$script:BuildScriptRevision = "1.4.28-dev-r4-msi-independent"
+
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -461,6 +463,8 @@ if (-not $CacheRoot) { $CacheRoot = Get-DefaultCacheRoot -ResolvedToolRoot $Tool
 if (-not $NodeVersion) { $NodeVersion = if ($env:PYDROID_NODE_VERSION) { $env:PYDROID_NODE_VERSION } else { "24.19.0" } }
 $pythonPinnedInstallerVersion = "3.13.14"
 $pythonPinnedInstallerSha256 = "C54D9B9BBB8A36E6489363DDD01139707FD781D72F1F9E90C7EC65D0061368E0"
+$pythonNuGetPackageId = "python"
+$pythonNuGetPackageVersion = $pythonPinnedInstallerVersion
 $requiredPythonSeries = "3.13"
 if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { $requiredPythonSeries } }
 $requestedPythonVersion = ([string]$PythonVersion).Trim()
@@ -638,12 +642,31 @@ $script:NodeDir = $null
 $script:PnpmCommand = $null
 $script:PnpmUseCorepack = $false
 
+function Test-NodeCandidate {
+    param([Parameter(Mandatory = $true)][string]$Executable)
+
+    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { return $false }
+    try {
+        $raw = [string]((& $Executable --version | Select-Object -Last 1)).Trim()
+        $actualText = $raw.TrimStart("v")
+        $requiredText = ([string]$NodeVersion).Trim().TrimStart("v")
+        $actual = New-Object System.Version($actualText)
+        $required = New-Object System.Version($requiredText)
+        return ($actual.Major -eq $required.Major -and $actual -ge $required)
+    } catch {
+        return $false
+    }
+}
+
 function Find-Node {
     if ($env:PYDROID_NODE_EXECUTABLE -and (Test-Path -LiteralPath $env:PYDROID_NODE_EXECUTABLE)) {
-        return (Split-Path $env:PYDROID_NODE_EXECUTABLE -Parent)
+        if (Test-NodeCandidate -Executable $env:PYDROID_NODE_EXECUTABLE) {
+            return (Split-Path $env:PYDROID_NODE_EXECUTABLE -Parent)
+        }
+        Write-Warning ("忽略 PYDROID_NODE_EXECUTABLE={0}：版本低于项目要求 Node {1}，或版本无法识别。" -f $env:PYDROID_NODE_EXECUTABLE, $NodeVersion)
     }
 
-    # 用户选择的共享工具根目录优先，避免系统 PATH 中其它 Node 抢占。
+    # 用户选择的共享工具根目录优先，但必须满足项目声明的最低 Node 版本。
     $candidates = @(
         (Join-Path $ToolRoot "NodeJs"),
         (Join-Path $ToolRoot "NodeJS"),
@@ -652,19 +675,28 @@ function Find-Node {
         (Join-Path $WorkRoot "tools\node")
     )
     foreach ($c in $candidates) {
-        if (Test-Path (Join-Path $c "node.exe")) { return $c }
+        $exe = Join-Path $c "node.exe"
+        if (Test-NodeCandidate -Executable $exe) { return $c }
+        if (Test-Path -LiteralPath $exe -PathType Leaf) {
+            try {
+                $foundVersion = [string]((& $exe --version | Select-Object -Last 1)).Trim()
+                Write-Warning ("跳过 Node {0}（{1}）：项目要求同一主版本且不低于 {2}。" -f $foundVersion, $exe, $NodeVersion)
+            } catch {}
+        }
     }
 
     $cmd = Get-Command node -ErrorAction SilentlyContinue
-    if ($cmd -and $cmd.Source) { return (Split-Path $cmd.Source -Parent) }
+    if ($cmd -and $cmd.Source -and (Test-NodeCandidate -Executable $cmd.Source)) {
+        return (Split-Path $cmd.Source -Parent)
+    }
     return $null
 }
 
 function Install-Node {
     if ($SkipToolInstall) {
-        throw "未找到 Node.js，且已指定 -SkipToolInstall。请安装可用的 Node.js 后重试。"
+        throw "未找到满足版本要求的 Node.js，且已指定 -SkipToolInstall。项目需要 Node $NodeVersion 或同一主版本的更高版本。"
     }
-    Write-Step "未找到 Node.js，正在下载便携版 Node.js 到临时工具目录 $privateToolsRoot\NodeJs ..."
+    Write-Step "未找到满足版本要求的 Node.js，正在下载 Node.js $NodeVersion 到临时工具目录 $privateToolsRoot\NodeJs ..."
     $zip = Join-Path $downloads ("node-v{0}-win-x64.zip" -f $NodeVersion)
     if (-not (Test-Path -LiteralPath $zip)) {
         Invoke-Download -Uri ("https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip" -f $NodeVersion) -OutFile $zip
@@ -1464,7 +1496,8 @@ function Test-PythonBuildHost {
         # Chaquopy invokes `python -m venv` while preparing build packages.
         # The Windows embeddable distribution intentionally omits venv and is therefore
         # suitable for the packaged desktop runtime, but NOT for Android buildPython.
-        & $Executable -c "import venv, ensurepip" 2>$null | Out-Null
+        # Android buildPython on a Windows x64 builder must also be a 64-bit interpreter.
+        & $Executable -c "import struct, venv, ensurepip; raise SystemExit(0 if struct.calcsize('P') * 8 == 64 else 1)" 2>$null | Out-Null
         return ($LASTEXITCODE -eq 0)
     } catch {
         return $false
@@ -1507,6 +1540,151 @@ function Get-PythonBuildHostDiagnostic {
     return ($details -join "; ")
 }
 
+function Get-RegisteredPython313Candidates {
+    $result = New-Object System.Collections.Generic.List[string]
+    $roots = @(
+        "HKCU:\Software\Python\PythonCore",
+        "HKLM:\Software\Python\PythonCore",
+        "HKLM:\Software\WOW6432Node\Python\PythonCore"
+    )
+
+    foreach ($root in $roots) {
+        if (-not (Test-Path -LiteralPath $root)) { continue }
+        try {
+            foreach ($versionKey in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
+                if ($versionKey.PSChildName -notmatch '^3\.13(?:$|[-.])') { continue }
+                $installPathKey = Join-Path $versionKey.PSPath "InstallPath"
+                try {
+                    $key = Get-Item -LiteralPath $installPathKey -ErrorAction Stop
+                    $installDir = [string]$key.GetValue("")
+                    if (-not [string]::IsNullOrWhiteSpace($installDir)) {
+                        $candidate = Join-Path $installDir "python.exe"
+                        if (-not $result.Contains($candidate)) { $result.Add($candidate) }
+                    }
+                    foreach ($valueName in @("ExecutablePath", "WindowedExecutablePath")) {
+                        try {
+                            $value = [string]$key.GetValue($valueName)
+                            if (-not [string]::IsNullOrWhiteSpace($value) -and -not $result.Contains($value)) {
+                                $result.Add($value)
+                            }
+                        } catch {}
+                    }
+                } catch {}
+            }
+        } catch {}
+    }
+    return @($result)
+}
+
+function Test-WindowsInstallerServiceAvailable {
+    try {
+        $service = Get-Service -Name "msiserver" -ErrorAction Stop
+        if ($service.StartType -eq [System.ServiceProcess.ServiceStartMode]::Disabled) {
+            return $false
+        }
+        if ($service.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Running) {
+            try {
+                Start-Service -Name "msiserver" -ErrorAction Stop
+                $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(5))
+            } catch {
+                return $false
+            }
+        }
+        $service.Refresh()
+        return ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running)
+    } catch {
+        return $false
+    }
+}
+
+function Install-Python313FromNuGet {
+    if ($SkipToolInstall) {
+        throw "未找到带 venv 的完整 Python $pythonSeries，且已指定 -SkipToolInstall。"
+    }
+
+    # CPython's official NuGet package is specifically intended for CI/build scenarios.
+    # Current Python 3.13 NuGet layouts include pip, venv/ensurepip and development files,
+    # while avoiding Windows Installer/MSI entirely.
+    $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
+    $packageFile = Join-Path $downloads ("python.{0}.nupkg" -f $pythonNuGetPackageVersion)
+    $packageUrl = ("https://api.nuget.org/v3-flatcontainer/{0}/{1}/{0}.{1}.nupkg" -f $pythonNuGetPackageId, $pythonNuGetPackageVersion)
+    $stagingRoot = Join-Path $CacheRoot (".python-nuget-{0}" -f $pythonNuGetPackageVersion)
+
+    for ($attempt = 1; $attempt -le 2; $attempt++) {
+        if (-not (Test-Path -LiteralPath $packageFile -PathType Leaf)) {
+            Write-Step ("下载官方 CPython NuGet 构建包：Python {0}（{1}/2）" -f $pythonNuGetPackageVersion, $attempt)
+            Invoke-Download -Uri $packageUrl -OutFile $packageFile
+        }
+
+        if (Test-Path -LiteralPath $stagingRoot) {
+            Remove-BuildDirectoryRobust -Path $stagingRoot -Quiet
+        }
+        New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
+
+        try {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($packageFile, $stagingRoot)
+
+            $nuspec = Get-ChildItem -LiteralPath $stagingRoot -Filter "*.nuspec" -File | Select-Object -First 1
+            if (-not $nuspec) { throw "NuGet 包中未找到 .nuspec 元数据。" }
+            [xml]$manifest = Get-Content -LiteralPath $nuspec.FullName -Raw
+            $idNode = $manifest.SelectSingleNode("/*[local-name()='package']/*[local-name()='metadata']/*[local-name()='id']")
+            $versionNode = $manifest.SelectSingleNode("/*[local-name()='package']/*[local-name()='metadata']/*[local-name()='version']")
+            if (-not $idNode -or $idNode.InnerText -ine $pythonNuGetPackageId) {
+                throw "NuGet 包 ID 校验失败。"
+            }
+            if (-not $versionNode -or $versionNode.InnerText -ne $pythonNuGetPackageVersion) {
+                throw ("NuGet 包版本校验失败：期望 {0}。" -f $pythonNuGetPackageVersion)
+            }
+
+            $packageTools = Join-Path $stagingRoot "tools"
+            $packagePython = Join-Path $packageTools "python.exe"
+            if (-not (Test-Path -LiteralPath $packagePython -PathType Leaf)) {
+                throw "NuGet 包中未找到 tools\python.exe。"
+            }
+
+            if (Test-Path -LiteralPath $dest) {
+                Remove-BuildDirectoryRobust -Path $dest -Quiet
+            }
+            New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+            Move-Item -LiteralPath $packageTools -Destination $dest
+
+            $pythonExe = Join-Path $dest "python.exe"
+            if (-not (Test-PythonBuildHost -Executable $pythonExe)) {
+                $diagnostic = Get-PythonBuildHostDiagnostic -Executable $pythonExe
+                throw ("NuGet Python 未通过 buildPython 校验：{0}" -f $diagnostic)
+            }
+
+            # Actually create a tiny venv once. Importing venv alone is insufficient to
+            # catch a distribution missing the Windows venv launcher executables.
+            $venvProbe = Join-Path $stagingRoot "venv-probe"
+            & $pythonExe -m venv --without-pip $venvProbe 2>$null | Out-Null
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $venvProbe "Scripts\python.exe") -PathType Leaf)) {
+                throw "NuGet Python 可以导入 venv，但实际创建 Windows venv 失败。"
+            }
+
+            Write-Step ("已准备官方 CPython NuGet buildPython：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (Get-PythonVersionLabel $pythonExe))
+            return $pythonExe
+        } catch {
+            $reason = $_.Exception.Message
+            if (Test-Path -LiteralPath $dest) {
+                Remove-BuildDirectoryRobust -Path $dest -Quiet
+            }
+            if ($attempt -eq 1) {
+                Write-Warning ("缓存的 Python NuGet 包无法使用，将删除并重新下载：{0}" -f $reason)
+                Remove-Item -LiteralPath $packageFile -Force -ErrorAction SilentlyContinue
+                continue
+            }
+            throw ("官方 CPython NuGet buildPython 准备失败：{0}" -f $reason)
+        } finally {
+            if (Test-Path -LiteralPath $stagingRoot) {
+                Remove-BuildDirectoryRobust -Path $stagingRoot -Quiet
+            }
+        }
+    }
+    throw "官方 CPython NuGet buildPython 准备失败。"
+}
+
 function Find-Python313 {
     # Android buildPython must be a FULL Python 3.13 installation with venv.
     # Do not reuse the embeddable desktop runtime: it has no `venv` module by design.
@@ -1547,6 +1725,11 @@ function Find-Python313 {
     if ($programFilesX86) {
         $candidates += (Join-Path $programFilesX86 "Python313\python.exe")
     }
+
+    # PEP 514 registry discovery catches custom/per-user Python installs which are not on
+    # PATH and are not located under the default Python313 directories.
+    $candidates += @(Get-RegisteredPython313Candidates)
+
     foreach ($candidate in $candidates) {
         if (Test-PythonBuildHost -Executable $candidate) {
             return $candidate
@@ -1575,6 +1758,13 @@ function Install-Python313 {
         throw "未找到带 venv 的完整 Python $pythonSeries，且已指定 -SkipToolInstall。请安装完整 Python 3.13，或设置 PYDROID_PYTHON_EXECUTABLE。"
     }
 
+    # Prefer zero-impact build tooling when Windows Installer is unavailable. The official
+    # CPython NuGet package is designed for CI/build systems and does not depend on MSI.
+    if (-not (Test-WindowsInstallerServiceAvailable)) {
+        Write-Warning "Windows Installer 服务（msiserver）当前不可用；跳过 EXE/MSI 安装，改用官方 CPython NuGet buildPython。"
+        return Install-Python313FromNuGet
+    }
+
     $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
     Write-Step "未找到带 venv 的完整 Python $pythonSeries，正在安装到临时工具目录 $dest ..."
     $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $pythonInstallerVersion)
@@ -1595,9 +1785,6 @@ function Install-Python313 {
         throw "Python $pythonInstallerVersion 安装器 SHA-256 校验失败。期望：$pythonPinnedInstallerSha256；实际：$installerHash"
     }
 
-    # A failed/aborted bootstrapper may leave a partial TargetDir behind. Reusing that
-    # directory causes later runs to fail immediately and hides the original installer
-    # error. Always start from a clean private installation directory.
     if (Test-Path -LiteralPath $dest) {
         Remove-BuildDirectoryRobust -Path $dest -Quiet
     }
@@ -1607,41 +1794,27 @@ function Install-Python313 {
     New-Item -ItemType Directory -Force -Path $pythonInstallLogDir | Out-Null
     $pythonInstallLog = Join-Path $pythonInstallLogDir ("python-{0}-install-{1}.log" -f $pythonInstallerVersion, (Get-Date -Format "yyyyMMdd-HHmmss"))
 
-    # Set every component required by Chaquopy explicitly. Do not depend on defaults or
-    # settings remembered by another Python installation on this Windows account.
     $installerArgs = @(
-        "/quiet",
-        "/log",
-        ('"{0}"' -f $pythonInstallLog),
-        "InstallAllUsers=0",
-        "PrependPath=0",
-        "AppendPath=0",
-        "AssociateFiles=0",
-        "Shortcuts=0",
-        "Include_launcher=0",
-        "InstallLauncherAllUsers=0",
-        "Include_exe=1",
-        "Include_lib=1",
-        "Include_pip=1",
-        "Include_tools=1",
-        "Include_dev=1",
-        "Include_tcltk=0",
-        "Include_test=0",
-        "Include_doc=0",
-        "Include_debug=0",
-        "Include_symbols=0",
-        ('TargetDir="{0}"' -f $dest)
+        "/quiet", "/log", ('"{0}"' -f $pythonInstallLog),
+        "InstallAllUsers=0", "PrependPath=0", "AppendPath=0", "AssociateFiles=0", "Shortcuts=0",
+        "Include_launcher=0", "InstallLauncherAllUsers=0", "Include_exe=1", "Include_lib=1",
+        "Include_pip=1", "Include_tools=1", "Include_dev=1", "Include_tcltk=0", "Include_test=0",
+        "Include_doc=0", "Include_debug=0", "Include_symbols=0", ('TargetDir="{0}"' -f $dest)
     )
 
     Write-Step ("安装完整 Python {0}：{1}" -f $pythonInstallerVersion, $dest)
     Write-Host ("Python 安装日志：{0}" -f $pythonInstallLog) -ForegroundColor DarkGray
-    $proc = Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -PassThru
+
+    $proc = $null
+    try {
+        $proc = Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -PassThru
+    } catch {
+        Write-Warning ("Python EXE 安装器无法启动：{0}；改用官方 CPython NuGet buildPython。" -f $_.Exception.Message)
+        return Install-Python313FromNuGet
+    }
+
     $pythonExe = Join-Path $dest "python.exe"
     $isUsable = Test-PythonBuildHost -Executable $pythonExe
-
-    # The interpreter capability is the source of truth. Some Windows installers may
-    # return a non-zero bootstrapper code (for example a restart-related code) even when
-    # the requested private interpreter is already usable; do not reject a valid host.
     if ($isUsable) {
         if ($proc.ExitCode -ne 0) {
             Write-Warning ("Python 安装器退出码为 {0}，但完整 Python 已通过版本/venv/ensurepip 校验，将继续构建。" -f $proc.ExitCode)
@@ -1650,9 +1823,6 @@ function Install-Python313 {
         return $pythonExe
     }
 
-    # If the bootstrapper entered maintenance mode for an already registered Python
-    # installation, TargetDir may not be the interpreter which was repaired. Re-scan
-    # all supported locations before declaring the installation unusable.
     $rediscovered = Find-Python313
     if ($rediscovered -and -not [string]::Equals([string]$rediscovered, $pythonExe, [StringComparison]::OrdinalIgnoreCase)) {
         Write-Warning ("Python 安装器没有在预期 TargetDir 生成可用解释器，但检测到完整 Python：{0}。将复用该解释器。" -f $rediscovered)
@@ -1668,11 +1838,21 @@ function Install-Python313 {
         } catch {}
     }
 
-    $message = "完整 Python $pythonSeries 安装失败。安装器退出码：$($proc.ExitCode)；目标：$pythonExe；校验：$diagnostic；安装日志：$pythonInstallLog"
-    if ($logTail) {
-        $message += ([Environment]::NewLine + "Python 安装日志末尾：" + [Environment]::NewLine + $logTail)
+    if ($proc.ExitCode -eq 1601) {
+        Write-Warning "Python 安装器返回 1601（Windows Installer 服务不可访问）；自动改用官方 CPython NuGet buildPython。"
+    } else {
+        Write-Warning ("Python EXE 安装器未生成可用 buildPython（退出码 {0}；{1}）；自动改用官方 CPython NuGet buildPython。" -f $proc.ExitCode, $diagnostic)
     }
-    throw $message
+    if ($logTail) {
+        Write-Host ("Python EXE 安装日志末尾：" + [Environment]::NewLine + $logTail) -ForegroundColor DarkGray
+    }
+
+    try {
+        return Install-Python313FromNuGet
+    } catch {
+        $nugetReason = $_.Exception.Message
+        throw ("完整 Python $pythonSeries 准备失败。EXE 安装器退出码：$($proc.ExitCode)；EXE 校验：$diagnostic；安装日志：$pythonInstallLog；NuGet fallback：$nugetReason")
+    }
 }
 
 # ---------------------------------------------------------------
@@ -2413,6 +2593,8 @@ function Copy-Outputs {
 # ---------------------------------------------------------------
 
 Write-BuildStage -Percent 2 -Message "读取项目与构建配置"
+Write-Step "构建脚本修订：$script:BuildScriptRevision"
+Write-Step "实际脚本路径：$PSCommandPath"
 Write-Step "项目：$ProjectRoot"
 Write-Step "版本：$version"
 if ($packageManagerSpec -or $electronSpec -or $electronBuilderSpec) {
@@ -2441,6 +2623,11 @@ Write-BuildStage -Percent 8 -Message "检查 Node、pnpm 与网络配置"
 $script:NodeDir = Find-Node
 if (-not $script:NodeDir) {
     $script:NodeDir = Install-Node
+}
+$selectedNodeExe = Join-Path $script:NodeDir "node.exe"
+if (-not (Test-NodeCandidate -Executable $selectedNodeExe)) {
+    $selectedNodeVersion = try { [string]((& $selectedNodeExe --version | Select-Object -Last 1)).Trim() } catch { "unknown" }
+    throw ("内部错误：最终选定的 Node 不满足项目版本要求。实际={0}；路径={1}；要求={2}+ 同主版本。" -f $selectedNodeVersion, $selectedNodeExe, $NodeVersion)
 }
 # 共享 ToolRoot 只读；仅把已存在的 Node 放到 PATH，再探测 pnpm/corepack。
 $env:Path = "$script:NodeDir;$ToolRoot\NodeJs;$ToolRoot\NodeJS;$env:Path"

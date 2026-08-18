@@ -148,6 +148,28 @@ assert.match(
   "Gradle network setup should patch the temporary project gradle.properties",
 );
 
+
+assert.match(
+  buildScript,
+  /\$script:BuildScriptRevision = "1\.4\.28-dev-r4-msi-independent"/,
+  "the build script should expose an explicit revision marker so stale-script runs are diagnosable",
+);
+assert.match(
+  buildScript,
+  /构建脚本修订：\$script:BuildScriptRevision[\s\S]*实际脚本路径：\$PSCommandPath/,
+  "stage 2 should log both the build-script revision and the actual script path",
+);
+assert.match(
+  buildScript,
+  /function Test-NodeCandidate[\s\S]*项目要求同一主版本且不低于/,
+  "shared Node candidates must be version-checked before reuse",
+);
+assert.match(
+  buildScript,
+  /最终选定的 Node 不满足项目版本要求/,
+  "the selected Node should be revalidated after discovery or installation",
+);
+
 assert.match(
   buildScript,
   /function Test-PythonSeries/,
@@ -160,7 +182,7 @@ assert.match(
 );
 assert.match(
   buildScript,
-  /import venv, ensurepip/,
+  /import struct, venv, ensurepip/,
   "Android build Python must provide venv/ensurepip rather than reusing the embeddable desktop runtime",
 );
 assert.doesNotMatch(
@@ -247,6 +269,28 @@ assert.match(
   buildScript,
   /Remove-BuildDirectoryRobust -Path \$dest -Quiet/,
   "a partial private Python installation should be removed robustly before retrying the official installer",
+);
+
+
+assert.match(
+  buildScript,
+  /function Install-Python313FromNuGet/,
+  "Python 3.13 bootstrap should have an MSI-independent CPython NuGet fallback",
+);
+assert.match(
+  buildScript,
+  /python\.\{0\}\.nupkg[\s\S]*api\.nuget\.org\/v3-flatcontainer/,
+  "the fallback should download the official CPython NuGet package",
+);
+assert.match(
+  buildScript,
+  /\$proc\.ExitCode -eq 1601[\s\S]*Install-Python313FromNuGet/,
+  "Windows Installer error 1601 must fall back to CPython NuGet instead of aborting the build",
+);
+assert.match(
+  buildScript,
+  /Test-WindowsInstallerServiceAvailable[\s\S]*改用官方 CPython NuGet buildPython/,
+  "an unavailable Windows Installer service should bypass the EXE bootstrapper",
 );
 
 assert.match(
