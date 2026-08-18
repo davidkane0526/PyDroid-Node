@@ -515,7 +515,7 @@ if ($workspaceFull.StartsWith($projectPrefix, [StringComparison]::OrdinalIgnoreC
 }
 $downloads = Join-Path $CacheRoot "downloads"
 $storeDir  = Join-Path $CacheRoot "pnpm-store"
-$gradleHome = Join-Path $CacheRoot "gradle"
+$gradleHome = Join-Path (Join-Path $CacheRoot "gradle") $projectKey
 $electronCache = Join-Path $CacheRoot "electron"
 $electronBuilderCache = Join-Path $CacheRoot "electron-builder"
 $npmCache = Join-Path $CacheRoot "npm"
@@ -1565,65 +1565,27 @@ function packageManagerInvocation(args) {
 }
 
 function Patch-WorkspaceAndroidPackage {
-    # Gradle daemon 的最终状态必须由 GUI/CLI 开关唯一决定。每次构建都显式
-    # 写入 --daemon 或 --no-daemon，避免项目历史脚本或用户级 gradle.properties
-    # 让日志与实际行为不一致。
+    # android-package.ps1 自己读取 PYDROID_DISABLE_GRADLE_DAEMON，核心构建器不再
+    # 用正则修改脚本中的 gradlew 命令。这样重试/降级逻辑可以保持完整，也避免
+    # GUI 显示的 daemon 状态与实际脚本分叉。
     $file = Join-Path $workspace "scripts\android-package.ps1"
-    if (-not (Test-Path -LiteralPath $file)) { return }
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return }
 
     $content = Get-Content -LiteralPath $file -Raw
-    $original = $content
-
-    # 先清除 assembleDebug 这一行上的历史 daemon 开关，再注入唯一目标开关。
-    $content = [regex]::Replace(
-        $content,
-        '(?m)(\.\\gradlew\.bat\s+assembleDebug[^\r\n]*?)\s+--(?:no-)?daemon(?=\s|$)',
-        '$1'
-    )
-
-    if ($DisableGradleDaemon) {
-        $content = [regex]::Replace(
-            $content,
-            '(?m)(\.\\gradlew\.bat\s+assembleDebug[^\r\n]*)$',
-            '$1 --no-daemon',
-            1
-        )
-        $modeMessage = "Gradle daemon：已禁用（-DisableGradleDaemon）。"
-        $modeColor = "DarkYellow"
-    } else {
-        $content = [regex]::Replace(
-            $content,
-            '(?m)(\.\\gradlew\.bat\s+assembleDebug[^\r\n]*)$',
-            '$1 --daemon',
-            1
-        )
-        $modeMessage = "Gradle daemon：启用（默认，连续构建将复用 daemon）。"
-        $modeColor = "DarkGreen"
+    if ($content -notmatch 'PYDROID_DISABLE_GRADLE_DAEMON') {
+        throw "Gradle daemon 开关自检失败：android-package.ps1 未读取 PYDROID_DISABLE_GRADLE_DAEMON。"
     }
-
-    if ($content -ne $original) {
-        [System.IO.File]::WriteAllText($file, $content, (New-Object System.Text.UTF8Encoding($true)))
-    }
-
-    # 构建前再读一遍工作区文件进行硬校验，防止未来脚本改动重新引入矛盾。
-    $verify = Get-Content -LiteralPath $file -Raw
-    $assembleLine = [regex]::Match($verify, '(?m)^.*gradlew\.bat\s+assembleDebug[^\r\n]*$').Value
-    if ([string]::IsNullOrWhiteSpace($assembleLine)) {
-        throw "Gradle daemon 开关自检失败：android-package.ps1 中未找到 assembleDebug 命令。"
+    if ($content -notmatch 'A problem occurred starting process.+Gradle build daemon') {
+        throw "Gradle daemon 恢复自检失败：android-package.ps1 缺少 daemon 启动失败自动恢复逻辑。"
     }
 
     if ($DisableGradleDaemon) {
-        if ($assembleLine -notmatch '--no-daemon' -or $assembleLine -match '(?<!no-)--daemon') {
-            throw "Gradle daemon 开关自检失败：要求禁用 daemon，但实际 assembleDebug 命令不正确：$assembleLine"
-        }
+        Write-Host "Gradle daemon：已禁用（-DisableGradleDaemon）。" -ForegroundColor DarkYellow
     } else {
-        if ($assembleLine -notmatch '(?<!no-)--daemon' -or $assembleLine -match '--no-daemon') {
-            throw "Gradle daemon 开关自检失败：要求启用 daemon，但实际 assembleDebug 命令不正确：$assembleLine"
-        }
+        Write-Host "Gradle daemon：启用（默认；失败时自动清理并降级）。" -ForegroundColor DarkGreen
     }
-
-    Write-Host $modeMessage -ForegroundColor $modeColor
 }
+
 function Clear-WorkspaceOutputs {
     param([switch]$IncludeAndroidBuild)
 
@@ -1812,7 +1774,7 @@ function Configure-GradleNetwork {
     # Gradle proxy configuration. Pass the resolved proxy explicitly as JVM
     # system properties so both the Wrapper distribution download and the later
     # Gradle dependency resolution use the same proxy selected in the GUI.
-    $gradleArgs = @("-Xmx1536m")
+    $gradleArgs = @("-Xms64m", "-Xmx1536m")
 
     if (-not [string]::IsNullOrWhiteSpace([string]$script:ResolvedProxyUrl)) {
         try {
@@ -1880,6 +1842,35 @@ function Configure-GradleNetwork {
             if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
             $projectGradleText += "org.gradle.jvmargs=$effectiveJvmArgs`r`n"
         }
+        # 将 daemon JVM 明确固定到本次 GUI/CLI 已确认的 JAVA_HOME，避免
+        # 用户级 Gradle 配置或旧 daemon 使用另一套 JDK 而被判定 incompatible。
+        if (-not [string]::IsNullOrWhiteSpace([string]$env:JAVA_HOME)) {
+            $gradleJavaHome = ([string]$env:JAVA_HOME).Replace('\', '/')
+            if ($projectGradleText -match '(?m)^\s*org\.gradle\.java\.home\s*=') {
+                $projectGradleText = [regex]::Replace(
+                    $projectGradleText,
+                    '(?m)^\s*org\.gradle\.java\.home\s*=.*$',
+                    "org.gradle.java.home=$gradleJavaHome"
+                )
+            } else {
+                if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
+                $projectGradleText += "org.gradle.java.home=$gradleJavaHome`r`n"
+            }
+        }
+
+        # 关闭 GUI 时会显式 --stop；这里再把空闲超时缩短到 10 分钟，
+        # 即使 GUI 异常崩溃，也不会让 PyDroid daemon 长时间残留。
+        if ($projectGradleText -match '(?m)^\s*org\.gradle\.daemon\.idletimeout\s*=') {
+            $projectGradleText = [regex]::Replace(
+                $projectGradleText,
+                '(?m)^\s*org\.gradle\.daemon\.idletimeout\s*=.*$',
+                'org.gradle.daemon.idletimeout=600000'
+            )
+        } else {
+            if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
+            $projectGradleText += "org.gradle.daemon.idletimeout=600000`r`n"
+        }
+
         [System.IO.File]::WriteAllText(
             $ProjectPropertiesPath,
             $projectGradleText,
@@ -1984,12 +1975,17 @@ function Build-Android {
     Write-Host "ANDROID_HOME：$env:ANDROID_HOME"
     Write-Host "ANDROID_SDK_ROOT：$env:ANDROID_SDK_ROOT"
     Write-Host "Python：$env:PYDROID_PYTHON_EXECUTABLE"
+    Write-Host "GRADLE_USER_HOME：$env:GRADLE_USER_HOME"
+
+    # Android 打包脚本读取此开关决定正常 daemon 模式或显式无 daemon 模式。
+    # 默认模式若遇到 daemon 进程启动失败，会在 android-package.ps1 内自动恢复。
+    $env:PYDROID_DISABLE_GRADLE_DAEMON = if ($DisableGradleDaemon) { "1" } else { "0" }
 
     Write-BuildStage -Percent 78 -Message "准备 Android Gradle 构建"
     if ($DisableGradleDaemon) {
         Write-Step "Gradle daemon 已禁用；本次构建使用独立 JVM。"
     } else {
-        Write-Step "Gradle daemon 已启用；不主动执行 gradlew --stop，以便后续构建复用 JVM 与缓存。"
+        Write-Step "Gradle daemon 已启用；使用 PyDroid 专属 daemon 状态，启动失败会自动清理并重试。"
     }
 
     Write-BuildStage -Percent 82 -Message "编译 Android APK"

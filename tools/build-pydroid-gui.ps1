@@ -607,11 +607,123 @@ $openButton.Add_Click({
     Start-Process explorer.exe -ArgumentList ('"{0}"' -f $path)
 })
 
+function Get-GuiProjectKey {
+    param([string]$Root)
+    $key = "pydroid-flow"
+    try {
+        $packagePath = Join-Path $Root "package.json"
+        if (Test-Path -LiteralPath $packagePath -PathType Leaf) {
+            $pkg = Get-Content -LiteralPath $packagePath -Raw | ConvertFrom-Json
+            if ($pkg.name) { $key = [string]$pkg.name }
+        }
+    } catch {}
+    $key = ($key -replace '[^A-Za-z0-9._-]', '-').Trim([char[]]'-')
+    if (-not $key) { $key = "pydroid-flow" }
+    return $key
+}
+
+function Stop-PyDroidGradleDaemons {
+    param([switch]$Quiet)
+
+    $project = $projectBox.Text.Trim()
+    $work = $workBox.Text.Trim()
+    $cache = $cacheBox.Text.Trim()
+    if (-not $project -or -not $cache) { return }
+
+    $projectKey = Get-GuiProjectKey $project
+    $gradleHome = Join-Path (Join-Path $cache "gradle") $projectKey
+    $workspaceAndroid = if ($work) { Join-Path $work ("builds\{0}\android" -f $projectKey) } else { "" }
+    $sourceAndroid = Join-Path $project "android"
+    $gradlew = $null
+    foreach ($candidateRoot in @($workspaceAndroid, $sourceAndroid)) {
+        if (-not $candidateRoot) { continue }
+        $candidate = Join-Path $candidateRoot "gradlew.bat"
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $gradlew = $candidate
+            break
+        }
+    }
+    if (-not $gradlew) { return }
+
+    $oldGradleHome = $env:GRADLE_USER_HOME
+    $oldJavaHome = $env:JAVA_HOME
+    try {
+        $env:GRADLE_USER_HOME = $gradleHome
+        $jdk = $jdkBox.Text.Trim()
+        if ($jdk -and (Test-Path -LiteralPath (Join-Path $jdk "bin\java.exe") -PathType Leaf)) {
+            $env:JAVA_HOME = $jdk
+        }
+
+        if (-not $Quiet) {
+            Append-BuildLogLine ("[GUI] 正在停止 PyDroid Gradle daemon：{0}" -f $gradleHome)
+        }
+
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = $env:ComSpec
+        $psi.UseShellExecute = $false
+        $psi.CreateNoWindow = $true
+        $psi.WorkingDirectory = Split-Path $gradlew -Parent
+        $psi.Arguments = '/d /s /c ""' + $gradlew + '" --stop"'
+        # --stop 输出很少且这里不需要展示；不重定向管道，避免关闭 GUI 时
+        # 因无人读取的子进程输出管道而产生额外等待。
+        $stopProc = New-Object System.Diagnostics.Process
+        $stopProc.StartInfo = $psi
+        if ($stopProc.Start()) {
+            if (-not $stopProc.WaitForExit(3000)) {
+                try { & taskkill.exe /PID $stopProc.Id /T /F | Out-Null } catch {}
+            }
+            try { $stopProc.Dispose() } catch {}
+        }
+    } catch {
+        if (-not $Quiet) {
+            Append-BuildLogLine ("[GUI] 停止 Gradle daemon 时出现警告：{0}" -f $_.Exception.Message)
+        }
+    } finally {
+        $env:GRADLE_USER_HOME = $oldGradleHome
+        $env:JAVA_HOME = $oldJavaHome
+    }
+}
+
+function Dispose-BuildProcessHandles {
+    try { if ($script:stdoutReader) { $script:stdoutReader.Dispose() } } catch {}
+    try { if ($script:stderrReader) { $script:stderrReader.Dispose() } } catch {}
+    try { if ($script:buildProcess) { $script:buildProcess.Dispose() } } catch {}
+    $script:stdoutReader = $null
+    $script:stderrReader = $null
+    $script:stdoutTask = $null
+    $script:stderrTask = $null
+    $script:buildProcess = $null
+}
+
+function Stop-CurrentBuildSession {
+    param([switch]$Quiet)
+
+    if ($script:buildProcess) {
+        try {
+            $script:buildProcess.Refresh()
+            if (-not $script:buildProcess.HasExited) {
+                if (-not $Quiet) { Append-BuildLogLine "[GUI] 正在终止本次构建进程树..." }
+                & taskkill.exe /PID $script:buildProcess.Id /T /F | Out-Null
+                Start-Sleep -Milliseconds 250
+            }
+        } catch {
+            if (-not $Quiet) { Append-BuildLogLine ("[GUI] 终止构建进程树时出现警告：{0}" -f $_.Exception.Message) }
+        }
+    }
+
+    Dispose-BuildProcessHandles
+    # Gradle daemon 可能已经脱离父进程树，因此无论 buildProcess 是否仍存活，
+    # 都用 PyDroid 专属 GRADLE_USER_HOME 再执行一次 gradlew --stop。
+    Stop-PyDroidGradleDaemons -Quiet:$Quiet
+    $startButton.Enabled = $true
+    $cancelButton.Enabled = $false
+}
+
 $cancelButton.Add_Click({
     if (-not $script:buildProcess) { return }
     try {
-        & taskkill.exe /PID $script:buildProcess.Id /T /F | Out-Null
-        $statusLabel.Text = "已取消"
+        Stop-CurrentBuildSession
+        $statusLabel.Text = "已取消；构建子进程与 PyDroid Gradle daemon 已关闭"
         $stageLabel.Text = "当前步骤：已取消"
     } catch {
         [System.Windows.Forms.MessageBox]::Show("取消失败：$($_.Exception.Message)", "PyDroid Build", "OK", "Warning") | Out-Null
@@ -781,14 +893,28 @@ Network concurrency: $networkConcurrency
 
 $form.Add_FormClosing({
     param($sender, $eventArgs)
-    if ($script:buildProcess -and -not $script:buildProcess.HasExited) {
-        $answer = [System.Windows.Forms.MessageBox]::Show("构建仍在进行，关闭窗口会终止构建。是否继续？", "PyDroid Build", "YesNo", "Warning")
+    $activeBuild = $false
+    if ($script:buildProcess) {
+        try { $activeBuild = -not $script:buildProcess.HasExited } catch { $activeBuild = $true }
+    }
+
+    if ($activeBuild) {
+        $answer = [System.Windows.Forms.MessageBox]::Show(
+            "构建仍在进行。关闭窗口会终止本次 PowerShell/pnpm/Gradle/Java 进程树，并停止 PyDroid Gradle daemon。是否继续？",
+            "PyDroid Build",
+            "YesNo",
+            "Warning"
+        )
         if ($answer -ne [System.Windows.Forms.DialogResult]::Yes) {
             $eventArgs.Cancel = $true
             return
         }
-        try { & taskkill.exe /PID $script:buildProcess.Id /T /F | Out-Null } catch {}
     }
+
+    # 关闭 GUI 时始终清理本工具启动的后台构建状态。即使当前 buildProcess 已经
+    # 结束，前一次成功/失败构建留下的 Gradle daemon 也会在这里停止。
+    try { $timer.Stop() } catch {}
+    try { Stop-CurrentBuildSession -Quiet } catch {}
 })
 
 [void]$form.ShowDialog()

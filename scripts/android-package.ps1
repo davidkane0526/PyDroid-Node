@@ -53,6 +53,56 @@ else {
 $env:JAVA_HOME = $jdkRoot
 $env:ANDROID_HOME = $sdkRoot
 $env:ANDROID_SDK_ROOT = $sdkRoot
+$disableGradleDaemon = ([string]$env:PYDROID_DISABLE_GRADLE_DAEMON) -eq "1"
+
+function Invoke-GradleLogged {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+        [Parameter(Mandatory = $true)]
+        [string]$LogPath
+    )
+
+    if (Test-Path -LiteralPath $LogPath) {
+        Remove-Item -LiteralPath $LogPath -Force -ErrorAction SilentlyContinue
+    }
+
+    & .\gradlew.bat @Arguments 2>&1 | Tee-Object -FilePath $LogPath | Out-Host
+    return [int]$LASTEXITCODE
+}
+
+function Test-GradleDaemonStartFailure {
+    param([string]$LogPath)
+    if (-not (Test-Path -LiteralPath $LogPath -PathType Leaf)) { return $false }
+    $text = Get-Content -LiteralPath $LogPath -Raw -ErrorAction SilentlyContinue
+    if ([string]::IsNullOrWhiteSpace($text)) { return $false }
+    return ($text -match "A problem occurred starting process 'Gradle build daemon'" -or
+            $text -match 'Unable to start the daemon process' -or
+            $text -match 'Could not start daemon process')
+}
+
+function Stop-PyDroidGradleDaemon {
+    Write-Host "Stopping PyDroid Gradle daemons before recovery..." -ForegroundColor DarkYellow
+    try {
+        & .\gradlew.bat --stop 2>&1 | Out-Host
+    } catch {
+        Write-Warning "gradlew --stop failed during recovery: $($_.Exception.Message)"
+    }
+    Start-Sleep -Milliseconds 500
+}
+
+function Clear-PyDroidGradleDaemonState {
+    if ([string]::IsNullOrWhiteSpace([string]$env:GRADLE_USER_HOME)) { return }
+    $daemonState = Join-Path $env:GRADLE_USER_HOME "daemon"
+    if (Test-Path -LiteralPath $daemonState -PathType Container) {
+        try {
+            Remove-Item -LiteralPath $daemonState -Recurse -Force -ErrorAction Stop
+            Write-Host "Cleared stale PyDroid Gradle daemon registry/log state: $daemonState" -ForegroundColor DarkYellow
+        } catch {
+            Write-Warning "Unable to clear stale Gradle daemon state: $($_.Exception.Message)"
+        }
+    }
+}
 
 Push-Location $projectRoot
 try {
@@ -65,10 +115,33 @@ try {
     try {
         # --no-watch-fs: with the local-storage junction layout (android/app/build ->
         # D:\PyDroidTemp\PyDroid\generated\android-app-build), Gradle 8's file-system
-        # watching can hold handles on Chaquopy's pip staging dirs. Keep VFS watching off,
-        # but leave the Gradle daemon enabled by default for faster and more stable local builds.
-        .\gradlew.bat assembleDebug --no-watch-fs --daemon
-        if ($LASTEXITCODE -ne 0) {
+        # watching can hold handles on Chaquopy's pip staging dirs.
+        $gradleLog = Join-Path $projectRoot ".tools\gradle-assemble-last.log"
+        New-Item -ItemType Directory -Force -Path (Split-Path $gradleLog -Parent) | Out-Null
+
+        if ($disableGradleDaemon) {
+            Write-Host "Gradle mode: --no-daemon" -ForegroundColor DarkYellow
+            $exitCode = Invoke-GradleLogged -Arguments @("assembleDebug", "--no-watch-fs", "--no-daemon") -LogPath $gradleLog
+        }
+        else {
+            Write-Host "Gradle mode: --daemon (automatic recovery enabled)" -ForegroundColor DarkGreen
+            $exitCode = Invoke-GradleLogged -Arguments @("assembleDebug", "--no-watch-fs", "--daemon") -LogPath $gradleLog
+
+            if ($exitCode -ne 0 -and (Test-GradleDaemonStartFailure -LogPath $gradleLog)) {
+                Write-Warning "Gradle daemon failed to start. Cleaning PyDroid daemon state and retrying once."
+                Stop-PyDroidGradleDaemon
+                Clear-PyDroidGradleDaemonState
+                $exitCode = Invoke-GradleLogged -Arguments @("assembleDebug", "--no-watch-fs", "--daemon") -LogPath $gradleLog
+
+                if ($exitCode -ne 0 -and (Test-GradleDaemonStartFailure -LogPath $gradleLog)) {
+                    Write-Warning "Gradle daemon still cannot start. Falling back to --no-daemon for this build."
+                    Stop-PyDroidGradleDaemon
+                    $exitCode = Invoke-GradleLogged -Arguments @("assembleDebug", "--no-watch-fs", "--no-daemon") -LogPath $gradleLog
+                }
+            }
+        }
+
+        if ($exitCode -ne 0) {
             throw "Android debug APK build failed."
         }
     }

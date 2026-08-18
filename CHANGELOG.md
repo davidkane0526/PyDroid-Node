@@ -1,3 +1,11 @@
+## 1.4.22 (45) — Gradle daemon isolation / GUI process cleanup — 2026-08-18
+
+- Android Gradle 使用 `CacheRoot\gradle\<project>` 独立 Gradle User Home，避免旧项目或其它 Gradle 构建留下的 daemon registry 与 JVM 参数发生冲突。
+- 临时工作区 `gradle.properties` 明确同步 `org.gradle.java.home` 到 GUI 已确认的 JDK，并把 PyDroid daemon 空闲超时限制为 10 分钟。
+- Android 打包增加 daemon 启动失败自动恢复：先停止 PyDroid daemon、清理仅 daemon registry/log 状态后重试；若仍无法启动则自动降级为 `--no-daemon`，不再直接终止整个构建。
+- GUI 的“取消”和关闭窗口共用统一清理流程：终止本次 PowerShell/pnpm/Gradle/Java 子进程树，并对 PyDroid 专属 Gradle User Home 执行 `gradlew --stop`。即使构建进程已经结束，关闭 GUI 也会停止残留 daemon。
+- 不使用全局 `taskkill java.exe`，避免误杀其它 Java 应用。
+
 ## 1.4.20 (43) — Gradle daemon consistency / Android build reliability — 2026-08-18
 
 - 修复构建日志显示“Gradle daemon 已启用”，但 `scripts/android-package.ps1` 实际仍硬编码 `--no-daemon` 的逻辑矛盾。默认 Android 构建现在显式使用 `--daemon`，确保连续构建真正复用 Gradle JVM。

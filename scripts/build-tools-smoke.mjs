@@ -89,13 +89,28 @@ assert.match(
 
 assert.match(
   buildScript,
-  /Gradle daemon 开关自检失败/,
-  "build script should verify that the effective Gradle daemon flag matches the GUI/CLI selection",
+  /PYDROID_DISABLE_GRADLE_DAEMON/,
+  "core build script should pass the Gradle daemon selection to android-package.ps1 without regex-rewriting its commands",
 );
 assert.match(
   buildScript,
   /org\.gradle\.jvmargs=\$effectiveJvmArgs/,
-  "Gradle client and build JVM arguments should be synchronized so --no-daemon does not spawn a single-use daemon",
+  "Gradle client and build JVM arguments should be synchronized for daemon/no-daemon compatibility",
+);
+assert.match(
+  buildScript,
+  /org\.gradle\.java\.home=\$gradleJavaHome/,
+  "Gradle daemon JVM should be pinned to the validated JAVA_HOME",
+);
+assert.match(
+  buildScript,
+  /org\.gradle\.daemon\.idletimeout=600000/,
+  "PyDroid Gradle daemons should have a bounded idle lifetime",
+);
+assert.match(
+  buildScript,
+  /Join-Path \(Join-Path \$CacheRoot "gradle"\) \$projectKey/,
+  "Gradle user home should be isolated per project to avoid stale daemon collisions",
 );
 assert.match(
   buildScript,
@@ -128,13 +143,28 @@ const androidPackagePath = fileURLToPath(new URL("../scripts/android-package.ps1
 const androidPackage = readFileSync(androidPackagePath, "utf8");
 assert.match(
   androidPackage,
-  /gradlew\.bat assembleDebug[^\r\n]*--daemon/,
-  "Android packaging should explicitly enable the Gradle daemon by default",
+  /PYDROID_DISABLE_GRADLE_DAEMON/,
+  "Android packaging should honor the explicit Gradle daemon mode from the core build script",
 );
-assert.doesNotMatch(
+assert.match(
   androidPackage,
-  /gradlew\.bat assembleDebug[^\r\n]*--no-daemon/,
-  "Android packaging must not disable the Gradle daemon by default",
+  /automatic recovery enabled/,
+  "Android packaging should enable daemon mode with automatic recovery by default",
+);
+assert.match(
+  androidPackage,
+  /Gradle daemon failed to start/,
+  "Android packaging should detect daemon startup failures and recover automatically",
+);
+assert.match(
+  androidPackage,
+  /gradlew\.bat --stop/,
+  "Android packaging should stop stale PyDroid daemons before daemon recovery",
+);
+assert.match(
+  androidPackage,
+  /Falling back to --no-daemon/,
+  "Android packaging should fall back to no-daemon mode if daemon recovery still fails",
 );
 
 assert.match(
@@ -152,6 +182,11 @@ assert.match(buildGui, /@\("-JavaHome", \$jdkHome\)/, "build GUI should pass the
 assert.match(buildGui, /JdkHome = \$jdkHome/, "build GUI should persist the selected JDK directory");
 assert.doesNotMatch(buildGui, /finishedProcess\.WaitForExit\(\)/, "build GUI must not block the UI thread waiting for daemon-held pipes after process exit");
 assert.match(buildGui, /Show-BuildMessage/, "build completion/failure dialogs should be owned by the GUI window");
+assert.match(buildGui, /Stop-CurrentBuildSession/, "build GUI should have one cleanup path for cancel and close");
+assert.match(buildGui, /taskkill\.exe \/PID \$script:buildProcess\.Id \/T \/F/, "closing/cancelling should terminate the build process tree");
+assert.match(buildGui, /gradlew\.bat/, "GUI cleanup should explicitly stop the PyDroid Gradle daemon");
+assert.match(buildGui, /--stop/, "GUI cleanup should run gradlew --stop for detached Gradle daemon processes");
+assert.match(buildGui, /Add_FormClosing/, "GUI close should always run build-session cleanup");
 
 
 const args = ["desktop:build"];
