@@ -1,3 +1,11 @@
+## 1.4.24 (47) — Python 3.13 installer URL normalization — 2026-08-18
+
+- 修复 GUI/环境中保存 `PythonVersion=3.13` 时错误拼出 `https://www.python.org/ftp/python/3.13/python-3.13-amd64.exe` 的 404 问题。
+- 将“Android Python 兼容系列”与“自动下载安装器补丁版本”分离：兼容要求仍为 Python 3.13.x，自动安装固定使用 python.org 已发布的 Python 3.13.14 x64。
+- 下载完整 Python 安装器后校验官方 SHA-256 `C54D9B9BBB8A36E6489363DDD01139707FD781D72F1F9E90C7EC65D0061368E0`；缓存文件不匹配时自动删除并重新下载。
+- GUI 将旧的 `3.13` / `3.13.x` 持久化值规范为 `3.13` 系列，避免旧设置再次生成错误 URL。
+- `scripts/setup-windows.ps1` 的桌面嵌入式 Python 同步固定为 3.13.14，并更新为 python.org 官方 SHA-256。
+
 ## 1.4.23 (46) — Android full Python build host / read-only shared tool root — 2026-08-18
 
 - Split Python responsibilities: the packaged Windows desktop keeps the embeddable Python 3.13 runtime, while Android Chaquopy buildPython now requires a full Python 3.13 installation with `venv` and `ensurepip`.
@@ -32,7 +40,7 @@
 ## 1.4.19 (42) — Python 3.13 / settings layout refinement — 2026-08-18
 
 - 项目 Python 基线由 3.12 升级到 3.13：Android Chaquopy 使用 Python 3.13，并固定 Android 可用的 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；Android 仍不声明 SciPy，因为 Chaquopy Android wheel 仓库目前没有 CPython 3.13 的 SciPy wheel。
-- Windows/桌面便携 Python 改为 3.13.15，开发依赖同步到 pandas 2.2.3、Matplotlib 3.10.8、SciPy 1.17.0；所有启动器、Notebook 元数据、测试、CI 配置和构建脚本统一使用 Python 3.13。
+- Windows/桌面便携 Python 改为 3.13 系列，开发依赖同步到 pandas 2.2.3、Matplotlib 3.10.8、SciPy 1.17.0；所有启动器、Notebook 元数据、测试、CI 配置和构建脚本统一使用 Python 3.13。
 - 设置页标题栏精简为单行“设置 | v1.4.19”，删除“界面、运行时与平台配置”副标题，不再为版本号额外占用纵向空间。
 - SMB 认证行重新对齐：访客复选框从“域”列左缘开始，字号/间距增大；登录按钮与密码输入框同为 32 px 高，并填充认证单元的剩余宽度。
 - AI Agent 设置将“审计”移动到右侧权限区下方的空白区域；窄窗口仍自动恢复单列，避免错位和溢出。

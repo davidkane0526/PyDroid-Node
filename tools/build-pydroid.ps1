@@ -459,13 +459,21 @@ if (-not $WorkRoot) { $WorkRoot = Get-DefaultWorkRoot }
 if (-not $ToolRoot) { $ToolRoot = Get-DefaultToolRoot -ResolvedWorkRoot $WorkRoot }
 if (-not $CacheRoot) { $CacheRoot = Get-DefaultCacheRoot -ResolvedToolRoot $ToolRoot -ResolvedWorkRoot $WorkRoot }
 if (-not $NodeVersion) { $NodeVersion = if ($env:PYDROID_NODE_VERSION) { $env:PYDROID_NODE_VERSION } else { "24.19.0" } }
-if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { "3.13.15" } }
+$pythonPinnedInstallerVersion = "3.13.14"
+$pythonPinnedInstallerSha256 = "C54D9B9BBB8A36E6489363DDD01139707FD781D72F1F9E90C7EC65D0061368E0"
+if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { "3.13" } }
 $pythonVersionParts = $PythonVersion.Split(".")
-if ($pythonVersionParts.Count -lt 2) { throw "PythonVersion 必须至少包含主版本和次版本，例如 3.13.15。" }
+if ($pythonVersionParts.Count -lt 2) { throw "PythonVersion 必须至少包含主版本和次版本，例如 3.13。" }
 $pythonMajor = [int]$pythonVersionParts[0]
 $pythonMinor = [int]$pythonVersionParts[1]
 $pythonSeries = ("{0}.{1}" -f $pythonMajor, $pythonMinor)
 $pythonToolDirName = ("python{0}{1}" -f $pythonMajor, $pythonMinor)
+if ($pythonSeries -ne "3.13") {
+    throw "当前 PyDroid Android/Chaquopy 配置固定使用 Python 3.13；收到 PythonVersion=$PythonVersion。"
+}
+# PythonSeries is the compatibility requirement. Auto-install is pinned independently
+# so stored values such as "3.13" or "3.13.x" can never become a download URL directly.
+$pythonInstallerVersion = $pythonPinnedInstallerVersion
 
 if (-not $ProjectRoot) {
     if (Test-Path (Join-Path (Get-Location) "package.json")) {
@@ -1515,9 +1523,22 @@ function Install-Python313 {
     }
     $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
     Write-Step "未找到带 venv 的完整 Python $pythonSeries，正在安装到临时工具目录 $dest ..."
-    $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $PythonVersion)
+    $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $pythonInstallerVersion)
+    $installerUrl = ("https://www.python.org/ftp/python/{0}/python-{0}-amd64.exe" -f $pythonInstallerVersion)
+    if (Test-Path -LiteralPath $installer) {
+        $cachedHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToUpperInvariant()
+        if ($cachedHash -ne $pythonPinnedInstallerSha256) {
+            Write-Warning "缓存的 Python 安装器校验失败，正在删除并重新下载：$installer"
+            Remove-Item -LiteralPath $installer -Force
+        }
+    }
     if (-not (Test-Path -LiteralPath $installer)) {
-        Invoke-Download -Uri ("https://www.python.org/ftp/python/{0}/python-{0}-amd64.exe" -f $PythonVersion) -OutFile $installer
+        Write-Step "Python $pythonSeries 自动安装固定使用官方 Python $pythonInstallerVersion x64 安装器。"
+        Invoke-Download -Uri $installerUrl -OutFile $installer
+    }
+    $installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToUpperInvariant()
+    if ($installerHash -ne $pythonPinnedInstallerSha256) {
+        throw "Python $pythonInstallerVersion 安装器 SHA-256 校验失败。期望：$pythonPinnedInstallerSha256；实际：$installerHash"
     }
     New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
     if (Test-Path -LiteralPath $dest) {

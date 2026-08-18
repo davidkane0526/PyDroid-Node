@@ -5,10 +5,10 @@ $toolsDirectory = Join-Path $projectRoot ".tools"
 $downloads = Join-Path $toolsDirectory "downloads"
 $runtime = Join-Path $toolsDirectory "python313-runtime"
 $python = Join-Path $runtime "python.exe"
-$archive = Join-Path $downloads "python-3.13.15-embed-amd64.zip"
+$archive = Join-Path $downloads "python-3.13.14-embed-amd64.zip"
 $getPip = Join-Path $downloads "get-pip.py"
 
-$archiveSha256 = "D1F04D990AEE1253D8569E8E5104E30FA9F5FA830899F14843448872D936A2CF"
+$archiveSha256 = "90B4E5B9898B72D744650524BFF92377C367F44BD5FBD09E3148656C080AD907"
 $getPipSha256 = "FB24E693BAB954209A063D90953621412CCAD4A500905A726286E038F508DDF6"
 
 function Get-FileDigest([string]$path, [string]$algorithm) {
@@ -31,7 +31,7 @@ function Invoke-DownloadWithRetry([string]$uri, [string]$outFile) {
 
 New-Item -ItemType Directory -Force -Path $downloads | Out-Null
 if (-not (Test-Path -LiteralPath $archive)) {
-    Invoke-DownloadWithRetry "https://www.python.org/ftp/python/3.13.15/python-3.13.15-embed-amd64.zip" $archive
+    Invoke-DownloadWithRetry "https://www.python.org/ftp/python/3.13.14/python-3.13.14-embed-amd64.zip" $archive
 }
 if (-not (Test-Path -LiteralPath $getPip)) {
     Invoke-DownloadWithRetry "https://bootstrap.pypa.io/get-pip.py" $getPip

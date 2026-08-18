@@ -163,6 +163,26 @@ assert.match(
   /预检 Android 完整 Python 3\.13/,
   "Android Python compatibility should be checked before expensive packaging",
 );
+assert.match(
+  buildScript,
+  /\$pythonPinnedInstallerVersion = "3\.13\.14"/,
+  "Python 3.13 auto-install should pin an existing full python.org maintenance release",
+);
+assert.match(
+  buildScript,
+  /\$pythonSeries -ne "3\.13"/,
+  "Android Python series should stay aligned with the Chaquopy Python 3.13 configuration",
+);
+assert.match(
+  buildScript,
+  /python\/\{0\}\/python-\{0\}-amd64\.exe/,
+  "Python installer URL must include the full maintenance version directory and filename",
+);
+assert.doesNotMatch(
+  buildScript,
+  /ftp\/python\/\{0\}\/python-\{0\}-amd64\.exe" -f \$PythonVersion/,
+  "raw PythonVersion must not be used directly for auto-install URLs because persisted 3.13 values are valid series but invalid download directories",
+);
 
 assert.match(
   buildScript,
@@ -227,6 +247,7 @@ assert.match(
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
 const buildGui = readFileSync(buildGuiPath, "utf8");
 assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");
+assert.match(buildGui, /\$pythonVersionBox\.ReadOnly = \$true/, "Android Python series should be displayed as a fixed project constraint rather than an installer filename field");
 assert.match(buildGui, /\^@@PYDROID_STAGE@@/, "build GUI should consume stage events");
 assert.match(buildGui, /"JDK 目录"/, "build GUI should expose an editable JDK directory field");
 assert.match(buildGui, /@\("-JavaHome", \$jdkHome\)/, "build GUI should pass the selected JDK directory to the core build script");

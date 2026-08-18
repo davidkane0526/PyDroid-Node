@@ -1,6 +1,6 @@
-> **1.4.23 (46)**：Android 构建与桌面运行时的 Python 角色彻底分离。桌面版继续使用便携 Python 3.13；Chaquopy `buildPython` 改为强制使用带 `venv` 的完整 Python 3.13。共享工具目录（如 `D:\Code`）只读，缺失工具、下载和缓存全部进入 `D:\PyDroidTemp`。
+> **1.4.24 (47)**：修复 Android 完整 Python 3.13 自动安装地址。运行兼容要求仍为 Python 3.13.x，但自动安装器固定为 python.org 已发布的 Python 3.13.14 x64，并校验官方 SHA-256；旧 GUI 设置中的 `3.13` / `3.13.x` 不再直接拼接成无效下载 URL。
 
-当前 Android 调试构建版本：`1.4.20 (43)`。当前完整工程工作分支为本地 `local/gradle-daemon-fix-1.4.20`，`main` 保持原样未修改。
+当前 Android 调试构建版本：`1.4.24 (47)`。当前完整工程工作分支为本地 `local/python-installer-fix-1.4.24`，`main` 保持原样未修改。
 
 # PyDroid Flow
 
