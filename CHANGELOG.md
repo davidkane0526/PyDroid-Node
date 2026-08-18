@@ -6,6 +6,13 @@
 - 保留 `--no-watch-fs`，继续规避 Android 构建目录 junction 与 Chaquopy pip staging 的文件句柄冲突。
 - 本地工作分支为 `local/gradle-daemon-fix-1.4.20`；`main` 保持原样未修改。
 
+## 1.4.21
+
+- 修复 Android Python 3.13 探测：不再仅因 `PYDROID_PYTHON_EXECUTABLE` 路径存在就接受错误的 Python 3.12。
+- Android 优先复用共享 `Python\runtime-3.13`，并在 Electron 打包前执行 Python 3.13 预检。
+- `android-package.ps1` 增加第二层 Python 3.13 硬校验，在 Gradle 启动前拒绝错误解释器。
+- 构建 GUI 在子进程退出后不再于 UI 线程调用阻塞式 `WaitForExit()`；失败/成功对话框绑定主窗口并显示最后日志摘要。
+
 ## 1.4.19 (42) — Python 3.13 / settings layout refinement — 2026-08-18
 
 - 项目 Python 基线由 3.12 升级到 3.13：Android Chaquopy 使用 Python 3.13，并固定 Android 可用的 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；Android 仍不声明 SciPy，因为 Chaquopy Android wheel 仓库目前没有 CPython 3.13 的 SciPy wheel。

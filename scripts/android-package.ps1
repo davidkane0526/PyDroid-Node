@@ -29,9 +29,19 @@ if (-not (Test-Path (Join-Path $sdkRoot ("platforms\android-{0}\android.jar" -f 
 }
 
 if ($env:PYDROID_PYTHON_EXECUTABLE) {
-    if (-not (Test-Path $env:PYDROID_PYTHON_EXECUTABLE)) {
-        throw "PYDROID_PYTHON_EXECUTABLE does not exist: $env:PYDROID_PYTHON_EXECUTABLE"
+    $configuredPython = [string]$env:PYDROID_PYTHON_EXECUTABLE
+    if (-not (Test-Path -LiteralPath $configuredPython -PathType Leaf)) {
+        throw "PYDROID_PYTHON_EXECUTABLE does not exist: $configuredPython"
     }
+    & $configuredPython -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 13) else 1)" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        $detectedVersion = "unknown"
+        try {
+            $detectedVersion = (& $configuredPython -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>$null | Select-Object -Last 1).Trim()
+        } catch {}
+        throw "Android requires Python 3.13, but PYDROID_PYTHON_EXECUTABLE points to Python $detectedVersion`: $configuredPython"
+    }
+    Write-Host "Android buildPython: $configuredPython (Python 3.13)"
 }
 else {
     & py -3.13 -c "import sys; assert sys.version_info[:2] == (3, 13)"

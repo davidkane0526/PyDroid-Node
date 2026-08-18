@@ -192,6 +192,29 @@ $form.MinimumSize = New-Object System.Drawing.Size(940, 760)
 $form.Size = New-Object System.Drawing.Size(1120, 860)
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 
+
+function Show-BuildMessage {
+    param(
+        [string]$Message,
+        [string]$Title,
+        [System.Windows.Forms.MessageBoxIcon]$Icon = [System.Windows.Forms.MessageBoxIcon]::Information
+    )
+    try {
+        if ($form.WindowState -eq [System.Windows.Forms.FormWindowState]::Minimized) {
+            $form.WindowState = [System.Windows.Forms.FormWindowState]::Normal
+        }
+        $form.BringToFront()
+        $form.Activate()
+    } catch {}
+    return [System.Windows.Forms.MessageBox]::Show(
+        $form,
+        $Message,
+        $Title,
+        [System.Windows.Forms.MessageBoxButtons]::OK,
+        $Icon
+    )
+}
+
 $main = New-Object System.Windows.Forms.TableLayoutPanel
 $main.Dock = "Fill"
 $main.Padding = New-Object System.Windows.Forms.Padding(12)
@@ -532,11 +555,19 @@ $timer.Add_Tick({
         try { $script:buildProcess.Refresh() } catch {}
         if ($script:buildProcess.HasExited) {
             $finishedProcess = $script:buildProcess
-            try { $finishedProcess.WaitForExit() } catch {}
+            # HasExited is already authoritative. Do not call parameterless WaitForExit() on
+            # the WinForms UI thread: Gradle/Electron child processes may keep redirected
+            # pipe handles alive and make the GUI appear frozen even after the build process exits.
             Drain-BuildStreams
 
             $exitCode = $finishedProcess.ExitCode
             $script:lastBuildExitCode = $exitCode
+            try { $script:stdoutReader.Dispose() } catch {}
+            try { $script:stderrReader.Dispose() } catch {}
+            $script:stdoutReader = $null
+            $script:stderrReader = $null
+            $script:stdoutTask = $null
+            $script:stderrTask = $null
             $script:buildProcess = $null
             $startButton.Enabled = $true
             $cancelButton.Enabled = $false
@@ -548,22 +579,20 @@ $timer.Add_Tick({
                 Set-BuildStage 100 "构建完成"
                 $statusLabel.Text = "构建完成"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkGreen
-                [System.Windows.Forms.MessageBox]::Show(
-                    "构建完成。`r`n`r`n输出目录：$($outputBox.Text.Trim())`r`n日志：$script:currentBuildLog",
-                    "PyDroid Build",
-                    "OK",
-                    "Information"
-                ) | Out-Null
+                Show-BuildMessage `
+                    -Message "构建完成。`r`n`r`n输出目录：$($outputBox.Text.Trim())`r`n日志：$script:currentBuildLog" `
+                    -Title "PyDroid Build" `
+                    -Icon ([System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
             } else {
                 $stageLabel.Text = "当前步骤：构建失败（请查看最后几行日志）"
                 $statusLabel.Text = "构建失败（退出码 $exitCode）"
                 $statusLabel.ForeColor = [System.Drawing.Color]::DarkRed
-                [System.Windows.Forms.MessageBox]::Show(
-                    "构建失败，退出码：$exitCode`r`n`r`n完整日志已保存到：`r`n$script:currentBuildLog",
-                    "PyDroid Build",
-                    "OK",
-                    "Error"
-                ) | Out-Null
+                $tailLines = @($logBox.Lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 10)
+                $tailText = if ($tailLines.Count -gt 0) { ($tailLines -join "`r`n") } else { "（没有可用的错误摘要，请打开完整日志。）" }
+                Show-BuildMessage `
+                    -Message "构建失败，退出码：$exitCode`r`n`r`n最后日志：`r`n$tailText`r`n`r`n完整日志：`r`n$script:currentBuildLog" `
+                    -Title "PyDroid Build · 构建失败" `
+                    -Icon ([System.Windows.Forms.MessageBoxIcon]::Error) | Out-Null
             }
         }
     }

@@ -103,6 +103,27 @@ assert.match(
   "Gradle network setup should patch the temporary project gradle.properties",
 );
 
+assert.match(
+  buildScript,
+  /function Test-PythonSeries/,
+  "Android build Python candidates should be version-validated before use",
+);
+assert.match(
+  buildScript,
+  /Python\\runtime-3\.13\\python\.exe/,
+  "Android should reuse the shared validated Python 3.13 desktop runtime when available",
+);
+assert.match(
+  buildScript,
+  /忽略 PYDROID_PYTHON_EXECUTABLE=.*Android 需要 Python/,
+  "a stale PYDROID_PYTHON_EXECUTABLE must not be accepted only because its file exists",
+);
+assert.match(
+  buildScript,
+  /预检 Android Python 3\.13/,
+  "Android Python compatibility should be checked before expensive packaging",
+);
+
 const androidPackagePath = fileURLToPath(new URL("../scripts/android-package.ps1", import.meta.url));
 const androidPackage = readFileSync(androidPackagePath, "utf8");
 assert.match(
@@ -116,6 +137,12 @@ assert.doesNotMatch(
   "Android packaging must not disable the Gradle daemon by default",
 );
 
+assert.match(
+  androidPackage,
+  /sys\.version_info\[:2\] == \(3, 13\)/,
+  "android-package.ps1 should reject an incorrect PYDROID_PYTHON_EXECUTABLE before Gradle starts",
+);
+
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
 const buildGui = readFileSync(buildGuiPath, "utf8");
 assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");
@@ -123,6 +150,8 @@ assert.match(buildGui, /\^@@PYDROID_STAGE@@/, "build GUI should consume stage ev
 assert.match(buildGui, /"JDK 目录"/, "build GUI should expose an editable JDK directory field");
 assert.match(buildGui, /@\("-JavaHome", \$jdkHome\)/, "build GUI should pass the selected JDK directory to the core build script");
 assert.match(buildGui, /JdkHome = \$jdkHome/, "build GUI should persist the selected JDK directory");
+assert.doesNotMatch(buildGui, /finishedProcess\.WaitForExit\(\)/, "build GUI must not block the UI thread waiting for daemon-held pipes after process exit");
+assert.match(buildGui, /Show-BuildMessage/, "build completion/failure dialogs should be owned by the GUI window");
 
 
 const args = ["desktop:build"];

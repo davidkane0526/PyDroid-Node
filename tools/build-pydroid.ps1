@@ -1342,52 +1342,91 @@ function Install-AndroidSdk {
     return [string]$sdkRoot
 }
 
-function Find-Python312 {
-    if ($env:PYDROID_PYTHON_EXECUTABLE -and (Test-Path -LiteralPath $env:PYDROID_PYTHON_EXECUTABLE)) {
-        return $env:PYDROID_PYTHON_EXECUTABLE
+function Test-PythonSeries {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Executable
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+        return $false
     }
-    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
-    if (-not $pythonCommand) { $pythonCommand = Get-Command python -ErrorAction SilentlyContinue }
-    if ($pythonCommand) {
-        try {
-            & $pythonCommand.Source -c "import sys; raise SystemExit(0 if sys.version_info[:2] == ($pythonMajor, $pythonMinor) else 1)"
-            if ($LASTEXITCODE -eq 0) { return $pythonCommand.Source }
-        } catch {}
+
+    try {
+        & $Executable -c "import sys; raise SystemExit(0 if sys.version_info[:2] == ($pythonMajor, $pythonMinor) else 1)" 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
     }
+}
+
+function Get-PythonVersionLabel {
+    param([string]$Executable)
+    if ([string]::IsNullOrWhiteSpace($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+        return "不可用"
+    }
+    try {
+        $label = & $Executable -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>$null
+        if ($LASTEXITCODE -eq 0 -and $label) { return ([string]($label | Select-Object -Last 1)).Trim() }
+    } catch {}
+    return "未知"
+}
+
+function Find-Python313 {
+    # 环境变量可以作为用户显式偏好，但不能仅因为文件存在就接受：
+    # Chaquopy 要求 buildPython 的 major/minor 与应用 Python 完全一致。
+    if ($env:PYDROID_PYTHON_EXECUTABLE) {
+        $configured = [string]$env:PYDROID_PYTHON_EXECUTABLE
+        if (Test-PythonSeries -Executable $configured) {
+            return $configured
+        }
+        if (Test-Path -LiteralPath $configured -PathType Leaf) {
+            Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：检测到 Python {1}，Android 需要 Python {2}。" -f $configured, (Get-PythonVersionLabel $configured), $pythonSeries)
+        } else {
+            Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：文件不存在。" -f $configured)
+        }
+    }
+
+    # 桌面构建已经准备好的 3.13 便携运行时也是有效的 Chaquopy buildPython。
+    # 优先复用它，避免同一次构建桌面用 3.13、Android 却误用系统 3.12。
     $candidates = @(
+        (Join-Path $ToolRoot "Python\runtime-3.13\python.exe"),
+        (Join-Path $workspace ".tools\python313-runtime\python.exe"),
         (Join-Path $ToolRoot ("Python\{0}\python.exe" -f $pythonSeries)),
         (Join-Path $ToolRoot "Python\python.exe"),
         (Join-Path $ToolRoot "Language\Python\python.exe"),
         (Join-Path $WorkRoot ("tools\{0}\python.exe" -f $pythonToolDirName))
     )
-    foreach ($c in $candidates) {
-        if (Test-Path -LiteralPath $c) {
-            try {
-                & $c -c "import sys; raise SystemExit(0 if sys.version_info[:2] == ($pythonMajor, $pythonMinor) else 1)"
-                if ($LASTEXITCODE -eq 0) { return $c }
-            } catch {
-                # 继续找下一个
-            }
+    foreach ($candidate in $candidates) {
+        if (Test-PythonSeries -Executable $candidate) {
+            return $candidate
         }
     }
-    # 尝试 py 启动器
+
+    # Windows py launcher can select the requested major/minor explicitly.
     try {
         $pyOutput = & py ("-{0}" -f $pythonSeries) -c "import sys; print(sys.executable)" 2>$null
         if ($LASTEXITCODE -eq 0 -and $pyOutput) {
-            $p = ($pyOutput | Select-Object -Last 1).Trim()
-            if (Test-Path -LiteralPath $p) { return $p }
+            $candidate = ([string]($pyOutput | Select-Object -Last 1)).Trim()
+            if (Test-PythonSeries -Executable $candidate) { return $candidate }
         }
-    } catch {
-        # 忽略
+    } catch {}
+
+    # Finally inspect the generic python command, but accept it only if it really is 3.13.
+    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
+    if (-not $pythonCommand) { $pythonCommand = Get-Command python -ErrorAction SilentlyContinue }
+    if ($pythonCommand -and (Test-PythonSeries -Executable $pythonCommand.Source)) {
+        return $pythonCommand.Source
     }
+
     return $null
 }
 
-function Install-Python312 {
+function Install-Python313 {
     if ($SkipToolInstall) {
         throw "未找到 Python $pythonSeries（完整版），且已指定 -SkipToolInstall。请安装后设置 PYDROID_PYTHON_EXECUTABLE。"
     }
-    Write-Step "未找到完整版 Python $pythonSeries，正在安装到共享工具目录 $ToolRoot\Python\$pythonSeries ..."
+    Write-Step "未找到 Python $pythonSeries，正在安装到共享工具目录 $ToolRoot\Python\$pythonSeries ..."
     $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $PythonVersion)
     if (-not (Test-Path -LiteralPath $installer)) {
         Invoke-Download -Uri ("https://www.python.org/ftp/python/{0}/python-{0}-amd64.exe" -f $PythonVersion) -OutFile $installer
@@ -1406,10 +1445,11 @@ function Install-Python312 {
         ('TargetDir="{0}"' -f $dest)
     )
     $proc = Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -PassThru
-    if ($proc.ExitCode -ne 0 -or -not (Test-Path (Join-Path $dest "python.exe"))) {
-        throw "Python $pythonSeries 安装失败。"
+    $pythonExe = Join-Path $dest "python.exe"
+    if ($proc.ExitCode -ne 0 -or -not (Test-PythonSeries -Executable $pythonExe)) {
+        throw "Python $pythonSeries 安装失败或安装后的版本不匹配。"
     }
-    return (Join-Path $dest "python.exe")
+    return $pythonExe
 }
 
 # ---------------------------------------------------------------
@@ -1917,11 +1957,15 @@ function Build-Android {
         throw "Android SDK Platform $resolvedAndroidApi 不完整：$requiredPlatformJar"
     }
 
-    $python = Find-Python312
+    $python = if ($script:ResolvedAndroidPython) { [string]$script:ResolvedAndroidPython } else { Find-Python313 }
     if (-not $python) {
-        $python = Install-Python312
+        $python = Install-Python313
     }
     $python = [string]$python
+    if (-not (Test-PythonSeries -Executable $python)) {
+        throw ("Android 构建要求 Python {0}，但解析到的解释器无效：{1}（检测版本：{2}）。" -f $pythonSeries, $python, (Get-PythonVersionLabel $python))
+    }
+    Write-Step ("Android buildPython：{0}（Python {1}）" -f $python, (Get-PythonVersionLabel $python))
 
     $env:JAVA_HOME = $jdk
     $env:ANDROID_HOME = $sdk
@@ -2128,6 +2172,28 @@ Clear-WorkspaceOutputs -IncludeAndroidBuild:$CleanBuild
 $apkSource = $null
 $hasApk = -not $SkipAndroid
 $hasDesktop = -not $SkipDesktop
+$script:ResolvedAndroidPython = $null
+
+# Fail fast on Android build-Python problems before spending time on Electron packaging.
+# When Desktop is also requested, prepare its shared Python 3.13 runtime first so both
+# targets can reuse exactly the same validated interpreter.
+if ($hasApk) {
+    Write-BuildStage -Percent 45 -Message "预检 Android Python 3.13"
+    $pythonPreflight = Find-Python313
+    if (-not $pythonPreflight -and $hasDesktop) {
+        Ensure-PythonRuntimeForDesktop
+        $pythonPreflight = Find-Python313
+    }
+    if (-not $pythonPreflight) {
+        $pythonPreflight = Install-Python313
+    }
+    $pythonPreflight = [string]$pythonPreflight
+    if (-not (Test-PythonSeries -Executable $pythonPreflight)) {
+        throw ("Android Python 预检失败：需要 Python {0}，当前解释器为 {1}（检测版本：{2}）。" -f $pythonSeries, $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
+    }
+    $script:ResolvedAndroidPython = $pythonPreflight
+    Write-Step ("Android Python 预检通过：{0}（Python {1}）" -f $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
+}
 
 if ($hasDesktop) {
     Build-Desktop
