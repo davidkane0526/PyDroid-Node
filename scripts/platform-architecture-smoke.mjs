@@ -14,6 +14,9 @@ const platformIndex = read("src/platform/index.ts");
 const desktopPlatform = read("desktop/renderer/platform.ts");
 const desktopBridge = read("desktop/renderer/bridge.ts");
 const desktopVite = read("desktop/vite.config.ts");
+const appTsconfig = JSON.parse(read("tsconfig.json"));
+const testTsconfig = JSON.parse(read("tsconfig.test.json"));
+const packageJson = JSON.parse(read("package.json"));
 
 assert(app.includes('from "./platform"'), "App.tsx must consume host capabilities from ./platform");
 assert(app.includes('from "./execution"'), "App.tsx must keep runtime capabilities in ./execution");
@@ -47,5 +50,20 @@ assert(desktopPlatform.includes('id: "desktop"'), "desktop PlatformAdapter imple
 assert(desktopBridge.includes("DesktopRuntimeBridge"), "desktop runtime bridge contract is missing");
 assert(desktopBridge.includes("DesktopPlatformBridge"), "desktop platform bridge contract is missing");
 assert(desktopVite.includes('find: /^\\.\\/platform$/'), "desktop Vite must alias ./platform to its renderer adapter");
+
+
+const productionExcludes = new Set(appTsconfig.exclude ?? []);
+for (const pattern of [
+  "src/**/*.test.ts",
+  "src/**/*.test.tsx",
+  "src/**/*.spec.ts",
+  "src/**/*.spec.tsx",
+]) {
+  assert(productionExcludes.has(pattern), `production tsconfig must exclude ${pattern}`);
+}
+assert(!(appTsconfig.compilerOptions?.types ?? []).includes("node"), "browser/Android tsconfig must not expose Node globals");
+assert((testTsconfig.compilerOptions?.types ?? []).includes("node"), "test tsconfig must provide Node types for architecture tests");
+assert(packageJson.scripts?.["test:types"] === "tsc --noEmit -p tsconfig.test.json", "test:types must type-check test sources separately");
+assert(packageJson.scripts?.check?.includes("pnpm test:types"), "pnpm check must include test type checking");
 
 console.log("PlatformAdapter architecture smoke passed");

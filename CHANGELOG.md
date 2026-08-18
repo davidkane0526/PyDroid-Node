@@ -9,6 +9,13 @@
 - 详细路线与后续 AI 开发约束见 `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`。
 - 构建可靠性热修：Windows PowerShell 5.1 清理 Electron/Capacitor 深层构建树时，若 `Remove-Item -Recurse` 遇到超过传统 `MAX_PATH` 的后代目录，自动切换 `\\?\` 扩展长度路径 `cmd rd`，仍失败时使用 `robocopy /MIR` 空目录镜像清理；阶段 15 与阶段 40 共用该清理器，不再静默遗留半清理的 `release`。
 
+## dev - Android/Web production TypeScript test isolation
+
+- Fixed `pnpm build` / Android packaging failure caused by Node-only architecture tests being included by the production `tsconfig.json`.
+- Production TypeScript now excludes `*.test.*` / `*.spec.*` while keeping `types: ["vite/client"]`; Node globals are not exposed to browser/Android source code.
+- Added `tsconfig.test.json` and `pnpm test:types` so tests remain type-checked separately with `@types/node`.
+- Extended the PlatformAdapter architecture smoke guard to prevent tests or Node typings from leaking back into the production compile boundary.
+
 ## 1.4.27 (50) — LAN automatic discovery — 2026-08-18
 
 - “局域网网页访问”启动后自动同时启动 SSDP/UPnP 与 mDNS/DNS-SD，不新增第二套业务 HTTP 服务，也不增加新的设置 UI。

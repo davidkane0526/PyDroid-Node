@@ -173,3 +173,17 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 5. 将运行时兼容性变成节点元数据，使节点添加/连线阶段即可预知 Python/JavaScript 支持情况；随后再扩展 JS parity 与调试器。
 
 最近移动端基线：1.4.9p 已恢复双指缩放并完善标签关闭交互；本分支不应回退这些手势能力。
+
+## 2026-08-19 - dev build reliability hotfix: production/test TypeScript isolation
+
+Real Windows validation reached the Android packaging stage and exposed a production TypeScript boundary bug: `src/platform/architecture.test.ts` imports `node:fs` and `node:url`, but root `tsconfig.json` intentionally exposes only `vite/client`. Because root `include` covered all of `src`, `pnpm build` compiled test files and failed before Capacitor sync.
+
+Resolution:
+
+- root `tsconfig.json` explicitly excludes `*.test.ts(x)` and `*.spec.ts(x)` from production builds;
+- root browser/Android compilation still does **not** expose Node globals;
+- `tsconfig.test.json` type-checks tests separately with Node typings;
+- `pnpm check` now runs `pnpm test:types`;
+- `platform-architecture-smoke.mjs` guards this boundary against regression.
+
+Cloud verification after the fix: production `tsc --showConfig` resolves 39 source files and 0 test files; test config resolves 12 test files; build-tool smoke, PlatformAdapter architecture smoke, version sync, Git diff checks and Python tests (`102 passed, 1 skipped`) pass. The user remains responsible only for final Windows/Android real-device execution validation.

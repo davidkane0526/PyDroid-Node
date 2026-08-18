@@ -119,3 +119,8 @@ After the user confirms Phase 1 host behavior, start **Phase 2 — ExecutionCont
 - deterministic recovery after failure/cancel.
 
 Do not start Workflow Core or another UI redesign before this execution lifecycle is stable.
+
+
+### Production TypeScript vs test TypeScript
+
+Do not add Node typings to the root browser/Android `tsconfig.json` to make a test compile. Production source must remain browser-compatible and uses `types: ["vite/client"]`. Test/spec files are intentionally excluded from the production config and are checked separately by `tsconfig.test.json` through `pnpm test:types`. Any future AI adding tests under `src/` must preserve this boundary.
