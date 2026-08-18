@@ -461,16 +461,28 @@ if (-not $CacheRoot) { $CacheRoot = Get-DefaultCacheRoot -ResolvedToolRoot $Tool
 if (-not $NodeVersion) { $NodeVersion = if ($env:PYDROID_NODE_VERSION) { $env:PYDROID_NODE_VERSION } else { "24.19.0" } }
 $pythonPinnedInstallerVersion = "3.13.14"
 $pythonPinnedInstallerSha256 = "C54D9B9BBB8A36E6489363DDD01139707FD781D72F1F9E90C7EC65D0061368E0"
-if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { "3.13" } }
-$pythonVersionParts = $PythonVersion.Split(".")
-if ($pythonVersionParts.Count -lt 2) { throw "PythonVersion 必须至少包含主版本和次版本，例如 3.13。" }
-$pythonMajor = [int]$pythonVersionParts[0]
-$pythonMinor = [int]$pythonVersionParts[1]
-$pythonSeries = ("{0}.{1}" -f $pythonMajor, $pythonMinor)
-$pythonToolDirName = ("python{0}{1}" -f $pythonMajor, $pythonMinor)
-if ($pythonSeries -ne "3.13") {
-    throw "当前 PyDroid Android/Chaquopy 配置固定使用 Python 3.13；收到 PythonVersion=$PythonVersion。"
+$requiredPythonSeries = "3.13"
+if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { $requiredPythonSeries } }
+$requestedPythonVersion = ([string]$PythonVersion).Trim()
+$requestedPythonParts = $requestedPythonVersion.Split(".")
+$requestedPythonSeries = $null
+if ($requestedPythonParts.Count -ge 2) {
+    $requestedMajor = 0
+    $requestedMinor = 0
+    if ([int]::TryParse($requestedPythonParts[0], [ref]$requestedMajor) -and [int]::TryParse($requestedPythonParts[1], [ref]$requestedMinor)) {
+        $requestedPythonSeries = ("{0}.{1}" -f $requestedMajor, $requestedMinor)
+    }
 }
+if ($requestedPythonSeries -ne $requiredPythonSeries) {
+    Write-Warning ("检测到旧版或不兼容的 PythonVersion={0}；当前 PyDroid Android/Chaquopy 固定使用 Python {1}，已自动迁移。" -f $requestedPythonVersion, $requiredPythonSeries)
+}
+# PythonVersion is a compatibility-series setting, not an installer filename. Always
+# normalize legacy GUI/environment values (for example 3.12 or 3.13.14) to 3.13.
+$PythonVersion = $requiredPythonSeries
+$pythonMajor = 3
+$pythonMinor = 13
+$pythonSeries = $requiredPythonSeries
+$pythonToolDirName = "python313"
 # PythonSeries is the compatibility requirement. Auto-install is pinned independently
 # so stored values such as "3.13" or "3.13.x" can never become a download URL directly.
 $pythonInstallerVersion = $pythonPinnedInstallerVersion

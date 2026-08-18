@@ -373,10 +373,16 @@ function Add-AdvancedCombo([int]$row, [int]$labelCol, [string]$labelText, [strin
 }
 
 $nodeVersionBox = Add-AdvancedField 0 0 "Node 自动安装版本" $(if ($stored -and $stored.NodeVersion) { [string]$stored.NodeVersion } else { "24.19.0" })
+# Android/Chaquopy is fixed to Python 3.13. Do not revive a legacy saved value
+# such as 3.12 on another machine: normalize it during GUI load and save.
 $storedPythonSeries = "3.13"
-if ($stored -and $stored.PythonVersion) {
-    $storedPythonParts = ([string]$stored.PythonVersion).Split(".")
-    if ($storedPythonParts.Count -ge 2) { $storedPythonSeries = ("{0}.{1}" -f $storedPythonParts[0], $storedPythonParts[1]) }
+if ($stored -and $stored.PythonVersion -and ([string]$stored.PythonVersion).Trim() -ne $storedPythonSeries) {
+    try {
+        $stored.PythonVersion = $storedPythonSeries
+        $stored | ConvertTo-Json | Set-Content -LiteralPath $settingsFile -Encoding UTF8
+    } catch {
+        # Failure to rewrite settings must not prevent the GUI from opening.
+    }
 }
 $pythonVersionBox = Add-AdvancedField 0 2 "Android Python 系列" $storedPythonSeries
 $pythonVersionBox.ReadOnly = $true

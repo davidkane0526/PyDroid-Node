@@ -170,8 +170,18 @@ assert.match(
 );
 assert.match(
   buildScript,
-  /\$pythonSeries -ne "3\.13"/,
+  /\$requiredPythonSeries = "3\.13"/,
   "Android Python series should stay aligned with the Chaquopy Python 3.13 configuration",
+);
+assert.match(
+  buildScript,
+  /已自动迁移/,
+  "legacy PythonVersion values such as 3.12 should be normalized instead of aborting the build",
+);
+assert.doesNotMatch(
+  buildScript,
+  /当前 PyDroid Android\/Chaquopy 配置固定使用 Python 3\.13；收到 PythonVersion=.*throw/,
+  "legacy PythonVersion values must not hard-fail before the GUI can migrate them",
 );
 assert.match(
   buildScript,
