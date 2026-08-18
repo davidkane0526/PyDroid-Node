@@ -1483,6 +1483,30 @@ function Get-PythonVersionLabel {
     return "未知"
 }
 
+function Get-PythonBuildHostDiagnostic {
+    param([string]$Executable)
+
+    if ([string]::IsNullOrWhiteSpace($Executable)) { return "python.exe 路径为空" }
+    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { return "python.exe 不存在：$Executable" }
+
+    $details = New-Object System.Collections.Generic.List[string]
+    $details.Add(("version={0}" -f (Get-PythonVersionLabel $Executable)))
+    foreach ($module in @("venv", "ensurepip")) {
+        try {
+            $probe = & $Executable -c ("import {0}; print('ok')" -f $module) 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                $details.Add(("{0}=ok" -f $module))
+            } else {
+                $tail = ([string]($probe | Select-Object -Last 1)).Trim()
+                $details.Add(("{0}=failed({1})" -f $module, $tail))
+            }
+        } catch {
+            $details.Add(("{0}=failed({1})" -f $module, $_.Exception.Message))
+        }
+    }
+    return ($details -join "; ")
+}
+
 function Find-Python313 {
     # Android buildPython must be a FULL Python 3.13 installation with venv.
     # Do not reuse the embeddable desktop runtime: it has no `venv` module by design.
@@ -1506,6 +1530,23 @@ function Find-Python313 {
         (Join-Path $ToolRoot "Language\Python\python.exe"),
         (Join-Path $WorkRoot ("tools\{0}\python.exe" -f $pythonToolDirName))
     )
+
+    # A normal per-user Python installation may be intentionally absent from PATH and
+    # may not install py.exe. Probe the standard CPython locations before downloading
+    # another private copy. Python 3.13 may use either Python313 or Python313-64.
+    if ($env:LOCALAPPDATA) {
+        $candidates += @(
+            (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"),
+            (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313-64\python.exe")
+        )
+    }
+    if ($env:ProgramFiles) {
+        $candidates += (Join-Path $env:ProgramFiles "Python313\python.exe")
+    }
+    $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
+    if ($programFilesX86) {
+        $candidates += (Join-Path $programFilesX86 "Python313\python.exe")
+    }
     foreach ($candidate in $candidates) {
         if (Test-PythonBuildHost -Executable $candidate) {
             return $candidate
@@ -1533,6 +1574,7 @@ function Install-Python313 {
     if ($SkipToolInstall) {
         throw "未找到带 venv 的完整 Python $pythonSeries，且已指定 -SkipToolInstall。请安装完整 Python 3.13，或设置 PYDROID_PYTHON_EXECUTABLE。"
     }
+
     $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
     Write-Step "未找到带 venv 的完整 Python $pythonSeries，正在安装到临时工具目录 $dest ..."
     $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $pythonInstallerVersion)
@@ -1552,28 +1594,85 @@ function Install-Python313 {
     if ($installerHash -ne $pythonPinnedInstallerSha256) {
         throw "Python $pythonInstallerVersion 安装器 SHA-256 校验失败。期望：$pythonPinnedInstallerSha256；实际：$installerHash"
     }
-    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+
+    # A failed/aborted bootstrapper may leave a partial TargetDir behind. Reusing that
+    # directory causes later runs to fail immediately and hides the original installer
+    # error. Always start from a clean private installation directory.
     if (Test-Path -LiteralPath $dest) {
-        Remove-Item -LiteralPath $dest -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-BuildDirectoryRobust -Path $dest -Quiet
     }
+    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
+
+    $pythonInstallLogDir = Join-Path $WorkRoot "logs"
+    New-Item -ItemType Directory -Force -Path $pythonInstallLogDir | Out-Null
+    $pythonInstallLog = Join-Path $pythonInstallLogDir ("python-{0}-install-{1}.log" -f $pythonInstallerVersion, (Get-Date -Format "yyyyMMdd-HHmmss"))
+
+    # Set every component required by Chaquopy explicitly. Do not depend on defaults or
+    # settings remembered by another Python installation on this Windows account.
     $installerArgs = @(
         "/quiet",
+        "/log",
+        ('"{0}"' -f $pythonInstallLog),
         "InstallAllUsers=0",
         "PrependPath=0",
+        "AppendPath=0",
+        "AssociateFiles=0",
+        "Shortcuts=0",
         "Include_launcher=0",
+        "InstallLauncherAllUsers=0",
+        "Include_exe=1",
+        "Include_lib=1",
         "Include_pip=1",
+        "Include_tools=1",
+        "Include_dev=1",
+        "Include_tcltk=0",
         "Include_test=0",
         "Include_doc=0",
         "Include_debug=0",
-        "Shortcuts=0",
+        "Include_symbols=0",
         ('TargetDir="{0}"' -f $dest)
     )
+
+    Write-Step ("安装完整 Python {0}：{1}" -f $pythonInstallerVersion, $dest)
+    Write-Host ("Python 安装日志：{0}" -f $pythonInstallLog) -ForegroundColor DarkGray
     $proc = Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -PassThru
     $pythonExe = Join-Path $dest "python.exe"
-    if ($proc.ExitCode -ne 0 -or -not (Test-PythonBuildHost -Executable $pythonExe)) {
-        throw "完整 Python $pythonSeries 安装失败，或安装后缺少 venv/ensurepip：$pythonExe"
+    $isUsable = Test-PythonBuildHost -Executable $pythonExe
+
+    # The interpreter capability is the source of truth. Some Windows installers may
+    # return a non-zero bootstrapper code (for example a restart-related code) even when
+    # the requested private interpreter is already usable; do not reject a valid host.
+    if ($isUsable) {
+        if ($proc.ExitCode -ne 0) {
+            Write-Warning ("Python 安装器退出码为 {0}，但完整 Python 已通过版本/venv/ensurepip 校验，将继续构建。" -f $proc.ExitCode)
+        }
+        Write-Step ("完整 Python 安装完成：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (Get-PythonVersionLabel $pythonExe))
+        return $pythonExe
     }
-    return $pythonExe
+
+    # If the bootstrapper entered maintenance mode for an already registered Python
+    # installation, TargetDir may not be the interpreter which was repaired. Re-scan
+    # all supported locations before declaring the installation unusable.
+    $rediscovered = Find-Python313
+    if ($rediscovered -and -not [string]::Equals([string]$rediscovered, $pythonExe, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning ("Python 安装器没有在预期 TargetDir 生成可用解释器，但检测到完整 Python：{0}。将复用该解释器。" -f $rediscovered)
+        return [string]$rediscovered
+    }
+
+    $diagnostic = Get-PythonBuildHostDiagnostic -Executable $pythonExe
+    $logTail = ""
+    if (Test-Path -LiteralPath $pythonInstallLog -PathType Leaf) {
+        try {
+            $tailLines = @(Get-Content -LiteralPath $pythonInstallLog -Tail 24 -ErrorAction Stop)
+            if ($tailLines.Count -gt 0) { $logTail = ($tailLines -join [Environment]::NewLine) }
+        } catch {}
+    }
+
+    $message = "完整 Python $pythonSeries 安装失败。安装器退出码：$($proc.ExitCode)；目标：$pythonExe；校验：$diagnostic；安装日志：$pythonInstallLog"
+    if ($logTail) {
+        $message += ([Environment]::NewLine + "Python 安装日志末尾：" + [Environment]::NewLine + $logTail)
+    }
+    throw $message
 }
 
 # ---------------------------------------------------------------

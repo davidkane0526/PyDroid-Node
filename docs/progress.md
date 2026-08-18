@@ -198,3 +198,20 @@ Resolution:
 - `platform-architecture-smoke.mjs` guards this boundary against regression.
 
 Cloud verification after the fix: production `tsc --showConfig` resolves 39 source files and 0 test files; test config resolves 12 test files; build-tool smoke, PlatformAdapter architecture smoke, version sync, Git diff checks and Python tests (`102 passed, 1 skipped`) pass. The user remains responsible only for final Windows/Android real-device execution validation.
+
+
+## 2026-08-19 - dev build reliability hotfix: full Python 3.13 bootstrap diagnostics
+
+A Windows build reached Android Python preflight but the pinned python.org 3.13.14 installer left no build host which passed `import venv, ensurepip`. The previous builder collapsed bootstrapper failure and capability failure into one generic exception and emitted no installer log.
+
+Resolution:
+
+- probe normal `%LOCALAPPDATA%\Programs\Python\Python313*` and Program Files locations in addition to PyDroid/private/shared/PATH candidates;
+- remove a partial private Python target before each retry using the existing robust directory cleaner;
+- invoke the pinned official installer with explicit `Include_exe/lib/pip/tools/dev=1` requirements instead of depending on remembered/default feature choices;
+- save the official installer `/log` output under `WorkRoot\logs`;
+- treat `Test-PythonBuildHost` (`Python 3.13` + `venv` + `ensurepip`) as the actual success criterion rather than rejecting a usable interpreter only because the bootstrapper returned a non-zero informational code;
+- re-scan supported Python locations after installation to tolerate bootstrapper maintenance mode repairing an already registered installation rather than honoring the requested private `TargetDir`;
+- on failure, report installer exit code, Python version/module diagnostics, log path and the tail of the installer log.
+
+Cloud verification: build-tool smoke, PlatformAdapter architecture smoke, ExecutionController architecture smoke, version sync and Python tests (`102 passed, 1 skipped`) pass. The python.org Windows bootstrapper itself cannot be executed in the Linux cloud environment, so final installer behavior remains a Windows build validation item.

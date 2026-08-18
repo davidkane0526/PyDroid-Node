@@ -223,6 +223,31 @@ assert.doesNotMatch(
   /ftp\/python\/\{0\}\/python-\{0\}-amd64\.exe" -f \$PythonVersion/,
   "raw PythonVersion must not be used directly for auto-install URLs because persisted 3.13 values are valid series but invalid download directories",
 );
+assert.match(
+  buildScript,
+  /Include_exe=1[\s\S]*Include_lib=1[\s\S]*Include_pip=1[\s\S]*Include_tools=1[\s\S]*Include_dev=1/,
+  "Python auto-install must explicitly request the executable, stdlib, pip, tools, and development components required by Chaquopy",
+);
+assert.match(
+  buildScript,
+  /"\/log"[\s\S]*pythonInstallLog/,
+  "Python bootstrapper should emit an installer log so silent-install failures are diagnosable",
+);
+assert.match(
+  buildScript,
+  /Get-PythonBuildHostDiagnostic/,
+  "Python auto-install failures should report version and venv\/ensurepip capability diagnostics",
+);
+assert.match(
+  buildScript,
+  /if \(\$isUsable\)[\s\S]*\$proc\.ExitCode -ne 0[\s\S]*return \$pythonExe/,
+  "a validated full Python host should be accepted even when the bootstrapper returns a non-zero informational code",
+);
+assert.match(
+  buildScript,
+  /Remove-BuildDirectoryRobust -Path \$dest -Quiet/,
+  "a partial private Python installation should be removed robustly before retrying the official installer",
+);
 
 assert.match(
   buildScript,
