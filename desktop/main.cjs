@@ -9,6 +9,7 @@ const dns = require("node:dns").promises;
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { LanDiscoveryService } = require("./lan/LanDiscoveryService.cjs");
+const { PythonProcessController, DEFAULT_TIMEOUT_MS: DEFAULT_EXECUTION_TIMEOUT_MS } = require("./execution/PythonProcessController.cjs");
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 let remoteServer = null;
@@ -16,6 +17,9 @@ let remotePin = null;
 let lanDiscovery = null;
 const remoteTokens = new Set();
 const SMB_FILE_PATTERN = /\.(csv|tsv|txt|dat|json|png|jpe?g)$/i;
+const pythonProcessController = new PythonProcessController({ maxOutputBytes: MAX_OUTPUT_BYTES, log: appendDesktopLog });
+let activeWorkflowExecutionId = null;
+const remoteExecutionIds = new Set();
 
 function probeSmbHost(address, timeout = 380) {
   return new Promise((resolve) => {
@@ -661,9 +665,14 @@ function startDesktopRemoteServer(requirePin) {
         if (!remoteTokens.has(String(request.headers["x-pydroid-token"] ?? ""))) return sendJson(response, 401, { error: "尚未配对" });
         const body = request.method === "POST" ? await readRequestBody(request) : {};
         if (url.pathname === "/api/execute") {
-          const raw = await runPythonRequest({ workflow: String(body.workflow ?? ""), csvText: String(body.csvText ?? ""), inputFiles: JSON.stringify(body.inputFiles ?? []) });
-          response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); return response.end(raw);
+          const executionId = String(body.executionId ?? `remote-${crypto.randomUUID()}`);
+          remoteExecutionIds.add(executionId);
+          try {
+            const raw = await runPythonRequest({ workflow: String(body.workflow ?? ""), csvText: String(body.csvText ?? ""), inputFiles: JSON.stringify(body.inputFiles ?? []), executionId, timeoutMs: Number(body.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS) });
+            response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); return response.end(raw);
+          } finally { remoteExecutionIds.delete(executionId); }
         }
+        if (url.pathname === "/api/cancel") return sendJson(response, 200, { cancelled: cancelPythonRequest(String(body.executionId ?? "")) });
         if (url.pathname === "/api/environment") return response.end(await runPythonRequest({ action: "environment" }));
         if (url.pathname === "/api/analyze-notebook") return response.end(await runPythonRequest({ action: "analyze_notebook", notebook: String(body.notebook ?? "") }));
         if (url.pathname === "/api/analyze-signature") return response.end(await runPythonRequest({ action: "analyze_signature", code: String(body.code ?? "") }));
@@ -687,7 +696,7 @@ function startDesktopRemoteServer(requirePin) {
       if (!filePath.startsWith(path.resolve(rendererRoot)) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) { response.writeHead(404); return response.end("Not found"); }
       const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" }[path.extname(filePath)] ?? "application/octet-stream";
       response.writeHead(200, { "Content-Type": mime }); fs.createReadStream(filePath).pipe(response);
-    } catch (error) { sendJson(response, 500, { error: error.message || String(error) }); }
+    } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
   });
   return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", () => {
     const port = server.address().port;
@@ -707,6 +716,8 @@ function startDesktopRemoteServer(requirePin) {
 }
 
 function stopDesktopRemoteServer() {
+  for (const executionId of remoteExecutionIds) cancelPythonRequest(executionId);
+  remoteExecutionIds.clear();
   const hadDiscovery = Boolean(lanDiscovery);
   lanDiscovery?.stop();
   lanDiscovery = null;
@@ -765,7 +776,7 @@ function pythonCommand(scriptPath, pythonRoot) {
 }
 
 function runPythonRequest(payload) {
-  const isUtilityRequest = payload?.action === "environment" || payload?.action === "analyze_notebook";
+  const isUtilityRequest = payload?.action === "environment" || payload?.action === "analyze_notebook" || payload?.action === "analyze_signature";
   if (!isUtilityRequest && (!payload || typeof payload.workflow !== "string" || typeof payload.csvText !== "string" || typeof payload.inputFiles !== "string")) {
     return Promise.reject(new Error("workflow, csvText, and inputFiles are required"));
   }
@@ -774,46 +785,28 @@ function runPythonRequest(payload) {
   const script = path.join(python, "pydroid_flow", "desktop_bridge.py");
   const command = pythonCommand(script, python);
   const pythonPath = [python, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+  const executionId = String(payload?.executionId || `${isUtilityRequest ? "utility" : "exec"}-${crypto.randomUUID()}`);
+  const timeoutMs = Number(payload?.timeoutMs ?? (isUtilityRequest ? 60_000 : DEFAULT_EXECUTION_TIMEOUT_MS));
 
-  return new Promise((resolve, reject) => {
-    const child = spawn(command.executable, [...command.args], {
-      cwd: python,
-      env: { ...process.env, PYTHONPATH: pythonPath, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" },
-      windowsHide: true,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    const stdout = [];
-    const stderr = [];
-    let outputBytes = 0;
-
-    const collect = (target) => (chunk) => {
-      outputBytes += chunk.length;
-      if (outputBytes > MAX_OUTPUT_BYTES) {
-        child.kill();
-        reject(new Error("Python execution output exceeded 64 MiB"));
-        return;
-      }
-      target.push(chunk);
-    };
-
-    child.stdout.on("data", collect(stdout));
-    child.stderr.on("data", collect(stderr));
-    child.on("error", (error) => reject(new Error(`Unable to start Python 3.13: ${error.message}`)));
-    child.on("close", (code) => {
-      const errorText = Buffer.concat(stderr).toString("utf8").trim();
-      if (code !== 0) {
-        reject(new Error(errorText || `Python execution exited with code ${code}`));
-        return;
-      }
-      resolve(Buffer.concat(stdout).toString("utf8").trim());
-    });
-    // Use an ASCII-only frame on stdin. Workflow parameters may contain quotes,
-    // newlines, non-BMP text and user-provided JSON; transporting their UTF-8
-    // representation as Base64 prevents shell/runtime encoding from ever
-    // turning a valid renderer payload into malformed JSON before Python sees it.
-    const requestFrame = Buffer.from(JSON.stringify(payload), "utf8").toString("base64");
-    child.stdin.end(`PYDROID_FLOW_BASE64_V1\n${requestFrame}`, "ascii");
+  if (!isUtilityRequest && activeWorkflowExecutionId && activeWorkflowExecutionId !== executionId) {
+    return Promise.reject(new Error(`[EXECUTION_BUSY] ${executionId}: 已有工作流正在执行（${activeWorkflowExecutionId}）`));
+  }
+  if (!isUtilityRequest) activeWorkflowExecutionId = executionId;
+  return pythonProcessController.execute({
+    executionId,
+    timeoutMs,
+    executable: command.executable,
+    args: [...command.args],
+    cwd: python,
+    env: { ...process.env, PYTHONPATH: pythonPath, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" },
+    payload,
+  }).finally(() => {
+    if (!isUtilityRequest && activeWorkflowExecutionId === executionId) activeWorkflowExecutionId = null;
   });
+}
+
+function cancelPythonRequest(executionId) {
+  return pythonProcessController.cancel(executionId);
 }
 
 function createWindow() {
@@ -958,6 +951,7 @@ app.whenReady().then(() => {
   ipcMain.on("pydroid:window-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle("pydroid:window-is-maximized", (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
   ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload));
+  ipcMain.handle("pydroid:cancel-workflow", (_event, executionId) => ({ cancelled: cancelPythonRequest(executionId) }));
   ipcMain.handle("pydroid:get-environment", () => runPythonRequest({ action: "environment" }));
   ipcMain.handle("pydroid:analyze-notebook", (_event, notebook) => runPythonRequest({ action: "analyze_notebook", notebook }));
   ipcMain.handle("pydroid:analyze-signature", (_event, code) => runPythonRequest({ action: "analyze_signature", code }));
@@ -989,6 +983,8 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on("before-quit", () => pythonProcessController.cancelAll());
 
 app.on("window-all-closed", async () => {
   await stopDesktopRemoteServer();

@@ -1,6 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import { PythonExecutor } from "./platform/android-plugin";
 import { getPlatformAdapter, isRemoteRuntime } from "./platform";
+import { executionController, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, type ExecutionControl } from "./execution-controller";
 import {
   createPythonRuntime,
   getRuntime,
@@ -22,6 +23,7 @@ import {
 import { flattenWorkflowGroups, serializeWorkflow, type WorkflowNode } from "./workflow";
 
 export { WorkflowExecutionError } from "./runtime";
+export { ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError } from "./execution-controller";
 export type {
   ExecutionResult,
   NodeExecutionPreview,
@@ -104,20 +106,32 @@ async function executePythonWorkflow(
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
+  control?: ExecutionControl,
 ): Promise<ExecutionResult> {
   const executable = flattenWorkflowGroups(nodes, edges);
   const workflow = JSON.stringify(serializeWorkflow("Python 工作流", executable.nodes, executable.edges));
 
   if (isRemoteRuntime()) {
-    const result = await getPlatformAdapter().remote.request<ExecutionResult | ExecutionErrorResult>("/api/execute", {
-      workflow,
-      csvText,
-      inputFiles,
-    });
-    if (result.status === "error") {
-      throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, { ...result, runtimeId: "python" });
+    const platform = getPlatformAdapter();
+    const executionId = control?.executionId ?? `remote-${Date.now().toString(36)}`;
+    const timeoutMs = control?.timeoutMs ?? 10 * 60 * 1000;
+    const cancelRemote = () => { void platform.remote.request("/api/cancel", { executionId }).catch(() => undefined); };
+    control?.signal.addEventListener("abort", cancelRemote, { once: true });
+    try {
+      const result = await platform.remote.request<ExecutionResult | ExecutionErrorResult>("/api/execute", {
+        workflow,
+        csvText,
+        inputFiles,
+        executionId,
+        timeoutMs,
+      }, { signal: control?.signal });
+      if (result.status === "error") {
+        throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, { ...result, runtimeId: "python" });
+      }
+      return { ...result, runtimeId: "python" };
+    } finally {
+      control?.signal.removeEventListener("abort", cancelRemote);
     }
-    return { ...result, runtimeId: "python" };
   }
 
   if (getPlatformAdapter().id !== "android") {
@@ -141,7 +155,16 @@ async function executePythonWorkflow(
   }
 
   await warmUpPythonExecutor();
-  const response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles) });
+  const executionId = control?.executionId ?? `android-${Date.now().toString(36)}`;
+  const timeoutMs = control?.timeoutMs ?? 10 * 60 * 1000;
+  const cancelAndroid = () => { void PythonExecutor.cancelWorkflow({ executionId }).catch(() => undefined); };
+  control?.signal.addEventListener("abort", cancelAndroid, { once: true });
+  let response;
+  try {
+    response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs });
+  } finally {
+    control?.signal.removeEventListener("abort", cancelAndroid);
+  }
   const result = JSON.parse(response.result) as ExecutionResult | ExecutionErrorResult;
   if (result.status === "error") {
     throw new WorkflowExecutionError(result.message, result.nodeId, result.nodeType, { ...result, runtimeId: "python" });
@@ -152,7 +175,7 @@ async function executePythonWorkflow(
 const pythonRuntime = createPythonRuntime({
   warmUp: warmUpPythonExecutor,
   getEnvironment: getPythonEnvironment,
-  execute: ({ nodes, edges, csvText, inputFiles = [] }) => executePythonWorkflow(nodes, edges, csvText, inputFiles),
+  execute: ({ nodes, edges, csvText, inputFiles = [], control }) => executePythonWorkflow(nodes, edges, csvText, inputFiles, control),
 });
 registerRuntime(pythonRuntime);
 registerRuntime(javascriptRuntime);
@@ -190,8 +213,10 @@ export async function executeWorkflow(
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
   preference: RuntimePreference = currentRuntimePreference,
+  options: { timeoutMs?: number; executionId?: string } = {},
 ): Promise<ExecutionResult> {
-  return resolveHostRuntime(preference, nodes).execute({ nodes, edges, csvText, inputFiles });
+  const runtime = resolveHostRuntime(preference, nodes);
+  return executionController.execute(runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control }), options);
 }
 
 export async function executeWorkflowWithRuntime(
@@ -200,6 +225,12 @@ export async function executeWorkflowWithRuntime(
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
+  options: { timeoutMs?: number; executionId?: string } = {},
 ): Promise<ExecutionResult> {
-  return getRuntime(runtimeId).execute({ nodes, edges, csvText, inputFiles });
+  const runtime = getRuntime(runtimeId);
+  return executionController.execute(runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control }), options);
 }
+
+export function cancelActiveExecution(): boolean { return executionController.cancel(); }
+export function getExecutionStatus() { return executionController.getStatus(); }
+export function subscribeExecutionStatus(listener: Parameters<typeof executionController.subscribe>[0]) { return executionController.subscribe(listener); }

@@ -1,8 +1,8 @@
-> **1.4.27 (50)**：局域网网页访问启动后，Android 与 Windows 会自动发布 SSDP/UPnP 与 mDNS/DNS-SD；同一局域网 Windows 可在“文件资源管理器 → 网络”发现 PyDroid Node，并双击打开现有 Web UI。
+> **1.4.28 (51) · dev Phase 2**：在已验证的 Phase 1 PlatformAdapter 基础上加入统一 ExecutionController；Windows Python 支持 executionId、超时、取消与进程树清理，Android/Remote Web 支持同一生命周期协议与 Future 取消。UI 继续冻结，仅把运行按钮在执行时切换为“停止”。
 
 > **dev 架构线**：UI 进入稳定期；Phase 1 `PlatformAdapter` 已把 SMB、文件选择、Profile、Secrets、Remote Access 和系统状态从 Runtime facade 中抽离。后续以执行可靠性和 Workflow Core 为主，详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。
 
-当前 Android 调试构建版本：`1.4.27 (50)`。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
+当前 `dev` Android 调试构建版本：`1.4.28 (51)`；`main` 仍保留稳定 `1.4.27 (50)` LAN 基线。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
 
 # PyDroid Flow
 

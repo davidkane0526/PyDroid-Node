@@ -1,8 +1,8 @@
 # PyDroid Node 架构与可靠性开发路线
 
-更新时间：2026-08-18  
-长期开发分支：`dev`  
-当前版本基线：`1.4.27 (50)`
+更新时间：2026-08-19
+长期开发分支：`dev`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.28 (51)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -304,7 +304,7 @@ desktop/renderer/
 
 ## 5. Phase 2 — Execution Controller
 
-优先级：**P0，Phase 1 实机确认后开始。**
+优先级：**P0。已于 `dev` 1.4.28 实现，等待 Windows/Android Phase 2 实机验收。**
 
 目标 API：
 
@@ -334,6 +334,17 @@ queued → running → success
 - 重复运行/并发策略；
 - UI 只消费统一状态，不直接管理底层进程生命周期；
 - 失败/取消后不残留进程、Future 或 socket。
+
+当前实现位置：
+
+- 共享控制器：`src/execution-controller.ts`；
+- Windows 子进程控制：`desktop/execution/PythonProcessController.cjs`；
+- Android Future 控制：`android/app/src/main/java/com/dk/pydroidflow/PythonExecutionController.java`；
+- Remote Web：Desktop/Android 均通过 `/api/cancel` 将浏览器取消传递到宿主。
+
+并发策略：宿主与共享 UI 均只允许一个活动工作流；Python environment/signature/notebook-analysis 等 utility 请求不占用工作流执行槽。
+
+Android 限制：Chaquopy 为应用内嵌解释器，Future/线程中断不能等价于 Windows 独立进程强杀。Java Future 和 registry 会及时释放，但 native C/NumPy 段可能在返回 Python 之前继续占用解释器线程。若需要绝对硬终止，应在后续单独设计 Android 进程隔离。
 
 ---
 
@@ -506,10 +517,9 @@ desktop/
 
 当前 `dev` 分支在 Phase 1 完成云端测试后，应按以下顺序推进：
 
-1. 用户只做 1.4.27 + PlatformAdapter 的 Windows/Android 实机运行回归。
-2. 若无回归，冻结 Phase 1 接口。
-3. 开始 Phase 2 `ExecutionController`，优先解决 cancel/timeout/process cleanup。
-4. Phase 2 稳定后进入 Workflow Core，而不是继续大改 UI。
+1. Phase 1 PlatformAdapter 已完成 Windows/Android 实机验收并冻结接口。
+2. Phase 2 `ExecutionController` 已在 `dev` 1.4.28 实现，当前只等待用户确认 Desktop/Android 正常运行与 Stop/timeout 无回归。
+3. Phase 2 验收后进入 Workflow Core，而不是继续大改 UI。
 5. Node Contract 与 Runtime parity 紧随 Workflow Core。
 6. 最后再拆 Python engine、Desktop/Android host 和 Build Tool。
 

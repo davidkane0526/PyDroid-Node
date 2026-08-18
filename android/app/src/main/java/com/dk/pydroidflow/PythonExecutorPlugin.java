@@ -56,6 +56,7 @@ public class PythonExecutorPlugin extends Plugin {
     }
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final ExecutorService remoteRequests = Executors.newCachedThreadPool();
+    private final PythonExecutionController executionController = new PythonExecutionController();
     private RemoteWorkflowServer remoteServer;
     private static final int MAX_PICKED_FILES = 100;
     private static final long MAX_FILE_BYTES = 64L * 1024L * 1024L;
@@ -544,7 +545,7 @@ public class PythonExecutorPlugin extends Plugin {
     @PluginMethod
     public synchronized void startRemoteServer(PluginCall call) {
         try {
-            if (remoteServer == null) remoteServer = RemoteWorkflowServer.start(getContext(), worker, remoteRequests, call.getBoolean("requirePin", true));
+            if (remoteServer == null) remoteServer = RemoteWorkflowServer.start(getContext(), worker, remoteRequests, executionController, call.getBoolean("requirePin", true));
             org.json.JSONObject info = remoteServer.connectionInfo();
             JSObject response = new JSObject();
             response.put("url", info.getString("url"));
@@ -572,25 +573,43 @@ public class PythonExecutorPlugin extends Plugin {
         String workflow = call.getString("workflow");
         String csvText = call.getString("csvText");
         String inputFiles = call.getString("inputFiles", "[]");
+        String executionId = call.getString("executionId", "").trim();
+        Long timeoutValue = call.getLong("timeoutMs");
+        long timeoutMs = timeoutValue == null ? PythonExecutionController.DEFAULT_TIMEOUT_MS : timeoutValue;
 
-        if (workflow == null || csvText == null) {
-            call.reject("workflow and csvText are required");
+        if (workflow == null || csvText == null || executionId.isEmpty()) {
+            call.reject("workflow, csvText, and executionId are required");
             return;
         }
 
-        worker.execute(() -> {
-            try {
+        try {
+            PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, () -> {
                 Python python = Python.getInstance();
                 PyObject module = python.getModule("pydroid_flow.engine");
-                PyObject result = module.callAttr("execute_workflow", workflow, csvText, inputFiles);
-                JSObject response = new JSObject();
-                response.put("result", result.toString());
-                call.resolve(response);
-            } catch (Exception exception) {
-                String message = exception.getMessage();
-                call.reject(message == null ? "Python workflow failed" : message, exception);
-            }
-        });
+                return module.callAttr("execute_workflow", workflow, csvText, inputFiles).toString();
+            });
+            remoteRequests.execute(() -> {
+                try {
+                    JSObject response = new JSObject();
+                    response.put("result", executionController.await(execution));
+                    call.resolve(response);
+                } catch (Exception exception) {
+                    String message = exception.getMessage();
+                    call.reject(message == null ? "Python workflow failed" : message, exception);
+                }
+            });
+        } catch (Exception exception) {
+            String message = exception.getMessage();
+            call.reject(message == null ? "Unable to start Python workflow" : message, exception);
+        }
+    }
+
+    @PluginMethod
+    public void cancelWorkflow(PluginCall call) {
+        String executionId = call.getString("executionId", "").trim();
+        JSObject response = new JSObject();
+        response.put("cancelled", !executionId.isEmpty() && executionController.cancel(executionId));
+        call.resolve(response);
     }
 
     @PluginMethod
@@ -655,6 +674,7 @@ public class PythonExecutorPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         if (remoteServer != null) remoteServer.stop();
+        executionController.close();
         remoteRequests.shutdownNow();
         worker.shutdownNow();
         super.handleOnDestroy();

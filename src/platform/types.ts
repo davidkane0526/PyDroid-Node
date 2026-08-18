@@ -16,6 +16,7 @@ export type RemoteServerInfo = { url: string; pin: string | null; requiresPin: b
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
 export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentApiKey: string };
+export type RemoteRequestOptions = { signal?: AbortSignal };
 export type UserProfileInfo = { path: string; workspaceUri: string | null };
 export type ExternalWorkflowEntry = { name: string; content: string; uri: string };
 export type WindowControls = {
@@ -62,7 +63,7 @@ export interface RemotePlatformCapability {
   getAppConfiguration(): Promise<RemoteAppConfiguration>;
   startServer(requirePin?: boolean): Promise<RemoteServerInfo>;
   stopServer(): Promise<void>;
-  request<T>(path: string, payload?: Record<string, unknown>): Promise<T>;
+  request<T>(path: string, payload?: Record<string, unknown>, options?: RemoteRequestOptions): Promise<T>;
 }
 
 export interface SystemPlatformCapability {

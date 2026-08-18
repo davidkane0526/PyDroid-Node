@@ -66,11 +66,12 @@ export function createRemoteSessionClient(
     storage.setItem(REMOTE_SESSION_TOKEN_KEY, parsed.token);
   }
 
-  async function request<T>(path: string, payload: Record<string, unknown> = {}): Promise<T> {
+  async function request<T>(path: string, payload: Record<string, unknown> = {}, options: { signal?: AbortSignal } = {}): Promise<T> {
     const response = await environmentProvider().fetch(path, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-PyDroid-Token": token() },
       body: JSON.stringify(payload),
+      signal: options.signal,
     });
     const text = await response.text();
     if (!response.ok) {

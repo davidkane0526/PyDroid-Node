@@ -9,7 +9,8 @@ import type {
 } from "../../src/platform/types";
 
 export type DesktopRuntimeBridge = {
-  runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string }): Promise<string>;
+  runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number }): Promise<string>;
+  cancelWorkflow(executionId: string): Promise<{ cancelled: boolean }>;
   getEnvironment(): Promise<string>;
   getRuntimeStats(): Promise<RuntimeStats>;
   analyzeNotebook(notebook: string): Promise<string>;

@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("pyDroidDesktop", {
   runWorkflow: (payload) => ipcRenderer.invoke("pydroid:run-workflow", payload),
+  cancelWorkflow: (executionId) => ipcRenderer.invoke("pydroid:cancel-workflow", executionId),
   getEnvironment: () => ipcRenderer.invoke("pydroid:get-environment"),
   getRuntimeStats: () => ipcRenderer.invoke("pydroid:get-runtime-stats"),
   analyzeNotebook: (notebook) => ipcRenderer.invoke("pydroid:analyze-notebook", notebook),

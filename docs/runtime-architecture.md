@@ -62,6 +62,19 @@ It is a pure TypeScript data-flow engine and does not replace Python. Its main a
 
 `src/runtime/javascript/adapter.ts` contains an explicit compatibility set. Python-source nodes such as custom Python functions and Python Notebook cells are deliberately excluded from automatic JavaScript execution.
 
+## Execution lifecycle (Phase 2)
+
+Phase 2 adds `src/execution-controller.ts` as the renderer-side authority for one active workflow execution. Every run receives a persistent-for-that-run `executionId`, a normalized timeout and an `AbortSignal`. The controller publishes the explicit lifecycle states `queued`, `running`, `cancelling`, `cancelled`, `success`, `failed` and `timeout`; UI code observes these states instead of maintaining a second independent `isRunning` flag.
+
+Host cancellation is intentionally platform-specific behind the runtime transport:
+
+- **Windows Desktop:** `desktop/execution/PythonProcessController.cjs` owns the `executionId -> child process` registry. Cancellation and timeout terminate the Python child and also use `taskkill /T /F` on Windows to clean descendant processes. Application shutdown cancels all remaining executions.
+- **Android:** `PythonExecutionController.java` owns a dedicated workflow executor, timeout scheduler and `Future` registry. Workflow execution is separated from the generic platform worker used by SMB/profile operations. `Future.cancel(true)` releases Java-side waiting/registry state and interrupts the workflow thread. Because Chaquopy embeds Python in the app process, this is **best-effort cancellation** for Python/native work; an uninterruptible native C/NumPy call cannot be safely hard-killed without moving Python execution into a separate Android process.
+- **LAN Remote Web:** the same `executionId` crosses `/api/execute`. Browser abort additionally calls `/api/cancel`, so cancellation reaches the host instead of merely stopping `fetch`.
+- **JavaScript runtime:** the shared controller can classify cancellation/timeout at the orchestration layer, but the current JavaScript engine executes synchronously in the renderer. A CPU-bound synchronous JS node cannot be forcibly interrupted while it blocks the event loop. Hard cancellation for JS requires future worker isolation and is not claimed by Phase 2.
+
+The default workflow timeout is 10 minutes, normalized to the supported 1-second to 24-hour range. The current host policy permits one active workflow at a time to prevent overlapping writes/results while leaving utility/platform tasks independent.
+
 ## Plot presentation
 
 Both runtimes now share one plot presentation contract:
@@ -98,9 +111,9 @@ The former JavaScript branch is a migration source, not a second application to 
 
 ## Next phases
 
-1. Validate the new PlatformAdapter boundary on Windows and Android without changing UI behavior.
-2. Add an `ExecutionController` with execution IDs, timeout, cancellation and deterministic cleanup on Windows and Android.
-3. Extract workflow session/history/serialization/migrations from the large application component into a `workflow-core` module.
+1. **Phase 1 complete and user-accepted:** keep the PlatformAdapter boundary frozen unless a verified host-capability bug requires a compatible extension.
+2. **Phase 2 implemented on `dev` 1.4.28:** validate ExecutionController behavior on real Windows and Android hosts; do not claim Android/native hard-kill semantics beyond the documented best-effort boundary.
+3. **Next: Phase 3 Workflow Core:** extract workflow session/history/serialization/migrations from the large application component without changing UI behavior.
 4. Add typed runtime capability metadata to node definitions so the palette can show runtime support before execution.
 5. Build Python/JavaScript golden-workflow parity tests and expand JavaScript support only where semantics can be matched.
 6. After these boundaries are stable, modularize the Python engine and platform host implementations.

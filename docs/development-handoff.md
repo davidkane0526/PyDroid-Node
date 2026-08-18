@@ -1,6 +1,6 @@
 # Development handoff
 
-Updated: 2026-08-18
+Updated: 2026-08-19
 
 ## Current repository state
 
@@ -8,8 +8,8 @@ This delivery is a **single local Git repository** based only on the user-provid
 
 Long-lived branches in this repository:
 
-- `main`: stable `1.4.27` LAN automatic-discovery baseline;
-- `dev`: architecture and reliability development line, based directly on `main`.
+- `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
+- `dev`: `1.4.28 (51)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController.
 
 Current working branch: `dev`.
 
@@ -29,7 +29,7 @@ Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture w
 
 ## Phase 1 status — PlatformAdapter
 
-**Implemented on `dev`; pending user Windows/Android runtime acceptance.**
+**Implemented and accepted by the user on Windows/Android. Treat the Phase 1 contract as frozen unless a concrete bug is found.**
 
 Shared contract:
 
@@ -80,7 +80,7 @@ Phase 1 production-boundary checks:
 - compiled JS Runtime harness for Android PlatformAdapter with a mocked Capacitor PythonExecutor: passed;
 - Python tests: `102 passed, 1 skipped`;
 - `node scripts/build-tools-smoke.mjs`: passed;
-- `node scripts/check-version-sync.mjs`: passed, `1.4.27 (50)`.
+- `node scripts/check-version-sync.mjs`: rerun for Phase 2 as `1.4.28 (51)` before delivery.
 
 The sandbox cannot currently download pnpm from npm (`EAI_AGAIN registry.npmjs.org`), therefore dependency-backed Vitest/Vite production builds cannot be rerun from a fresh clean ZIP in this environment. This is an environment/network limitation, not a passing build claim. The committed Vitest tests will run when dependencies are available.
 
@@ -106,19 +106,39 @@ The user should only need to confirm real-host behavior:
 
 Do not ask the user to perform routine unit/static/protocol tests that can be automated in the cloud.
 
+## Phase 2 status — ExecutionController
+
+**Implemented on `dev` as 1.4.28 (51); pending user Windows/Android runtime acceptance.**
+
+Shared lifecycle:
+
+- `src/execution-controller.ts`
+- one active workflow at a time;
+- generated/preserved `executionId`;
+- `queued → running → success|failed|timeout` and `running → cancelling → cancelled`;
+- default timeout 10 minutes; callers may supply another timeout;
+- `App.tsx` subscribes to controller state and uses one Stop action for node and Notebook execution.
+
+Windows host:
+
+- `desktop/execution/PythonProcessController.cjs` owns Python child processes;
+- `desktop/main.cjs` maps executionId to the host process lifecycle;
+- timeout/cancel removes registry state and terminates the Python process; Windows also calls `taskkill /T /F`;
+- `desktop/preload.cjs` / `desktop/renderer/bridge.ts` expose `cancelWorkflow`;
+- Desktop Remote Web exposes `/api/cancel` and cancels tracked remote executions when the server stops.
+
+Android host:
+
+- `PythonExecutionController.java` owns a dedicated workflow executor, Future registry and timeout scheduler;
+- workflow execution no longer occupies the generic SMB/Profile `worker`;
+- `PythonExecutorPlugin.cancelWorkflow` and Remote `/api/cancel` use the same controller;
+- Remote Web and local Android execution therefore share one host concurrency policy.
+
+Known Android limitation: Chaquopy is embedded in the app process. `Future.cancel(true)` releases Java-side waiting/registry state and interrupts the execution thread, but native C/NumPy code may ignore thread interruption until it returns. Do not claim Android has Windows-style hard process termination. A strict hard-kill guarantee would require a separate process architecture.
+
 ## Next development task
 
-After the user confirms Phase 1 host behavior, start **Phase 2 — ExecutionController**:
-
-- execution ID;
-- queued/running/cancelling/success/error/timeout states;
-- timeout;
-- cancellation;
-- Windows Python child-process cleanup;
-- Android execution Future/task cleanup;
-- deterministic recovery after failure/cancel.
-
-Do not start Workflow Core or another UI redesign before this execution lifecycle is stable.
+After the user confirms Phase 2 host behavior, start **Phase 3 — Workflow Core**. Extract workflow document/session/history/serialization/migration behavior from `App.tsx` without redesigning the UI. Do not start Node Contract or broad host modularization before Workflow Core is stable.
 
 
 ### Production TypeScript vs test TypeScript

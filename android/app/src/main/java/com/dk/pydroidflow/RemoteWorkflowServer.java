@@ -24,6 +24,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -39,18 +41,21 @@ final class RemoteWorkflowServer {
     private final Context context;
     private final ExecutorService pythonWorker;
     private final ExecutorService requestWorker;
+    private final PythonExecutionController executionController;
     private final String token;
     private final String pin;
     private final boolean requiresPin;
     private final LanDiscoveryService discovery;
     private volatile boolean running;
+    private final Set<String> remoteExecutionIds = ConcurrentHashMap.newKeySet();
     private ServerSocket socket;
     private Thread acceptThread;
 
-    private RemoteWorkflowServer(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, boolean requiresPin) {
+    private RemoteWorkflowServer(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) {
         this.context = context.getApplicationContext();
         this.pythonWorker = pythonWorker;
         this.requestWorker = requestWorker;
+        this.executionController = executionController;
         byte[] bytes = new byte[18];
         new SecureRandom().nextBytes(bytes);
         token = Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
@@ -59,8 +64,8 @@ final class RemoteWorkflowServer {
         discovery = new LanDiscoveryService(this.context, PORT);
     }
 
-    static RemoteWorkflowServer start(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, boolean requiresPin) throws IOException {
-        RemoteWorkflowServer server = new RemoteWorkflowServer(context, pythonWorker, requestWorker, requiresPin);
+    static RemoteWorkflowServer start(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) throws IOException {
+        RemoteWorkflowServer server = new RemoteWorkflowServer(context, pythonWorker, requestWorker, executionController, requiresPin);
         server.socket = new ServerSocket(PORT);
         server.socket.setReuseAddress(true);
         server.running = true;
@@ -83,6 +88,8 @@ final class RemoteWorkflowServer {
     void stop() {
         running = false;
         discovery.stop();
+        for (String executionId : remoteExecutionIds) executionController.cancel(executionId);
+        remoteExecutionIds.clear();
         try { if (socket != null) socket.close(); } catch (IOException ignored) { }
     }
 
@@ -139,7 +146,9 @@ final class RemoteWorkflowServer {
         } catch (SocketTimeoutException ignored) {
             // An incomplete browser request should never keep the app's worker thread forever.
         } catch (Exception exception) {
-            try { sendJson(client.getOutputStream(), 500, new JSONObject().put("error", "Remote service error")); } catch (Exception ignored) { }
+            String message = exception.getMessage();
+            String safeMessage = message != null && message.startsWith("[EXECUTION_") ? message : "Remote service error";
+            try { sendJson(client.getOutputStream(), 500, new JSONObject().put("error", safeMessage)); } catch (Exception ignored) { }
         }
     }
 
@@ -166,9 +175,20 @@ final class RemoteWorkflowServer {
             String workflow = payload.optString("workflow", null);
             String csvText = payload.optString("csvText", "");
             JSONArray inputFiles = payload.optJSONArray("inputFiles");
-            if (workflow == null) throw new IllegalArgumentException("workflow is required");
-            String result = callPython("pydroid_flow.engine", "execute_workflow", workflow, csvText, inputFiles == null ? "[]" : inputFiles.toString());
-            sendJsonText(output, 200, result);
+            String executionId = payload.optString("executionId", "").trim();
+            long timeoutMs = payload.optLong("timeoutMs", PythonExecutionController.DEFAULT_TIMEOUT_MS);
+            if (workflow == null || executionId.isEmpty()) throw new IllegalArgumentException("workflow and executionId are required");
+            remoteExecutionIds.add(executionId);
+            try {
+                PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, () -> {
+                    Python python = Python.getInstance();
+                    PyObject module = python.getModule("pydroid_flow.engine");
+                    return module.callAttr("execute_workflow", workflow, csvText, inputFiles == null ? "[]" : inputFiles.toString()).toString();
+                });
+                sendJsonText(output, 200, executionController.await(execution));
+            } finally { remoteExecutionIds.remove(executionId); }
+        } else if ("/api/cancel".equals(request.path)) {
+            sendJson(output, 200, new JSONObject().put("cancelled", executionController.cancel(payload.optString("executionId", ""))));
         } else if ("/api/runtime-stats".equals(request.path)) {
             sendJson(output, 200, new JSONObject().put("memoryBytes", (long) android.os.Debug.getPss() * 1024L));
         } else if ("/api/environment".equals(request.path)) {
@@ -209,7 +229,12 @@ final class RemoteWorkflowServer {
             PyObject module = python.getModule(moduleName);
             return module.callAttr(functionName, arguments).toString();
         });
-        return task.get();
+        try {
+            return task.get(60, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (java.util.concurrent.TimeoutException timeout) {
+            task.cancel(true);
+            throw new Exception("Python utility request timed out", timeout);
+        }
     }
 
     private void serveAsset(String rawPath, OutputStream output) throws IOException {

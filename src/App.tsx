@@ -51,7 +51,7 @@ import {
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
-import { analyzeNotebook, analyzePythonSignature, executeWorkflow, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
+import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, executeWorkflow, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
 import { canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
@@ -809,7 +809,9 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [plotExpandedPreview, setPlotExpandedPreview] = useState<Extract<NodeExecutionPreview, { kind: "plot" }> | null>(null);
   const [plotZoom, setPlotZoom] = useState(1);
   const [livePreview, setLivePreview] = useState(false);
-  const [isRunning, setIsRunning] = useState(false);
+  const [executionLifecycle, setExecutionLifecycle] = useState(() => getExecutionStatus());
+  const isRunning = ["queued", "running", "cancelling"].includes(executionLifecycle.phase);
+  useEffect(() => subscribeExecutionStatus(setExecutionLifecycle), []);
   const [resultDock, setResultDock] = useState<"right" | "bottom">("right");
   const [inspectorWidth, setInspectorWidth] = useState(() => loadAppSettings().inspectorWidth);
   const [inspectorHeight, setInspectorHeight] = useState(() => loadAppSettings().inspectorHeight);
@@ -944,7 +946,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     };
   }, []);
   const livePreviewTimer = useRef<number | null>(null);
-  const isRunningRef = useRef(false);
   const parameterEditSession = useRef<{ key: string; time: number } | null>(null);
   const applyingRemoteConfiguration = useRef(false);
   const touchPaletteDrag = useRef<{ resource: PaletteResource; pointerId: number; startX: number; startY: number; element: HTMLButtonElement; armed: boolean; pointerType: string } | null>(null);
@@ -2630,7 +2631,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const runNotebook = async (throughIndex?: number) => {
-    if (notebookRunningCell !== null) return;
+    if (notebookRunningCell !== null || ["queued", "running", "cancelling"].includes(getExecutionStatus().phase)) return;
     const lastIndex = throughIndex ?? notebookCells.length - 1;
     const cells = notebookCells.slice(0, lastIndex + 1);
     if (!cells.some((cell) => cell.cellType === "code" && cell.source.trim())) { setNotebookError("没有可运行的代码单元格"); return; }
@@ -2647,6 +2648,17 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
       setMessage(throughIndex === undefined ? `Notebook 已运行 ${cells.filter((cell) => cell.cellType === "code").length} 个代码单元格` : `已运行到第 ${throughIndex + 1} 个单元格`);
     } catch (error) {
+      if (error instanceof ExecutionCancelledError) {
+        setNotebookError(null);
+        setMessage("Notebook 执行已取消");
+        return;
+      }
+      if (error instanceof ExecutionTimeoutError) {
+        setNotebookError(error.message);
+        setExecutionError({ title: "Notebook 执行超时", message: error.message });
+        setMessage(error.message);
+        return;
+      }
       const detail = error instanceof Error ? error.message : "Notebook 运行失败";
       const nodeId = error instanceof WorkflowExecutionError ? error.nodeId : undefined;
       const cellNumber = nodeId?.match(/notebook-cell-(\d+)/)?.[1];
@@ -3150,7 +3162,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string) {
-    if (isRunningRef.current) return;
+    if (["queued", "running", "cancelling"].includes(getExecutionStatus().phase)) return;
     const fullOrder = nodesInExecutionOrder(workflowNodes, workflowEdges);
     const stopAt = requestedStopAt ?? (debugMode ? fullOrder.find((node) => debugBreakpoints.has(node.id))?.id : undefined);
     if (stopAt) {
@@ -3182,9 +3194,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setMessage("请先选择数据文件");
       return;
     }
-    isRunningRef.current = true;
     const runStartedAt = performance.now();
-    setIsRunning(true);
     const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes);
     setMessage(`正在执行 ${selectedRuntime.label} 工作流…`);
     setExecutionError(null);
@@ -3215,7 +3225,15 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const completed = new Set(nextResult.executionOrder ?? workflowNodes.map((node) => node.id));
       setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: completed.has(node.id) ? "success" : "idle" } })));
     } catch (error) {
-      if (error instanceof WorkflowExecutionError) {
+      if (error instanceof ExecutionCancelledError) {
+        setMessage("执行已取消");
+        setExecutionError(null);
+        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+      } else if (error instanceof ExecutionTimeoutError) {
+        setMessage(error.message);
+        setExecutionError({ title: "工作流执行超时", message: error.message });
+        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+      } else if (error instanceof WorkflowExecutionError) {
         const failingNodeExists = nodes.some((node) => node.id === error.nodeId);
         if (failingNodeExists) setSelectedId(error.nodeId);
         setMessage(`${error.nodeType}：${error.message}`);
@@ -3236,8 +3254,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       }
     } finally {
       setLastRunDurationMs(performance.now() - runStartedAt);
-      isRunningRef.current = false;
-      setIsRunning(false);
     }
   }
 
@@ -3505,7 +3521,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <button className="button secondary optional-action topbar-file-action" onClick={requestNewWorkflow}>{ui("新建", "New")}</button>
           <button className="button secondary optional-action topbar-file-action" onClick={() => workflowInput.current?.click()}>{ui("导入", "Import")}</button>
           <button className="button secondary optional-action topbar-file-action" onClick={saveWorkflow}>{ui("保存", "Save")}</button>
-          <button className="button primary topbar-run" disabled={isRunning} onClick={() => runPrototype()}>{isRunning ? ui("运行中…", "Running…") : ui("运行", "Run")}</button>
+          <button className="button primary topbar-run" title={isRunning ? `停止当前执行${executionLifecycle.executionId ? ` · ${executionLifecycle.executionId}` : ""}` : "运行工作流"} onClick={() => { if (isRunning) { if (cancelActiveExecution()) setMessage("正在取消执行…"); } else void runPrototype(); }}>{isRunning ? (executionLifecycle.phase === "cancelling" ? ui("取消中…", "Cancelling…") : ui("停止", "Stop")) : ui("运行", "Run")}</button>
         </div>
       </header>
 

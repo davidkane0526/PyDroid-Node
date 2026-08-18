@@ -74,8 +74,8 @@ Before delivery, at minimum:
 
 The UI is now treated as a stable layer. Do not start another broad UI redesign unless the user reports a concrete interaction defect. Follow `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`.
 
-1. **Phase 1 implemented on `dev`**: host-specific file/SMB/profile/secret/remote APIs live behind `PlatformAdapter`; keep this contract stable while Windows/Android manual runtime validation is pending.
-2. Next implement `ExecutionController`: execution ID, timeout, cancellation and cleanup on Android/Windows.
-3. Extract workflow document/session/dirty-state/history/serialization/migrations from the large `App.tsx` into Workflow Core.
+1. **Phase 1 PlatformAdapter is implemented and user-validated.** Treat its public contract as frozen unless a concrete bug is reported.
+2. **Phase 2 ExecutionController is implemented on `dev` (1.4.28) and awaits host acceptance.** Preserve executionId/timeout/cancel semantics across Desktop, Android and Remote Web.
+3. After Phase 2 acceptance, extract workflow document/session/dirty-state/history/serialization/migrations from the large `App.tsx` into Workflow Core.
 4. Move runtime compatibility declarations into node metadata and add Python/JavaScript golden-workflow parity tests.
 5. Only after those boundaries are stable, modularize Python engine, Desktop/Android hosts and build scripts.

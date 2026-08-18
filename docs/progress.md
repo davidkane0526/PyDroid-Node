@@ -1,3 +1,14 @@
+## 2026-08-19 — dev Phase 2 ExecutionController / 1.4.28 (51)
+
+- 用户已完成 Phase 1 Windows/Android 实机构建与运行验收，未发现问题，因此 Phase 1 PlatformAdapter 视为冻结接口。
+- `dev` 进入 Phase 2：新增共享 `src/execution-controller.ts`，统一 executionId、状态机、默认 10 分钟超时、取消与单活动执行策略。
+- Windows：`desktop/execution/PythonProcessController.cjs` 负责 child process registry、64 MiB 输出上限、timeout/cancel、Windows `taskkill /T /F` 进程树清理；Renderer/Preload/IPC 全链路传递 executionId。
+- Android：新增 `PythonExecutionController.java`，Python 工作流不再占用 SMB/Profile 的通用 worker；Future registry、timeout scheduler、cancelWorkflow 和 Remote `/api/cancel` 已接入。
+- Remote Web：同一个 executionId 从浏览器穿透到 Desktop/Android 宿主；浏览器 AbortSignal 同时终止 fetch 并发送宿主 cancel 请求。
+- UI：不做布局或视觉重构；共享运行状态由 ExecutionController 提供，顶部运行按钮执行期间变为“停止/取消中”，Notebook 共用该取消入口。
+- 自动测试新增共享 controller Vitest、执行架构 smoke、Desktop 真实 Node 子进程 success/cancel/timeout smoke，以及云端 Java `PythonExecutionController` success/cancel/timeout smoke。
+- 已知限制：Android Chaquopy 的 Future cancellation 无法安全强杀正在 native C/NumPy 中不可中断的解释器线程；若未来必须实现 Android 硬终止，应采用进程隔离方案。
+
 ## 2026-08-18 — 1.4.27 LAN automatic discovery
 
 - 以用户提供的 `PyDroid Node 1.4.26 .zip` 为唯一基线，不访问 GitHub。

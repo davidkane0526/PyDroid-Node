@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+
+const read = (path) => fs.readFileSync(path, "utf8");
+const controller = read("src/execution-controller.ts");
+const runtimeTypes = read("src/runtime/types.ts");
+const execution = read("src/execution.ts");
+const desktopExecution = read("desktop/renderer/execution.ts");
+const desktopMain = read("desktop/main.cjs");
+const desktopPreload = read("desktop/preload.cjs");
+const androidPlugin = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutorPlugin.java");
+const androidController = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutionController.java");
+const androidRemote = read("android/app/src/main/java/com/dk/pydroidflow/RemoteWorkflowServer.java");
+const app = read("src/App.tsx");
+const pkg = JSON.parse(read("package.json"));
+
+assert.match(controller, /queued.*running/s, "ExecutionController must publish queued/running lifecycle states");
+assert.match(controller, /ExecutionTimeoutError/, "ExecutionController must distinguish timeout");
+assert.match(controller, /ExecutionCancelledError/, "ExecutionController must distinguish cancellation");
+assert.match(runtimeTypes, /control\?: ExecutionControl/, "Runtime requests must carry execution control");
+assert.match(execution, /executionController\.execute/, "Shared execution facade must use ExecutionController");
+assert.match(desktopExecution, /cancelWorkflow\(executionId\)/, "Desktop renderer must terminate host Python on abort");
+assert.match(desktopPreload, /pydroid:cancel-workflow/, "Electron preload must expose cancelWorkflow");
+assert.match(desktopMain, /PythonProcessController/, "Desktop host must own Python process lifecycle");
+assert.match(desktopMain, /\/api\/cancel/, "Desktop remote host must expose cancellation");
+assert.match(androidPlugin, /PythonExecutionController/, "Android plugin must use the execution controller");
+assert.match(androidPlugin, /cancelWorkflow/, "Android plugin must expose cancelWorkflow");
+assert.match(androidRemote, /\/api\/cancel/, "Android remote host must expose cancellation");
+assert.match(androidController, /EXECUTION_TIMEOUT/, "Android controller must classify timeouts");
+assert.match(androidController, /EXECUTION_CANCELLED/, "Android controller must classify cancellations");
+assert.match(app, /cancelActiveExecution/, "UI must consume the unified controller cancellation API");
+assert.ok(pkg.build.files.includes("desktop/execution/**/*"), "Packaged desktop must include execution lifecycle modules");
+console.log("Execution architecture smoke test passed");

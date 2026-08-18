@@ -1,5 +1,6 @@
 import type { Edge } from "@xyflow/react";
 import type { WorkflowNode } from "../workflow";
+import type { ExecutionControl } from "../execution-controller";
 
 export type RuntimeId = "python" | "javascript";
 export type RuntimePreference = "auto" | RuntimeId;
@@ -27,6 +28,7 @@ export type RuntimeExecutionRequest = {
   edges: Edge[];
   csvText: string;
   inputFiles?: WorkflowInputFile[];
+  control?: ExecutionControl;
 };
 
 export type TablePreview = {

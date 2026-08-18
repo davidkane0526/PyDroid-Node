@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.27",
+  "version": "1.4.28",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:execution-architecture && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -39,7 +39,8 @@
     "android:emulator:remove": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator-remove.ps1",
     "android:open": "cap open android",
     "test:architecture": "node scripts/platform-architecture-smoke.mjs",
-    "test:types": "tsc --noEmit -p tsconfig.test.json"
+    "test:types": "tsc --noEmit -p tsconfig.test.json",
+    "test:execution-architecture": "node scripts/execution-architecture-smoke.mjs && node scripts/execution-controller-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -73,6 +74,7 @@
       "desktop/main.cjs",
       "desktop/preload.cjs",
       "desktop/lan/**/*",
+      "desktop/execution/**/*",
       "node_modules/node-smb2/**/*",
       "node_modules/des.js/**/*",
       "node_modules/inherits/**/*",
