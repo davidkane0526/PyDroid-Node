@@ -1,6 +1,6 @@
-> **1.4.24 (47)**：修复 Android 完整 Python 3.13 自动安装地址。运行兼容要求仍为 Python 3.13.x，但自动安装器固定为 python.org 已发布的 Python 3.13.14 x64，并校验官方 SHA-256；旧 GUI 设置中的 `3.13` / `3.13.x` 不再直接拼接成无效下载 URL。
+> **1.4.27 (50)**：局域网网页访问启动后，Android 与 Windows 会自动发布 SSDP/UPnP 与 mDNS/DNS-SD；同一局域网 Windows 可在“文件资源管理器 → 网络”发现 PyDroid Node，并双击打开现有 Web UI。
 
-当前 Android 调试构建版本：`1.4.24 (47)`。当前完整工程工作分支为本地 `local/python-installer-fix-1.4.24`，`main` 保持原样未修改。
+当前 Android 调试构建版本：`1.4.27 (50)`。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
 
 # PyDroid Flow
 
@@ -70,7 +70,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 工作流导入/导出与恢复 | 已实现 | 已实现，共用渲染层 |
 | Python 工作流执行 | 已实现，Chaquopy 桥接 | 已实现，Electron IPC 桥接 |
 | JavaScript 工作流执行 | 已接入统一 Runtime Adapter；兼容工作流可在 WebView 内执行 | 已接入统一 Runtime Adapter；兼容工作流可在渲染层执行 |
-| 局域网网页遥控 | 已实现：Android 托管同一 UI，执行在手机 | 已实现：Electron 托管同一 UI，执行在桌面 Python |
+| 局域网网页遥控 | 已实现：Android 托管同一 UI；启动后自动 SSDP/UPnP + mDNS 发现 | 已实现：Electron 托管同一 UI；启动后自动 SSDP/UPnP + mDNS 发现 |
 | AI 节点规划 | 已实现：会话密钥、计划预览、权限和审计 | 已实现，共用渲染层与工作流模型 |
 | 表格、图表及导出预览 | 已实现 | 已实现 |
 | 自动化测试 | Web 23 项、共享 Python 30 项通过 | 桌面桥接 4 项及 Electron 多文件/多导出冒烟测试通过 |
@@ -82,11 +82,9 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ### 局域网网页遥控
 
-在 Android 或 Windows 桌面端顶部点击局域网 AirDrop 图标，选择是否要求四位数字校验码；应用会显示
-`http://宿主设备IP:端口/?remote=1` 地址。让访问设备与宿主设备接入同一个局域网，在浏览器打开该地址，
-若启用校验则先输入宿主应用显示的随机四位数字，即可使用相同的节点编辑 UI。网页中的文件选择由浏览器执行，因此文件来自访问网页的设备；
-工作流、已选文件内容和参数会传给宿主，由 Android Chaquopy 或 Windows Python 执行，结果表格、
-图像、CSV 下载和节点错误再回传网页。
+在 Android 或 Windows 桌面端顶部点击局域网 AirDrop 图标并启动网页访问后，现有 HTTP/Web 服务会自动同时启动 SSDP/UPnP 与 mDNS/DNS-SD 发现。应用仍显示 `http://宿主设备IP:端口/?remote=1`，同时发布稳定的 `.local` 主机名。Windows 电脑可在“文件资源管理器 → 网络”中发现 `PyDroid Node - 设备名`，双击后由 UPnP `presentationURL` 使用默认浏览器打开同一 Web UI，不需要手工输入 IP。
+
+若启用校验则仍需输入宿主应用显示的随机四位数字。网页中的文件选择由浏览器执行，因此文件来自访问网页的设备；工作流、已选文件内容和参数会传给宿主，由 Android Chaquopy 或 Windows Python 执行，结果表格、图像、CSV 下载和节点错误再回传网页。发现协议只公开设备名称、地址、端口和 UPnP 描述，不会绕过已有 PIN/Token API 认证。
 
 服务默认只面向局域网；启用校验时，校验成功的浏览器会获得本次服务的会话令牌，未配对者
 无法调用执行、环境或 Notebook 分析接口。关闭校验可用于可信局域网，但知道地址的设备均可

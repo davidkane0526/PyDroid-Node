@@ -6,19 +6,9 @@ Updated: 2026-08-18
 
 This is a **single local Git repository**. GitHub is no longer required for development or delivery. Do not split it into multiple project folders.
 
-Current working branch:
+Current delivery branch: `local/lan-discovery-1.4.27`, created locally from the user-provided 1.4.26 ZIP. No GitHub read, fetch, push, PR, or Actions operation is part of this delivery.
 
-```text
-main                         <- preserved, do not modify
-  \
-   refactor/runtime-architecture   (historical local line)
-      \
-       local/rebuild-1.4.13        (Android-first UI baseline)
-          \
-           local/jdk-detection-1.4.15  <- current complete-project branch
-```
-
-`local/jdk-detection-1.4.15` keeps the complete 1.4.13 Android-first application state, the 1.4.14 transparent/quiet build GUI workflow, and the 1.4.15 Windows JDK 21 discovery fix. The useful JavaScript engine remains under `src/runtime/javascript/engine/`; there is still only one shared application/UI.
+The useful JavaScript engine remains under `src/runtime/javascript/engine/`; there is still only one shared application/UI. The new LAN discovery host code is platform-specific and attaches to the existing remote Web server lifecycle rather than creating a second application server.
 
 ## Current architecture
 
@@ -103,19 +93,28 @@ The underlying SMB host APIs and security model are intentionally unchanged in t
 - RC8 local-build fix: `desktop-package.mjs` now distinguishes native `pnpm.exe`, `.cmd/.bat`, and JavaScript package-manager launchers before spawning; `pnpm check` includes a dependency-free build-tool invocation smoke test. The SMB connection `<details>` no longer uses unsupported `defaultOpen`; it opens through a DOM ref when no share is selected.
 - RC9/RC10 shared-toolchain baseline: `DK_TOOL_ROOT` and `DK_CACHE_ROOT` centralize reusable Node/JDK/Android SDK/Python installations and pnpm/npm/Corepack/Electron/electron-builder/Gradle/download caches. Version 1.4.14 additionally cleared stale transient Android/Gradle outputs before mirroring source and suppresses raw `robocopy` EXTRA enumeration, so a large old workspace does not look like an unexplained download. The builder validates JDK major versions, discovers installed JDK 21 from environment/shared toolchain/registry/common Windows install folders/all PATH hits before downloading, activates the chosen JDK before `sdkmanager`, patches the legacy `node.exe pnpm.exe` workspace pattern when detected, and logs project-vs-lockfile Electron versions. See `BUILD_TOOLCHAIN.md`.
 
+
+### LAN automatic discovery (1.4.27)
+
+- Starting the existing LAN Web/remote server automatically starts SSDP/UPnP and mDNS/DNS-SD; there is no separate LAN settings UI.
+- Desktop implementation: `desktop/lan/*`; Android implementation: `android/app/src/main/java/com/dk/pydroidflow/{LanDiscoveryService,LanNetworkInterfaceManager,LanDeviceIdentity,SsdpService,MdnsService,UpnpDeviceDescription}.java`.
+- UPnP description is served by the existing HTTP server at `/upnp/device.xml`; `presentationURL` points to `/?remote=1` so Explorer double-click opens the actual remote UI.
+- UUID is persisted under Electron `userData/settings/lan-device.json` on Windows and Android `SharedPreferences` (`pydroid_lan_identity`) on Android.
+- Existing PIN/token pairing remains the security boundary for sensitive `/api/*` calls.
+
 ## Version
 
-Current local delivery: `1.4.24 (47)`.
+Current local delivery: `1.4.27 (50)`.
 
-The working copy is committed only on `local/python-installer-fix-1.4.24`; `main` remains unchanged. No GitHub push is required.
+Current delivery is based only on the user-provided ZIP. Do not access or modify GitHub unless the user explicitly authorizes it.
 
 ## Validation already done by AI sandbox
 
-- Version synchronization check: target is `1.4.24` / Android `versionCode 47`.
+- Version synchronization target: `1.4.27` / Android `versionCode 50`.
 - Dependency-free build-tool smoke: passed, including the user-provided builder's launcher/JDK invariants.
 - Main and desktop TypeScript source checks pass with the sandbox's global TypeScript 5.8.3. The project's locked TypeScript 7 package in the available dependency cache contains only its Windows native platform package, so that exact binary cannot run on Linux.
 - Python 3.13.5 suite: 102 passed, 1 skipped. Python baseline is now 3.13.x on Android, desktop and build tooling.
-- `git diff --check`, version synchronization (`1.4.24`, Android `47`) and active-code scans for stale `3.12`/`python312` references pass. Build-tool smoke additionally verifies daemon flag consistency and synchronized Gradle JVM arguments. `src/main.tsx` does not activate the retired runtime/DOM patches.
+- Previous baseline validation is retained; 1.4.27 additionally adds automatic LAN discovery. Re-run `git diff --check`, version sync, protocol smoke tests, and platform builds before delivery.
 - Vitest/Vite cannot start in this Linux sandbox because the available `node_modules` is the Windows install and lacks the Linux Rolldown native binding. Android SDK is also absent. These environment limits are not reported as successful builds.
 
 ## Local validation requested from user

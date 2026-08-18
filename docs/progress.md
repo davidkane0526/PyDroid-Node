@@ -1,3 +1,11 @@
+## 2026-08-18 — 1.4.27 LAN automatic discovery
+
+- 以用户提供的 `PyDroid Node 1.4.26 .zip` 为唯一基线，不访问 GitHub。
+- Android 与 Windows 的现有网页访问服务均接入独立 `LanDiscoveryService`：SSDP/UPnP 负责 Windows“网络”发现与双击打开，mDNS/DNS-SD 提供 `.local` 与 `_http._tcp.local`。
+- `/upnp/device.xml`、持久 UUID、三类 SSDP 公告/搜索响应、周期 alive/byebye、网络变化重发布以及协议失败隔离已实现；现有 PIN/Token 安全边界保持不变。
+- 云端已完成桌面 SSDP `ssdp:all` 三响应、UPnP XML/`presentationURL`、UUID 持久化和 mDNS 响应的真实 UDP/HTTP 协议烟雾测试；Android 新增 LAN Java 类通过 JDK 21 + Android API stub 的编译烟雾检查。
+- 当前云环境无 Android SDK，且 Corepack 无法访问 npm registry，因此不能在此环境声称完成 Android APK 或完整 pnpm/Electron 成品构建；Windows“文件资源管理器 → 网络”双击仍需 Windows 实机验收。
+
 ## 2026-08-17 — Build GUI RC10 Android PowerShell fix
 
 - Windows desktop packaging is confirmed by user log to complete through Electron packaging plus desktop smoke tests.
@@ -38,8 +46,8 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 ## 当前交付基线
 
-- 版本：`1.4.24 (47)`。
-- 工作分支：本地 `local/python-installer-fix-1.4.24`；`main` 未修改。
+- 版本：`1.4.27 (50)`。
+- 基线：用户提供的 ZIP；本次开发不访问 GitHub。
 - Python 运行时统一到 3.13：Android 使用 Chaquopy 17.0 + Python 3.13；桌面/构建使用 Python 3.13.x；自动安装固定为 python.org Python 3.13.14。Android 固定 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；SciPy 仍仅用于桌面/开发环境。
 - 1.4.23 的只读共享工具目录、完整 Android buildPython 与 Gradle/GUI 清理逻辑全部保留；1.4.24 修复 Python 3.13 自动下载安装器版本与 URL 规范化。
 - 1.4.17 的 Agent 节点契约、DeepSeek Chat Completions/JSON Output 兜底、原生随机/空表/空列表数据源，以及 JDK/构建器修复全部保留。

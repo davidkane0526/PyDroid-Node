@@ -8,10 +8,12 @@ const dgram = require("node:dgram");
 const dns = require("node:dns").promises;
 const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
+const { LanDiscoveryService } = require("./lan/LanDiscoveryService.cjs");
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 let remoteServer = null;
 let remotePin = null;
+let lanDiscovery = null;
 const remoteTokens = new Set();
 const SMB_FILE_PATTERN = /\.(csv|tsv|txt|dat|json|png|jpe?g)$/i;
 
@@ -619,13 +621,6 @@ function loadDesktopSmbSecret() {
   return safeStorage.decryptString(fs.readFileSync(target));
 }
 
-function lanAddress() {
-  for (const interfaces of Object.values(os.networkInterfaces())) for (const entry of interfaces ?? []) {
-    if (entry.family === "IPv4" && !entry.internal) return entry.address;
-  }
-  return "127.0.0.1";
-}
-
 function readRequestBody(request) {
   return new Promise((resolve, reject) => {
     const chunks = []; let size = 0;
@@ -649,6 +644,13 @@ function startDesktopRemoteServer(requirePin) {
   const server = http.createServer(async (request, response) => {
     try {
       const url = new URL(request.url, "http://localhost");
+      if (url.pathname === "/upnp/device.xml" && request.method === "GET") {
+        const address = request.socket.localAddress && request.socket.localAddress !== "0.0.0.0" ? request.socket.localAddress.replace(/^::ffff:/, "") : undefined;
+        const xml = lanDiscovery?.deviceXml(address) ?? "";
+        response.writeHead(200, { "Content-Type": "text/xml; charset=utf-8", "Content-Length": Buffer.byteLength(xml), "Cache-Control": "no-cache" });
+        return response.end(xml);
+      }
+      if (url.pathname === "/health" && request.method === "GET") { response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" }); return response.end("OK"); }
       if (url.pathname === "/api/health") return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
       if (url.pathname === "/api/pair" && request.method === "POST") {
         const body = await readRequestBody(request);
@@ -688,15 +690,31 @@ function startDesktopRemoteServer(requirePin) {
     } catch (error) { sendJson(response, 500, { error: error.message || String(error) }); }
   });
   return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", () => {
-    const port = server.address().port; const info = { url: `http://${lanAddress()}:${port}/?remote=1`, pin: remotePin, requiresPin: Boolean(remotePin), port };
+    const port = server.address().port;
+    try {
+      lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log: appendDesktopLog });
+      const discovery = lanDiscovery.start({ port });
+      appendDesktopLog(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
+      appendDesktopLog(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
+    } catch (error) {
+      lanDiscovery = null;
+      appendDesktopLog(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
+    }
+    const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
+    const info = { url: `http://${address}:${port}/?remote=1`, pin: remotePin, requiresPin: Boolean(remotePin), port };
     server.__info = info; remoteServer = server; resolve(info);
   }));
 }
 
 function stopDesktopRemoteServer() {
-  if (!remoteServer) return Promise.resolve();
+  const hadDiscovery = Boolean(lanDiscovery);
+  lanDiscovery?.stop();
+  lanDiscovery = null;
+  if (!remoteServer) return hadDiscovery ? new Promise((resolve) => setTimeout(resolve, 80)) : Promise.resolve();
   const server = remoteServer; remoteServer = null; remoteTokens.clear(); remotePin = null;
-  return new Promise((resolve) => server.close(resolve));
+  return new Promise((resolve) => server.close(() => {
+    if (hadDiscovery) setTimeout(resolve, 80); else resolve();
+  }));
 }
 
 // React Flow does not require GPU rendering. Disabling Chromium GPU composition
@@ -972,8 +990,8 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("window-all-closed", () => {
-  void stopDesktopRemoteServer();
+app.on("window-all-closed", async () => {
+  await stopDesktopRemoteServer();
   if (process.platform !== "darwin") app.quit();
 });
 

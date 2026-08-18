@@ -2,8 +2,6 @@ package com.dk.pydroidflow;
 
 import android.content.Context;
 import android.content.res.AssetManager;
-import android.net.wifi.WifiManager;
-import android.text.format.Formatter;
 import android.util.Base64;
 
 import com.chaquo.python.PyObject;
@@ -19,16 +17,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.Inet4Address;
-import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -49,6 +42,7 @@ final class RemoteWorkflowServer {
     private final String token;
     private final String pin;
     private final boolean requiresPin;
+    private final LanDiscoveryService discovery;
     private volatile boolean running;
     private ServerSocket socket;
     private Thread acceptThread;
@@ -62,6 +56,7 @@ final class RemoteWorkflowServer {
         token = Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
         this.requiresPin = requiresPin;
         pin = String.format(java.util.Locale.US, "%04d", new SecureRandom().nextInt(10_000));
+        discovery = new LanDiscoveryService(this.context, PORT);
     }
 
     static RemoteWorkflowServer start(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, boolean requiresPin) throws IOException {
@@ -72,6 +67,7 @@ final class RemoteWorkflowServer {
         server.acceptThread = new Thread(server::acceptLoop, "pydroid-flow-lan-server");
         server.acceptThread.setDaemon(true);
         server.acceptThread.start();
+        try { server.discovery.start(); } catch (Exception ignored) { /* Discovery must never take down HTTP. */ }
         return server;
     }
 
@@ -80,12 +76,13 @@ final class RemoteWorkflowServer {
         result.put("port", PORT);
         result.put("requiresPin", requiresPin);
         result.put("pin", requiresPin ? pin : JSONObject.NULL);
-        result.put("url", "http://" + localAddress() + ":" + PORT + "/?remote=1");
+        result.put("url", "http://" + discovery.primaryAddress() + ":" + PORT + "/?remote=1");
         return result;
     }
 
     void stop() {
         running = false;
+        discovery.stop();
         try { if (socket != null) socket.close(); } catch (IOException ignored) { }
     }
 
@@ -107,6 +104,15 @@ final class RemoteWorkflowServer {
             if (request == null) return;
             if ("OPTIONS".equals(request.method)) {
                 send(output, 204, "text/plain", new byte[0]);
+                return;
+            }
+            if ("GET".equals(request.method) && "/upnp/device.xml".equals(request.path)) {
+                String xml = discovery.deviceXml(client.getLocalAddress() == null ? null : client.getLocalAddress().getHostAddress());
+                send(output, 200, "text/xml; charset=utf-8", xml.getBytes(StandardCharsets.UTF_8));
+                return;
+            }
+            if ("GET".equals(request.method) && "/health".equals(request.path)) {
+                send(output, 200, "text/plain; charset=utf-8", "OK".getBytes(StandardCharsets.UTF_8));
                 return;
             }
             if ("GET".equals(request.method) && "/api/health".equals(request.path)) {
@@ -290,18 +296,6 @@ final class RemoteWorkflowServer {
         if (path.endsWith(".png")) return "image/png";
         if (path.endsWith(".ico")) return "image/x-icon";
         return "text/html; charset=utf-8";
-    }
-
-    private String localAddress() {
-        try {
-            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
-            for (NetworkInterface network : Collections.list(interfaces)) {
-                if (!network.isUp() || network.isLoopback()) continue;
-                for (InetAddress address : Collections.list(network.getInetAddresses())) if (address instanceof Inet4Address && !address.isLoopbackAddress()) return address.getHostAddress();
-            }
-        } catch (Exception ignored) { }
-        WifiManager wifi = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        return wifi == null ? "手机局域网 IP" : Formatter.formatIpAddress(wifi.getConnectionInfo().getIpAddress());
     }
 
     private static final class Request {

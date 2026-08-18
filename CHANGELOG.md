@@ -1,3 +1,13 @@
+## 1.4.27 (50) — LAN automatic discovery — 2026-08-18
+
+- “局域网网页访问”启动后自动同时启动 SSDP/UPnP 与 mDNS/DNS-SD，不新增第二套业务 HTTP 服务，也不增加新的设置 UI。
+- Windows 桌面端与 Android 端均发布 UPnP Basic Device；Windows“文件资源管理器 → 网络”可通过 SSDP 发现设备，并由 `presentationURL` 打开现有 `/?remote=1` Web UI。
+- 现有 Web 服务增加公开的 `/upnp/device.xml` 与 `/health`；UPnP 描述使用当前可达局域网 IPv4，UUID 持久化，设备重启后身份保持稳定。
+- mDNS 发布稳定 `.local` 主机名与 `_http._tcp.local` DNS-SD 服务；Android 主机名附加持久 UUID 短后缀，避免同型号设备发生名称冲突。
+- SSDP 支持 `ssdp:all`、`upnp:rootdevice`、设备 UUID 与 `Basic:1` 的 M-SEARCH 响应，启动/每 300 秒发送 alive，停止时发送 byebye；网络接口变化会自动重建发现服务。
+- SSDP、mDNS 与 HTTP 相互解耦；任一发现协议启动失败只写日志，不会终止网页访问。现有 PIN/Token 认证继续保护执行、文件和运行时 API，自动发现不会绕过配对。
+- Windows 便携版不静默提权修改系统防火墙；若系统首次询问网络访问权限，应仅允许“专用网络”。
+
 ## 1.4.24 (47) — Python 3.13 installer URL normalization — 2026-08-18
 
 - 修复 GUI/环境中保存 `PythonVersion=3.13` 时错误拼出 `https://www.python.org/ftp/python/3.13/python-3.13-amd64.exe` 的 404 问题。
