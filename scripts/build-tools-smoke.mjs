@@ -87,6 +87,35 @@ assert.match(
   "an invalid manually-selected JDK path must fail instead of silently downloading another JDK",
 );
 
+assert.match(
+  buildScript,
+  /Gradle daemon 开关自检失败/,
+  "build script should verify that the effective Gradle daemon flag matches the GUI/CLI selection",
+);
+assert.match(
+  buildScript,
+  /org\.gradle\.jvmargs=\$effectiveJvmArgs/,
+  "Gradle client and build JVM arguments should be synchronized so --no-daemon does not spawn a single-use daemon",
+);
+assert.match(
+  buildScript,
+  /ProjectPropertiesPath/,
+  "Gradle network setup should patch the temporary project gradle.properties",
+);
+
+const androidPackagePath = fileURLToPath(new URL("../scripts/android-package.ps1", import.meta.url));
+const androidPackage = readFileSync(androidPackagePath, "utf8");
+assert.match(
+  androidPackage,
+  /gradlew\.bat assembleDebug[^\r\n]*--daemon/,
+  "Android packaging should explicitly enable the Gradle daemon by default",
+);
+assert.doesNotMatch(
+  androidPackage,
+  /gradlew\.bat assembleDebug[^\r\n]*--no-daemon/,
+  "Android packaging must not disable the Gradle daemon by default",
+);
+
 const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
 const buildGui = readFileSync(buildGuiPath, "utf8");
 assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");

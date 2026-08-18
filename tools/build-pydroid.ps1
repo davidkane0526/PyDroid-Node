@@ -1525,26 +1525,65 @@ function packageManagerInvocation(args) {
 }
 
 function Patch-WorkspaceAndroidPackage {
-    # Gradle daemon 默认应当启用：连续构建可复用 JVM、类加载和项目状态，
-    # 通常明显快于每次重新启动 Gradle。只有用户显式要求时才注入 --no-daemon。
-    if (-not $DisableGradleDaemon) {
-        Write-Host "Gradle daemon：启用（默认，连续构建将复用 daemon）。" -ForegroundColor DarkGreen
-        return
-    }
-
+    # Gradle daemon 的最终状态必须由 GUI/CLI 开关唯一决定。每次构建都显式
+    # 写入 --daemon 或 --no-daemon，避免项目历史脚本或用户级 gradle.properties
+    # 让日志与实际行为不一致。
     $file = Join-Path $workspace "scripts\android-package.ps1"
     if (-not (Test-Path -LiteralPath $file)) { return }
+
     $content = Get-Content -LiteralPath $file -Raw
-    if ($content -match "--no-daemon") {
-        Write-Host "Gradle daemon：已禁用（-DisableGradleDaemon）。" -ForegroundColor DarkYellow
-        return
+    $original = $content
+
+    # 先清除 assembleDebug 这一行上的历史 daemon 开关，再注入唯一目标开关。
+    $content = [regex]::Replace(
+        $content,
+        '(?m)(\.\\gradlew\.bat\s+assembleDebug[^\r\n]*?)\s+--(?:no-)?daemon(?=\s|$)',
+        '$1'
+    )
+
+    if ($DisableGradleDaemon) {
+        $content = [regex]::Replace(
+            $content,
+            '(?m)(\.\\gradlew\.bat\s+assembleDebug[^\r\n]*)$',
+            '$1 --no-daemon',
+            1
+        )
+        $modeMessage = "Gradle daemon：已禁用（-DisableGradleDaemon）。"
+        $modeColor = "DarkYellow"
+    } else {
+        $content = [regex]::Replace(
+            $content,
+            '(?m)(\.\\gradlew\.bat\s+assembleDebug[^\r\n]*)$',
+            '$1 --daemon',
+            1
+        )
+        $modeMessage = "Gradle daemon：启用（默认，连续构建将复用 daemon）。"
+        $modeColor = "DarkGreen"
     }
 
-    $content = $content -replace '\.\\gradlew\.bat assembleDebug --no-watch-fs', '.\gradlew.bat assembleDebug --no-watch-fs --no-daemon'
-    [System.IO.File]::WriteAllText($file, $content, (New-Object System.Text.UTF8Encoding($true)))
-    Write-Host "Gradle daemon：已禁用（-DisableGradleDaemon）。" -ForegroundColor DarkYellow
-}
+    if ($content -ne $original) {
+        [System.IO.File]::WriteAllText($file, $content, (New-Object System.Text.UTF8Encoding($true)))
+    }
 
+    # 构建前再读一遍工作区文件进行硬校验，防止未来脚本改动重新引入矛盾。
+    $verify = Get-Content -LiteralPath $file -Raw
+    $assembleLine = [regex]::Match($verify, '(?m)^.*gradlew\.bat\s+assembleDebug[^\r\n]*$').Value
+    if ([string]::IsNullOrWhiteSpace($assembleLine)) {
+        throw "Gradle daemon 开关自检失败：android-package.ps1 中未找到 assembleDebug 命令。"
+    }
+
+    if ($DisableGradleDaemon) {
+        if ($assembleLine -notmatch '--no-daemon' -or $assembleLine -match '(?<!no-)--daemon') {
+            throw "Gradle daemon 开关自检失败：要求禁用 daemon，但实际 assembleDebug 命令不正确：$assembleLine"
+        }
+    } else {
+        if ($assembleLine -notmatch '(?<!no-)--daemon' -or $assembleLine -match '--no-daemon') {
+            throw "Gradle daemon 开关自检失败：要求启用 daemon，但实际 assembleDebug 命令不正确：$assembleLine"
+        }
+    }
+
+    Write-Host $modeMessage -ForegroundColor $modeColor
+}
 function Clear-WorkspaceOutputs {
     param([switch]$IncludeAndroidBuild)
 
@@ -1722,7 +1761,10 @@ function Build-Desktop {
 function Configure-GradleNetwork {
     param(
         [Parameter(Mandatory = $true)]
-        [string]$WrapperPropertiesPath
+        [string]$WrapperPropertiesPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ProjectPropertiesPath
     )
 
     # Gradle Wrapper is itself a Java process. HTTP_PROXY/HTTPS_PROXY are useful
@@ -1779,7 +1821,33 @@ function Configure-GradleNetwork {
         Write-Step "Gradle 网络代理：直连"
     }
 
-    $env:GRADLE_OPTS = ($gradleArgs -join " ")
+    $effectiveJvmArgs = ($gradleArgs -join " ")
+    $env:GRADLE_OPTS = $effectiveJvmArgs
+
+    # Gradle 官方要求：若 --no-daemon 时客户端 JVM 参数与构建 JVM 参数不一致，
+    # 仍会创建 single-use daemon。把工作区 org.gradle.jvmargs 与 GRADLE_OPTS
+    # 保持完全一致，使“禁用 daemon”真正不再派生额外 JVM；在 daemon 模式下
+    # 也确保代理参数被构建 JVM 继承。只修改临时工作区，不修改用户源码。
+    if (Test-Path -LiteralPath $ProjectPropertiesPath -PathType Leaf) {
+        $projectGradleText = Get-Content -LiteralPath $ProjectPropertiesPath -Raw
+        if ($projectGradleText -match '(?m)^\s*org\.gradle\.jvmargs\s*=') {
+            $projectGradleText = [regex]::Replace(
+                $projectGradleText,
+                '(?m)^\s*org\.gradle\.jvmargs\s*=.*$',
+                "org.gradle.jvmargs=$effectiveJvmArgs"
+            )
+        } else {
+            if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
+            $projectGradleText += "org.gradle.jvmargs=$effectiveJvmArgs`r`n"
+        }
+        [System.IO.File]::WriteAllText(
+            $ProjectPropertiesPath,
+            $projectGradleText,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+    } else {
+        Write-Warning "未找到项目 gradle.properties，无法同步 Gradle JVM 参数：$ProjectPropertiesPath"
+    }
 
     # Gradle Wrapper 的 distribution 下载默认只有 10 秒网络超时。
     # 在临时工作区副本中提高 networkTimeout，不修改用户的项目源码。
@@ -1864,7 +1932,8 @@ function Build-Android {
     # Gradle Wrapper 是独立 Java 进程，需要显式配置 JVM 代理。
     # 同时提高 distribution 下载超时，避免 services.gradle.org 默认 10 秒超时。
     $gradleWrapperProps = Join-Path $workspace "android\gradle\wrapper\gradle-wrapper.properties"
-    Configure-GradleNetwork -WrapperPropertiesPath $gradleWrapperProps
+    $gradleProjectProps = Join-Path $workspace "android\gradle.properties"
+    Configure-GradleNetwork -WrapperPropertiesPath $gradleWrapperProps -ProjectPropertiesPath $gradleProjectProps
 
     Write-Step "Android 构建环境"
     Write-Host "JAVA_HOME：$env:JAVA_HOME"

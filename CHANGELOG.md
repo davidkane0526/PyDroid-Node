@@ -1,3 +1,11 @@
+## 1.4.20 (43) — Gradle daemon consistency / Android build reliability — 2026-08-18
+
+- 修复构建日志显示“Gradle daemon 已启用”，但 `scripts/android-package.ps1` 实际仍硬编码 `--no-daemon` 的逻辑矛盾。默认 Android 构建现在显式使用 `--daemon`，确保连续构建真正复用 Gradle JVM。
+- `-DisableGradleDaemon` 现在是唯一的 daemon 禁用入口；构建前会对临时工作区的 `assembleDebug` 命令进行硬校验，禁止“界面状态与实际命令不一致”再次出现。
+- Gradle 的 `GRADLE_OPTS` 与临时工作区 `org.gradle.jvmargs` 保持一致：正常 daemon 模式下代理/内存参数传入构建 JVM；禁用 daemon 时避免因为 JVM 参数不匹配而再次派生 single-use daemon。
+- 保留 `--no-watch-fs`，继续规避 Android 构建目录 junction 与 Chaquopy pip staging 的文件句柄冲突。
+- 本地工作分支为 `local/gradle-daemon-fix-1.4.20`；`main` 保持原样未修改。
+
 ## 1.4.19 (42) — Python 3.13 / settings layout refinement — 2026-08-18
 
 - 项目 Python 基线由 3.12 升级到 3.13：Android Chaquopy 使用 Python 3.13，并固定 Android 可用的 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；Android 仍不声明 SciPy，因为 Chaquopy Android wheel 仓库目前没有 CPython 3.13 的 SciPy wheel。

@@ -38,10 +38,10 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 ## 当前交付基线
 
-- 版本：`1.4.19 (42)`。
-- 工作分支：本地 `local/python313-ui-1.4.19`；`main` 未修改。
+- 版本：`1.4.20 (43)`。
+- 工作分支：本地 `local/gradle-daemon-fix-1.4.20`；`main` 未修改。
 - Python 运行时统一到 3.13：Android 使用 Chaquopy 17.0 + Python 3.13；桌面/构建优先 Python 3.13.15。Android 固定 NumPy 1.26.2、pandas 2.1.3、Matplotlib 3.8.4；SciPy 仍仅用于桌面/开发环境。
-- 设置标题栏精简为“设置 | v1.4.19”；SMB 访客/登录认证行统一高度和排布；AI Agent 审计区移动到权限区右下方，窄桌面/移动端继续单列回退。
+- 1.4.19 的设置/SMB/AI Agent 布局与 Python 3.13 基线全部保留；1.4.20 修复 Gradle daemon 实际命令与 GUI 状态不一致的问题，默认显式 `--daemon`，禁用模式显式 `--no-daemon`。
 - 1.4.17 的 Agent 节点契约、DeepSeek Chat Completions/JSON Output 兜底、原生随机/空表/空列表数据源，以及 JDK/构建器修复全部保留。
 - 云端验证：Python 3.13.5 测试 102 通过/1 跳过；主应用与桌面 TypeScript 源码检查通过；构建工具 smoke、版本同步、`git diff --check` 和 3.12 残留扫描通过。可用依赖缓存是 Windows 版本，Linux 无法加载 Rolldown 原生绑定，因此不虚构 Vite/Vitest/Android Gradle 成品构建成功。
 

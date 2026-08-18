@@ -1,6 +1,6 @@
-> **1.4.19 (42)**：Python 运行时统一升级到 3.13，并细化设置、SMB 与 AI Agent 设置布局。Android 使用 Chaquopy 17.0 + Python 3.13；桌面/构建工具统一使用 Python 3.13.x。设置标题改为单行“设置 | 版本号”，SMB 访客/登录认证行统一高度，AI 审计移动到权限区右下方。
+> **1.4.20 (43)**：保留 1.4.19 的 Python 3.13 与 UI/Agent 改进，并修正 Android 构建器的 Gradle daemon 状态矛盾。默认构建显式使用常驻 daemon；只有用户主动选择禁用时才使用 `--no-daemon`，同时同步客户端/构建 JVM 参数，避免 single-use daemon。
 
-当前 Android 调试构建版本：`1.4.19 (42)`。当前完整工程工作分支为本地 `local/python313-ui-1.4.19`，`main` 保持原样未修改。
+当前 Android 调试构建版本：`1.4.20 (43)`。当前完整工程工作分支为本地 `local/gradle-daemon-fix-1.4.20`，`main` 保持原样未修改。
 
 # PyDroid Flow
 
