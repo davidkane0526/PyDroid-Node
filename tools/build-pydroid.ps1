@@ -2121,6 +2121,7 @@ function Build-Android {
 
     Write-BuildStage -Percent 82 -Message "编译 Android APK"
     Invoke-Pnpm @("android:package")
+    Write-BuildStage -Percent 88 -Message "Android APK 编译完成"
 
     $apk = Join-Path $workspace "android\app\build\outputs\apk\debug\app-debug.apk"
     if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) {
@@ -2136,41 +2137,88 @@ function Copy-Outputs {
         [switch]$HasDesktop
     )
 
-    Write-BuildStage -Percent 90 -Message "整理并复制最终构建产物"
+    Write-BuildStage -Percent 90 -Message "准备最终构建产物"
     New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
 
+    $desktopDest = $null
+    $apkDest = $null
+    $trashRoot = $null
+
+    # Renaming large old desktop folders inside the same output directory is nearly
+    # instantaneous. Defer the physical deletion until after the new output is in place,
+    # so the GUI does not spend minutes at a vague "copying" stage.
     if (-not $KeepHistory) {
         if ($HasApk) {
-            Write-Step "清理输出目录中的旧版 $outputBaseName APK（只保留最新一份）..."
+            Write-BuildStage -Percent 91 -Message "清理旧版 APK"
             Get-ChildItem -LiteralPath $OutputRoot -Filter "$outputBaseName-*.apk" -File -ErrorAction SilentlyContinue |
                 Remove-Item -Force -ErrorAction SilentlyContinue
         }
         if ($HasDesktop) {
-            Write-Step "清理输出目录中的旧版 $outputBaseName Desktop（只保留最新一份）..."
-            Get-ChildItem -LiteralPath $OutputRoot -Directory -Filter "$outputBaseName-*-Desktop" -ErrorAction SilentlyContinue |
-                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            $oldDesktopDirs = @(Get-ChildItem -LiteralPath $OutputRoot -Directory -Filter "$outputBaseName-*-Desktop" -ErrorAction SilentlyContinue)
+            if ($oldDesktopDirs.Count -gt 0) {
+                $trashRoot = Join-Path $OutputRoot (".pydroid-finalize-trash-{0}" -f ([guid]::NewGuid().ToString("N")))
+                New-Item -ItemType Directory -Force -Path $trashRoot | Out-Null
+                foreach ($oldDir in $oldDesktopDirs) {
+                    try {
+                        Move-Item -LiteralPath $oldDir.FullName -Destination (Join-Path $trashRoot $oldDir.Name) -Force -ErrorAction Stop
+                    } catch {
+                        # Fallback for unusual filesystems/locks. This remains visible as its own stage.
+                        Write-BuildStage -Percent 92 -Message "清理旧版桌面产物"
+                        Remove-Item -LiteralPath $oldDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+            }
         }
     }
 
-    $desktopDest = $null
-    $apkDest = $null
-
     if ($HasApk) {
+        Write-BuildStage -Percent 93 -Message "复制 Android APK"
         $apkDest = Join-Path $OutputRoot "$outputBaseName-$version.apk"
-        Write-Step "复制 APK 到 $apkDest"
         Copy-Item -LiteralPath $ApkSource -Destination $apkDest -Force
     }
 
     if ($HasDesktop) {
+        Write-BuildStage -Percent 94 -Message "整理 Windows Desktop 产物"
         $desktopDest = Join-Path $OutputRoot "$outputBaseName-$version-Desktop"
-        Write-Step "复制未压缩桌面版到 $desktopDest"
-        if (Test-Path -LiteralPath $desktopDest) {
-            Remove-Item -LiteralPath $desktopDest -Recurse -Force
-        }
         $unpacked = Join-Path $workspace "release\win-unpacked"
-        $robocopyArgs = @($unpacked, $desktopDest, "/E", "/NFL", "/NDL", "/NJH", "/NJS", "/NP")
-        & robocopy @robocopyArgs
-        Test-NativeSuccess
+        if (-not (Test-Path -LiteralPath $unpacked -PathType Container)) {
+            throw "未找到 Windows Desktop 打包目录：$unpacked"
+        }
+
+        if (Test-Path -LiteralPath $desktopDest) {
+            if (-not $trashRoot) {
+                $trashRoot = Join-Path $OutputRoot (".pydroid-finalize-trash-{0}" -f ([guid]::NewGuid().ToString("N")))
+                New-Item -ItemType Directory -Force -Path $trashRoot | Out-Null
+            }
+            try { Move-Item -LiteralPath $desktopDest -Destination (Join-Path $trashRoot (Split-Path $desktopDest -Leaf)) -Force -ErrorAction Stop }
+            catch { Remove-Item -LiteralPath $desktopDest -Recurse -Force -ErrorAction SilentlyContinue }
+        }
+
+        $sourceRoot = [System.IO.Path]::GetPathRoot((Resolve-AbsolutePath $unpacked))
+        $destRoot = [System.IO.Path]::GetPathRoot((Resolve-AbsolutePath $OutputRoot))
+        if ($sourceRoot -and $destRoot -and $sourceRoot.Equals($destRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            # Same volume: directory rename/move avoids copying the bundled Electron/Python
+            # tree file-by-file and is normally almost instantaneous.
+            Write-Step "同盘快速移动桌面版到 $desktopDest"
+            Move-Item -LiteralPath $unpacked -Destination $desktopDest -Force
+        }
+        else {
+            # Cross-volume output cannot be renamed. Use multithreaded unbuffered robocopy.
+            Write-Step "跨盘复制未压缩桌面版到 $desktopDest"
+            $robocopyArgs = @($unpacked, $desktopDest, "/E", "/MT:16", "/J", "/R:2", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP")
+            & robocopy @robocopyArgs
+            $robocopyExitCode = $LASTEXITCODE
+            if ($robocopyExitCode -ge 8) { throw "桌面版复制失败，robocopy 退出码 $robocopyExitCode。" }
+        }
+    }
+
+    Write-BuildStage -Percent 96 -Message "最终产物已就位"
+
+    if ($trashRoot -and (Test-Path -LiteralPath $trashRoot -PathType Container)) {
+        Write-BuildStage -Percent 97 -Message "清理旧版本产物"
+        # cmd rmdir is substantially faster than PowerShell Remove-Item for a large
+        # Electron tree and does not leave a background worker/process behind.
+        & $env:ComSpec /d /s /c ('rmdir /s /q "{0}"' -f $trashRoot) | Out-Null
     }
 
     Write-Host ""

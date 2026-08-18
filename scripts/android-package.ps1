@@ -71,8 +71,68 @@ function Invoke-GradleLogged {
         Remove-Item -LiteralPath $LogPath -Force -ErrorAction SilentlyContinue
     }
 
-    & .\gradlew.bat @Arguments 2>&1 | Tee-Object -FilePath $LogPath | Out-Host
-    return [int]$LASTEXITCODE
+    # Gradle daemon processes may inherit stdout/stderr handles. If gradlew is placed
+    # directly in a PowerShell pipeline, BUILD SUCCESSFUL can already be printed while
+    # the pipeline still waits for EOF from the long-lived daemon, leaving the GUI at 82%.
+    # Redirect inside a short-lived cmd file instead. PowerShell only tails the log file,
+    # so daemon handles can never keep the parent build process alive.
+    $gradlewPath = (Resolve-Path -LiteralPath ".\gradlew.bat").Path
+    $quotedArgs = @($Arguments | ForEach-Object {
+        '"' + ([string]$_).Replace('"', '""') + '"'
+    })
+    if ($quotedArgs -notcontains '"--stacktrace"') {
+        $quotedArgs += '"--stacktrace"'
+    }
+
+    $runnerDir = Join-Path $projectRoot ".tools"
+    New-Item -ItemType Directory -Force -Path $runnerDir | Out-Null
+    $runnerPath = Join-Path $runnerDir "gradle-run-last.cmd"
+    $runnerText = @(
+        '@echo off',
+        ('call "{0}" {1} > "{2}" 2>&1' -f $gradlewPath, ($quotedArgs -join ' '), $LogPath),
+        'exit /b %ERRORLEVEL%'
+    ) -join "`r`n"
+    [System.IO.File]::WriteAllText($runnerPath, $runnerText, [System.Text.Encoding]::ASCII)
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $env:ComSpec
+    $psi.Arguments = ('/d /s /c ""{0}""' -f $runnerPath)
+    $psi.WorkingDirectory = (Get-Location).Path
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+    if (-not $process.Start()) { throw "Unable to start Gradle command shell." }
+
+    $seenLines = 0
+    try {
+        do {
+            if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+                $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
+                if ($lines.Count -gt $seenLines) {
+                    for ($i = $seenLines; $i -lt $lines.Count; $i++) { Write-Host ([string]$lines[$i]) }
+                    $seenLines = $lines.Count
+                }
+            }
+            if (-not $process.HasExited) { Start-Sleep -Milliseconds 180 }
+            try { $process.Refresh() } catch {}
+        } while (-not $process.HasExited)
+
+        # One final drain after cmd.exe exits. Do not wait for descendants: a Gradle
+        # daemon is intentionally allowed to stay alive for subsequent builds.
+        if (Test-Path -LiteralPath $LogPath -PathType Leaf) {
+            $lines = @(Get-Content -LiteralPath $LogPath -ErrorAction SilentlyContinue)
+            if ($lines.Count -gt $seenLines) {
+                for ($i = $seenLines; $i -lt $lines.Count; $i++) { Write-Host ([string]$lines[$i]) }
+            }
+        }
+        return [int]$process.ExitCode
+    }
+    finally {
+        try { $process.Dispose() } catch {}
+        Remove-Item -LiteralPath $runnerPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Test-GradleDaemonStartFailure {

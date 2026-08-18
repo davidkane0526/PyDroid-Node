@@ -205,6 +205,22 @@ assert.match(
   "an incomplete shared Android SDK should be overlaid into a writable temporary SDK instead of modified in place",
 );
 
+assert.match(
+  buildScript,
+  /同盘快速移动桌面版/,
+  "same-volume desktop finalization should use a directory move instead of copying the Electron/Python tree file-by-file",
+);
+assert.match(
+  buildScript,
+  /\/MT:16/,
+  "cross-volume desktop finalization should use multithreaded robocopy",
+);
+assert.match(
+  buildScript,
+  /Android APK 编译完成/,
+  "the GUI should leave the 82% compile stage immediately after Android packaging returns",
+);
+
 const androidPackagePath = fileURLToPath(new URL("../scripts/android-package.ps1", import.meta.url));
 const androidPackage = readFileSync(androidPackagePath, "utf8");
 assert.match(
@@ -233,6 +249,16 @@ assert.match(
   "Android packaging should fall back to no-daemon mode if daemon recovery still fails",
 );
 
+assert.match(
+  androidPackage,
+  /gradle-run-last\.cmd/,
+  "Gradle output should be redirected through a short-lived cmd file so daemon-held stdout handles cannot stall the parent build",
+);
+assert.match(
+  androidPackage,
+  /Do not wait for descendants/,
+  "Android packaging should exit after the Gradle client finishes instead of waiting for the reusable daemon",
+);
 assert.match(
   androidPackage,
   /sys\.version_info\[:2\] == \(3, 13\)/,

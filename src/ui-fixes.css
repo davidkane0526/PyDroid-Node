@@ -190,7 +190,7 @@
 }
 .agent-dialog .settings-dialog__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(280px, .85fr);
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, .92fr);
   grid-auto-rows: max-content;
   align-items: start;
   gap: 12px;
@@ -217,9 +217,21 @@
   align-content: start;
   padding: 13px 14px;
 }
-.agent-dialog .agent-connection { grid-column: 1; grid-row: 1 / span 2; }
-.agent-dialog .agent-permissions { grid-column: 2; grid-row: 1; align-content: start; }
-.agent-dialog .agent-audit-section { grid-column: 2; grid-row: 2; align-self: end; }
+.agent-dialog .agent-connection { grid-column: 1; grid-row: 1; align-self: stretch; row-gap: 10px; padding-block: 15px !important; }
+.agent-dialog .agent-side-stack {
+  display: grid;
+  min-width: 0;
+  height: 100%;
+  grid-column: 2;
+  grid-row: 1;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-self: stretch;
+  gap: 12px;
+}
+.agent-dialog .agent-side-stack > section { min-width: 0; align-content: start; padding: 13px 14px; }
+.agent-dialog .agent-permissions { align-content: start; }
+.agent-dialog .agent-audit-section { min-height: 88px; align-self: stretch; overflow: hidden; }
+.agent-dialog .agent-audit-section .agent-audit { max-height: 118px; overflow: auto; }
 .agent-dialog .agent-request,
 .agent-dialog .agent-plan { grid-column: 1 / -1; }
 .agent-dialog label { grid-template-columns: minmax(88px, 112px) minmax(0, 1fr); }
@@ -262,10 +274,12 @@
   .agent-dialog { width: min(700px, calc(100vw - 20px)); }
   .agent-dialog .settings-dialog__body { grid-template-columns: minmax(0, 1fr); padding: 10px; scrollbar-gutter: auto; }
   .agent-dialog .agent-connection,
+  .agent-dialog .agent-side-stack,
   .agent-dialog .agent-permissions,
   .agent-dialog .agent-audit-section,
   .agent-dialog .agent-request,
   .agent-dialog .agent-plan { grid-column: 1; grid-row: auto; }
+  .agent-dialog .agent-side-stack { height: auto; grid-template-rows: auto auto; }
 }
 @media (max-width: 560px) {
   .agent-dialog label { grid-template-columns: minmax(0, 1fr); gap: 5px; }
@@ -389,3 +403,28 @@
   .settings-dialog--adaptive > header { min-height: 44px; }
   .settings-version-inline { font-size: 10px !important; }
 }
+
+
+/* 1.4.25: joined organization controls keep a single-line action button at every inspector width. */
+.node-organization label > span > input { flex: 1 1 auto; }
+.node-organization label > span > button {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-width: 56px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* Expanded chart shell follows the application theme; the plotting plane itself stays white. */
+.app-shell[data-theme="light"] .plot-lightbox { background: rgba(238, 243, 249, .97); }
+.app-shell[data-theme="light"] .plot-lightbox header { border-bottom-color: #cbd5e1; color: #1e293b; background: rgba(255, 255, 255, .96); }
+.app-shell[data-theme="light"] .plot-lightbox header strong { color: #173a63; }
+.app-shell[data-theme="light"] .plot-lightbox header > div:first-child span { color: #52677f; }
+.app-shell[data-theme="light"] .plot-lightbox header button { border-color: #b8c5d5; color: #1e3a5f; background: #f8fafc; }
+.app-shell[data-theme="light"] .plot-lightbox header button:hover { border-color: #60a5fa; background: #e8f1ff; }
+.app-shell[data-theme="light"] .plot-lightbox__body--interactive { background: #eef3f9; }

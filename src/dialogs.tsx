@@ -605,6 +605,7 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
           <div className="agent-inline-actions"><button className="button secondary" disabled={testing} onClick={onTestConnection}>{testing ? L("测试中…", "Testing…") : L("尝试连接", "Test connection")}</button>{connectionStatus && <small className={connectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{connectionStatus}</small>}</div>
           <small>{keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : keyStorageHint === "synced" ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
         </section>
+        <div className="agent-side-stack">
         <section className="agent-permissions"><h3>{L("AI 权限", "AI permissions")}</h3>
           <label className="settings-check"><input type="checkbox" checked={permissions.createNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, createNodes: event.target.checked } })} />{L("创建节点", "Create nodes")}</label>
           <label className="settings-check"><input type="checkbox" checked={permissions.groupNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, groupNodes: event.target.checked } })} />{L("组合节点", "Group nodes")}</label>
@@ -615,9 +616,10 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
           <label className="settings-check"><input type="checkbox" checked={permissions.arrangeLayout} onChange={(event) => onSettingsChange({ permissions: { ...permissions, arrangeLayout: event.target.checked } })} />{L("整理布局", "Arrange layout")}</label>
           <label className="settings-check"><input type="checkbox" checked={permissions.runWorkflow} onChange={(event) => onSettingsChange({ permissions: { ...permissions, runWorkflow: event.target.checked } })} />{L("执行工作流", "Run workflow")}</label>
         </section>
+        <section className="agent-audit-section"><h3>{L("审计", "Audit")}</h3>{audit.length ? <ol className="agent-audit">{audit.slice(0, 5).map((entry) => <li key={`${entry.at}-${entry.summary}`}><strong>{entry.summary}</strong><span>{entry.result}</span></li>)}</ol> : <p className="muted">{L("尚无 AI 操作记录。", "No AI audit entries yet.")}</p>}</section>
+        </div>
         <section className="agent-request"><h3>{L("创建计划", "Create plan")}</h3><textarea value={instruction} placeholder="例如：读取两个 CSV，按日期合并后绘制销售额折线图" onChange={(event) => onInstructionChange(event.target.value)} /><button className="button primary" disabled={requesting} onClick={onRequestPlan}>{requesting ? L("AI 正在规划…", "Planning…") : L("请求 AI 计划", "Request AI plan")}</button><small>{L("模型不能直接执行 Python、访问文件或改写工作流 JSON。", "The model cannot directly execute Python, access files, or rewrite workflow JSON.")}</small></section>
         <section className="agent-plan"><h3>{L("计划预览", "Plan preview")}</h3><textarea spellCheck={false} value={planText} placeholder={"可粘贴或检查 AI 返回的 JSON 计划，例如：\n{\"summary\":\"添加读取节点\",\"operations\":[]}"} onChange={(event) => onPlanTextChange(event.target.value)} /><div><button className="button secondary" onClick={onReviewPlan}>{L("检查计划", "Validate plan")}</button><button className="button primary" disabled={!plan || requesting} onClick={onApplyPlan}>{L("确认并应用", "Apply plan")}</button></div>{planError && <p className="validation-error">{planError}</p>}{plan && <p>将执行：{plan.summary}（{plan.operations.length} 项操作）</p>}</section>
-        <section className="agent-audit-section"><h3>{L("审计", "Audit")}</h3>{audit.length ? <ol className="agent-audit">{audit.slice(0, 5).map((entry) => <li key={`${entry.at}-${entry.summary}`}><strong>{entry.summary}</strong><span>{entry.result}</span></li>)}</ol> : <p className="muted">{L("尚无 AI 操作记录。", "No AI audit entries yet.")}</p>}</section>
       </div>
     </section>
   </div>;
