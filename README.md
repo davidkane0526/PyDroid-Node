@@ -252,7 +252,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。RC10 构建器统一采用共享工具链：优先**只读复用** `DK_TOOL_ROOT`（推荐 `D:\Code`）中的 Node/JDK/Android SDK/Python。构建器不会向共享工具目录安装、更新或写入任何文件；缺失工具与临时运行时统一放入 `WorkRoot`（推荐 `D:\PyDroidTemp`）下的项目临时工具目录。pnpm/npm/Corepack/Electron/electron-builder/Gradle 下载缓存使用 `DK_CACHE_ROOT`；若未指定，则默认落到 `WorkRoot\cache`。网络层支持 Auto/Direct/Manual，代理会继续传给 pnpm 与 Electron；构建日志保存在输出目录的 `logs/`。Electron/electron-builder 不要求全局安装，具体版本仍由各项目 `package.json` 与 lockfile 决定。构建器同时兼容 native `pnpm.exe`、Corepack/JavaScript launcher 与传统 `pnpm.cmd`；`pnpm check` 会先运行轻量构建工具回归测试。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。RC10 构建器统一采用共享工具链：优先**只读复用** `DK_TOOL_ROOT`（推荐 `D:\Code`）中的 Node/JDK/Android SDK/Python。构建器不会向共享工具目录安装、更新或写入任何文件；缺失工具与临时运行时统一放入 `WorkRoot`（推荐 `D:\PyDroidTemp`）下的项目临时工具目录。pnpm/npm/Corepack/Electron/electron-builder/Gradle 下载缓存使用 `DK_CACHE_ROOT`；若未指定，则默认落到 `WorkRoot\cache`。网络层支持 Auto/Direct/Manual，代理会继续传给 pnpm 与 Electron；构建日志保存在输出目录的 `logs/`。Electron/electron-builder 不要求全局安装，具体版本仍由各项目 `package.json` 与 lockfile 决定。构建器同时兼容 native `pnpm.exe`、Corepack/JavaScript launcher 与传统 `pnpm.cmd`；清理 Electron/Android 构建输出时对 Windows 超长路径使用扩展长度路径与 `robocopy` 兜底，避免 PowerShell 5.1 在深层 `node_modules` 中因 `MAX_PATH` 中止构建；`pnpm check` 会先运行轻量构建工具回归测试。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 

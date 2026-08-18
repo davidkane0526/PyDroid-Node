@@ -1580,6 +1580,73 @@ function Install-Python313 {
 # 工作区同步 / 清理
 # ---------------------------------------------------------------
 
+function Get-ExtendedLengthPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $full = [System.IO.Path]::GetFullPath($Path)
+    if ($full.StartsWith('\\?\')) { return $full }
+    if ($full.StartsWith('\\')) {
+        return ('\\?\UNC\' + $full.Substring(2))
+    }
+    return ('\\?\' + $full)
+}
+
+function Remove-BuildDirectoryRobust {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [switch]$Quiet
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    # Windows PowerShell 5.1 Remove-Item -Recurse can fail while walking Electron/
+    # Android node_modules trees whose descendants exceed MAX_PATH. Try the normal
+    # path first because it is fast and gives good diagnostics for ordinary failures.
+    try {
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    } catch {
+        if (-not $Quiet) {
+            Write-Warning ("PowerShell 清理目录失败，将切换到 Windows 长路径清理：{0}" -f $Path)
+        }
+    }
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    # cmd.exe rd understands the extended-length Win32 namespace and avoids the
+    # recursive provider traversal which triggers DirectoryNotFoundException above.
+    $extendedPath = Get-ExtendedLengthPath -Path $Path
+    & cmd.exe /d /c rd /s /q "`"$extendedPath`"" 2>$null | Out-Null
+    $global:LASTEXITCODE = 0
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+
+    # Final fallback: mirror an empty directory into the stale tree with robocopy.
+    # Robocopy is long-path aware by default and /XJ avoids following junctions out
+    # of the build workspace. Once emptied, removing the short root path is reliable.
+    $cleanupRoot = Join-Path $WorkRoot "cleanup-empty"
+    $emptyDir = Join-Path $cleanupRoot ([Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $emptyDir | Out-Null
+    try {
+        $cleanupArgs = @(
+            $emptyDir, $Path, "/MIR", "/XJ", "/R:1", "/W:1",
+            "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/NS", "/NC"
+        )
+        & robocopy @cleanupArgs | Out-Null
+        $robocopyExitCode = $LASTEXITCODE
+        $global:LASTEXITCODE = 0
+        if ($robocopyExitCode -ge 8) {
+            throw "robocopy 长路径清理失败，退出码：$robocopyExitCode；目录：$Path"
+        }
+
+        & cmd.exe /d /c rd /s /q "`"$Path`"" 2>$null | Out-Null
+        $global:LASTEXITCODE = 0
+    } finally {
+        Remove-Item -LiteralPath $emptyDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    if (Test-Path -LiteralPath $Path) {
+        throw "无法清理构建目录：$Path。请确认该目录未被其他进程占用。"
+    }
+}
+
 function Sync-Source {
     Write-BuildStage -Percent 15 -Message "清理临时工作区旧构建缓存"
     Write-Step "清理临时工作区旧构建缓存（静默）..."
@@ -1599,7 +1666,7 @@ function Sync-Source {
     foreach ($relative in $transientDirs) {
         $full = Join-Path $workspace $relative
         if (Test-Path -LiteralPath $full) {
-            Remove-Item -LiteralPath $full -Recurse -Force -ErrorAction SilentlyContinue
+            Remove-BuildDirectoryRobust -Path $full -Quiet
         }
     }
 
@@ -1728,7 +1795,7 @@ function Clear-WorkspaceOutputs {
     foreach ($p in $paths) {
         $full = Join-Path $workspace $p
         if (Test-Path -LiteralPath $full) {
-            Remove-Item -LiteralPath $full -Recurse -Force
+            Remove-BuildDirectoryRobust -Path $full
         }
     }
 }

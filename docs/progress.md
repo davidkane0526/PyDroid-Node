@@ -48,6 +48,7 @@ Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经�
 
 - UI 进入稳定期；后续 `dev` 默认不做大规模 UI 改版。
 - **Phase 1 PlatformAdapter：已实现，待 Windows/Android 实机运行确认。**
+- 2026-08-18 Windows 本机构建反馈暴露 `release/win-unpacked/.../@capacitor/...` 深层路径超过 260 字符导致 PowerShell `Remove-Item -Recurse` 中止；`dev` 已加入长路径清理回退，并将预同步与打包前输出清理统一到同一可靠删除函数。
 - `src/execution.ts` 与 `desktop/renderer/execution.ts` 已移除 SMB、文件选择、Profile、Secrets、Remote Host 等 UI facade；这些能力由 `src/platform/*` 与 `desktop/renderer/platform.ts` 承担。
 - `App.tsx` 已显式区分 `./execution`（Runtime）与 `./platform`（Host capability）。
 - 云端 Phase 1：Platform/Runtime 严格类型检查通过；Browser/Remote/Desktop/Android 编译后 adapter harness 通过；Python 102 通过/1 跳过；build-tool smoke 与版本同步通过。

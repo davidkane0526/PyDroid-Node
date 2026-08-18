@@ -7,6 +7,7 @@
 - `App.tsx` 平台能力改从 `./platform` 导入，Runtime 相关能力继续从 `./execution` 导入；同时把 Android native platform/theme chrome 与 Desktop window controls 纳入 system capability，UI 不再直接访问 Capacitor 或 `window.pyDroidDesktop`。UI 操作与 preload/Capacitor 原生 API 名称保持不变。
 - 新增 PlatformAdapter 架构守卫、Browser adapter 与 Remote Session 测试；云端另使用编译后 JS harness 验证 Android/Desktop bridge 委托。
 - 详细路线与后续 AI 开发约束见 `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`。
+- 构建可靠性热修：Windows PowerShell 5.1 清理 Electron/Capacitor 深层构建树时，若 `Remove-Item -Recurse` 遇到超过传统 `MAX_PATH` 的后代目录，自动切换 `\\?\` 扩展长度路径 `cmd rd`，仍失败时使用 `robocopy /MIR` 空目录镜像清理；阶段 15 与阶段 40 共用该清理器，不再静默遗留半清理的 `release`。
 
 ## 1.4.27 (50) — LAN automatic discovery — 2026-08-18
 

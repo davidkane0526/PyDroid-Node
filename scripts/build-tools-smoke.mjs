@@ -28,6 +28,36 @@ assert.match(
 );
 assert.match(
   buildScript,
+  /function Remove-BuildDirectoryRobust/,
+  "build output cleanup should use the robust long-path-aware directory remover",
+);
+assert.match(
+  buildScript,
+  /Get-ExtendedLengthPath -Path \$Path/,
+  "robust cleanup should retry through the Windows extended-length path namespace",
+);
+assert.match(
+  buildScript,
+  /cmd\.exe \/d \/c rd \/s \/q/,
+  "robust cleanup should use cmd rd for deep Windows directory trees",
+);
+assert.match(
+  buildScript,
+  /robocopy @cleanupArgs/,
+  "robust cleanup should retain an empty-mirror fallback for stubborn long paths",
+);
+assert.match(
+  buildScript,
+  /Remove-BuildDirectoryRobust -Path \$full -Quiet/,
+  "pre-sync stale output cleanup should use robust deletion instead of silently leaving partial release trees",
+);
+assert.match(
+  buildScript,
+  /Remove-BuildDirectoryRobust -Path \$full\r?\n\s*}/,
+  "stage-40 output cleanup should use robust deletion and fail only after all cleanup fallbacks are exhausted",
+);
+assert.match(
+  buildScript,
   /Microsoft\\jdk-\*/,
   "JDK discovery should scan Microsoft OpenJDK common install directories",
 );
