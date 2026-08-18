@@ -44,6 +44,16 @@
 所有用户可见功能、修复和 APK 版本更新都必须同步更新 `CHANGELOG.md`、`README.md` 与本文件；
 Android 的 `versionName` / `versionCode` 必须对应同一条记录。未经记录的改动不得交付。
 
+## dev 架构与可靠性进度
+
+- UI 进入稳定期；后续 `dev` 默认不做大规模 UI 改版。
+- **Phase 1 PlatformAdapter：已实现，待 Windows/Android 实机运行确认。**
+- `src/execution.ts` 与 `desktop/renderer/execution.ts` 已移除 SMB、文件选择、Profile、Secrets、Remote Host 等 UI facade；这些能力由 `src/platform/*` 与 `desktop/renderer/platform.ts` 承担。
+- `App.tsx` 已显式区分 `./execution`（Runtime）与 `./platform`（Host capability）。
+- 云端 Phase 1：Platform/Runtime 严格类型检查通过；Browser/Remote/Desktop/Android 编译后 adapter harness 通过；Python 102 通过/1 跳过；build-tool smoke 与版本同步通过。
+- 当前云环境无法解析 `registry.npmjs.org`，因此 clean ZIP 不能恢复 pnpm 依赖并重跑 Vitest/Vite；不将此项记为通过。
+- 下一阶段：Phase 2 `ExecutionController`，重点为 executionId、timeout、cancel 和 Windows/Android cleanup。
+
 ## 当前交付基线
 
 - 版本：`1.4.27 (50)`。

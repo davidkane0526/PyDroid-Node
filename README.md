@@ -1,5 +1,7 @@
 > **1.4.27 (50)**：局域网网页访问启动后，Android 与 Windows 会自动发布 SSDP/UPnP 与 mDNS/DNS-SD；同一局域网 Windows 可在“文件资源管理器 → 网络”发现 PyDroid Node，并双击打开现有 Web UI。
 
+> **dev 架构线**：UI 进入稳定期；Phase 1 `PlatformAdapter` 已把 SMB、文件选择、Profile、Secrets、Remote Access 和系统状态从 Runtime facade 中抽离。后续以执行可靠性和 Workflow Core 为主，详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。
+
 当前 Android 调试构建版本：`1.4.27 (50)`。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
 
 # PyDroid Flow
@@ -12,8 +14,9 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 `versionName` / `versionCode` 保持一致。
 
 > **新会话 / Coding AI 开发入口**：先阅读根目录 [AGENTS.md](AGENTS.md) 和
-> [docs/development-handoff.md](docs/development-handoff.md)。它们记录当前 Git 分支、已完成重构、
-> 本地待验证项、下一阶段计划和“只交付一个干净 Git 项目目录”的约束。
+> [docs/development-handoff.md](docs/development-handoff.md) 与
+> [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。它们记录当前 Git 分支、已完成重构、
+> 云端验证状态、下一阶段计划和“只交付一个干净 Git 项目目录”的约束。
 
 ## 项目目标
 
@@ -24,6 +27,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
+- **PlatformAdapter Phase 1（`dev`）**：共享 UI 不变；`App.tsx` 从 `./platform` 获取 SMB、文件、Profile、Secrets、Remote Access 与系统能力，从 `./execution` 只获取 Runtime/执行能力；Android/Web 与 Desktop 均实现同一 `PlatformAdapter` contract。
 - **Runtime Adapter 架构重构（当前分支，待本地完整编译验证）**：保留 149p 共享 UI 与 Python 能力，取回原 JS 分支中可复用的数据流引擎；“自动”模式仅在整个工作流兼容时选择 JS，否则回退 Python；JS 图表以 ECharts 交互式结果接入现有预览。详见 [docs/runtime-architecture.md](docs/runtime-architecture.md)。
 - **1.4.9 RC2 设置与 SMB 文件管理器（当前分支，待本地验证）**：设置窗口使用宽屏双列/窄屏单列的自适应卡片布局并统一主题滚动条；SMB 改为网络设备与共享树、地址面包屑、可折叠连接设置和名称/类型/大小文件列表。详见 [docs/development-handoff.md](docs/development-handoff.md)。
 - `1.4.9` 候选：修复 Android 长按画布框选与单指平移竞争，框选激活后不再推动画布；首次构建不再因固定为 `null` 的 `restoredSnapshot` 可选链访问产生 `never` 类型错误；并继续统一资源栏、参数面板和节点结果 UI。

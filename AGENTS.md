@@ -5,9 +5,10 @@ These rules apply to every developer and coding agent on every device.
 ## Start every new development session here
 
 1. Read `docs/development-handoff.md` for the current branch, validation state and immediate next tasks.
-2. Read `docs/runtime-architecture.md` before changing execution/runtime boundaries.
-3. Read `docs/progress.md` and `CHANGELOG.md` before changing user-visible behavior.
-4. Read `BUILD_TOOLCHAIN.md` before changing build, packaging, dependency-download, or GUI build-tool behavior.
+2. Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before architecture/refactor/reliability work.
+3. Read `docs/runtime-architecture.md` before changing execution/runtime boundaries.
+4. Read `docs/progress.md` and `CHANGELOG.md` before changing user-visible behavior.
+5. Read `BUILD_TOOLCHAIN.md` before changing build, packaging, dependency-download, or GUI build-tool behavior.
 
 This repository is the **only project copy**. Do not create or maintain separate `dev`, `js`, `dev-node`, Android or desktop source folders. Git branches are history/integration tools; platform/runtime differences belong inside the source architecture.
 
@@ -71,10 +72,10 @@ Before delivery, at minimum:
 
 ## Immediate architecture plan
 
-After the current settings/SMB UI is locally verified:
+The UI is now treated as a stable layer. Do not start another broad UI redesign unless the user reports a concrete interaction defect. Follow `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`.
 
-1. Extract host-specific file/SMB/profile/remote APIs into `src/platform/*` behind a `PlatformAdapter`.
-2. Extract workflow document/session/dirty-state/history/serialization from the large `App.tsx` into `src/workflow/*`.
-3. Move runtime compatibility declarations into node metadata so unsupported runtimes are visible before execution.
-4. Expand JavaScript parity only where semantics can match Python reliably.
-5. Add transaction-based undo/redo and then a node debugger/execution trace.
+1. **Phase 1 implemented on `dev`**: host-specific file/SMB/profile/secret/remote APIs live behind `PlatformAdapter`; keep this contract stable while Windows/Android manual runtime validation is pending.
+2. Next implement `ExecutionController`: execution ID, timeout, cancellation and cleanup on Android/Windows.
+3. Extract workflow document/session/dirty-state/history/serialization/migrations from the large `App.tsx` into Workflow Core.
+4. Move runtime compatibility declarations into node metadata and add Python/JavaScript golden-workflow parity tests.
+5. Only after those boundaries are stable, modularize Python engine, Desktop/Android hosts and build scripts.

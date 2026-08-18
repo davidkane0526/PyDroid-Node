@@ -1,5 +1,4 @@
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent as ReactDragEvent, type ErrorInfo, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
-import { Capacitor, registerPlugin } from "@capacitor/core";
 import {
   addEdge,
   Background,
@@ -52,7 +51,8 @@ import {
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
-import { analyzeNotebook, analyzePythonSignature, canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, executeWorkflow, getPythonEnvironment, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, resolveExecutionRuntime, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setExecutionRuntimePreference, startRemoteServer, stopRemoteServer, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RemoteAccessPolicy, type RemoteServerInfo, type RuntimePreference, type SmbConnection, type SmbEntry, type SmbServer, type TablePreview, type UserProfileInfo } from "./execution";
+import { analyzeNotebook, analyzePythonSignature, executeWorkflow, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
+import { canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
@@ -73,8 +73,6 @@ const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-ove
 type PaletteResource = { kind: "node" | "saved-node" | "group" | "flow"; id: string; label: string };
 
 type ThemeMode = "system" | "dark" | "light";
-type UiChromePlugin = { setTheme(options: { dark: boolean }): Promise<void> };
-const UiChrome = registerPlugin<UiChromePlugin>("UiChrome");
 const notebookCellRows = (source: string) => Math.max(3, source.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil(Array.from(line).length / 96)), 0));
 const VALUE_TYPE_COLORS: Record<ValueType, string> = { table: "#22c55e", plot: "#a855f7", csv: "#14b8a6", number: "#f59e0b", text: "#3b82f6", boolean: "#ef4444", list: "#06b6d4", object: "#8b5cf6", any: "#64748b" };
 const bytesToBase64 = (bytes: Uint8Array) => { let binary = ""; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary); };
@@ -782,7 +780,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [runtimePreference, setRuntimePreference] = useState<RuntimePreference>(() => loadAppSettings().runtimePreference);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(() => loadAppSettings().agent);
   const [agentApiKey, setAgentApiKey] = useState("");
-  const [agentSecretReady, setAgentSecretReady] = useState(() => !Capacitor.isNativePlatform() && !isRemoteRuntime());
+  const [agentSecretReady, setAgentSecretReady] = useState(() => !isNativePlatform() && !isRemoteRuntime());
   const [agentInstruction, setAgentInstruction] = useState("");
   const [agentRequesting, setAgentRequesting] = useState(false);
   const [agentConnectionStatus, setAgentConnectionStatus] = useState<string | null>(null);
@@ -805,7 +803,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const isPortrait = window.matchMedia("(orientation: portrait)").matches;
   const [inspectorDock, setInspectorDock] = useState<"right" | "bottom">(() =>
-    Capacitor.isNativePlatform() && window.matchMedia("(orientation: portrait)").matches ? "bottom" : "right",
+    isNativePlatform() && window.matchMedia("(orientation: portrait)").matches ? "bottom" : "right",
   );
   const previousPortrait = useRef(isPortrait);
   const [plotExpandedPreview, setPlotExpandedPreview] = useState<Extract<NodeExecutionPreview, { kind: "plot" }> | null>(null);
@@ -1206,7 +1204,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, [smbConnection.password, smbRememberPassword, smbGuest, remoteBrowser]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform() || remoteBrowser) return;
+    if (!isNativePlatform() || remoteBrowser) return;
     let active = true;
     void loadAgentSecret().then((secret) => {
       if (active) setAgentApiKey(secret);
@@ -1217,7 +1215,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, [remoteBrowser]);
 
   useEffect(() => {
-    if (!agentSecretReady || !Capacitor.isNativePlatform() || remoteBrowser) return;
+    if (!agentSecretReady || !isNativePlatform() || remoteBrowser) return;
     void saveAgentSecret(agentApiKey).catch(() => setMessage("无法保存已加密的 AI 密钥"));
   }, [agentApiKey, agentSecretReady, remoteBrowser]);
 
@@ -1288,7 +1286,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   useEffect(() => {
     if (previousPortrait.current === isPortrait) return;
     previousPortrait.current = isPortrait;
-    if (Capacitor.isNativePlatform()) setInspectorDock(isPortrait ? "bottom" : "right");
+    if (isNativePlatform()) setInspectorDock(isPortrait ? "bottom" : "right");
   }, [isPortrait]);
 
   useEffect(() => {
@@ -3452,7 +3450,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   } as CSSProperties;
 
   return (
-    <div className={`app-shell ${Capacitor.isNativePlatform() ? "native-platform" : ""} ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme}
+    <div className={`app-shell ${isNativePlatform() ? "native-platform" : ""} ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme}
       onDragOver={(event) => {
         if (event.dataTransfer.types.includes("application/pydroid-resource")) updatePaletteDragPreviewAt(event.clientX, event.clientY);
         if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }
@@ -3460,7 +3458,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       onDrop={(event) => void handleFileDrop(event)}>
       <img ref={desktopDragImageElement} className="native-drag-image-shim" alt="" aria-hidden="true" draggable={false} src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGNgYGBgAAAABQABpfZFQAAAAABJRU5ErkJggg==" />
       <header className="topbar">
-        {Capacitor.isNativePlatform() && <strong className="mobile-brand" aria-label="PyDroid Node">PyDroid Node</strong>}
+        {isNativePlatform() && <strong className="mobile-brand" aria-label="PyDroid Node">PyDroid Node</strong>}
         <TabBar />
         <div className="topbar__actions">
           <input ref={fileInput} className="file-input" type="file" accept=".csv,.tsv,.txt,.dat,.json,.png,.jpg,.jpeg,text/*,application/json,image/*" multiple onChange={chooseCsv} />
@@ -3802,7 +3800,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       {inputDialogNode && <InputDialog node={inputDialogNode} value={inputDialogValue} onValueChange={setInputDialogValue} onSubmit={() => void submitInputDialog()} onCancel={() => setInputDialogNode(null)} />}
       {alertDialogNode && <AlertDialog node={alertDialogNode} preview={alertInputPreview} onSubmit={(response) => void submitAlertDialog(response)} />}
       {renameFlow && <RenameFlowDialog name={renameFlow.name} value={renameFlowValue} onValueChange={setRenameFlowValue} onClose={() => setRenameFlow(null)} onConfirm={() => void confirmRenameFlow()} />}
-      {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={Capacitor.isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
+      {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
       {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={(requirement) => setRequirements((current) => current.filter((value) => value !== requirement))} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
@@ -4058,16 +4056,8 @@ function TabBar() {
   );
 }
 
-type DesktopWindowControls = {
-  minimize: () => void;
-  toggleMaximize: () => void;
-  close: () => void;
-  isMaximized: () => Promise<boolean>;
-  onMaximizedChanged: (callback: (maximized: boolean) => void) => () => void;
-};
-
-function desktopWindowControls(): DesktopWindowControls | undefined {
-  return (window as unknown as { pyDroidDesktop?: { windowControls?: DesktopWindowControls } }).pyDroidDesktop?.windowControls;
+function desktopWindowControls(): WindowControls | undefined {
+  return getWindowControls();
 }
 
 function TitleBar() {
@@ -4081,7 +4071,7 @@ function TitleBar() {
     const unsubscribe = controls.onMaximizedChanged(setMaximized);
     return () => { mounted = false; unsubscribe(); };
   }, [controls]);
-  if (!controls && Capacitor.isNativePlatform()) return null;
+  if (!controls && isNativePlatform()) return null;
   return (
     <header className="titlebar">
       <div className="titlebar__brand"><strong>PyDroid Node</strong><span>{remoteBrowser ? "远程连接 · Android 计算" : "节点式数据处理 · Python / JavaScript"}</span></div>
@@ -4111,7 +4101,7 @@ function MultiTabWorkspace() {
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.style.colorScheme = resolvedTheme;
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", resolvedTheme === "dark" ? "#0b1020" : "#f4f7fb");
-    if (Capacitor.isNativePlatform()) void UiChrome.setTheme({ dark: resolvedTheme === "dark" }).catch(() => undefined);
+    if (isNativePlatform()) void setSystemTheme(resolvedTheme === "dark").catch(() => undefined);
   }, [resolvedTheme]);
   // A new app session always starts from one predictable, empty workspace.
   const emptySnapshot: WorkflowSnapshot = { nodes: [], edges: [], requirements: [] };

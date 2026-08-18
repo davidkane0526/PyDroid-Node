@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:build-tools && pnpm test:version && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:version && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -37,7 +37,8 @@
     "android:package": "powershell -ExecutionPolicy Bypass -File scripts/android-package.ps1",
     "android:emulator": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator.ps1",
     "android:emulator:remove": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator-remove.ps1",
-    "android:open": "cap open android"
+    "android:open": "cap open android",
+    "test:architecture": "node scripts/platform-architecture-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

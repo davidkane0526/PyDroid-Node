@@ -16,6 +16,10 @@ export default defineConfig({
         find: /^\.\/execution$/,
         replacement: path.join(desktopDirectory, "renderer", "execution.ts"),
       },
+      {
+        find: /^\.\/platform$/,
+        replacement: path.join(desktopDirectory, "renderer", "platform.ts"),
+      },
     ],
   },
   build: {

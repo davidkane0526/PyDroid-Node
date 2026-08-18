@@ -4,157 +4,118 @@ Updated: 2026-08-18
 
 ## Current repository state
 
-This is a **single local Git repository**. GitHub is no longer required for development or delivery. Do not split it into multiple project folders.
+This delivery is a **single local Git repository** based only on the user-provided `PyDroid Node 1.4.27 dev architecture baseline.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
 
-Current delivery branch: `local/lan-discovery-1.4.27`, created locally from the user-provided 1.4.26 ZIP. No GitHub read, fetch, push, PR, or Actions operation is part of this delivery.
+Long-lived branches in this repository:
 
-The useful JavaScript engine remains under `src/runtime/javascript/engine/`; there is still only one shared application/UI. The new LAN discovery host code is platform-specific and attaches to the existing remote Web server lifecycle rather than creating a second application server.
+- `main`: stable `1.4.27` LAN automatic-discovery baseline;
+- `dev`: architecture and reliability development line, based directly on `main`.
 
-## Current architecture
+Current working branch: `dev`.
+
+The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
+
+## Current product direction
+
+The UI is considered stable. Unless the user reports a concrete UI/interaction defect, do not start another broad visual redesign. The `dev` branch focuses on:
+
+1. architecture boundaries;
+2. execution reliability;
+3. workflow-core extraction;
+4. Python/JavaScript semantic parity;
+5. host/build modularization after the previous layers stabilize.
+
+Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture work.
+
+## Phase 1 status — PlatformAdapter
+
+**Implemented on `dev`; pending user Windows/Android runtime acceptance.**
+
+Shared contract:
+
+- `src/platform/types.ts`
+
+Android/Web:
+
+- `src/platform/index.ts`
+- `src/platform/android.ts`
+- `src/platform/browser.ts`
+- `src/platform/android-plugin.ts`
+- `src/platform/remote-session.ts`
+- `src/platform/bytes.ts`
+
+Windows renderer:
+
+- `desktop/renderer/bridge.ts`
+- `desktop/renderer/platform.ts`
+- `desktop/vite.config.ts` maps `./platform` to the desktop adapter.
+
+Boundary after Phase 1:
 
 ```text
-                         PyDroid Node
-                              |
-                 +------------+------------+
-                 |                         |
-             Shared UI               Workflow Core
-                 |                         |
-      TopBar/Tabs/Inspector         Node/Edge/Save
-      Dialog/DataGrid/Touch         History/Serialization
-                 |                         |
-                 +------------+------------+
-                              |
-                        Runtime Adapter
-                       /               \
-              Python Runtime       JavaScript Runtime
-
-Next extraction:
-                        Platform Adapter
-               Android / Desktop / Web host APIs
+App.tsx
+├─ ./platform
+│  ├─ files
+│  ├─ SMB
+│  ├─ profile/workflow external storage
+│  ├─ secrets
+│  ├─ remote access
+│  └─ runtime/system stats
+└─ ./execution
+   ├─ Python environment / analysis
+   ├─ Python execution
+   ├─ JavaScript execution
+   └─ Runtime selection
 ```
 
-Implemented runtime boundary:
+The current user-visible UI, Electron preload method names and Android Capacitor plugin method names are intentionally unchanged.
 
-- `src/runtime/types.ts`
-- `src/runtime/registry.ts`
-- `src/runtime/python.ts`
-- `src/runtime/javascript/adapter.ts`
-- `src/runtime/javascript/engine/*`
-- shared plot presentation in `src/ui/PlotPreview.tsx` / `PlotView.tsx`
+## Validation completed in the cloud
 
-## Changes in the current branch
+Phase 1 production-boundary checks:
 
-### Settings
+- strict TypeScript check of PlatformAdapter + Runtime module graph with external bridge stubs: passed;
+- full TS/TSX syntax parse with TypeScript `--noCheck`: passed;
+- compiled JS Runtime harness for Remote Session + Browser + Desktop PlatformAdapter: passed;
+- compiled JS Runtime harness for Android PlatformAdapter with a mocked Capacitor PythonExecutor: passed;
+- Python tests: `102 passed, 1 skipped`;
+- `node scripts/build-tools-smoke.mjs`: passed;
+- `node scripts/check-version-sync.mjs`: passed, `1.4.27 (50)`.
 
-- Adaptive settings dialog uses two columns on suitable desktop/tablet widths and one column on narrow screens.
-- Canvas sliders are arranged in a responsive range grid instead of one very tall list.
-- Theme-aware custom scrollbar replaces the visually inconsistent native-looking scrollbar.
-- Settings now shows the real `APP_VERSION`, range controls follow the active theme and use larger coarse-pointer targets, and the Language selector drives core UI chrome instead of only AI planning language.
-- Appearance, runtime, SMB, AI, debug and profile settings use consistent card rhythm and spacing; Agent sections use a balanced two-column grid and collapse to one column on portrait/narrow screens.
+The sandbox cannot currently download pnpm from npm (`EAI_AGAIN registry.npmjs.org`), therefore dependency-backed Vitest/Vite production builds cannot be rerun from a fresh clean ZIP in this environment. This is an environment/network limitation, not a passing build claim. The committed Vitest tests will run when dependencies are available.
 
-### SMB
+## User acceptance scope
 
-The SMB dialog has been rewritten as a network file manager rather than a vertical setup wizard:
+The user should only need to confirm real-host behavior:
 
-- left navigation tree: network devices -> shares;
-- scan/refresh actions integrated into the navigation pane;
-- breadcrumb/address toolbar for current server/share/path;
-- connection credentials moved into a collapsible configuration panel;
-- central file list uses Name / Type / Size columns;
-- folders and files use shared SVG icons and selection states;
-- footer contains selection status and import actions;
-- credential layout is 3 columns × 2 rows on normal widths: Server / Share / Domain, then Username / Password / Guest+Login; Guest is a plain checkbox rather than a button-like control;
-- mobile layout uses an adaptive two-column credential form and a multi-row device/share grid above the file browser.
+### Windows
 
-The underlying SMB host APIs and security model are intentionally unchanged in this branch.
+- application starts and UI is unchanged;
+- CSV picker works;
+- SMB discovery/login/browse/read works;
+- Remote Web host start/stop and pairing work;
+- Python and JavaScript workflows still execute.
 
-### Android interaction / plots
+### Android
 
-- Context/selection/flow/resource menus close in pointer-capture phase and are explicitly cleared when node dragging starts or the canvas pane is tapped.
-- Node-result interactive charts open the real `PlotLightbox` instead of the generic text/result detail path.
-- ECharts keeps a white plotting plane in both themes and resizes after `resize` / Android `orientationchange` with a double-frame plus delayed pass.
-- `plot.line` source defaults are `xColumn: "0"` and `yColumns: "1"`; no runtime catalog patch is used.
-- `src/main.tsx` remains a clean React bootstrap and does not install `ui-runtime.ts`, `settings-version.ts`, or `catalog-overrides.ts`.
+- application starts and UI is unchanged in portrait/landscape;
+- native file picker works;
+- SMB discovery/login/browse/read works;
+- Remote Web host start/stop and pairing work;
+- Python and JavaScript workflows still execute.
 
+Do not ask the user to perform routine unit/static/protocol tests that can be automated in the cloud.
 
-### Build tooling / GUI
+## Next development task
 
-- Added `tools/build-pydroid.ps1` as the compatibility-focused external-workspace builder.
-- Added `tools/build-pydroid-gui.ps1` plus root launcher `Build PyDroid GUI.cmd`.
-- The GUI exposes project/work/tool/output paths, platform targets, retry count, fallback tool versions and optional Electron mirrors, with live log output and cancellation. Version 1.4.14 added a dedicated current-stage label and stage progress bar; real downloads are explicitly labeled, while ordinary cached dependency checks are not presented as downloads.
-- `scripts/desktop-package.mjs` now honors external Electron caches, reuses the actual pnpm implementation that launched the script, retries transient network failures and can fall back to packaging without Windows executable resource editing when GitHub helper downloads remain unavailable.
-- `scripts/android-package.ps1` now reads the compile SDK from `android/variables.gradle` and uses `--no-daemon` for the known Windows Gradle daemon permission issue.
-- The standalone builder no longer requires `.git` to recognize a project, derives output names from `package.json`, auto-detects Android compile SDK, supports configurable fallback Node/Python/JDK versions, retries downloads and can preserve the work area for diagnostics.
-- The Vite `chunk > 500 kB` message is a warning only; the reported desktop failure was the later `electron-builder` HTTPS timeout.
-- RC6 build-GUI hotfix: all WinForms collection/style `.Add()` return values are discarded, so the CMD console no longer prints `0 1 2 3 4`; the CMD redirects launcher diagnostics to `%LOCALAPPDATA%\PyDroidBuild\logs\launcher-last.log`.
-- Real build output is both shown live in the GUI and saved to `<OutputRoot>\logs\build-YYYYMMDD-HHMMSS.log`; completion/failure dialogs include the result and log path. Child stdout/stderr is polled through `ReadLineAsync()` from the UI timer rather than background PowerShell event delegates.
-- RC7 network fix: build networking defaults to `Auto`, first honoring `HTTPS_PROXY`/`HTTP_PROXY` and then the current user's Windows fixed proxy. The resolved proxy is exported to pnpm and to Electron's `@electron/get` (`ELECTRON_GET_USE_PROXY` + `GLOBAL_AGENT_*`). The GUI also exposes Direct/Manual modes, npm registry override, fetch timeout and pnpm network concurrency.
-- `pnpm install` now uses the persistent external store with `--prefer-offline`, explicit request retry/timeout/concurrency configuration, and whole-install retry while preserving partially downloaded store content. Local proxy endpoints are checked before a long build begins; PAC-only configurations produce an actionable warning because pnpm cannot consume a PAC URL directly.
-- RC8 local-build fix: `desktop-package.mjs` now distinguishes native `pnpm.exe`, `.cmd/.bat`, and JavaScript package-manager launchers before spawning; `pnpm check` includes a dependency-free build-tool invocation smoke test. The SMB connection `<details>` no longer uses unsupported `defaultOpen`; it opens through a DOM ref when no share is selected.
-- RC9/RC10 shared-toolchain baseline: `DK_TOOL_ROOT` and `DK_CACHE_ROOT` centralize reusable Node/JDK/Android SDK/Python installations and pnpm/npm/Corepack/Electron/electron-builder/Gradle/download caches. Version 1.4.14 additionally cleared stale transient Android/Gradle outputs before mirroring source and suppresses raw `robocopy` EXTRA enumeration, so a large old workspace does not look like an unexplained download. The builder validates JDK major versions, discovers installed JDK 21 from environment/shared toolchain/registry/common Windows install folders/all PATH hits before downloading, activates the chosen JDK before `sdkmanager`, patches the legacy `node.exe pnpm.exe` workspace pattern when detected, and logs project-vs-lockfile Electron versions. See `BUILD_TOOLCHAIN.md`.
+After the user confirms Phase 1 host behavior, start **Phase 2 — ExecutionController**:
 
+- execution ID;
+- queued/running/cancelling/success/error/timeout states;
+- timeout;
+- cancellation;
+- Windows Python child-process cleanup;
+- Android execution Future/task cleanup;
+- deterministic recovery after failure/cancel.
 
-### LAN automatic discovery (1.4.27)
-
-- Starting the existing LAN Web/remote server automatically starts SSDP/UPnP and mDNS/DNS-SD; there is no separate LAN settings UI.
-- Desktop implementation: `desktop/lan/*`; Android implementation: `android/app/src/main/java/com/dk/pydroidflow/{LanDiscoveryService,LanNetworkInterfaceManager,LanDeviceIdentity,SsdpService,MdnsService,UpnpDeviceDescription}.java`.
-- UPnP description is served by the existing HTTP server at `/upnp/device.xml`; `presentationURL` points to `/?remote=1` so Explorer double-click opens the actual remote UI.
-- UUID is persisted under Electron `userData/settings/lan-device.json` on Windows and Android `SharedPreferences` (`pydroid_lan_identity`) on Android.
-- Existing PIN/token pairing remains the security boundary for sensitive `/api/*` calls.
-
-## Version
-
-Current local delivery: `1.4.27 (50)`.
-
-Current delivery is based only on the user-provided ZIP. Do not access or modify GitHub unless the user explicitly authorizes it.
-
-## Validation already done by AI sandbox
-
-- Version synchronization target: `1.4.27` / Android `versionCode 50`.
-- Dependency-free build-tool smoke: passed, including the user-provided builder's launcher/JDK invariants.
-- Main and desktop TypeScript source checks pass with the sandbox's global TypeScript 5.8.3. The project's locked TypeScript 7 package in the available dependency cache contains only its Windows native platform package, so that exact binary cannot run on Linux.
-- Python 3.13.5 suite: 102 passed, 1 skipped. Python baseline is now 3.13.x on Android, desktop and build tooling.
-- Previous baseline validation is retained; 1.4.27 additionally adds automatic LAN discovery. Re-run `git diff --check`, version sync, protocol smoke tests, and platform builds before delivery.
-- Vitest/Vite cannot start in this Linux sandbox because the available `node_modules` is the Windows install and lacks the Linux Rolldown native binding. Android SDK is also absent. These environment limits are not reported as successful builds.
-
-## Local validation requested from user
-
-Run on the extracted repository:
-
-```powershell
-pnpm install
-pnpm check
-pnpm android:sync
-cd android
-gradlew.bat assembleDebug
-```
-
-Manual checks with highest priority:
-
-1. Settings dialog in dark/light mode at desktop, Android portrait and Android landscape sizes.
-2. Settings scrolling: thumb/track should match theme and not consume excessive width.
-3. SMB device discovery -> server -> share -> nested folder -> multi-file selection -> import.
-4. SMB guest/account login, saved password, Chinese/space-containing share names.
-5. SMB file manager in dark/light mode and Android portrait/landscape.
-6. Runtime Auto/Python/JavaScript smoke after the UI rewrite to confirm no regression.
-
-If local compilation reveals errors, continue on `build/shared-toolchain`; do not merge forward first.
-
-## Next planned development
-
-After local validation of this branch:
-
-1. Validate the new build GUI and both Android/Desktop packaging paths locally.
-2. Fix any compile/runtime/UI regressions found locally.
-3. Merge this branch back into `refactor/settings-smb-ui` after build validation, then continue the runtime refactor flow.
-4. Create a new temporary branch for `PlatformAdapter` extraction.
-5. Move SMB/file picker/profile/remote host APIs out of `execution.ts` compatibility facades without changing behavior.
-6. Extract Workflow Core from `App.tsx` after Platform Adapter is stable.
-7. Add node runtime-capability metadata, transaction history, then debugger/execution trace.
-
-## Rules for the next AI session
-
-- Start by reading `AGENTS.md` and this file.
-- Treat the user's local build/test reports as source of truth for platform behavior.
-- Do not return multiple branch folders; return one clean repository ZIP with `.git` intact.
-- Do not merge to `main` until the user explicitly confirms local validation.
+Do not start Workflow Core or another UI redesign before this execution lifecycle is stable.

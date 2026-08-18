@@ -43,9 +43,9 @@ A runtime implements `RuntimeAdapter`:
 
 `src/runtime/python.ts` adapts the existing Python execution backend without changing its host-specific transport.
 
-For compatibility, `src/execution.ts` and `desktop/renderer/execution.ts` remain host facades in this phase. They register the Python adapter and the shared JavaScript adapter, while existing file picking, SMB, remote-access and profile APIs continue to work unchanged.
+`src/execution.ts` and `desktop/renderer/execution.ts` now contain only execution/runtime concerns. Phase 1 of the platform refactor moved file picking, SMB, profile storage, secret persistence, remote-access hosting and system statistics behind a `PlatformAdapter`.
 
-A later platform refactor can move those host APIs into `src/platform/*` without changing `RuntimeAdapter`.
+Shared contracts live in `src/platform/types.ts`. Android/Web select an adapter through `src/platform/index.ts`; the Windows renderer uses `desktop/renderer/platform.ts`, mapped by the desktop Vite configuration. Runtime code may use the platform remote transport when a paired browser delegates execution to the host, but UI host capabilities no longer live in the execution facade.
 
 ## JavaScript runtime
 
@@ -85,24 +85,26 @@ The preference is an application setting in this phase. It is intentionally not 
 
 Long-lived application branches should be limited to `main` and `dev`.
 
-Feature/refactor branches are temporary:
+Feature/refactor branches are temporary. The current architecture/reliability line is the long-lived local `dev` branch:
 
 ```text
 main
   ↑
-dev
-  └── refactor/runtime-architecture
-       └── refactor/settings-smb-ui   ← current work
+dev   ← architecture / reliability development
+  └── temporary refactor/fix branches only when isolation is useful
 ```
 
-The former JavaScript branch is a migration source, not a second application to keep synchronized. Once this refactor is locally validated and merged, its remaining branch can be archived or deleted because the useful engine now lives in the unified source tree.
+The former JavaScript branch is a migration source, not a second application to keep synchronized. The useful engine now lives in the unified source tree; do not recreate a second JS application branch.
 
 ## Next phases
 
-1. Locally validate the adaptive settings UI and the new SMB file-manager UI without changing the underlying host APIs.
-2. Move SMB, file dialogs, profile storage and host-specific services from compatibility facades into a `PlatformAdapter` layer.
-3. Extract workflow session/history/serialization responsibilities from the large application component into a `workflow-core` module.
+1. Validate the new PlatformAdapter boundary on Windows and Android without changing UI behavior.
+2. Add an `ExecutionController` with execution IDs, timeout, cancellation and deterministic cleanup on Windows and Android.
+3. Extract workflow session/history/serialization/migrations from the large application component into a `workflow-core` module.
 4. Add typed runtime capability metadata to node definitions so the palette can show runtime support before execution.
-5. Validate and expand Python/JavaScript parity only where semantics can be matched, then consider mixed-runtime execution after transfer/debugging semantics are defined.
+5. Build Python/JavaScript golden-workflow parity tests and expand JavaScript support only where semantics can be matched.
+6. After these boundaries are stable, modularize the Python engine and platform host implementations.
+
+The authoritative architecture/reliability roadmap is `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`.
 
 The project should not return to separate Python-UI and JavaScript-UI branches.
