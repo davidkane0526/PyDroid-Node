@@ -1,3 +1,9 @@
+## 2026-08-20 — Phase 7 UI rollback / Android drag recovery / 1.4.52 (75)
+
+- Remote Web banner returned to the compact early layout: service state + canonical URL + copy action, without alternate-address expansion.
+- Android node/group/flow palette resources now use `touch-action: pan-y`, restoring horizontal drag-to-canvas while preserving vertical scrolling and the existing menu gesture state machine.
+- No new Remote Web self-test or defensive startup layer was added.
+
 ## 2026-08-20 — Phase 7 Remote Web startup/UI correction / 1.4.51 (74)
 
 - Removed the defensive Remote Web shell/main-asset self-test from Desktop and Android startup because it delayed an otherwise ready HTTP service.

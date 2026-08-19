@@ -3473,69 +3473,9 @@ button.smb-file-row { cursor: pointer; }
   display: none !important;
 }
 
-/* 1.4.50: show all verified Remote Web LAN candidates without stretching the top banner. */
-.remote-server-banner__urls { display: grid; gap: 2px; min-width: 0; }
-.remote-server-banner__urls code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* 1.4.51: compact Remote Web banner + native touch text-selection guard. */
-.remote-server-banner {
-  display: grid;
-  grid-template-columns: max-content minmax(190px, 1fr) max-content max-content max-content;
-  align-items: center;
-  gap: 8px;
-  width: min(760px, calc(100vw - 24px));
-  max-width: none;
-  padding: 8px 10px;
-}
-.remote-server-banner > strong { white-space: nowrap; }
-.remote-server-banner__address { min-width: 0; }
-.remote-server-banner__address code,
-.remote-server-banner__alternates code {
-  display: block;
-  overflow: visible;
-  color: #a5f3fc;
-  font-size: var(--font-xs);
-  text-overflow: clip;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.remote-server-banner__copy,
-.remote-server-banner__expand {
-  min-height: 28px;
-  padding: 4px 8px;
-}
-.remote-server-banner__expand {
-  width: 30px;
-  padding-inline: 0;
-  font-size: 10px;
-}
-.remote-server-banner__pin { white-space: nowrap; }
-.remote-server-banner__alternates {
-  grid-column: 2 / -1;
-  display: grid;
-  gap: 4px;
-  padding-top: 6px;
-  border-top: 1px solid color-mix(in srgb, #67e8f9 20%, transparent);
-}
-@media (max-width: 760px) {
-  .remote-server-banner {
-    top: 58px;
-    grid-template-columns: max-content minmax(0, 1fr) max-content max-content;
-    gap: 6px;
-    width: calc(100vw - 14px);
-  }
-  .remote-server-banner__pin { grid-column: 1 / -1; }
-  .remote-server-banner__alternates { grid-column: 1 / -1; }
-}
-@media (max-width: 520px) {
-  .remote-server-banner {
-    grid-template-columns: minmax(0, 1fr) max-content max-content;
-  }
-  .remote-server-banner > strong { grid-column: 1 / -1; }
-  .remote-server-banner__address { grid-column: 1; }
-  .remote-server-banner__copy { grid-column: 2; }
-  .remote-server-banner__expand { grid-column: 3; }
-}
+/* 1.4.52: Remote Web banner intentionally returns to the compact Phase-1 layout.
+   One canonical URL is shown; alternate adapter addresses remain an internal host detail. */
+.remote-server-banner__pin { flex: none; color: #67e8f9; font-size: var(--font-xs); white-space: nowrap; }
 
 /* Android/WebView: ordinary UI text should behave like app chrome, not a selectable webpage. */
 .app-shell.native-platform,
@@ -3563,5 +3503,8 @@ button.smb-file-row { cursor: pointer; }
 .app-shell.native-platform .node-palette button,
 .app-shell.native-platform .group-resource-card,
 .app-shell.native-platform .flow-library-item {
-  touch-action: manipulation;
+  /* pan-y keeps the resource list scrollable while horizontal movement remains available
+     to the custom palette drag gesture. `manipulation` lets WebView consume both axes and
+     can cancel the pointer before it reaches the canvas. */
+  touch-action: pan-y;
 }

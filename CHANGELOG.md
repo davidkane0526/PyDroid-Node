@@ -1,3 +1,10 @@
+## 1.4.52 (75) — Remote Web banner rollback + Android palette drag restoration — 2026-08-20
+
+- Rolled the Remote Web host banner back to the compact Phase-1-style presentation: one canonical URL, one copy button, and optional compact PIN only. Alternate adapter addresses remain internal and no longer expand the banner.
+- Restored Android palette dragging by returning resource cards to `touch-action: pan-y`: vertical palette scrolling remains native, while horizontal movement is reserved for the custom drag-to-canvas gesture instead of being consumed by WebView `manipulation`.
+- Kept the 1.4.51 Remote Web host implementation and concise canonical URL unchanged; this change intentionally simplifies presentation without adding new Remote Web startup logic.
+- Build script revision: `1.4.52-dev-r28-phase7-ui-drag-rollback`.
+
 ## 1.4.51 (74) — concise Remote Web startup + Android selection polish — 2026-08-20
 
 - Simplified the Desktop/Android Remote Web banner to `计算服务已开启`, one fully visible clean URL, `复制地址`, an optional address expander, and the PIN only when enabled. Removed version/query noise and diagnostic self-test wording.

@@ -863,7 +863,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [replacementShowAll, setReplacementShowAll] = useState(false);
   const [replacementSearch, setReplacementSearch] = useState("");
   const [remoteServer, setRemoteServer] = useState<RemoteServerInfo | null>(null);
-  const [remoteAddressesExpanded, setRemoteAddressesExpanded] = useState(false);
   const [remoteAccessDialog, setRemoteAccessDialog] = useState(false);
   const [remoteRequirePin, setRemoteRequirePin] = useState(true);
   const [remoteAccessPolicy, setRemoteAccessPolicy] = useState<RemoteAccessPolicy | null>(null);
@@ -3149,7 +3148,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       await stopRemoteServer();
       setRemoteServer(null);
-      setRemoteAddressesExpanded(false);
       setMessage("计算服务已关闭");
     } catch (error) {
       setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务关闭失败");
@@ -3158,7 +3156,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const startConfiguredRemoteServer = async () => {
     setRemoteAccessDialog(false);
-    setRemoteAddressesExpanded(false);
     setMessage("正在开启计算服务…");
     try {
       const info = await startRemoteServer(remoteRequirePin);
@@ -3671,17 +3668,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         </div>
       </header>
 
-      {remoteServer && (() => {
-        const addresses = [...new Set([remoteServer.url, ...(remoteServer.urls ?? [])].filter(Boolean))];
-        return <aside className={`remote-server-banner ${remoteAddressesExpanded ? "expanded" : ""}`} role="status">
-          <strong>计算服务已开启</strong>
-          <div className="remote-server-banner__address"><code>{remoteServer.url}</code></div>
-          <button className="remote-server-banner__copy" onClick={() => void copyRemoteUrl()}>复制地址</button>
-          {addresses.length > 1 && <button className="remote-server-banner__expand" aria-label={remoteAddressesExpanded ? "收起其他地址" : "展开其他地址"} aria-expanded={remoteAddressesExpanded} onClick={() => setRemoteAddressesExpanded((value) => !value)}>{remoteAddressesExpanded ? "▲" : "▼"}</button>}
-          {remoteServer.requiresPin && <span className="remote-server-banner__pin">校验码 {remoteServer.pin}</span>}
-          {remoteAddressesExpanded && addresses.length > 1 && <div className="remote-server-banner__alternates">{addresses.slice(1).map((url) => <code key={url}>{url}</code>)}</div>}
-        </aside>;
-      })()}
+      {remoteServer && <aside className="remote-server-banner" role="status">
+        <strong>计算服务已开启</strong>
+        <code>{remoteServer.url}</code>
+        <button onClick={() => void copyRemoteUrl()}>复制地址</button>
+        {remoteServer.requiresPin && <span className="remote-server-banner__pin">PIN {remoteServer.pin}</span>}
+      </aside>}
 
       <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${inspectorDock === "bottom" ? "inspector-bottom" : "inspector-right"} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
         <aside className="node-palette">

@@ -21,6 +21,9 @@ assert.match(app, /group-resource-card[\s\S]*onDoubleClick=[\s\S]*openPaletteMen
 assert.match(app, /flow-library-item[\s\S]*onDoubleClick=[\s\S]*openPaletteMenuFromElement/, "workflow resources should keep desktop double-click menu access");
 assert.match(css, /app-shell\.native-platform:has\(\.node-palette input:focus[\s\S]*grid-template-rows:[^;]*0;/, "Android main-workspace keyboard editing should collapse the status-bar row instead of lifting it above the IME");
 assert.match(css, /app-shell\.native-platform[\s\S]*user-select:\s*none/, "Android app chrome should suppress accidental WebView text selection");
+assert.match(css, /app-shell\.native-platform \.node-palette button[\s\S]*touch-action:\s*pan-y/, "Android palette resources should reserve horizontal pointer motion for custom drag while keeping vertical scrolling");
+assert.doesNotMatch(css, /app-shell\.native-platform \.node-palette button[\s\S]{0,260}touch-action:\s*manipulation/, "Android palette resources must not let WebView consume both gesture axes before custom dragging begins");
+assert.doesNotMatch(app, /remote-server-banner__alternates|remote-server-banner__expand/, "Remote Web banner should stay compact and show only the canonical address");
 assert.match(app, /pointerMode !== "mouse"\) return/, "synthetic Android contextmenu events should not race the explicit touch gesture");
 assert.match(app, /nodeTouchDragSuppressMenuUntil/, "dragging a canvas node on touch should suppress only the synthetic drag-time context menu");
 console.log("UI regression smoke passed.");
