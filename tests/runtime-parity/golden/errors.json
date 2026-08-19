@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "invalid_column_error",
+      "description": "Both engines must fail on the same node/type for invalid column selection",
+      "csvText": "a,b\n1,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Parity error",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "select",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "选择列",
+              "nodeType": "table.select_columns",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "99"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "select"
+          }
+        ]
+      },
+      "expected": {
+        "status": "error",
+        "nodeId": "select",
+        "nodeType": "table.select_columns",
+        "errorMessageIncludes": [
+          "out of range"
+        ]
+      }
+    }
+  ]
+}

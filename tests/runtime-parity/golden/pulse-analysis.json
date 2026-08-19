@@ -1,0 +1,376 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "pulse_waveform",
+      "description": "Deterministic pulse waveform generator",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "pulse",
+        "nodes": [
+          {
+            "id": "pulse",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "脉冲",
+              "nodeType": "pulse.generate_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "voltageMax": 1,
+                "voltageStep": 0.5,
+                "readVoltage": 0.1,
+                "pulseTime": 0.01,
+                "readTime": 0.02,
+                "timeShift": 0,
+                "cycles": 0.5,
+                "ratio": 1
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "pulse"
+        ]
+      }
+    },
+    {
+      "id": "pulse_oscillating_ramp",
+      "description": "Oscillating pulse ramp generator",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "osc pulse",
+        "nodes": [
+          {
+            "id": "pulse",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "震荡脉冲",
+              "nodeType": "pulse.generate_oscillating_ramp",
+              "nodeVersion": 1,
+              "parameters": {
+                "interval": 0.1,
+                "totalTime": 1,
+                "amplitudeStep": 0.2,
+                "fixedVoltage": 0.6,
+                "gateVoltage": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "pulse"
+        ]
+      }
+    },
+    {
+      "id": "pulse_combine",
+      "description": "Combine drain/source/gate generated pulse channels",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "combine pulse",
+        "nodes": [
+          {
+            "id": "d",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "Vd",
+              "nodeType": "pulse.generate_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "voltageMax": 1,
+                "voltageStep": 1,
+                "readVoltage": 0.1,
+                "pulseTime": 0.01,
+                "readTime": 0.01,
+                "timeShift": 0,
+                "cycles": 0.25,
+                "ratio": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "s",
+            "position": {
+              "x": 160,
+              "y": 0
+            },
+            "data": {
+              "label": "Vs",
+              "nodeType": "pulse.generate_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "voltageMax": 1,
+                "voltageStep": 1,
+                "readVoltage": 0.1,
+                "pulseTime": 0.01,
+                "readTime": 0.01,
+                "timeShift": 0,
+                "cycles": 0.25,
+                "ratio": -1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "g",
+            "position": {
+              "x": 320,
+              "y": 0
+            },
+            "data": {
+              "label": "Vg",
+              "nodeType": "pulse.generate_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "voltageMax": 1,
+                "voltageStep": 1,
+                "readVoltage": 0.1,
+                "pulseTime": 0.01,
+                "readTime": 0.01,
+                "timeShift": 0,
+                "cycles": 0.25,
+                "ratio": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "combine",
+            "position": {
+              "x": 480,
+              "y": 0
+            },
+            "data": {
+              "label": "合并",
+              "nodeType": "pulse.combine_channels",
+              "nodeVersion": 1,
+              "parameters": {
+                "timeColumn": "time_s",
+                "voltageColumn": "voltage_V"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "d",
+            "target": "combine",
+            "sourceHandle": "output",
+            "targetHandle": "drain"
+          },
+          {
+            "id": "e2",
+            "source": "s",
+            "target": "combine",
+            "sourceHandle": "output",
+            "targetHandle": "source"
+          },
+          {
+            "id": "e3",
+            "source": "g",
+            "target": "combine",
+            "sourceHandle": "output",
+            "targetHandle": "gate"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "d",
+          "s",
+          "g",
+          "combine"
+        ]
+      }
+    },
+    {
+      "id": "ter_matrix_basic",
+      "description": "TER matrix up/down sweep extraction",
+      "csvText": "Vg_V,Vds_V,I_A\n0,-1,-0.001\n0,0,0.0001\n0,1,0.001\n0,0,0.0002\n0,-1,-0.0005\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "TER",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "ter",
+            "position": {
+              "x": 220,
+              "y": 0
+            },
+            "data": {
+              "label": "TER",
+              "nodeType": "analysis.ter_matrix",
+              "nodeVersion": 1,
+              "parameters": {
+                "vgColumn": "Vg_V",
+                "voltageColumn": "Vds_V",
+                "currentColumn": "I_A",
+                "sourceColumn": "",
+                "vmin": -1,
+                "vmax": 1,
+                "vstep": 1,
+                "tolerance": 0.1,
+                "currentFloor": 1e-15,
+                "mode": "high-low"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "ter"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "ter"
+        ]
+      }
+    },
+    {
+      "id": "pulse_segment_basic",
+      "description": "Segment measurement samples by generated waveform boundaries",
+      "csvText": "time,current\n0.005,1\n0.015,2\n0.025,3\n0.035,4\n0.045,5\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "segment",
+        "nodes": [
+          {
+            "id": "measurement",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "测量",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "waveform",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "波形",
+              "nodeType": "pulse.generate_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "voltageMax": 1,
+                "voltageStep": 1,
+                "readVoltage": 0.1,
+                "pulseTime": 0.01,
+                "readTime": 0.01,
+                "timeShift": 0,
+                "cycles": 0.25,
+                "ratio": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "segment",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "分段",
+              "nodeType": "pulse.segment_measurement",
+              "nodeVersion": 1,
+              "parameters": {
+                "measurementTimeColumn": "time",
+                "currentColumn": "current",
+                "waveformTimeColumn": "time_s",
+                "waveformVoltageColumn": "voltage_V",
+                "dropLeadingRows": 0,
+                "dropTrailingRows": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "measurement",
+            "target": "segment",
+            "sourceHandle": "output",
+            "targetHandle": "measurement"
+          },
+          {
+            "id": "e2",
+            "source": "waveform",
+            "target": "segment",
+            "sourceHandle": "output",
+            "targetHandle": "waveform"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "measurement",
+          "waveform",
+          "segment"
+        ]
+      }
+    }
+  ]
+}

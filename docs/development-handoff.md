@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.36 (59)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + active Phase 5 runtime parity.
+- `dev`: `1.4.37 (60)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + active Phase 5 runtime parity.
 
 Current working branch: `dev`.
 
@@ -181,8 +181,8 @@ Phase 4 is frozen. Concrete function/global-variable nodes may now be added late
 
 ## Phase 5 status — Python / JavaScript parity
 
-**Started on `dev` 1.4.36 (59).** `pnpm test:parity` executes golden workflows through both `python/pydroid_flow/engine.py` and the bundled TypeScript/JavaScript engine, validates each runtime against fixture expectations, then compares normalized semantic output.
+**In progress on `dev` 1.4.37 (60).** `pnpm test:parity` executes 49 golden workflows through both `python/pydroid_flow/engine.py` and the bundled TypeScript/JavaScript engine, validates each runtime against fixture expectations, then compares normalized semantic output. The current suite covers 63 dual-runtime node types across table transforms, aggregation, control flow, temporary variables, file input, conversion, plots, pulse processing, TER analysis and error paths.
 
-Initial golden cases cover CSV parsing, column selection, range filtering, `head`, `difference`, `fillna`, scalar `len`, null/NaN semantics and a deliberate invalid-column error. Timing and traceback formatting are intentionally ignored; execution order, table shape/rows, node results, exports, error node/type and numerical values are compared.
+Scalar/object node previews expose a JSON-safe semantic `value` alongside their human-readable text, so parity compares actual output values instead of presentation formatting. Plot transport remains runtime-specific (Python PNG vs JavaScript interactive chart), so plot cases require valid artifacts on both sides without comparing bytes to chart objects. Python cases run in one batched interpreter process to keep the larger suite fast enough for routine checks.
 
-Read `docs/runtime-parity.md` before changing a dual-runtime node. Expand coverage by semantic domain; stateful/side-effecting/stochastic nodes require explicit test policies rather than naive double execution.
+The suite has already found and fixed real divergences in JSON `indent=0`, CSV terminal newlines, empty `pandas.describe(include=...)` handling and oscillating-pulse symmetry. Read `docs/runtime-parity.md` before changing a dual-runtime node. Remaining special categories include seeded random/sample policy, UI side-effect boundaries and visual subflow structures; these require explicit policies rather than naive exact double execution.

@@ -1,0 +1,656 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "scalar_len",
+      "description": "Table input -> scalar len output",
+      "csvText": "a,b\n1,2\n3,4\n5,6\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Parity len",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "长度",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "len"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "len"
+        ],
+        "valueResults": {
+          "len": "3"
+        }
+      }
+    },
+    {
+      "id": "for_range",
+      "description": "Control-flow range generator",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "for range",
+        "nodes": [
+          {
+            "id": "range",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "For",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": -2,
+                "stop": 5,
+                "step": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "range"
+        ],
+        "preview": {
+          "columns": [
+            "iteration",
+            "value"
+          ],
+          "rows": [
+            [
+              0,
+              -2
+            ],
+            [
+              1,
+              0
+            ],
+            [
+              2,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "totalRows": 4,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "while_number",
+      "description": "Safe while-number control node",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "while number",
+        "nodes": [
+          {
+            "id": "while",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "While",
+              "nodeType": "logic.while_number",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 1,
+                "condition": "value < 20",
+                "update": "value * 2",
+                "maxIterations": 10
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "while"
+        ],
+        "preview": {
+          "columns": [
+            "iteration",
+            "value"
+          ],
+          "rows": [
+            [
+              0,
+              1
+            ],
+            [
+              1,
+              2
+            ],
+            [
+              2,
+              4
+            ],
+            [
+              3,
+              8
+            ],
+            [
+              4,
+              16
+            ]
+          ],
+          "totalRows": 5,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "temporary_variable",
+      "description": "Write/read temporary workflow variable with ordering edge",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "variable",
+        "nodes": [
+          {
+            "id": "range",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "For",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 4,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "长度",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "set",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "设置变量",
+              "nodeType": "variable.set",
+              "nodeVersion": 1,
+              "parameters": {
+                "name": "count"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "get",
+            "position": {
+              "x": 600,
+              "y": 0
+            },
+            "data": {
+              "label": "读取变量",
+              "nodeType": "variable.get",
+              "nodeVersion": 1,
+              "parameters": {
+                "name": "count"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "range",
+            "target": "len"
+          },
+          {
+            "id": "e2",
+            "source": "len",
+            "target": "set"
+          },
+          {
+            "id": "e3",
+            "source": "set",
+            "target": "get",
+            "sourceHandle": "output",
+            "targetHandle": "previous"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "range",
+          "len",
+          "set",
+          "get"
+        ],
+        "valueResults": {
+          "len": "4",
+          "set": "4",
+          "get": "4"
+        }
+      }
+    },
+    {
+      "id": "if_merge_rows",
+      "description": "Split true/false branches then merge",
+      "csvText": "x,y\n1,a\n2,b\n3,c\n4,d\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "if merge",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "if",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "分支",
+              "nodeType": "logic.if_rows",
+              "nodeVersion": 1,
+              "parameters": {
+                "condition": "x >= 3"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "merge",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "合并",
+              "nodeType": "logic.merge_rows",
+              "nodeVersion": 1,
+              "parameters": {
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "if"
+          },
+          {
+            "id": "e2",
+            "source": "if",
+            "target": "merge",
+            "sourceHandle": "true",
+            "targetHandle": "left"
+          },
+          {
+            "id": "e3",
+            "source": "if",
+            "target": "merge",
+            "sourceHandle": "false",
+            "targetHandle": "right"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "if",
+          "merge"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              3,
+              "c"
+            ],
+            [
+              4,
+              "d"
+            ],
+            [
+              1,
+              "a"
+            ],
+            [
+              2,
+              "b"
+            ]
+          ],
+          "totalRows": 4,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "empty_sources",
+      "description": "Empty list/table source semantics",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "empty",
+        "nodes": [
+          {
+            "id": "table",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "空表",
+              "nodeType": "generate.empty_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "a,b"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "表长度",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "table",
+            "target": "len"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "table",
+          "len"
+        ],
+        "valueResults": {
+          "len": "0"
+        }
+      }
+    },
+    {
+      "id": "empty_list_len",
+      "description": "Empty list source semantics",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "empty list",
+        "nodes": [
+          {
+            "id": "list",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "空列表",
+              "nodeType": "generate.empty_list",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "长度",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "list",
+            "target": "len"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "list",
+          "len"
+        ],
+        "valueResults": {
+          "len": "0"
+        }
+      }
+    },
+    {
+      "id": "print_scalar",
+      "description": "Transparent print node keeps scalar output semantics",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "print",
+        "nodes": [
+          {
+            "id": "range",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "Range",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 3,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 160,
+              "y": 0
+            },
+            "data": {
+              "label": "Len",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print",
+            "position": {
+              "x": 320,
+              "y": 0
+            },
+            "data": {
+              "label": "Print",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "N=",
+                "format": "pretty",
+                "includeType": true,
+                "maxRows": 20,
+                "maxChars": 8000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": ""
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "range",
+            "target": "len"
+          },
+          {
+            "id": "e2",
+            "source": "len",
+            "target": "print"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "range",
+          "len",
+          "print"
+        ],
+        "valueResults": {
+          "len": "3"
+        }
+      }
+    },
+    {
+      "id": "markdown_cell",
+      "description": "Notebook markdown carrier is runtime-neutral",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "markdown",
+        "nodes": [
+          {
+            "id": "md",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "Markdown",
+              "nodeType": "notebook.markdown_cell",
+              "nodeVersion": 1,
+              "parameters": {
+                "source": "# 标题\\n内容",
+                "metadataJson": "{}",
+                "notebookMetadataJson": "{}"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "md"
+        ]
+      }
+    }
+  ]
+}

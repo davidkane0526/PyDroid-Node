@@ -1,3 +1,12 @@
+## 2026-08-19 — Phase 5 expanded golden parity / 1.4.37 (60)
+
+- No additional real-device acceptance is required for this Phase 5 increment; the work is engine-to-engine semantic verification and is covered automatically.
+- Golden parity now runs 49 workflows and covers 63 dual-runtime node types including table transforms, aggregation, control flow, variables, file input including binary images, plots, pulse/TER processing and error behavior.
+- Scalar/object node previews now carry JSON-safe semantic `value` data, allowing runtime parity to ignore presentational text differences while still checking actual outputs.
+- Fixed parity regressions in JS JSON indent=0 formatting, CSV terminal-newline behavior, `pandas.describe` empty include semantics and oscillating pulse symmetry.
+- Python parity cases are batched into one interpreter process so the larger suite remains practical.
+- Build script revision: `1.4.37-dev-r13-phase5-parity`.
+
 ## 2026-08-19 — Phase 4 frozen / Phase 5 golden parity started / 1.4.36 (59)
 
 - Phase 4 Unified NodeSpec / Node Contract is complete/frozen. All 71 visible NodeSpec entries explicitly declare runtime support; NodeContract owns runtime/state/cache/function/version semantics used by Runtime Auto, JavaScript compatibility, workflow validation and speculative pre-execution policy.

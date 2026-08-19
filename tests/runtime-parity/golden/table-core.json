@@ -1,0 +1,1378 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "csv_filter_head",
+      "description": "CSV -> select columns -> range filter -> head",
+      "csvText": "x,y,z\n-1,10,a\n0,20,b\n1,30,c\n2,40,d\n3,50,e\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Parity CSV filter",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "select",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "选择列",
+              "nodeType": "table.select_columns",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "0,1"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "filter",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "范围筛选",
+              "nodeType": "table.filter_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "column": 0,
+                "min": "0",
+                "max": "2"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "head",
+            "position": {
+              "x": 600,
+              "y": 0
+            },
+            "data": {
+              "label": "前两行",
+              "nodeType": "pandas.head",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "select"
+          },
+          {
+            "id": "e2",
+            "source": "select",
+            "target": "filter"
+          },
+          {
+            "id": "e3",
+            "source": "filter",
+            "target": "head"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "select",
+          "filter",
+          "head"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              0,
+              20
+            ],
+            [
+              1,
+              30
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        },
+        "nodePreviews": {
+          "filter": {
+            "columns": [
+              "x",
+              "y"
+            ],
+            "rows": [
+              [
+                0,
+                20
+              ],
+              [
+                1,
+                30
+              ],
+              [
+                2,
+                40
+              ]
+            ],
+            "totalRows": 3,
+            "totalColumns": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "difference_fillna",
+      "description": "Difference introduces null/NaN then fillna normalizes values",
+      "csvText": "a,b\n1,10\n3,15\n6,25\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Parity difference",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "diff",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "差分",
+              "nodeType": "table.difference",
+              "nodeVersion": 1,
+              "parameters": {
+                "periods": 1,
+                "axis": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "fill",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "填充空值",
+              "nodeType": "pandas.fillna",
+              "nodeVersion": 1,
+              "parameters": {
+                "method": "value",
+                "value": "0"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "diff"
+          },
+          {
+            "id": "e2",
+            "source": "diff",
+            "target": "fill"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "diff",
+          "fill"
+        ],
+        "preview": {
+          "columns": [
+            "a",
+            "b"
+          ],
+          "rows": [
+            [
+              0,
+              0
+            ],
+            [
+              2,
+              5
+            ],
+            [
+              3,
+              10
+            ]
+          ],
+          "totalRows": 3,
+          "totalColumns": 2
+        },
+        "nodePreviews": {
+          "diff": {
+            "columns": [
+              "a",
+              "b"
+            ],
+            "rows": [
+              [
+                null,
+                null
+              ],
+              [
+                2,
+                5
+              ],
+              [
+                3,
+                10
+              ]
+            ],
+            "totalRows": 3,
+            "totalColumns": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "rename_sort_tail",
+      "description": "Rename columns -> descending sort -> tail",
+      "csvText": "a,b\n1,40\n2,10\n3,30\n4,20\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "rename sort tail",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "rename",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "重命名",
+              "nodeType": "table.rename_columns",
+              "nodeVersion": 1,
+              "parameters": {
+                "names": "x,y"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sort",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "排序",
+              "nodeType": "pandas.sort_values",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "y",
+                "ascending": false,
+                "naPosition": "last"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "tail",
+            "position": {
+              "x": 600,
+              "y": 0
+            },
+            "data": {
+              "label": "末两行",
+              "nodeType": "pandas.tail",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "rename"
+          },
+          {
+            "id": "e2",
+            "source": "rename",
+            "target": "sort"
+          },
+          {
+            "id": "e3",
+            "source": "sort",
+            "target": "tail"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "rename",
+          "sort",
+          "tail"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              4,
+              20
+            ],
+            [
+              2,
+              10
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "dropna_dedup_round",
+      "description": "Drop missing -> drop duplicates -> round",
+      "csvText": "x,y\n1.234,10\n1.234,10\n,20\n3.456,30\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "clean round",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "dropna",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "删除空值",
+              "nodeType": "pandas.dropna",
+              "nodeVersion": 1,
+              "parameters": {
+                "how": "any",
+                "subset": "x"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "dedup",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "去重",
+              "nodeType": "pandas.drop_duplicates",
+              "nodeVersion": 1,
+              "parameters": {
+                "subset": "x,y",
+                "keep": "first",
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "round",
+            "position": {
+              "x": 600,
+              "y": 0
+            },
+            "data": {
+              "label": "取整",
+              "nodeType": "pandas.round",
+              "nodeVersion": 1,
+              "parameters": {
+                "decimals": 1
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "dropna"
+          },
+          {
+            "id": "e2",
+            "source": "dropna",
+            "target": "dedup"
+          },
+          {
+            "id": "e3",
+            "source": "dedup",
+            "target": "round"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "dropna",
+          "dedup",
+          "round"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              1.2,
+              10
+            ],
+            [
+              3.5,
+              30
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "slice_transpose",
+      "description": "Row/column slice then transpose",
+      "csvText": "a,b,c\n1,2,3\n4,5,6\n7,8,9\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "slice transpose",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "slice",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "切片",
+              "nodeType": "table.slice",
+              "nodeVersion": 1,
+              "parameters": {
+                "rowStart": 0,
+                "rowStop": 2,
+                "rowStep": 1,
+                "columnStart": 0,
+                "columnStop": 2,
+                "columnStep": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "transpose",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "转置",
+              "nodeType": "table.transpose",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "slice"
+          },
+          {
+            "id": "e2",
+            "source": "slice",
+            "target": "transpose"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "slice",
+          "transpose"
+        ]
+      }
+    },
+    {
+      "id": "groupby_sum",
+      "description": "Group by a text column and sum numeric columns",
+      "csvText": "group,x,y\nA,1,10\nB,2,20\nA,3,30\nB,4,40\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "groupby",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "group",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "分组",
+              "nodeType": "table.groupby_aggregate",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupBy": "group",
+                "method": "sum"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "group"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "group"
+        ]
+      }
+    },
+    {
+      "id": "concat_axis0",
+      "description": "Two table sources concatenate vertically",
+      "csvText": "a,b\n1,2\n3,4\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "concat",
+        "nodes": [
+          {
+            "id": "left",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "左表",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "right",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "右表",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "concat",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "拼接",
+              "nodeType": "table.concat",
+              "nodeVersion": 1,
+              "parameters": {
+                "axis": 0,
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "left",
+            "target": "concat",
+            "sourceHandle": "output",
+            "targetHandle": "left"
+          },
+          {
+            "id": "e2",
+            "source": "right",
+            "target": "concat",
+            "sourceHandle": "output",
+            "targetHandle": "right"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "left",
+          "right",
+          "concat"
+        ],
+        "preview": {
+          "columns": [
+            "a",
+            "b"
+          ],
+          "rows": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ],
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "totalRows": 4,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "absolute_query",
+      "description": "Absolute values then expression query",
+      "csvText": "x,y\n-3,2\n-1,4\n2,-6\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "abs query",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "abs",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "绝对值",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "query",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "筛选",
+              "nodeType": "pandas.query",
+              "nodeVersion": 1,
+              "parameters": {
+                "expression": "x >= 2 and y >= 2"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "abs"
+          },
+          {
+            "id": "e2",
+            "source": "abs",
+            "target": "query"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "abs",
+          "query"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              3,
+              2
+            ],
+            [
+              2,
+              6
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "group_aggregate",
+      "description": "Fixed-size group aggregation",
+      "csvText": "x,y\n1,10\n3,30\n5,50\n7,70\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "group aggregate",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "group",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "聚合",
+              "nodeType": "table.group_aggregate",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupSize": 2,
+                "startRow": 0,
+                "endRow": 2,
+                "method": "mean"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "group"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "group"
+        ]
+      }
+    },
+    {
+      "id": "pivot_mean",
+      "description": "Long table pivot with mean aggregation",
+      "csvText": "r,c,v\nA,X,1\nA,Y,2\nB,X,3\nB,Y,4\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "pivot",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "pivot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "透视",
+              "nodeType": "table.pivot",
+              "nodeVersion": 1,
+              "parameters": {
+                "index": "r",
+                "columns": "c",
+                "values": "v",
+                "aggregate": "mean",
+                "resetIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "pivot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "pivot"
+        ]
+      }
+    },
+    {
+      "id": "periodic_window",
+      "description": "Periodic row window selection",
+      "csvText": "x\n0\n1\n2\n3\n4\n5\n6\n7\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "periodic window",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "window",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "周期窗口",
+              "nodeType": "table.periodic_window",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupSize": 4,
+                "count": 2,
+                "position": "end",
+                "offset": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "window"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "window"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              2
+            ],
+            [
+              3
+            ],
+            [
+              6
+            ],
+            [
+              7
+            ]
+          ],
+          "totalRows": 4,
+          "totalColumns": 1
+        }
+      }
+    },
+    {
+      "id": "periodic_tail_mean",
+      "description": "Periodic group tail mean",
+      "csvText": "x,y\n1,10\n3,30\n5,50\n7,70\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "tail mean",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "mean",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "尾均值",
+              "nodeType": "table.periodic_tail_mean",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupSize": 2,
+                "tailRows": 1
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "mean"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "mean"
+        ]
+      }
+    },
+    {
+      "id": "describe_numeric",
+      "description": "Numeric describe statistics",
+      "csvText": "x,y\n1,10\n2,20\n3,30\n4,40\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "describe",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "describe",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "统计",
+              "nodeType": "pandas.describe",
+              "nodeVersion": 1,
+              "parameters": {
+                "percentiles": "0.25,0.5,0.75",
+                "include": "",
+                "exclude": ""
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "describe"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "describe"
+        ]
+      }
+    },
+    {
+      "id": "sort_index_columns",
+      "description": "Sort table columns by column index labels",
+      "csvText": "c,a,b\n3,1,2\n6,4,5\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "sort columns",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sort",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "索引排序",
+              "nodeType": "table.sort_index",
+              "nodeVersion": 1,
+              "parameters": {
+                "axis": 1,
+                "ascending": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "sort"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "sort"
+        ],
+        "preview": {
+          "columns": [
+            "a",
+            "b",
+            "c"
+          ],
+          "rows": [
+            [
+              1,
+              2,
+              3
+            ],
+            [
+              4,
+              5,
+              6
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 3
+        }
+      }
+    },
+    {
+      "id": "reset_index",
+      "description": "Reset row index after filtered table",
+      "csvText": "x,y\n1,a\n2,b\n3,c\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "reset index",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "filter",
+            "position": {
+              "x": 160,
+              "y": 0
+            },
+            "data": {
+              "label": "筛选",
+              "nodeType": "table.filter_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "column": 0,
+                "min": "2",
+                "max": ""
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "reset",
+            "position": {
+              "x": 320,
+              "y": 0
+            },
+            "data": {
+              "label": "重置索引",
+              "nodeType": "table.reset_index",
+              "nodeVersion": 1,
+              "parameters": {
+                "drop": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "filter"
+          },
+          {
+            "id": "e2",
+            "source": "filter",
+            "target": "reset"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "filter",
+          "reset"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              2,
+              "b"
+            ],
+            [
+              3,
+              "c"
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    }
+  ]
+}

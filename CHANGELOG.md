@@ -1,9 +1,18 @@
+## 1.4.37 (60) — expanded Phase 5 runtime parity — 2026-08-19
+
+- Expanded Python ↔ JavaScript golden parity from 4 to 49 workflows, covering 63 dual-runtime node types across table transforms, missing values, aggregation, control flow, temporary variables, file input including binary images, conversion, plots, pulse processing, TER analysis and error paths.
+- Added JSON-safe semantic values to scalar/object node previews so parity compares real output values instead of runtime-specific human-readable formatting. Synthetic one-cell fallback previews are ignored when no table node executed.
+- Plot parity now verifies both runtime-specific artifacts (Python PNG and JavaScript interactive chart) while deliberately not comparing PNG bytes against ECharts objects.
+- Batched all Python parity cases into one Python 3.13 process, greatly reducing repeated pandas/matplotlib startup cost as the suite grows.
+- Fixed four real Python/JavaScript parity defects discovered by the expanded suite: JSON stringify `indent=0` formatting, missing terminal newline in JavaScript CSV conversion/export, empty `pandas.describe(include=...)` handling, and asymmetric JavaScript oscillating-pulse ramp amplitudes.
+- Build script revision: `1.4.37-dev-r13-phase5-parity`.
+
 ## 1.4.36 (59) — Phase 4 complete + Phase 5 golden runtime parity — 2026-08-19
 
 - Completed/froze Phase 4 Unified NodeSpec / Node Contract. Every visible NodeSpec now explicitly declares runtime support; NodeSpec also exposes `nodeVersion` for future per-node migration. Runtime Auto, JavaScript unsupported-node diagnostics, workflow import validation and speculative preview safety use NodeContract-derived helpers.
 - Workflow validation now rejects unknown/newer node versions, explicit unknown ports and declared incompatible port types while preserving dynamic `custom.python_function` signature handles and dynamic workflow-group ports.
 - Fixed build-tool smoke maintenance: the build-script revision assertion now checks that the revision starts with the package version instead of hard-coding one release string.
-- Started Phase 5 with `pnpm test:parity` and `tests/runtime-parity/golden-workflows.json`. The harness runs identical workflows in Python 3.13 and the bundled JS engine, validates fixture expectations, and compares execution order, tables, node results, exports, numeric values/null semantics and error identity.
+- Started Phase 5 with `pnpm test:parity` and `tests/runtime-parity/golden/*.json`. The harness runs identical workflows in Python 3.13 and the bundled JS engine, validates fixture expectations, and compares execution order, tables, node results, exports, numeric values/null semantics and error identity.
 - Initial parity suite: 4/4 golden workflows covering `io.read_csv`, `table.select_columns`, `table.filter_range`, `pandas.head`, `table.difference`, `pandas.fillna` and `python.len`, including a deliberate invalid-column error path.
 - Build script revision: `1.4.36-dev-r12-phase5-parity`.
 

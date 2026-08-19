@@ -1,0 +1,521 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "plot_line",
+      "description": "Line plot semantic parity",
+      "csvText": "x,y\n0,1\n1,3\n2,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "plot line",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "折线",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "x",
+                "yColumns": "y",
+                "title": "Golden",
+                "xLabel": "X",
+                "yLabel": "Y",
+                "legend": true,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 1.5,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "plot_scatter",
+      "description": "Scatter plot artifact parity",
+      "csvText": "x,y\n0,1\n1,4\n2,9\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "scatter",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "散点",
+              "nodeType": "plot.scatter",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "x",
+                "yColumns": "y",
+                "title": "Scatter",
+                "xLabel": "X",
+                "yLabel": "Y",
+                "legend": true,
+                "grid": true,
+                "scientificNotation": true,
+                "pointSize": 24,
+                "alpha": 0.8,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "plot_bar",
+      "description": "柱状 plot artifact parity",
+      "csvText": "x,y\n0,1\n1,2\n2,4\n3,8\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "柱状",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "柱状",
+              "nodeType": "plot.bar",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "x",
+                "yColumns": "y",
+                "title": "Bar",
+                "xLabel": "X",
+                "yLabel": "Y",
+                "legend": true,
+                "grid": true,
+                "scientificNotation": true,
+                "alpha": 0.8,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "plot_histogram",
+      "description": "直方图 plot artifact parity",
+      "csvText": "x,y\n0,1\n1,2\n2,4\n3,8\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "直方图",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "直方图",
+              "nodeType": "plot.histogram",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "",
+                "yColumns": "y",
+                "title": "Hist",
+                "xLabel": "",
+                "yLabel": "",
+                "legend": true,
+                "grid": true,
+                "scientificNotation": true,
+                "bins": 4,
+                "alpha": 0.8,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "plot_box",
+      "description": "箱线 plot artifact parity",
+      "csvText": "x,y\n0,1\n1,2\n2,4\n3,8\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "箱线",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "箱线",
+              "nodeType": "plot.box",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "",
+                "yColumns": "y",
+                "title": "Box",
+                "xLabel": "",
+                "yLabel": "",
+                "legend": true,
+                "grid": true,
+                "scientificNotation": true,
+                "alpha": 0.8,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "plot_area",
+      "description": "面积 plot artifact parity",
+      "csvText": "x,y\n0,1\n1,2\n2,4\n3,8\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "面积",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "面积",
+              "nodeType": "plot.area",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "x",
+                "yColumns": "y",
+                "title": "Area",
+                "xLabel": "X",
+                "yLabel": "Y",
+                "legend": true,
+                "grid": true,
+                "scientificNotation": true,
+                "alpha": 0.8,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "plot_heatmap",
+      "description": "Heatmap artifact parity",
+      "csvText": "row,a,b\nR1,1,2\nR2,3,4\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "heatmap",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "热图",
+              "nodeType": "plot.heatmap",
+              "nodeVersion": 1,
+              "parameters": {
+                "rowLabelColumn": "row",
+                "title": "Heat",
+                "xLabel": "列",
+                "yLabel": "行",
+                "xTickInterval": 1,
+                "yTickInterval": 1,
+                "xTickRotation": 0,
+                "origin": "lower",
+                "aspect": "auto",
+                "interpolation": "nearest",
+                "colorMap": "viridis",
+                "colorMin": null,
+                "colorMax": null,
+                "showColorBar": true,
+                "colorBarLabel": "",
+                "figureWidth": 9,
+                "figureHeight": 6,
+                "dpi": 160
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "plot"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "plot"
+        ],
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    }
+  ]
+}

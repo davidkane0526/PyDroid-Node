@@ -247,7 +247,7 @@ def test_python_builtin_len_reports_a_scalar_node_result():
         "1,10\n2,20\n3,30\n",
     )
     assert result["status"] == "success"
-    assert result["nodeResults"]["length"] == {"kind": "value", "text": "3"}
+    assert result["nodeResults"]["length"] == {"kind": "value", "text": "3", "value": 3}
 
 
 def test_python_print_reports_text_and_preserves_the_original_table_for_downstream_nodes():
@@ -282,7 +282,7 @@ def test_python_print_decodes_bytes_with_the_configured_encoding():
 @pytest.mark.parametrize("response", [True, False, None])
 def test_alert_returns_the_selected_response(response):
     result = execute([node("read", "io.read_csv"), node("alert", "ui.alert", {"title": "选择", "message": "继续吗", "response": response})], [])
-    assert result["nodeResults"]["alert"] == {"kind": "value", "text": f"选择：继续吗\n选择：{response!r}"}
+    assert result["nodeResults"]["alert"] == {"kind": "value", "text": f"选择：继续吗\n选择：{response!r}", "value": response}
 
 
 def test_conditional_branch_routes_true_and_false_ports():

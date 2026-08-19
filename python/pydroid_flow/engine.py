@@ -1322,6 +1322,37 @@ def _pulse_segment_measurement(inputs: dict[str, Any], params: dict[str, Any]) -
     return pd.DataFrame(rows)
 
 
+def _semantic_value(value: Any) -> Any:
+    """Return a JSON-safe semantic value for runtime parity and API consumers.
+
+    Human-readable node preview text is intentionally kept separate because its
+    formatting may differ between runtimes without changing workflow semantics.
+    """
+    if value is None or isinstance(value, (str, bool, int)):
+        return value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, pd.DataFrame):
+        return [{str(key): _semantic_value(item) for key, item in row.items()} for row in value.to_dict(orient="records")]
+    if isinstance(value, pd.Series):
+        return [_semantic_value(item) for item in value.tolist()]
+    if isinstance(value, dict):
+        return {str(key): _semantic_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_semantic_value(item) for item in value]
+    if hasattr(value, "item"):
+        try:
+            return _semantic_value(value.item())
+        except (TypeError, ValueError):
+            pass
+    if hasattr(value, "isoformat"):
+        try:
+            return value.isoformat()
+        except (TypeError, ValueError):
+            pass
+    return str(value)
+
+
 def _preview(frame: pd.DataFrame, limit: int = 500) -> dict[str, Any]:
     head = frame.head(limit).copy()
     head = head.replace([float("inf"), float("-inf")], pd.NA)
@@ -2242,17 +2273,17 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
         # Print and alert nodes are transparent for dataflow, but their captured
         # text must win over a table preview so every print stays visible.
         if "__print__" in outputs:
-            node_results[node_id] = {"kind": "value", "text": str(outputs["__print__"])}
+            node_results[node_id] = {"kind": "value", "text": str(outputs["__print__"]), "value": _semantic_value(outputs.get("output", outputs["__print__"]))}
         elif plot_result is not None:
             node_results[node_id] = {"kind": "plot", "plotPngBase64": plot_result}
         elif table_result is not None:
             node_results[node_id] = {"kind": "table", "preview": _preview(table_result, limit=200)}
         elif export_result is not None:
-            node_results[node_id] = {"kind": "value", "text": f"CSV · {len(export_result)} characters"}
+            node_results[node_id] = {"kind": "value", "text": f"CSV · {len(export_result)} characters", "value": export_result}
         else:
             display = outputs.get("output", next(iter(outputs.values()), None))
             if display is not None:
-                node_results[node_id] = {"kind": "value", "text": _printable(display, 4_000)}
+                node_results[node_id] = {"kind": "value", "text": _printable(display, 4_000), "value": _semantic_value(display)}
 
     if latest_table is None:
         latest_table = pd.DataFrame({"result": [_printable(latest_value)]})

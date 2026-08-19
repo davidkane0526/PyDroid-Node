@@ -54,7 +54,7 @@ export type PlotExecutionPreview = {
 export type NodeExecutionPreview =
   | { kind: "table"; preview: TablePreview }
   | PlotExecutionPreview
-  | { kind: "value"; text: string };
+  | { kind: "value"; text: string; value?: unknown };
 
 export type ExecutionResult = {
   status: "success";

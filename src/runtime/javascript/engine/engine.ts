@@ -30,6 +30,15 @@ type WorkflowNode = { id: string; data: { nodeType: string; parameters: Record<s
 type WorkflowEdge = { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null };
 type Workflow = { nodes: WorkflowNode[]; edges: WorkflowEdge[] };
 
+function semanticValue(value: unknown): unknown {
+  if (value instanceof Table) return value.records();
+  if (Array.isArray(value)) return value.map(semanticValue);
+  if (value && typeof value === "object") return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, semanticValue(item)]));
+  if (typeof value === "number" && !Number.isFinite(value)) return null;
+  if (["string", "number", "boolean"].includes(typeof value) || value === null) return value;
+  return String(value);
+}
+
 function decodeJsonCompatible(text: string, label: string): unknown {
   try {
     return JSON.parse(text);
@@ -512,17 +521,17 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
       values.set(nodeId, outputs);
       latestValue = outputs.output ?? Object.values(outputs)[0] ?? latestValue;
       if ("__print__" in outputs) {
-        nodeResults[nodeId] = { kind: "value", text: String(outputs.__print__) };
+        nodeResults[nodeId] = { kind: "value", text: String(outputs.__print__), value: semanticValue(outputs.output ?? outputs.__print__) };
       } else if (plotResult) {
         nodeResults[nodeId] = { kind: "plot", chart: plotResult };
       } else if (tableResult) {
         nodeResults[nodeId] = { kind: "table", preview: tableResult.preview(200) };
       } else if (exportResult !== null && exportResult !== undefined) {
-        nodeResults[nodeId] = { kind: "value", text: `CSV · ${exportResult.length} characters` };
+        nodeResults[nodeId] = { kind: "value", text: `CSV · ${exportResult.length} characters`, value: exportResult };
       } else {
         const display = outputs.output ?? Object.values(outputs)[0] ?? null;
         if (display !== null && display !== undefined) {
-          nodeResults[nodeId] = { kind: "value", text: printableText(display, 4000) };
+          nodeResults[nodeId] = { kind: "value", text: printableText(display, 4000), value: semanticValue(display) };
         }
       }
     }

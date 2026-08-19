@@ -1,0 +1,824 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "records_json",
+      "description": "Table records -> JSON text conversion",
+      "csvText": "a,b\n1,x\n2,y\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "records json",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "records",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "记录列表",
+              "nodeType": "convert.table_to_records",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "json",
+            "position": {
+              "x": 400,
+              "y": 0
+            },
+            "data": {
+              "label": "JSON",
+              "nodeType": "convert.json_stringify",
+              "nodeVersion": 1,
+              "parameters": {
+                "indent": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "records"
+          },
+          {
+            "id": "e2",
+            "source": "records",
+            "target": "json"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "records",
+          "json"
+        ]
+      }
+    },
+    {
+      "id": "read_text_to_number",
+      "description": "Read text input file -> number -> round",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "value.txt",
+          "text": "12.345"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "text number",
+        "nodes": [
+          {
+            "id": "text",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "文本",
+              "nodeType": "io.read_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "number",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "数字",
+              "nodeType": "convert.to_number",
+              "nodeVersion": 1,
+              "parameters": {
+                "integer": false
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "round",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "舍入",
+              "nodeType": "python.round",
+              "nodeVersion": 1,
+              "parameters": {
+                "digits": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "text",
+            "target": "number"
+          },
+          {
+            "id": "e2",
+            "source": "number",
+            "target": "round"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "text",
+          "number",
+          "round"
+        ],
+        "valueResults": {
+          "number": "12.345",
+          "round": "12.35"
+        }
+      }
+    },
+    {
+      "id": "read_json_roundtrip",
+      "description": "Read JSON file -> stringify",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "data.json",
+          "text": "{\"a\":1,\"items\":[2,3]}"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "json roundtrip",
+        "nodes": [
+          {
+            "id": "json",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "JSON",
+              "nodeType": "io.read_json",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "string",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "字符串",
+              "nodeType": "convert.json_stringify",
+              "nodeVersion": 1,
+              "parameters": {
+                "indent": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "json",
+            "target": "string"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "json",
+          "string"
+        ]
+      }
+    },
+    {
+      "id": "json_parse_roundtrip",
+      "description": "Text JSON parse -> stringify",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "data.txt",
+          "text": "[1,{\"x\":true},null]"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "parse json",
+        "nodes": [
+          {
+            "id": "text",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "文本",
+              "nodeType": "io.read_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "parse",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "解析",
+              "nodeType": "convert.json_parse",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "string",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "字符串",
+              "nodeType": "convert.json_stringify",
+              "nodeVersion": 1,
+              "parameters": {
+                "indent": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "text",
+            "target": "parse"
+          },
+          {
+            "id": "e2",
+            "source": "parse",
+            "target": "string"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "text",
+          "parse",
+          "string"
+        ]
+      }
+    },
+    {
+      "id": "table_to_csv",
+      "description": "Table -> CSV text conversion",
+      "csvText": "a,b\n1,x\n2,y\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "table csv",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "csv",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "CSV 文本",
+              "nodeType": "convert.table_to_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "includeIndex": false
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "csv"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "csv"
+        ]
+      }
+    },
+    {
+      "id": "export_csv",
+      "description": "CSV export node returns same content semantics",
+      "csvText": "a,b\n1,x\n2,y\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "export csv",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "export",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "导出",
+              "nodeType": "io.export_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileName": "golden.csv",
+                "includeIndex": false
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "export"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "export"
+        ]
+      }
+    },
+    {
+      "id": "to_boolean",
+      "description": "Text to boolean conversion",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "bool.txt",
+          "text": "yes"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "bool",
+        "nodes": [
+          {
+            "id": "text",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "文本",
+              "nodeType": "io.read_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "bool",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "布尔",
+              "nodeType": "convert.to_boolean",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "text",
+            "target": "bool"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "text",
+          "bool"
+        ],
+        "semanticValueResults": {
+          "bool": true
+        }
+      }
+    },
+    {
+      "id": "records_to_table",
+      "description": "JSON records -> object -> table",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "records.json",
+          "text": "[{\"a\":1,\"b\":2},{\"a\":3,\"b\":4}]"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "records table",
+        "nodes": [
+          {
+            "id": "json",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "JSON",
+              "nodeType": "io.read_json",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "table",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "表格",
+              "nodeType": "convert.to_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "csvText": false
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "json",
+            "target": "table"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "json",
+          "table"
+        ],
+        "preview": {
+          "columns": [
+            "a",
+            "b"
+          ],
+          "rows": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "read_table_tsv",
+      "description": "Generic table reader auto-detects TSV",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "data.tsv",
+          "text": "a\tb\n1\t2\n3\t4\n"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "read tsv",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取表格",
+              "nodeType": "io.read_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "separator": "auto",
+                "header": true,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read"
+        ],
+        "preview": {
+          "columns": [
+            "a",
+            "b"
+          ],
+          "rows": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "read_csv_batch",
+      "description": "Batch CSV reader with source and filename metadata",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "sample_vg=-1v.csv",
+          "text": "x,y\n1,10\n"
+        },
+        {
+          "name": "sample_vg=2v.csv",
+          "text": "x,y\n2,20\n"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "batch",
+        "nodes": [
+          {
+            "id": "batch",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "批量读取",
+              "nodeType": "io.read_csv_batch",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer",
+                "skipRows": 0,
+                "useColumns": "",
+                "encoding": "utf-8",
+                "sourceColumn": "source_file",
+                "metadataColumn": "Vg_V",
+                "filenamePattern": "vg\\s*=\\s*([-+]?\\d+(?:\\.\\d+)?)\\s*v",
+                "onError": "error"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "batch"
+        ]
+      }
+    },
+    {
+      "id": "convert_to_text",
+      "description": "Scalar conversion to text",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "to text",
+        "nodes": [
+          {
+            "id": "range",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "范围",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 3,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 160,
+              "y": 0
+            },
+            "data": {
+              "label": "长度",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "text",
+            "position": {
+              "x": 320,
+              "y": 0
+            },
+            "data": {
+              "label": "文本",
+              "nodeType": "convert.to_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "pretty": false
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "range",
+            "target": "len"
+          },
+          {
+            "id": "e2",
+            "source": "len",
+            "target": "text"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "range",
+          "len",
+          "text"
+        ],
+        "semanticValueResults": {
+          "text": "3"
+        }
+      }
+    },
+    {
+      "id": "read_image",
+      "description": "Binary image input produces runtime-specific plot artifact",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "pixel.png",
+          "text": "",
+          "base64": "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP8z8DAwMDAxMDAwMDAAAANHQEDasKb6QAAAABJRU5ErkJggg=="
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "image",
+        "nodes": [
+          {
+            "id": "image",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取图片",
+              "nodeType": "io.read_image",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "image"
+        ],
+        "plotNodes": [
+          "image"
+        ]
+      }
+    }
+  ]
+}

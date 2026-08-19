@@ -482,15 +482,21 @@ function oscillatingPulseRamp(params: Record<string, unknown>): Table {
   const count = Math.max(0, Math.ceil(total / interval) - 1);
   if (count > 100_000) throw new Error("Oscillating pulse waveform exceeds the 100000-row safety limit");
   const rows: Array<Array<number>> = [];
-  let amplitude = step;
+  let magnitude = step;
+  let sign = 1;
   for (let index = 0; index < count; index += 1) {
     const moment = (index + 1) * interval;
     if (index % 2 === 0) {
       rows.push([moment, 0, fixed, gate]);
     } else {
-      rows.push([moment, amplitude, 0, gate]);
-      amplitude = -amplitude;
-      if (index % 4 === 1) amplitude += amplitude > 0 ? step : -step;
+      rows.push([moment, sign * magnitude, 0, gate]);
+      // Match the Python runtime exactly: +step, -step, +2*step, -2*step, …
+      // and only advance magnitude after the negative half-cycle completes.
+      if (sign > 0) sign = -1;
+      else {
+        sign = 1;
+        magnitude += step;
+      }
     }
   }
   return new Table(["time_s", "port1_V", "port2_V", "port3_V"], rows);
@@ -838,7 +844,7 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
       const percentiles = parameterList(params.percentiles).map((item) => Number(item));
       const includeText = String(params.include ?? "").trim();
       const excludeText = String(params.exclude ?? "").trim();
-      const include = includeText === "all" ? "all" as const : parameterList(includeText).map(String);
+      const include = includeText === "all" ? "all" as const : includeText ? parameterList(includeText).map(String) : null;
       const exclude = excludeText ? parameterList(excludeText).map(String) : null;
       const value = frame.describe(percentiles, include, exclude);
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
@@ -964,7 +970,7 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
       return { outputs: { output: chart }, tableResult, plotResult: chart, exportResult };
     }
     case "io.export_csv": {
-      const content = table().toCSV(false, "\n");
+      const content = `${table().toCSV(false, "\n")}\n`;
       return { outputs: { output: content }, tableResult, plotResult, exportResult: content };
     }
     case "convert.to_text": {
@@ -1009,7 +1015,7 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "convert.table_to_csv": {
-      const value = table().toCSV(asBool(params.includeIndex ?? false), "\n");
+      const value = `${table().toCSV(asBool(params.includeIndex ?? false), "\n")}\n`;
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "convert.json_parse": {
@@ -1017,7 +1023,13 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
     }
     case "convert.json_stringify": {
       const indent = Math.max(0, Math.min(8, Number(params.indent ?? 2)));
-      const value = JSON.stringify(jsonSafe(upstream), null, indent);
+      const safe = jsonSafe(upstream);
+      // Python json.dumps(..., indent=0) is newline-formatted with zero leading
+      // indentation; JSON.stringify(..., null, 0) is compact. Preserve Python
+      // semantics so the node is runtime-neutral.
+      const value = indent === 0
+        ? JSON.stringify(safe, null, 1).split("\n").map((line) => line.trimStart()).join("\n")
+        : JSON.stringify(safe, null, indent);
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "python.len": {

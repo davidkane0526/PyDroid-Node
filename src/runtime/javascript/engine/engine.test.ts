@@ -82,7 +82,7 @@ describe("工作流执行", () => {
   it("原生空列表和空 DataFrame 在 JS 后端可作为显式数据源", () => {
     const emptyList = run({ nodes: [node("list", "generate.empty_list")], edges: [] });
     expect(emptyList.status).toBe("success");
-    expect((emptyList.nodeResults as Record<string, { kind: string; text?: string }>).list).toEqual({ kind: "value", text: "[]" });
+    expect((emptyList.nodeResults as Record<string, { kind: string; text?: string; value?: unknown }>).list).toEqual({ kind: "value", text: "[]", value: [] });
 
     const emptyTable = run({ nodes: [node("table", "generate.empty_table", { columns: ["x", "y"] })], edges: [] });
     expect(emptyTable.status).toBe("success");

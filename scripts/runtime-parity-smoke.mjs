@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -7,8 +7,16 @@ import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
 const root = path.resolve(import.meta.dirname, "..");
-const fixturePath = path.join(root, "tests", "runtime-parity", "golden-workflows.json");
-const fixtures = JSON.parse(readFileSync(fixturePath, "utf8"));
+const fixtureRoot = path.join(root, "tests", "runtime-parity", "golden");
+const fixtureFiles = readdirSync(fixtureRoot).filter((file) => file.endsWith(".json")).sort();
+const fixtures = {
+  schemaVersion: 1,
+  cases: fixtureFiles.flatMap((file) => {
+    const document = JSON.parse(readFileSync(path.join(fixtureRoot, file), "utf8"));
+    if (document.schemaVersion !== 1 || !Array.isArray(document.cases)) fail(`Invalid parity fixture document: ${file}`);
+    return document.cases;
+  }),
+};
 const tempRoot = path.join(os.tmpdir(), `pydroid-runtime-parity-${process.pid}`);
 const engineRoot = path.join(root, "src", "runtime", "javascript", "engine");
 const compiledRoot = path.join(tempRoot, "js-engine");
@@ -69,17 +77,25 @@ function pythonCandidates() {
   ];
 }
 
-function runPython(testCase) {
-  const input = JSON.stringify({ workflow: testCase.workflow, csvText: testCase.csvText ?? "", inputFiles: testCase.inputFiles ?? [] });
+function runPythonBatch(testCases) {
+  const input = JSON.stringify({ cases: testCases.map((testCase) => ({ workflow: testCase.workflow, csvText: testCase.csvText ?? "", inputFiles: testCase.inputFiles ?? [] })) });
   for (const candidate of pythonCandidates()) {
     const result = commandResult(candidate.command, [...candidate.args, path.join(root, "scripts", "runtime-parity-python.py")], { input });
     if (result.error) continue;
-    if (result.status !== 0) fail(`${testCase.id}: Python runner failed:\n${result.stderr || result.stdout}`);
-    try { return JSON.parse(result.stdout); }
-    catch { fail(`${testCase.id}: Python runner returned invalid JSON:\n${result.stdout}`); }
+    if (result.status !== 0) fail(`Python parity runner failed:
+${result.stderr || result.stdout}`);
+    try {
+      const parsed = JSON.parse(result.stdout);
+      if (!Array.isArray(parsed) || parsed.length !== testCases.length) fail(`Python parity runner returned ${Array.isArray(parsed) ? parsed.length : "non-array"} results for ${testCases.length} cases`);
+      return parsed;
+    }
+    catch (error) { fail(`Python parity runner returned invalid JSON:
+${result.stdout}
+${error instanceof Error ? error.message : String(error)}`); }
   }
   fail("Python 3.13 was not found for runtime parity tests");
 }
+
 
 async function loadJavascriptEngine() {
   const moduleUrl = pathToFileURL(path.join(compiledRoot, "engine.js"));
@@ -124,14 +140,36 @@ function deepEqual(left, right, pathLabel = "root") {
   fail(`${pathLabel}: ${JSON.stringify(left)} != ${JSON.stringify(right)}`);
 }
 
+function semanticNodeResult(result) {
+  if (!result || typeof result !== "object") return result;
+  if (result.kind === "value" && Object.prototype.hasOwnProperty.call(result, "value")) {
+    return { kind: "value", value: result.value };
+  }
+  // Plot transport is intentionally runtime-specific: Python returns a raster PNG
+  // while JavaScript returns an interactive ECharts option. Golden parity asserts
+  // that both runtimes produced a valid plot artifact, but does not compare bytes
+  // against a chart object.
+  if (result.kind === "plot") return { kind: "plot" };
+  return result;
+}
+
+function semanticNodeResults(results) {
+  return Object.fromEntries(Object.entries(results ?? {}).map(([nodeId, result]) => [nodeId, semanticNodeResult(result)]));
+}
+
 function comparableResult(result) {
+  const nodeResults = semanticNodeResults(result.nodeResults);
+  const hasTableResult = Object.values(result.nodeResults ?? {}).some((item) => item?.kind === "table");
   const comparable = {
     status: result.status,
-    preview: result.preview ?? null,
+    // When no table node ran, both engines synthesize a one-cell preview purely
+    // for UI compatibility. Compare the semantic value result instead of that
+    // runtime-specific printable text (e.g. Python True vs JavaScript true).
+    preview: hasTableResult ? (result.preview ?? null) : null,
     exportCsv: result.exportCsv ?? null,
     exports: result.exports ?? [],
     executionOrder: result.executionOrder ?? [],
-    nodeResults: result.nodeResults ?? {},
+    nodeResults,
   };
   if (result.status === "error") {
     comparable.nodeId = result.nodeId ?? null;
@@ -155,6 +193,18 @@ function assertExpected(testCase, result, runtimeLabel) {
     if (!actual || actual.kind !== "value") fail(`${testCase.id}/${runtimeLabel}: ${nodeId} is not a value result`);
     if (String(actual.text) !== String(value)) fail(`${testCase.id}/${runtimeLabel}: ${nodeId} value ${actual.text} != ${value}`);
   }
+  for (const [nodeId, value] of Object.entries(expected.semanticValueResults ?? {})) {
+    const actual = result.nodeResults?.[nodeId];
+    if (!actual || actual.kind !== "value") fail(`${testCase.id}/${runtimeLabel}: ${nodeId} is not a value result`);
+    if (!Object.prototype.hasOwnProperty.call(actual, "value")) fail(`${testCase.id}/${runtimeLabel}: ${nodeId} has no semantic value`);
+    deepEqual(actual.value, value, `${testCase.id}/${runtimeLabel}.nodeResults.${nodeId}.value`);
+  }
+  for (const nodeId of expected.plotNodes ?? []) {
+    const actual = result.nodeResults?.[nodeId];
+    if (!actual || actual.kind !== "plot") fail(`${testCase.id}/${runtimeLabel}: ${nodeId} is not a plot result`);
+    if (runtimeLabel === "python" && !String(actual.plotPngBase64 ?? "").length) fail(`${testCase.id}/python: ${nodeId} has no PNG artifact`);
+    if (runtimeLabel === "javascript" && (!actual.chart || typeof actual.chart !== "object")) fail(`${testCase.id}/javascript: ${nodeId} has no interactive chart artifact`);
+  }
   if (expected.status === "error") {
     if (result.nodeId !== expected.nodeId || result.nodeType !== expected.nodeType) fail(`${testCase.id}/${runtimeLabel}: wrong failing node (${result.nodeId}/${result.nodeType})`);
     const message = String(result.message ?? "").toLowerCase();
@@ -164,12 +214,13 @@ function assertExpected(testCase, result, runtimeLabel) {
 
 compileJavascriptEngine();
 const jsEngine = await loadJavascriptEngine();
+const pythonResults = runPythonBatch(fixtures.cases);
 let passed = 0;
 const coveredNodeTypes = new Set();
 try {
-  for (const testCase of fixtures.cases) {
+  for (const [caseIndex, testCase] of fixtures.cases.entries()) {
     for (const node of testCase.workflow?.nodes ?? []) coveredNodeTypes.add(node.data?.nodeType);
-    const python = runPython(testCase);
+    const python = pythonResults[caseIndex];
     const javascript = JSON.parse(jsEngine.executeWorkflowJson(JSON.stringify(testCase.workflow), testCase.csvText ?? "", JSON.stringify(testCase.inputFiles ?? [])));
     assertExpected(testCase, python, "python");
     assertExpected(testCase, javascript, "javascript");

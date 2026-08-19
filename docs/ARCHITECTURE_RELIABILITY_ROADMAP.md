@@ -448,9 +448,9 @@ executionModel / functionRole
 
 ## 8. Phase 5 — Python / JavaScript Parity Tests
 
-状态：**1.4.36 已启动。已建立可执行 golden workflow harness，首批 4 个工作流覆盖 7 类双运行时节点；后续按语义域扩展。**
+状态：**1.4.37 持续推进。golden workflow harness 已扩展到 49 个工作流、63 个双运行时节点类型，并已实际发现/修复多项 Python↔JavaScript 语义差异。**
 
-建立 `tests/golden-workflows/` 或等价目录。
+Golden fixtures 位于 `tests/runtime-parity/golden/`，按 table / control-state / io-convert / plots / pulse-analysis / errors 分域维护。
 
 同一份 workflow/input：
 
