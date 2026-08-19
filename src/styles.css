@@ -3508,3 +3508,107 @@ button.smb-file-row { cursor: pointer; }
      can cancel the pointer before it reaches the canvas. */
   touch-action: pan-y;
 }
+
+/* 1.4.53: compact service shortcuts live beside History in the bottom status bar. */
+.statusbar-quick-services {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+}
+.statusbar-service-button,
+.statusbar-quick-services .statusbar-history {
+  position: relative;
+  display: grid;
+  flex: none;
+  width: 27px;
+  height: 24px;
+  padding: 3px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  color: #8490a3;
+  background: transparent;
+  cursor: pointer;
+}
+.statusbar-service-button:hover,
+.statusbar-service-button:focus-visible,
+.statusbar-quick-services .statusbar-history:hover,
+.statusbar-quick-services .statusbar-history:focus-visible {
+  color: #cbd5e1;
+  background: var(--surface-hover);
+  outline: none;
+}
+.statusbar-service-button svg,
+.statusbar-quick-services .statusbar-history svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.statusbar-service-button--remote.active {
+  color: #38bdf8;
+  background: color-mix(in srgb, #38bdf8 11%, transparent);
+}
+.statusbar-service-button__indicator {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  display: none !important;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--surface);
+  border-radius: 999px;
+  background: #22c55e;
+}
+.statusbar-service-button--remote.active .statusbar-service-button__indicator {
+  display: block !important;
+}
+.app-shell[data-theme="light"] .statusbar-service-button,
+.app-shell[data-theme="light"] .statusbar-quick-services .statusbar-history {
+  color: #64748b;
+}
+.app-shell[data-theme="light"] .statusbar-service-button:hover,
+.app-shell[data-theme="light"] .statusbar-service-button:focus-visible,
+.app-shell[data-theme="light"] .statusbar-quick-services .statusbar-history:hover,
+.app-shell[data-theme="light"] .statusbar-quick-services .statusbar-history:focus-visible {
+  color: #1d4ed8;
+  background: #dbeafe;
+}
+.app-shell[data-theme="light"] .statusbar-service-button--remote.active {
+  color: #0369a1;
+  background: #e0f2fe;
+}
+.app-shell[data-theme="light"] .statusbar-service-button__indicator {
+  border-color: #fff;
+}
+
+.remote-server-banner__collapse {
+  display: grid;
+  width: 28px;
+  height: 26px;
+  padding: 0 !important;
+  place-items: center;
+}
+.remote-server-banner__collapse svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 720px) {
+  .remote-server-banner {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+  .statusbar-quick-services {
+    gap: 1px;
+  }
+}

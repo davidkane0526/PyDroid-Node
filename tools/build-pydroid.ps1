@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.52-dev-r28-phase7-ui-drag-rollback"
+$script:BuildScriptRevision = "1.4.53-dev-r29-phase7-service-statusbar"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

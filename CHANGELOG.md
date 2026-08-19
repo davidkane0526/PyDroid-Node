@@ -1,3 +1,11 @@
+## 1.4.53 (76) — Phase 7 service-statusbar polish and freeze — 2026-08-20
+
+- Remote Web service banner can now collapse into the bottom status bar without stopping the host service. The host Remote button remains visually active while the service is running, and the bottom Remote shortcut restores the compact banner on demand.
+- Added a compact SMB shortcut beside the Remote and History controls on the right side of the bottom status bar; it opens the existing SMB file manager directly without introducing a second SMB implementation.
+- Desktop and Android share the same service-status UI behavior and styling, including light/dark themes.
+- Phase 7 Host + Build modularization is now frozen after real Windows/Android validation and this final service-statusbar UX pass.
+- Build script revision: `1.4.53-dev-r29-phase7-service-statusbar`.
+
 ## 1.4.52 (75) — Remote Web banner rollback + Android palette drag restoration — 2026-08-20
 
 - Rolled the Remote Web host banner back to the compact Phase-1-style presentation: one canonical URL, one copy button, and optional compact PIN only. Alternate adapter addresses remain internal and no longer expand the banner.

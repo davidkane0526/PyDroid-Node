@@ -26,4 +26,10 @@ assert.doesNotMatch(css, /app-shell\.native-platform \.node-palette button[\s\S]
 assert.doesNotMatch(app, /remote-server-banner__alternates|remote-server-banner__expand/, "Remote Web banner should stay compact and show only the canonical address");
 assert.match(app, /pointerMode !== "mouse"\) return/, "synthetic Android contextmenu events should not race the explicit touch gesture");
 assert.match(app, /nodeTouchDragSuppressMenuUntil/, "dragging a canvas node on touch should suppress only the synthetic drag-time context menu");
+
+assert.match(app, /remoteBannerVisible/, "Remote Web banner should be independently collapsible without stopping the server");
+assert.match(app, /setRemoteBannerVisible\(false\)/, "Remote Web banner should support collapsing into the status bar");
+assert.match(app, /statusbar-quick-services[\s\S]*statusbar-service-button--smb[\s\S]*statusbar-service-button--remote[\s\S]*statusbar-history/, "SMB and Remote service shortcuts should sit together immediately beside History");
+assert.match(app, /statusbar-service-button--remote \${remoteServer \? "active" : ""}/, "Remote service shortcut should remain visually active while the host service is running");
+assert.match(css, /\.statusbar-service-button--remote\.active[\s\S]*background:/, "active Remote service state should have a persistent visual treatment");
 console.log("UI regression smoke passed.");

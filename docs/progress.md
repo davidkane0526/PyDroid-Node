@@ -1,3 +1,11 @@
+## 2026-08-20 — Phase 7 final service-statusbar polish / 1.4.53 (76)
+
+- Added right-aligned SMB and Remote service shortcuts immediately beside History in the bottom status bar.
+- Remote service information can be collapsed into the status bar and restored without stopping the service; active Remote state remains visibly lit in the host UI.
+- Reused the existing SMB dialog and Remote Host service through PlatformAdapter/Host Contract boundaries; no duplicate host implementation was introduced.
+- Phase 7 is frozen after real Windows/Android host/build validation. Next planned architecture stage: Phase 8 Workflow Language / State & Function System.
+- Build script revision: `1.4.53-dev-r29-phase7-service-statusbar`.
+
 ## 2026-08-20 — Phase 7 UI rollback / Android drag recovery / 1.4.52 (75)
 
 - Remote Web banner returned to the compact early layout: service state + canonical URL + copy action, without alternate-address expansion.

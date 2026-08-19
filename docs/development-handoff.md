@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.52 (75)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
+- `dev`: `1.4.53 (76)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
 
 Current working branch: `dev`.
 
@@ -197,7 +197,7 @@ Read `docs/runtime-engine-modularization.md` before changing runtime structure. 
 
 ## Phase 7 — Host modularization and build boundary
 
-**Architecture work is complete on `dev` 1.4.52 (75), pending combined real Windows/Android validation before freezing the phase.** Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
+**Phase 7 is complete and frozen on `dev` 1.4.53 (76) after real Windows/Android host/build validation and final service-statusbar UX polish.** Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
 
 Cross-platform transport bindings are now documented in `src/platform/host-contract.json`. `scripts/host-contract-smoke.mjs` checks the stable Desktop preload/IPC and Android Capacitor/Java method surface so PlatformAdapter transport cannot drift silently. Read `docs/host-contract.md` before adding or renaming any native host operation.
 
@@ -210,6 +210,11 @@ The 1.4.46/1.4.47 real Windows validation exposed a Windows PowerShell 5.1 modul
 Real-device validation confirmed Android Host services and successful Windows/Android packaging, then exposed four integration issues. Build finalization now reports each directly usable platform output immediately and defers expensive old-tree/release cleanup to `tools/deferred-cleanup.ps1`; cleanup failure never invalidates an already successful build. Remote Web now verifies its renderer/asset root before start resolves, serves a non-stale SPA shell, and appends a version query to direct, mDNS and UPnP presentation URLs. Android node-group/workflow resources use movement-vs-hold gesture arbitration plus double-click/double-tap management-menu access, and the main workspace status bar collapses while palette/inspector text input owns the soft keyboard.
 
 
-### Phase 7 validation note (1.4.52)
+### Phase 7 final validation note (1.4.53)
 
 Remote Web startup must remain lightweight: do not add synchronous shell/asset/LAN self-tests before resolving the start action. Resolve the packaged renderer root, bind the HTTP server, start discovery best-effort, and report the clean `http://host:port/` address. Remote browser mode is detected from a non-loopback HTTP(S) host rather than a `?remote=1` query parameter.
+
+
+## Phase 8 — Workflow Language / State & Function System
+
+**Next planned phase after frozen Phase 7.** Build on the NodeContract fields already reserved for `stateScope`, `stateAccess`, `executionModel=function`, and `functionRole`. Start with execution/workspace state isolation, then stable function-definition signatures/IDs/versions, dynamic function-call NodeSpecs, Python/JavaScript runtime implementations, parity coverage, and only then the user-facing function/variable management UI. Do not move these semantics into `App.tsx`.
