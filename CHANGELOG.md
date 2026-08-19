@@ -1,3 +1,12 @@
+## 1.4.51 (74) — concise Remote Web startup + Android selection polish — 2026-08-20
+
+- Simplified the Desktop/Android Remote Web banner to `计算服务已开启`, one fully visible clean URL, `复制地址`, an optional address expander, and the PIN only when enabled. Removed version/query noise and diagnostic self-test wording.
+- Removed blocking Remote Web HTTP/resource self-tests from service startup. Desktop reports once the server is listening; Android starts the server on the host request executor so the Capacitor action stays responsive.
+- Remote browser detection now uses the served HTTP(S) host rather than `?remote=1`, allowing memorable URLs such as `http://192.168.1.104:5671/`. SSDP/mDNS/UPnP advertisements use the same clean path.
+- Android app chrome now disables accidental webpage-style text selection while preserving editable fields and explicit text outputs.
+- Refined group/flow resource gestures: stationary long press is ~0.7 s, touch double-tap tolerance is more practical, native `dblclick` is accepted when WebView emits it, and drag movement still cancels menu recognition.
+- Build script revision: `1.4.51-dev-r27-phase7-remote-ui-startup`.
+
 ## 1.4.50 (73) — Phase 7 real validation fixes: immediate GUI artifacts, Remote Web browser bundle, robust Android touch menus — 2026-08-19
 
 - Build GUI now consumes `@@PYDROID_ARTIFACT@@` events and shows clickable Windows/Android output paths immediately when each platform finishes; Android packaging is invoked directly instead of through an extra pnpm/PowerShell wrapper to avoid the observed 87% handle stall.

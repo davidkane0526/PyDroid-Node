@@ -11,7 +11,7 @@ function memoryStorage() {
 
 function environment(fetchImpl: RemoteSessionEnvironment["fetch"]): RemoteSessionEnvironment {
   return {
-    location: { search: "?remote=1", protocol: "http:" },
+    location: { search: "", protocol: "http:", hostname: "192.168.1.20" },
     storage: memoryStorage(),
     fetch: fetchImpl,
   };
@@ -21,8 +21,8 @@ describe("remote session transport", () => {
   it("detects only HTTP(S) remote browser sessions", () => {
     const fetchImpl = async () => new Response("{}");
     expect(isRemoteBrowserSession(environment(fetchImpl))).toBe(true);
-    expect(isRemoteBrowserSession({ ...environment(fetchImpl), location: { search: "", protocol: "http:" } })).toBe(false);
-    expect(isRemoteBrowserSession({ ...environment(fetchImpl), location: { search: "?remote=1", protocol: "file:" } })).toBe(false);
+    expect(isRemoteBrowserSession({ ...environment(fetchImpl), location: { search: "", protocol: "http:", hostname: "localhost" } })).toBe(false);
+    expect(isRemoteBrowserSession({ ...environment(fetchImpl), location: { search: "", protocol: "file:", hostname: "192.168.1.20" } })).toBe(false);
   });
 
   it("stores the paired token and attaches it to later requests", async () => {

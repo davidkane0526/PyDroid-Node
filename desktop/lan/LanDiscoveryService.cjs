@@ -60,8 +60,8 @@ class LanDiscoveryService {
   }
 
   primaryAddress() { return this.interfaces[0]?.address ?? "127.0.0.1"; }
-  presentationUrl(ip = this.primaryAddress()) { const suffix = this.version ? `&v=${encodeURIComponent(this.version)}` : ""; return `http://${ip}:${this.port}/?remote=1${suffix}`; }
-  localUrl() { const suffix = this.version ? `&v=${encodeURIComponent(this.version)}` : ""; return `http://${this.identity.hostname}.local:${this.port}/?remote=1${suffix}`; }
+  presentationUrl(ip = this.primaryAddress()) { return `http://${ip}:${this.port}/`; }
+  localUrl() { return `http://${this.identity.hostname}.local:${this.port}/`; }
   deviceXml(ip = this.primaryAddress()) { return makeUpnpDeviceXml({ ...this.config(), ip }); }
 
   getStatus() {

@@ -11,14 +11,16 @@ assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "fai
 assert.match(css, /\.smb-file-manager:has\(\.smb-connection-form input:focus\) \.smb-manager-footer[\s\S]*display:\s*none\s*!important/, "Android SMB footer should hide while editing credentials to avoid keyboard overlap");
 assert.match(css, /\.settings-layout\s*\{[\s\S]*align-items:\s*stretch/, "settings grid rows should stretch paired cards to equal height");
 assert.match(css, /\.settings-layout \.settings-section\s*\{[\s\S]*height:\s*100%/, "settings cards should fill their grid row height");
-assert.match(app, /startPaletteResourceMenuHold[\s\S]*680/, "touch resource menu should use a deliberate ~0.7s stationary long-press delay");
+assert.match(app, /startPaletteResourceMenuHold[\s\S]*710/, "touch resource menu should use a deliberate ~0.7s stationary long-press delay");
 assert.match(app, /distance > 8[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold");
 assert.doesNotMatch(app, /paletteDragTimer\.current = window\.setTimeout[\s\S]{0,600}280/, "touch palette drag must be movement-driven rather than a competing hold timer");
 assert.match(app, /paletteTouchTap/, "touch resource menus should have an explicit double-tap state machine instead of relying on WebView dblclick synthesis");
-assert.match(app, /now - previous\.at <= 360/, "touch double-tap should use a bounded gesture window");
+assert.match(app, /now - previous\.at <= 430/, "touch double-tap should use a bounded gesture window");
+assert.match(app, /schedulePaletteSingleClick[\s\S]*470/, "flow single-click should wait slightly longer than the touch double-tap window");
 assert.match(app, /group-resource-card[\s\S]*onDoubleClick=[\s\S]*openPaletteMenuFromElement/, "node groups should keep desktop double-click menu access");
 assert.match(app, /flow-library-item[\s\S]*onDoubleClick=[\s\S]*openPaletteMenuFromElement/, "workflow resources should keep desktop double-click menu access");
 assert.match(css, /app-shell\.native-platform:has\(\.node-palette input:focus[\s\S]*grid-template-rows:[^;]*0;/, "Android main-workspace keyboard editing should collapse the status-bar row instead of lifting it above the IME");
+assert.match(css, /app-shell\.native-platform[\s\S]*user-select:\s*none/, "Android app chrome should suppress accidental WebView text selection");
 assert.match(app, /pointerMode !== "mouse"\) return/, "synthetic Android contextmenu events should not race the explicit touch gesture");
 assert.match(app, /nodeTouchDragSuppressMenuUntil/, "dragging a canvas node on touch should suppress only the synthetic drag-time context menu");
 console.log("UI regression smoke passed.");

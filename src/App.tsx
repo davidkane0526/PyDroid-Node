@@ -863,6 +863,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [replacementShowAll, setReplacementShowAll] = useState(false);
   const [replacementSearch, setReplacementSearch] = useState("");
   const [remoteServer, setRemoteServer] = useState<RemoteServerInfo | null>(null);
+  const [remoteAddressesExpanded, setRemoteAddressesExpanded] = useState(false);
   const [remoteAccessDialog, setRemoteAccessDialog] = useState(false);
   const [remoteRequirePin, setRemoteRequirePin] = useState(true);
   const [remoteAccessPolicy, setRemoteAccessPolicy] = useState<RemoteAccessPolicy | null>(null);
@@ -1961,7 +1962,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       paletteResourceMenuTimer.current = null;
       paletteResourceMenuHold.current = null;
       navigator.vibrate?.(12);
-    }, 680);
+    }, 710);
   };
 
   const onPaletteResourceContextMenu = (event: ReactMouseEvent<HTMLButtonElement>, resource: PaletteResource) => {
@@ -1988,7 +1989,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     paletteResourceClickTimer.current = window.setTimeout(() => {
       paletteResourceClickTimer.current = null;
       action();
-    }, 380);
+    }, 470);
   };
 
   const clearPaletteDrag = () => {
@@ -2077,7 +2078,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const now = performance.now();
       const key = `${drag.resource.kind}:${drag.resource.id}`;
       const previous = paletteTouchTap.current;
-      const isDoubleTap = Boolean(previous && previous.key === key && now - previous.at <= 360 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24);
+      const isDoubleTap = Boolean(previous && previous.key === key && now - previous.at <= 430 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 30);
       if (isDoubleTap) {
         paletteTouchTap.current = null;
         clearPaletteResourceClick();
@@ -3148,19 +3149,23 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       await stopRemoteServer();
       setRemoteServer(null);
-      setMessage("局域网网页服务已关闭");
+      setRemoteAddressesExpanded(false);
+      setMessage("计算服务已关闭");
     } catch (error) {
       setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务关闭失败");
     }
   };
 
   const startConfiguredRemoteServer = async () => {
+    setRemoteAccessDialog(false);
+    setRemoteAddressesExpanded(false);
+    setMessage("正在开启计算服务…");
     try {
       const info = await startRemoteServer(remoteRequirePin);
       setRemoteServer(info);
-      setRemoteAccessDialog(false);
-      setMessage(info.requiresPin ? "局域网网页服务已开启；请告知电脑端四位校验码" : "局域网网页服务已开启；当前不要求校验码");
+      setMessage("计算服务已开启");
     } catch (error) {
+      setRemoteAccessDialog(true);
       setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务启动失败");
     }
   };
@@ -3181,7 +3186,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!remoteServer) return;
     try {
       await navigator.clipboard.writeText(remoteServer.url);
-      setMessage("网页访问地址已复制；请确保电脑与手机在同一局域网");
+      setMessage("地址已复制");
     } catch {
       setMessage(`请在电脑浏览器打开：${remoteServer.url}`);
     }
@@ -3666,7 +3671,17 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         </div>
       </header>
 
-      {remoteServer && <aside className="remote-server-banner" role="status"><strong>局域网计算服务已开启 · 网页资源自检通过</strong><div className="remote-server-banner__urls">{(remoteServer.urls?.length ? remoteServer.urls : [remoteServer.url]).map((url, index) => <code key={url} title={index === 0 ? "首选地址" : "备用局域网地址"}>{index === 0 ? "首选：" : "备用："}{url}</code>)}</div><button onClick={() => void copyRemoteUrl()}>复制首选地址</button><span>{remoteServer.requiresPin ? `网页端输入校验码：${remoteServer.pin}` : "访问设备与本机需在同一局域网；当前无需校验码。"}</span></aside>}
+      {remoteServer && (() => {
+        const addresses = [...new Set([remoteServer.url, ...(remoteServer.urls ?? [])].filter(Boolean))];
+        return <aside className={`remote-server-banner ${remoteAddressesExpanded ? "expanded" : ""}`} role="status">
+          <strong>计算服务已开启</strong>
+          <div className="remote-server-banner__address"><code>{remoteServer.url}</code></div>
+          <button className="remote-server-banner__copy" onClick={() => void copyRemoteUrl()}>复制地址</button>
+          {addresses.length > 1 && <button className="remote-server-banner__expand" aria-label={remoteAddressesExpanded ? "收起其他地址" : "展开其他地址"} aria-expanded={remoteAddressesExpanded} onClick={() => setRemoteAddressesExpanded((value) => !value)}>{remoteAddressesExpanded ? "▲" : "▼"}</button>}
+          {remoteServer.requiresPin && <span className="remote-server-banner__pin">校验码 {remoteServer.pin}</span>}
+          {remoteAddressesExpanded && addresses.length > 1 && <div className="remote-server-banner__alternates">{addresses.slice(1).map((url) => <code key={url}>{url}</code>)}</div>}
+        </aside>;
+      })()}
 
       <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${inspectorDock === "bottom" ? "inspector-bottom" : "inspector-right"} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
         <aside className="node-palette">
@@ -3685,8 +3700,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               </section>
             ))}
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
-            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`按住后拖到画布添加 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { if (pointerMode !== "mouse") return; event.preventDefault(); event.stopPropagation(); openPaletteMenuFromElement(resource, event.currentTarget); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
-            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { if (pointerMode !== "mouse") return; event.preventDefault(); event.stopPropagation(); openPaletteMenuFromElement(resource, event.currentTarget); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
+            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`拖动添加 · 静止长按约 0.7 秒或双击打开菜单 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
 

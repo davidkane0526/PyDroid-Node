@@ -133,7 +133,7 @@ class MdnsService {
       record(host, TYPE_A, ttl, ipv4Bytes(item.address), true),
       record(service, TYPE_PTR, ttl, ptrData(instance), false),
       record(instance, TYPE_SRV, ttl, srvData(host, this.config.port), true),
-      record(instance, TYPE_TXT, ttl, txtData([`path=/?remote=1${this.config.version ? `&v=${encodeURIComponent(this.config.version)}` : ""}`, "product=PyDroid Node"]), true),
+      record(instance, TYPE_TXT, ttl, txtData(["path=/", "product=PyDroid Node"]), true),
       record("_services._dns-sd._udp.local", TYPE_PTR, ttl, ptrData(service), false),
     ];
   }

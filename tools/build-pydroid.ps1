@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.50-dev-r26-phase7-real-validation-fixes"
+$script:BuildScriptRevision = "1.4.51-dev-r27-phase7-remote-ui-startup"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

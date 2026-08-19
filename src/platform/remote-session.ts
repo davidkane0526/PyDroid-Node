@@ -3,7 +3,7 @@ import type { RemoteAccessPolicy } from "./types";
 const REMOTE_SESSION_TOKEN_KEY = "pydroid-flow.remote-session-token.v1";
 
 type StorageLike = Pick<Storage, "getItem" | "setItem">;
-type LocationLike = Pick<Location, "search" | "protocol">;
+type LocationLike = Pick<Location, "search" | "protocol" | "hostname">;
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
 export type RemoteSessionEnvironment = {
@@ -28,9 +28,9 @@ function defaultEnvironment(): RemoteSessionEnvironment {
 
 export function isRemoteBrowserSession(environment: RemoteSessionEnvironment = defaultEnvironment()): boolean {
   const location = environment.location;
-  if (!location) return false;
-  const parameters = new URLSearchParams(location.search);
-  return parameters.get("remote") === "1" && /^https?:$/.test(location.protocol);
+  if (!location || !/^https?:$/.test(location.protocol)) return false;
+  const host = location.hostname.trim().toLowerCase().replace(/^\[|\]$/g, "");
+  return Boolean(host && host !== "localhost" && host !== "127.0.0.1" && host !== "::1");
 }
 
 export function createRemoteSessionClient(

@@ -1,3 +1,12 @@
+## 2026-08-20 — Phase 7 Remote Web startup/UI correction / 1.4.51 (74)
+
+- Removed the defensive Remote Web shell/main-asset self-test from Desktop and Android startup because it delayed an otherwise ready HTTP service.
+- Android Remote Web startup now runs on the remote host executor rather than blocking the Capacitor invocation path.
+- Remote URLs are short and stable (`http://host:port/`); remote-browser detection uses the HTTP host instead of a query parameter, and discovery advertisements use `/`.
+- The in-app service banner now shows only the concise service status, one full address, copy action, optional alternate-address expander, and PIN when required.
+- Added native WebView text-selection suppression for normal app chrome and refined group/flow long-press/double-tap menu gestures.
+- Build script revision: `1.4.51-dev-r27-phase7-remote-ui-startup`.
+
 ## 2026-08-19 — Phase 7 second real-device validation fixes / 1.4.50 (73)
 
 - GUI now receives platform artifact events directly and presents clickable output paths as soon as Desktop/APK outputs exist.

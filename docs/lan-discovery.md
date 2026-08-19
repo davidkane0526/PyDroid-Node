@@ -24,9 +24,9 @@ Windows/Electron code lives under `desktop/lan/`. Android code lives beside `Rem
 
 SSDP uses IPv4 multicast `239.255.255.250:1900`, sends `ssdp:alive` for `upnp:rootdevice`, the persistent UUID and `urn:schemas-upnp-org:device:Basic:1`, repeats the alive announcement every 300 seconds, responds to the same targets plus `ssdp:all`, and sends `ssdp:byebye` when Web access stops.
 
-mDNS uses `224.0.0.251:5353`, publishes an A record for the stable `.local` hostname plus `_http._tcp.local` PTR/SRV/TXT records. TXT includes `path=/?remote=1`.
+mDNS uses `224.0.0.251:5353`, publishes an A record for the stable `.local` hostname plus `_http._tcp.local` PTR/SRV/TXT records. TXT advertises the concise root path `path=/`.
 
-The UPnP `presentationURL` also ends in `/?remote=1`; this is required by the existing renderer to enter remote-runtime mode rather than ordinary browser-only mode.
+The UPnP `presentationURL` is the same clean `http://HOST:PORT/` address. Remote-runtime mode is detected from the non-loopback HTTP(S) host, so discovery does not need query parameters.
 
 ## Identity storage
 
@@ -47,7 +47,7 @@ The portable build does not silently elevate or install global firewall policy. 
 
 1. Put the PyDroid host and another Windows PC on the same private Wi-Fi/Ethernet LAN.
 2. Start “局域网网页访问”.
-3. Confirm `http://HOST_IP:PORT/?remote=1` loads from the other PC.
+3. Confirm `http://HOST_IP:PORT/` loads from the other PC.
 4. Open `http://HOST_IP:PORT/upnp/device.xml` and verify `friendlyName`, `UDN` and `presentationURL`.
 5. Open File Explorer → Network and locate `PyDroid Node - ...`.
 6. Double-click it and verify the default browser opens the same remote UI.

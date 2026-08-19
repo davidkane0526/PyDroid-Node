@@ -80,7 +80,7 @@ final class MdnsService {
         records.add(record(host(), A, ttl, entry.address.getAddress(), true));
         records.add(record(service(), PTR, ttl, encodeName(instance()), false));
         records.add(record(instance(), SRV, ttl, srvData(host(), webPort), true));
-        records.add(record(instance(), TXT, ttl, txtData("path=/?remote=1&v=" + BuildConfig.VERSION_NAME, "product=PyDroid Node"), true));
+        records.add(record(instance(), TXT, ttl, txtData("path=/", "product=PyDroid Node"), true));
         records.add(record("_services._dns-sd._udp.local", PTR, ttl, encodeName(service()), false));
         return records;
     }
