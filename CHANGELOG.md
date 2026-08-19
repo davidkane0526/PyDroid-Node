@@ -1,3 +1,13 @@
+## 1.4.38 (61) — Phase 5 complete: full dual-runtime golden coverage — 2026-08-19
+
+- Phase 5 Python/JavaScript parity is complete/frozen for the current NodeContract surface. `pnpm test:parity` now executes 66 golden workflows and requires coverage for every JavaScript-capable NodeContract; current coverage is **72/72 node contracts**.
+- Added portable seeded RNG semantics for `generate.random_table` and `pandas.sample`. Python and JavaScript now use the same locked `portable-v1` 32-bit generator/sampling algorithm, so identical seeds produce identical values and sampled rows across runtimes. Golden fixtures pin representative random values and sample rows to prevent both engines drifting together.
+- Compatibility note: seeded random/sample sequences produced by releases before 1.4.38 may differ because the old Python and JavaScript backends used different RNG implementations. From 1.4.38 onward the `portable-v1` sequence is locked by golden fixtures.
+- Added parity coverage for `ui.alert` and `ui.input_dialog` using injected interaction values, including number/JSON/table input and true/null alert responses. Fixed JavaScript semantic result handling so an explicit `null` alert response is preserved instead of falling back to printable text.
+- Added visual-structure golden workflows for `logic.if_subflow`, `logic.for_each_subflow` and `logic.while_subflow`, plus compatibility coverage for legacy `table.group_mean` and collapsed `workflow.group`.
+- Runtime parity now compiles NodeContract during the test and fails automatically if a JavaScript-capable node type has no golden coverage.
+- Build script revision: `1.4.38-dev-r14-phase5-complete`.
+
 ## 1.4.37 (60) — expanded Phase 5 runtime parity — 2026-08-19
 
 - Expanded Python ↔ JavaScript golden parity from 4 to 49 workflows, covering 63 dual-runtime node types across table transforms, missing values, aggregation, control flow, temporary variables, file input including binary images, conversion, plots, pulse processing, TER analysis and error paths.

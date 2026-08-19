@@ -64,6 +64,12 @@ def test_cross_runtime_source_generators_have_expected_python_shapes():
     assert list(first["output"].columns) == ["index", "value"]
     assert first_table.equals(second_table)
     assert first["output"].shape == (4, 2)
+    assert first["output"]["value"].tolist() == pytest.approx([
+        0.011704753153026104,
+        0.06195825757458806,
+        0.97690763277933,
+        0.6990287057124078,
+    ])
 
 
 def test_native_random_source_connects_directly_to_print():
@@ -74,6 +80,16 @@ def test_native_random_source_connects_directly_to_print():
     assert result["status"] == "success"
     assert result["executionOrder"] == ["random", "print"]
     assert result["nodeResults"]["print"]["kind"] in {"table", "text", "value"}
+
+
+def test_portable_sample_seed_has_locked_row_order():
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), node("sample", "pandas.sample", {"n": 3, "randomState": 42, "replace": False, "ignoreIndex": True})],
+        [edge("read", "sample")],
+        "x\n0\n1\n2\n3\n4\n5\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[5], [2], [3]]
 
 
 def test_failure_keeps_completed_node_results_and_debug_trace():

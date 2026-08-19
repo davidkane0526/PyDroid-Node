@@ -521,7 +521,7 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
       values.set(nodeId, outputs);
       latestValue = outputs.output ?? Object.values(outputs)[0] ?? latestValue;
       if ("__print__" in outputs) {
-        nodeResults[nodeId] = { kind: "value", text: String(outputs.__print__), value: semanticValue(outputs.output ?? outputs.__print__) };
+        nodeResults[nodeId] = { kind: "value", text: String(outputs.__print__), value: semanticValue(Object.prototype.hasOwnProperty.call(outputs, "output") ? outputs.output : outputs.__print__) };
       } else if (plotResult) {
         nodeResults[nodeId] = { kind: "plot", chart: plotResult };
       } else if (tableResult) {

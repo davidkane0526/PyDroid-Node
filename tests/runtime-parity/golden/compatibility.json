@@ -1,0 +1,207 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "legacy_group_mean",
+      "description": "Legacy table.group_mean compatibility contract",
+      "csvText": "x,y\n1,10\n3,30\n5,50\n7,70\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "legacy group mean",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "groupmean",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.group_mean",
+              "nodeType": "table.group_mean",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupSize": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "groupmean"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "groupmean"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              2,
+              20
+            ],
+            [
+              6,
+              60
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "workflow_group_flatten",
+      "description": "Collapsed workflow.group flattens to its internal executable child",
+      "csvText": "x\n-2\n3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "group",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "abs",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.absolute",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "canvasParentId": "group"
+            }
+          },
+          {
+            "id": "group",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "workflow.group",
+              "nodeType": "workflow.group",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "groupInputs": [
+                {
+                  "id": "input-1",
+                  "label": "表格",
+                  "valueType": "table",
+                  "internalNodeId": "abs",
+                  "internalHandle": "input"
+                }
+              ],
+              "groupOutputs": [
+                {
+                  "id": "output-1",
+                  "label": "表格",
+                  "valueType": "table",
+                  "internalNodeId": "abs",
+                  "internalHandle": "output"
+                }
+              ]
+            }
+          },
+          {
+            "id": "head",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.head",
+              "nodeType": "pandas.head",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "group",
+            "targetHandle": "input-1"
+          },
+          {
+            "id": "e2",
+            "source": "group",
+            "target": "head",
+            "sourceHandle": "output-1"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "abs",
+          "head"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              2
+            ],
+            [
+              3
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 1
+        }
+      }
+    }
+  ]
+}

@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.37 (60)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + active Phase 5 runtime parity.
+- `dev`: `1.4.38 (61)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity.
 
 Current working branch: `dev`.
 
@@ -181,8 +181,13 @@ Phase 4 is frozen. Concrete function/global-variable nodes may now be added late
 
 ## Phase 5 status — Python / JavaScript parity
 
-**In progress on `dev` 1.4.37 (60).** `pnpm test:parity` executes 49 golden workflows through both `python/pydroid_flow/engine.py` and the bundled TypeScript/JavaScript engine, validates each runtime against fixture expectations, then compares normalized semantic output. The current suite covers 63 dual-runtime node types across table transforms, aggregation, control flow, temporary variables, file input, conversion, plots, pulse processing, TER analysis and error paths.
+**Complete/frozen on `dev` 1.4.38 (61).** `pnpm test:parity` executes 66 golden workflows through both `python/pydroid_flow/engine.py` and the bundled TypeScript/JavaScript engine. The harness validates fixture expectations, compares normalized semantic results, compiles NodeContract and requires golden coverage for every JavaScript-capable contract. Current coverage is 72/72 contracts, including stochastic nodes, interactive nodes, visual subflows and legacy group compatibility.
 
 Scalar/object node previews expose a JSON-safe semantic `value` alongside their human-readable text, so parity compares actual output values instead of presentation formatting. Plot transport remains runtime-specific (Python PNG vs JavaScript interactive chart), so plot cases require valid artifacts on both sides without comparing bytes to chart objects. Python cases run in one batched interpreter process to keep the larger suite fast enough for routine checks.
 
 The suite has already found and fixed real divergences in JSON `indent=0`, CSV terminal newlines, empty `pandas.describe(include=...)` handling and oscillating-pulse symmetry. Read `docs/runtime-parity.md` before changing a dual-runtime node. Remaining special categories include seeded random/sample policy, UI side-effect boundaries and visual subflow structures; these require explicit policies rather than naive exact double execution.
+
+
+## Next development task — Phase 6 Runtime Engine modularization
+
+Phase 5 is now a regression gate. Start Phase 6 by splitting the large Python engine into domain modules behind the existing execution protocol, while preserving `pnpm test:parity` as a mandatory behavior lock. Prefer extraction by coherent node families (I/O, table/pandas, control/state, plotting/pulse) and do not change workflow-visible semantics during the split.

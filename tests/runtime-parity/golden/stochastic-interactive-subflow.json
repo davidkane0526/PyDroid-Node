@@ -1,0 +1,999 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "random_uniform_seeded",
+      "description": "Portable seeded uniform random table",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "random uniform",
+        "nodes": [
+          {
+            "id": "random",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "generate.random_table",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 5,
+                "distribution": "uniform",
+                "min": -1,
+                "max": 2,
+                "seed": 2024,
+                "indexColumn": "i",
+                "valueColumn": "v"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "random"
+        ],
+        "preview": {
+          "columns": [
+            "i",
+            "v"
+          ],
+          "rows": [
+            [
+              0,
+              1.4352871216833591
+            ],
+            [
+              1,
+              1.1324644847773015
+            ],
+            [
+              2,
+              0.9515776576008648
+            ],
+            [
+              3,
+              1.055978792719543
+            ],
+            [
+              4,
+              0.5568223800510168
+            ]
+          ],
+          "totalRows": 5,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "random_normal_seeded",
+      "description": "Portable seeded normal random table",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "random normal",
+        "nodes": [
+          {
+            "id": "random",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "generate.random_table",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 6,
+                "distribution": "normal",
+                "mean": 3.5,
+                "std": 1.25,
+                "seed": 7,
+                "indexColumn": "i",
+                "valueColumn": "v"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "random"
+        ]
+      }
+    },
+    {
+      "id": "random_integer_seeded",
+      "description": "Portable seeded integer random table",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "random integer",
+        "nodes": [
+          {
+            "id": "random",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "generate.random_table",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 8,
+                "distribution": "integer",
+                "min": -2,
+                "max": 3,
+                "seed": 99,
+                "indexColumn": "i",
+                "valueColumn": "v"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "random"
+        ]
+      }
+    },
+    {
+      "id": "sample_seeded_without_replacement",
+      "description": "Portable seeded sample without replacement",
+      "csvText": "x,y\n0,a\n1,b\n2,c\n3,d\n4,e\n5,f\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "sample",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sample",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.sample",
+              "nodeType": "pandas.sample",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 3,
+                "fraction": "",
+                "replace": false,
+                "randomState": 42,
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "sample"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "sample"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              5,
+              "f"
+            ],
+            [
+              2,
+              "c"
+            ],
+            [
+              3,
+              "d"
+            ]
+          ],
+          "totalRows": 3,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "sample_seeded_with_replacement",
+      "description": "Portable seeded sample with replacement",
+      "csvText": "x\n10\n20\n30\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "sample replace",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sample",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.sample",
+              "nodeType": "pandas.sample",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 5,
+                "fraction": "",
+                "replace": true,
+                "randomState": 12,
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "sample"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "sample"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              10
+            ],
+            [
+              10
+            ],
+            [
+              20
+            ],
+            [
+              30
+            ],
+            [
+              10
+            ]
+          ],
+          "totalRows": 5,
+          "totalColumns": 1
+        }
+      }
+    },
+    {
+      "id": "sample_fraction_seeded",
+      "description": "Portable seeded fractional sample",
+      "csvText": "x\n0\n1\n2\n3\n4\n5\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "sample frac",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sample",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.sample",
+              "nodeType": "pandas.sample",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 5,
+                "fraction": "0.5",
+                "replace": false,
+                "randomState": 17,
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "sample"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "sample"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              2
+            ],
+            [
+              0
+            ],
+            [
+              4
+            ]
+          ],
+          "totalRows": 3,
+          "totalColumns": 1
+        }
+      }
+    },
+    {
+      "id": "sample_oversize_error",
+      "description": "Sampling without replacement rejects n larger than population in both runtimes",
+      "csvText": "x\n1\n2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "sample error",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sample",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.sample",
+              "nodeType": "pandas.sample",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 3,
+                "fraction": "",
+                "replace": false,
+                "randomState": 1,
+                "ignoreIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "sample"
+          }
+        ]
+      },
+      "expected": {
+        "status": "error",
+        "executionOrder": [
+          "read"
+        ],
+        "nodeId": "sample",
+        "nodeType": "pandas.sample",
+        "errorMessageIncludes": [
+          "larger sample than population"
+        ]
+      }
+    },
+    {
+      "id": "ui_input_number",
+      "description": "Injected number input dialog value",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "input number",
+        "nodes": [
+          {
+            "id": "input",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "ui.input_dialog",
+              "nodeType": "ui.input_dialog",
+              "nodeVersion": 1,
+              "parameters": {
+                "title": "数字",
+                "prompt": "输入",
+                "inputKind": "number",
+                "value": "12.5"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "input"
+        ],
+        "semanticValueResults": {
+          "input": 12.5
+        }
+      }
+    },
+    {
+      "id": "ui_input_json",
+      "description": "Injected JSON input dialog value",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "input json",
+        "nodes": [
+          {
+            "id": "input",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "ui.input_dialog",
+              "nodeType": "ui.input_dialog",
+              "nodeVersion": 1,
+              "parameters": {
+                "title": "JSON",
+                "prompt": "输入",
+                "inputKind": "json",
+                "value": "{\"a\":1,\"ok\":true}"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "input"
+        ],
+        "semanticValueResults": {
+          "input": {
+            "a": 1,
+            "ok": true
+          }
+        }
+      }
+    },
+    {
+      "id": "ui_input_table",
+      "description": "Injected table input dialog value",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "input table",
+        "nodes": [
+          {
+            "id": "input",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "ui.input_dialog",
+              "nodeType": "ui.input_dialog",
+              "nodeVersion": 1,
+              "parameters": {
+                "title": "表格",
+                "prompt": "输入",
+                "inputKind": "table",
+                "value": "x,y\n1,2\n3,4\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "input"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              1,
+              2
+            ],
+            [
+              3,
+              4
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        }
+      }
+    },
+    {
+      "id": "ui_alert_confirm",
+      "description": "Injected alert confirmation result",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "alert",
+        "nodes": [
+          {
+            "id": "alert",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "ui.alert",
+              "nodeType": "ui.alert",
+              "nodeVersion": 1,
+              "parameters": {
+                "title": "确认",
+                "message": "继续",
+                "response": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "alert"
+        ],
+        "semanticValueResults": {
+          "alert": true
+        }
+      }
+    },
+    {
+      "id": "ui_alert_cancel",
+      "description": "Injected alert cancel/null result",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "alert cancel",
+        "nodes": [
+          {
+            "id": "alert",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "ui.alert",
+              "nodeType": "ui.alert",
+              "nodeVersion": 1,
+              "parameters": {
+                "title": "确认",
+                "message": "继续",
+                "response": null
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "alert"
+        ],
+        "semanticValueResults": {
+          "alert": null
+        }
+      }
+    },
+    {
+      "id": "visual_if_subflow",
+      "description": "Visual if structure executes true/false child branches",
+      "csvText": "x\n-2\n3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "if subflow",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "if",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "logic.if_subflow",
+              "nodeType": "logic.if_subflow",
+              "nodeVersion": 1,
+              "parameters": {
+                "condition": "x >= 0"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "pos",
+            "position": {
+              "x": 300,
+              "y": -80
+            },
+            "data": {
+              "label": "table.absolute",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "branch": "true"
+            },
+            "parentId": "if"
+          },
+          {
+            "id": "neg",
+            "position": {
+              "x": 300,
+              "y": 80
+            },
+            "data": {
+              "label": "table.absolute",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "branch": "false"
+            },
+            "parentId": "if"
+          },
+          {
+            "id": "merge",
+            "position": {
+              "x": 600,
+              "y": 0
+            },
+            "data": {
+              "label": "logic.merge_rows",
+              "nodeType": "logic.merge_rows",
+              "nodeVersion": 1,
+              "parameters": {
+                "ignoreIndex": true,
+                "sortIndex": false
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "if",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "if",
+            "target": "merge",
+            "sourceHandle": "true",
+            "targetHandle": "left"
+          },
+          {
+            "id": "e3",
+            "source": "if",
+            "target": "merge",
+            "sourceHandle": "false",
+            "targetHandle": "right"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "if",
+          "merge"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              3
+            ],
+            [
+              2
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 1
+        }
+      }
+    },
+    {
+      "id": "visual_for_subflow",
+      "description": "Visual for structure executes body for each row",
+      "csvText": "x\n-2\n3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "for subflow",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "for",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "logic.for_each_subflow",
+              "nodeType": "logic.for_each_subflow",
+              "nodeVersion": 1,
+              "parameters": {
+                "maxIterations": 10
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "abs",
+            "position": {
+              "x": 300,
+              "y": 0
+            },
+            "data": {
+              "label": "table.absolute",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "branch": "body"
+            },
+            "parentId": "for"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "for",
+            "targetHandle": "input"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "for"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              2
+            ],
+            [
+              3
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 1
+        }
+      }
+    },
+    {
+      "id": "visual_while_subflow",
+      "description": "Visual while structure executes body until query condition is false",
+      "csvText": "x\n-2\n3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "while subflow",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "while",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "logic.while_subflow",
+              "nodeType": "logic.while_subflow",
+              "nodeVersion": 1,
+              "parameters": {
+                "condition": "x < 0",
+                "maxIterations": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "abs",
+            "position": {
+              "x": 300,
+              "y": 0
+            },
+            "data": {
+              "label": "table.absolute",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "branch": "body"
+            },
+            "parentId": "while"
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "while",
+            "targetHandle": "input"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "while"
+        ],
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              2
+            ],
+            [
+              3
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 1
+        }
+      }
+    }
+  ]
+}

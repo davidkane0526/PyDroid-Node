@@ -20,6 +20,7 @@ const fixtures = {
 const tempRoot = path.join(os.tmpdir(), `pydroid-runtime-parity-${process.pid}`);
 const engineRoot = path.join(root, "src", "runtime", "javascript", "engine");
 const compiledRoot = path.join(tempRoot, "js-engine");
+const compiledContractRoot = path.join(tempRoot, "node-contract");
 
 function fail(message) {
   throw new Error(`[runtime-parity] ${message}`);
@@ -45,7 +46,7 @@ function locateTsc() {
 function compileJavascriptEngine() {
   rmSync(tempRoot, { recursive: true, force: true });
   mkdirSync(compiledRoot, { recursive: true });
-  const sourceFiles = ["csv.ts", "engine.ts", "index.ts", "nodes.ts", "notebook.ts", "plots.ts", "printable.ts", "table.ts"]
+  const sourceFiles = ["csv.ts", "engine.ts", "index.ts", "nodes.ts", "notebook.ts", "plots.ts", "printable.ts", "random.ts", "table.ts"]
     .map((file) => path.join(engineRoot, file));
   const tsc = locateTsc();
   const result = commandResult(tsc.command, [
@@ -96,6 +97,32 @@ ${error instanceof Error ? error.message : String(error)}`); }
   fail("Python 3.13 was not found for runtime parity tests");
 }
 
+
+
+function compileNodeContract() {
+  mkdirSync(compiledContractRoot, { recursive: true });
+  const tsc = locateTsc();
+  const result = commandResult(tsc.command, [
+    ...tsc.args,
+    path.join(root, "src", "nodeCatalog.ts"),
+    path.join(root, "src", "nodeContract.ts"),
+    "--target", "ES2022",
+    "--module", "commonjs",
+    "--moduleResolution", "node",
+    "--skipLibCheck",
+    "--noCheck",
+    "--outDir", compiledContractRoot,
+  ]);
+  if (result.error || result.status !== 0) fail(`NodeContract compile failed:
+${result.stderr || result.stdout || result.error?.message}`);
+  writeFileSync(path.join(compiledContractRoot, "package.json"), '{"type":"commonjs"}\n');
+}
+
+async function loadNodeContract() {
+  const moduleUrl = pathToFileURL(path.join(compiledContractRoot, "nodeContract.js"));
+  const module = await import(moduleUrl.href);
+  return module.default ?? module;
+}
 
 async function loadJavascriptEngine() {
   const moduleUrl = pathToFileURL(path.join(compiledRoot, "engine.js"));
@@ -213,7 +240,9 @@ function assertExpected(testCase, result, runtimeLabel) {
 }
 
 compileJavascriptEngine();
+compileNodeContract();
 const jsEngine = await loadJavascriptEngine();
+const nodeContract = await loadNodeContract();
 const pythonResults = runPythonBatch(fixtures.cases);
 let passed = 0;
 const coveredNodeTypes = new Set();
@@ -228,7 +257,10 @@ try {
     console.log(`PASS ${testCase.id}`);
     passed += 1;
   }
-  console.log(`Runtime parity golden workflows passed: ${passed}/${fixtures.cases.length}; covered node types: ${[...coveredNodeTypes].filter(Boolean).sort().join(", ")}`);
+  const javascriptContractTypes = new Set(nodeContract.listNodeContracts().filter((contract) => contract.runtimes.javascript).map((contract) => contract.nodeType));
+  const missingContractCoverage = [...javascriptContractTypes].filter((nodeType) => !coveredNodeTypes.has(nodeType)).sort();
+  if (missingContractCoverage.length) fail(`JavaScript-capable NodeContract types missing golden parity coverage: ${missingContractCoverage.join(", ")}`);
+  console.log(`Runtime parity golden workflows passed: ${passed}/${fixtures.cases.length}; JS-capable NodeContract coverage: ${javascriptContractTypes.size}/${javascriptContractTypes.size}; covered node types: ${[...coveredNodeTypes].filter(Boolean).sort().join(", ")}`);
 } finally {
   rmSync(tempRoot, { recursive: true, force: true });
 }

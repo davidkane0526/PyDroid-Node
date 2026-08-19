@@ -1,3 +1,11 @@
+## 2026-08-19 — Phase 5 complete / full NodeContract parity coverage / 1.4.38 (61)
+
+- Phase 5 is complete/frozen for the current runtime surface. Golden parity now covers all 72 JavaScript-capable NodeContracts through 64 workflows.
+- Stochastic nodes now have a locked portable seeded algorithm shared by Python and JavaScript; representative values/row selections are pinned in fixtures.
+- Interactive nodes are tested through injected interaction values, visual if/for/while structures execute real contained child nodes in parity fixtures, and legacy group/group-mean compatibility paths are covered.
+- The parity harness now reads compiled NodeContract metadata and fails when any JavaScript-capable contract lacks golden coverage, turning parity coverage into an architecture gate for future nodes.
+- Build script revision: `1.4.38-dev-r14-phase5-complete`. Next planned architecture stage is Phase 6 Runtime Engine modularization.
+
 ## 2026-08-19 — Phase 5 expanded golden parity / 1.4.37 (60)
 
 - No additional real-device acceptance is required for this Phase 5 increment; the work is engine-to-engine semantic verification and is covered automatically.

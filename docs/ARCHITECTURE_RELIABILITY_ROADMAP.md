@@ -448,6 +448,8 @@ executionModel / functionRole
 
 ## 8. Phase 5 — Python / JavaScript Parity Tests
 
+状态：**1.4.38 已完成并冻结：66 个 Golden Workflow 覆盖当前 72/72 个 JavaScript-capable NodeContract，并作为以后新增双 Runtime 节点的强制回归门禁。**
+
 状态：**1.4.37 持续推进。golden workflow harness 已扩展到 49 个工作流、63 个双运行时节点类型，并已实际发现/修复多项 Python↔JavaScript 语义差异。**
 
 Golden fixtures 位于 `tests/runtime-parity/golden/`，按 table / control-state / io-convert / plots / pulse-analysis / errors 分域维护。
@@ -566,7 +568,7 @@ desktop/
 3. Phase 3 Workflow Core：已完成并冻结。
 4. Phase 3.5 Multi-Workspace Execution：已通过 Windows/Android 实机验收并冻结。
 5. Phase 4 Unified NodeSpec / Node Contract：1.4.36 已完成并冻结。
-6. Phase 5 Python/JavaScript parity tests。
+6. Phase 5 Python/JavaScript parity tests：1.4.38 已完成并冻结，66 个 golden workflows 覆盖 72/72 JS-capable NodeContracts。
 7. 最后再拆 Python/JS engine、Desktop/Android host 和 Build Tool。
 
 核心原则始终是：

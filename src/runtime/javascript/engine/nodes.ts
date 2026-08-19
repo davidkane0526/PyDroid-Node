@@ -1,3 +1,4 @@
+import { PortableRandom, portableSampleCount } from "./random";
 // 节点实现：每个节点类型等价于原 engine.py _execute_node 的分支。
 import { Table, tableFromValue, toNumber, isMissing, compileQuery } from "./table";
 import { parseCsv } from "./csv";
@@ -645,15 +646,8 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
       const count = Math.trunc(Number(params.count ?? 100));
       if (!Number.isFinite(count) || count < 1 || count > 1_000_000) throw new Error("Random table count must be between 1 and 1,000,000");
       const distribution = String(params.distribution ?? "uniform");
-      const seed = (Math.trunc(Number(params.seed ?? 0)) >>> 0);
-      let state = seed || 0x6d2b79f5;
-      const random = () => {
-        state = (state + 0x6d2b79f5) >>> 0;
-        let t = state;
-        t = Math.imul(t ^ (t >>> 15), t | 1);
-        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-      };
+      const seed = Math.trunc(Number(params.seed ?? 0));
+      const random = new PortableRandom(seed);
       const minimum = Number(params.min ?? 0);
       const maximum = Number(params.max ?? 1);
       const mean = Number(params.mean ?? 0);
@@ -664,16 +658,14 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
       const values: number[] = [];
       for (let index = 0; index < count; index += 1) {
         if (distribution === "normal") {
-          const u1 = Math.max(random(), Number.EPSILON);
-          const u2 = random();
-          values.push(mean + std * Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2));
+          values.push(random.normal(mean, std));
         } else if (distribution === "integer") {
           const low = Math.ceil(minimum);
           const high = Math.floor(maximum);
           if (high < low) throw new Error("Random integer range contains no integer values");
-          values.push(low + Math.floor(random() * (high - low + 1)));
+          values.push(random.integer(low, high));
         } else {
-          values.push(minimum + random() * (maximum - minimum));
+          values.push(minimum + random.next() * (maximum - minimum));
         }
       }
       const indexColumn = String(params.indexColumn ?? "index").trim() || "index";
@@ -831,7 +823,7 @@ export function executeNode(nodeType: string, params: Record<string, unknown>, u
     case "pandas.sample": {
       const frame = table();
       const fraction = optionalFloat(params.fraction);
-      const n = fraction === null ? Number(params.n ?? 5) : Math.max(1, Math.round(frame.rowCount * fraction));
+      const n = portableSampleCount(frame.rowCount, fraction, Number(params.n ?? 5));
       const value = frame.sample(n, asBool(params.replace ?? false), Number(params.randomState ?? 0));
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }

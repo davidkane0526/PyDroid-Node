@@ -202,10 +202,10 @@ export const NODE_CATALOG: NodeSpec[] = [
     defaults: { fileIndex: 0 }, inputPorts: [], outputPorts: [{ id: "output", label: "图像", valueType: "plot" }], parameters: [{ key: "fileIndex", label: "文件序号（从 0 开始）", kind: "number", min: 0, step: 1 }],
   },
   {
-    nodeType: "generate.random_table", runtimeSupport: ["python", "javascript"], deterministic: false, cachePolicy: "uncacheable",
+    nodeType: "generate.random_table", runtimeSupport: ["python", "javascript"], deterministic: true, cachePolicy: "cacheable",
     label: "生成随机数表",
     category: "输入输出",
-    description: "无输入生成可复现的随机数表，包含索引列和值列；可直接连接打印、统计和绘图节点。Python 与 JavaScript 后端均支持。",
+    description: "无输入生成可复现的随机数表；相同 seed 在 Python 与 JavaScript 后端使用同一 portable-v1 随机算法并产生一致序列。",
     tags: ["生成", "随机", "random", "source", "数据源", "序列", "表格"],
     defaults: { count: 100, distribution: "uniform", min: 0, max: 1, mean: 0, std: 1, seed: 0, indexColumn: "index", valueColumn: "value" },
     inputPorts: [],

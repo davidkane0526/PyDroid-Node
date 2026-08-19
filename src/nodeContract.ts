@@ -9,9 +9,10 @@ import {
   type NodeFunctionRole,
   type NodeSpec,
 } from "./nodeCatalog";
-import type { WorkflowNode } from "./workflow";
 
 export type { NodeCachePolicy, NodeExecutionModel, NodeFunctionRole, NodeRuntimeId, NodeStateAccess, NodeStateScope } from "./nodeCatalog";
+
+type NodeTypeCarrier = { data: { nodeType: string } };
 
 export type NodeContract = {
   nodeType: string;
@@ -151,16 +152,16 @@ export function validateNodeContracts(): string[] {
 }
 
 
-export function getUnsupportedNodeTypesForRuntime(nodes: WorkflowNode[], runtime: NodeRuntimeId): string[] {
+export function getUnsupportedNodeTypesForRuntime(nodes: NodeTypeCarrier[], runtime: NodeRuntimeId): string[] {
   return [...new Set(nodes.map((node) => node.data.nodeType).filter((nodeType) => nodeType !== "workflow.group" && !supportsNodeRuntime(nodeType, runtime)))].sort();
 }
 
-export function canWorkflowRunInRuntime(nodes: WorkflowNode[], runtime: NodeRuntimeId): { supported: boolean; unsupportedNodeTypes: string[] } {
+export function canWorkflowRunInRuntime(nodes: NodeTypeCarrier[], runtime: NodeRuntimeId): { supported: boolean; unsupportedNodeTypes: string[] } {
   const unsupportedNodeTypes = getUnsupportedNodeTypesForRuntime(nodes, runtime);
   return { supported: unsupportedNodeTypes.length === 0, unsupportedNodeTypes };
 }
 
-export function canSafelyPreExecuteNodes(nodes: WorkflowNode[]): { safe: boolean; blockingNodeTypes: string[] } {
+export function canSafelyPreExecuteNodes(nodes: NodeTypeCarrier[]): { safe: boolean; blockingNodeTypes: string[] } {
   const blockingNodeTypes = [...new Set(nodes
     .map((node) => node.data.nodeType)
     .filter((nodeType) => nodeType !== "workflow.group")

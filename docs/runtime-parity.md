@@ -52,7 +52,7 @@ Python integer/float representation differences such as `0` versus `0.0` are tre
 
 ## 4. Current golden coverage
 
-As of 1.4.37 the suite contains **49 golden workflows covering 63 dual-runtime node types**. Coverage now includes:
+As of 1.4.38 the suite contains **66 golden workflows covering every 72 JavaScript-capable NodeContract (72/72)**. Coverage includes:
 
 - CSV/table transforms, slicing, sorting, pivoting and periodic windows;
 - missing-value, duplicate, describe/query and grouping operations;
@@ -112,3 +112,20 @@ The expanded suite has already prevented real cross-runtime divergence:
 - `pulse.generate_oscillating_ramp`: JS advanced amplitude asymmetrically; it now matches the Python `+step, -step, +2*step, -2*step, …` sequence.
 
 These are exactly the failures Phase 5 is intended to surface. Do not weaken the comparator to hide a mismatch unless Node Contract explicitly says the runtimes are allowed to differ.
+
+
+## Portable random contract
+
+`generate.random_table` and `pandas.sample` use the locked `portable-v1` seeded random contract in both runtimes. The algorithm is a deterministic 32-bit generator with identical uniform draws, Box-Muller normal generation, integer draws and Fisher-Yates sampling in Python and JavaScript. A seed of `0` maps to the fixed non-zero initial state used by the contract.
+
+Golden fixtures pin representative uniform values and sample rows. This is intentional: parity must fail if either runtime changes the portable sequence in a later release.
+
+Compatibility note: workflows created before 1.4.38 may observe a different seeded random/sample sequence when re-run because the two runtimes previously used different RNG implementations. The portable-v1 sequence is the compatibility baseline from 1.4.38 forward.
+
+## Interactive-node parity
+
+`ui.alert` and `ui.input_dialog` have UI side effects in the application, but their engine-level result semantics are deterministic once the interaction result/value is injected. Golden fixtures therefore inject representative true/null alert responses plus number, JSON and table input values, and compare semantic outputs rather than dialog presentation text.
+
+## Coverage gate
+
+The parity harness compiles `src/nodeContract.ts`, enumerates every contract with `runtimes.javascript === true`, and fails if any such node type is missing from the golden corpus. Adding a new JavaScript-capable node therefore requires a golden parity case in the same change. Legacy compatibility contracts such as `table.group_mean` and `workflow.group` are included in the gate.

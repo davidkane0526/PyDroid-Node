@@ -1,3 +1,4 @@
+import { portableSampleIndexes } from "./random";
 // JS 版表格核心：列优先存储的 DataFrame 等价物。
 // 语义对齐原 Python 引擎中 pandas 的常用操作（engine.py）。
 
@@ -305,25 +306,7 @@ export class Table {
   }
 
   sample(n = 5, replace = false, randomState = 0): Table {
-    let seed = randomState >>> 0;
-    const random = (): number => {
-      seed = (seed * 1664525 + 1013904223) >>> 0;
-      return seed / 0x100000000;
-    };
-    const indexes: number[] = [];
-    const pool = Array.from({ length: this.rowCount }, (_, r) => r);
-    if (replace) {
-      for (let i = 0; i < n; i += 1) indexes.push(pool[Math.floor(random() * pool.length)]);
-    } else {
-      const count = Math.min(n, pool.length);
-      for (let i = pool.length - 1; i > pool.length - 1 - count; i -= 1) {
-        const j = Math.floor(random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-        indexes.push(pool[i]);
-      }
-      indexes.reverse();
-    }
-    return this.takeRows(indexes);
+    return this.takeRows(portableSampleIndexes(this.rowCount, n, replace, randomState));
   }
 
   round(decimals = 2): Table {
