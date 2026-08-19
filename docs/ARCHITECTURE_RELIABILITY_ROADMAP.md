@@ -2,7 +2,7 @@
 
 更新时间：2026-08-19
 长期开发分支：`dev`
-稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.42 (65)`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.43 (66)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -506,6 +506,8 @@ JavaScript 使用对应职责划分，但不要求文件结构完全镜像。共
 ---
 
 ## 10. Phase 7 — Host 模块化与构建器整理
+
+状态：**1.4.43 已进入 Phase 7。Desktop Host 第一阶段已完成：`main.cjs` 已收敛为 composition/lifecycle root，服务与 IPC 分域模块化；下一阶段处理 Android Host，构建工具仍放在最后。**
 
 ### Desktop
 

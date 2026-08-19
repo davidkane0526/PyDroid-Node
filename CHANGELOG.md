@@ -1,3 +1,13 @@
+## 1.4.43 (66) — Phase 7 Desktop Host services and IPC modularization — 2026-08-19
+
+- Started Phase 7 by reducing `desktop/main.cjs` from 1021 lines to a small composition/lifecycle root.
+- Split Desktop host responsibilities into explicit services: Python workflow scheduling/process lifecycle, SMB, Remote Web/LAN discovery, profile paths, encrypted secrets and desktop logging.
+- Split Electron IPC registration by domain (`runtime`, `SMB`, `file`, `remote`, `window`) with a single composition registrar; preload/renderer channel contracts remain unchanged.
+- Moved BrowserWindow construction/smoke behavior into a dedicated window host module while keeping `main.cjs` responsible for lifecycle composition.
+- Added `test:desktop-host-architecture` and packaging assertions so Desktop service/IPC modules cannot be omitted or collapsed back into `main.cjs`.
+- Phase 1–6 architecture checks, Python tests and the 72/72 dual-runtime parity gate remain green.
+- Build script revision: `1.4.43-dev-r19-phase7-desktop-host`.
+
 ## 1.4.42 (65) — Phase 6 JavaScript workflow orchestration modularization — 2026-08-19
 
 - Completed the remaining JavaScript Runtime orchestration split without changing workflow-visible semantics. `src/runtime/javascript/engine/engine.ts` dropped from ~596 lines to a compatibility facade that re-exports stable execution/environment/ordering APIs.

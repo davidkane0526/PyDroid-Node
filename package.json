@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.42",
+  "version": "1.4.43",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:execution-architecture && pnpm test:workflow-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:workflow-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -44,7 +44,8 @@
     "test:workflow-core": "node scripts/workflow-core-architecture-smoke.mjs",
     "test:node-contract": "node scripts/node-contract-architecture-smoke.mjs",
     "test:parity": "node scripts/runtime-parity-smoke.mjs",
-    "test:runtime-engine-architecture": "node scripts/runtime-engine-architecture-smoke.mjs"
+    "test:runtime-engine-architecture": "node scripts/runtime-engine-architecture-smoke.mjs",
+    "test:desktop-host-architecture": "node scripts/desktop-host-architecture-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -79,6 +80,9 @@
       "desktop/preload.cjs",
       "desktop/lan/**/*",
       "desktop/execution/**/*",
+      "desktop/window/**/*",
+      "desktop/ipc/**/*",
+      "desktop/services/**/*",
       "node_modules/node-smb2/**/*",
       "node_modules/des.js/**/*",
       "node_modules/inherits/**/*",

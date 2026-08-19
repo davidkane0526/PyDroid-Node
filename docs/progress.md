@@ -1,3 +1,14 @@
+## 2026-08-19 — Phase 7 Desktop Host modularization / 1.4.43 (66)
+
+- Phase 7 has started. Desktop Host is the first tranche; Android Host and build-tool modularization are intentionally deferred until the Desktop boundary is stable.
+- `desktop/main.cjs` is now a small composition/lifecycle root instead of a 1000+ line host monolith.
+- Desktop services now live under `desktop/services/`: Python workflow execution, SMB, Remote Web/LAN discovery, profile/path management, encrypted secrets and logging.
+- IPC handlers are split under `desktop/ipc/` by runtime, SMB, file picking, remote server and window controls. Existing preload channel names are unchanged.
+- BrowserWindow creation and the existing Electron smoke scenario moved to `desktop/window/create-window.cjs`.
+- `scripts/desktop-host-architecture-smoke.mjs` prevents IPC/service logic from returning to `main.cjs` and checks packaged host modules.
+- Next Phase 7 tranche: Android native service decomposition; build-tool `.psm1` modularization remains last.
+- Build script revision: `1.4.43-dev-r19-phase7-desktop-host`.
+
 ## 2026-08-19 — Phase 6 complete: JavaScript workflow orchestration / 1.4.42 (65)
 
 - JavaScript `engine.ts` is now a compatibility facade (~6 lines). Workflow input validation, graph/upstream topology, group flattening, visual/loop structures, orchestration and result/error serialization moved into focused `engine/workflow/` modules.
