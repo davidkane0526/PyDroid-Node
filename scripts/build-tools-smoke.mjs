@@ -1,151 +1,154 @@
 import assert from "node:assert/strict";
 import { packageManagerInvocation } from "./desktop-package-invocation.mjs";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const buildScriptPath = fileURLToPath(new URL("../tools/build-pydroid.ps1", import.meta.url));
 const buildScript = readFileSync(buildScriptPath, "utf8");
+const buildModulesDir = path.resolve(path.dirname(buildScriptPath), "modules");
+const buildModules = readdirSync(buildModulesDir).filter((name) => name.endsWith(".psm1")).sort().map((name) => readFileSync(path.join(buildModulesDir, name), "utf8")).join("\n");
+const buildToolSources = `${buildScript}\n${buildModules}`;
 const packageJson = JSON.parse(readFileSync(path.resolve(fileURLToPath(new URL("..", import.meta.url)), "package.json"), "utf8"));
 assert.doesNotMatch(
-  buildScript,
+  buildToolSources,
   /param\s*\([^)]*\$Home\b/i,
   "PowerShell parameters must not shadow the read-only automatic $HOME variable",
 );
 assert.doesNotMatch(
-  buildScript,
+  buildToolSources,
   /^\s*\$Home\s*=/im,
   "PowerShell code must not assign to the read-only automatic $HOME variable",
 );
 
 assert.match(
-  buildScript,
+  buildToolSources,
   /@@PYDROID_STAGE@@\|\{0\}\|\{1\}/,
   "build script should emit machine-readable GUI stage events",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /& robocopy @robocopyArgs \| Out-Null/,
   "source synchronization should suppress robocopy EXTRA-file spam",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /function Remove-BuildDirectoryRobust/,
   "build output cleanup should use the robust long-path-aware directory remover",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Get-ExtendedLengthPath -Path \$Path/,
   "robust cleanup should retry through the Windows extended-length path namespace",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /cmd\.exe \/d \/c rd \/s \/q/,
   "robust cleanup should use cmd rd for deep Windows directory trees",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /robocopy @cleanupArgs/,
   "robust cleanup should retain an empty-mirror fallback for stubborn long paths",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Remove-BuildDirectoryRobust -Path \$full -Quiet/,
   "pre-sync stale output cleanup should use robust deletion instead of silently leaving partial release trees",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Remove-BuildDirectoryRobust -Path \$full\r?\n\s*}/,
   "stage-40 output cleanup should use robust deletion and fail only after all cleanup fallbacks are exhausted",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Microsoft\\jdk-\*/,
   "JDK discovery should scan Microsoft OpenJDK common install directories",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Get-JavaHomesFromRegistry/,
   "JDK discovery should inspect Windows registry/uninstall metadata",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\[string\]\$JavaHome/,
   "build script should accept an explicit JavaHome path from the GUI/CLI",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /function Resolve-JavaHomeCandidate/,
   "manual JDK paths should be normalized through one resolver",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\^\(java\|javac\)\\\.exe\$/,
   "manual JDK selection should accept java.exe or javac.exe paths",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\(Split-Path \$candidate -Leaf\) -ieq 'bin'/,
   "manual JDK selection should accept a JDK bin directory",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 2/,
   "manual JDK path should accept a Java container directory and search nested JDK folders",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Join-Path \$resolved 'bin\\java\.exe'/,
   "JDK validation should require bin/java.exe",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Join-Path \$resolved 'bin\\javac\.exe'/,
   "JDK validation should require bin/javac.exe",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /foreach \(\$name in @\('java', 'javac'\)\)/,
   "JDK discovery should query both where java and where javac",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Invoke-JavaVersionProbe/,
   "JDK version probing should isolate native stdout and stderr for Windows PowerShell 5.1",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /脚本不会在你手动指定 Java 后擅自下载另一个 JDK/,
   "an invalid manually-selected JDK path must fail instead of silently downloading another JDK",
 );
 
 assert.match(
-  buildScript,
+  buildToolSources,
   /PYDROID_DISABLE_GRADLE_DAEMON/,
   "core build script should pass the Gradle daemon selection to android-package.ps1 without regex-rewriting its commands",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /org\.gradle\.jvmargs=\$effectiveJvmArgs/,
   "Gradle client and build JVM arguments should be synchronized for daemon/no-daemon compatibility",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /org\.gradle\.java\.home=\$gradleJavaHome/,
   "Gradle daemon JVM should be pinned to the validated JAVA_HOME",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /org\.gradle\.daemon\.idletimeout=600000/,
   "PyDroid Gradle daemons should have a bounded idle lifetime",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Join-Path \(Join-Path \$CacheRoot "gradle"\) \$projectKey/,
   "Gradle user home should be isolated per project to avoid stale daemon collisions",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /ProjectPropertiesPath/,
   "Gradle network setup should patch the temporary project gradle.properties",
 );
@@ -158,177 +161,177 @@ assert.ok(
   `build-script revision ${revisionMatch[1]} should start with package version ${packageJson.version}`,
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /构建脚本修订：\$script:BuildScriptRevision[\s\S]*实际脚本路径：\$PSCommandPath/,
   "stage 2 should log both the build-script revision and the actual script path",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /function Test-NodeCandidate[\s\S]*项目要求同一主版本且不低于/,
   "shared Node candidates must be version-checked before reuse",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /最终选定的 Node 不满足项目版本要求/,
   "the selected Node should be revalidated after discovery or installation",
 );
 
 assert.match(
-  buildScript,
+  buildToolSources,
   /function Test-PythonSeries/,
   "Android build Python candidates should be version-validated before use",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /function Test-PythonBuildHost/,
   "Android build Python should have a dedicated full-runtime capability check",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /import struct, venv, ensurepip/,
   "Android build Python must provide venv/ensurepip rather than reusing the embeddable desktop runtime",
 );
 assert.doesNotMatch(
-  buildScript,
+  buildToolSources,
   /Join-Path \$ToolRoot "Python\\runtime-3\.13"/,
   "the desktop Python runtime must not be created inside the read-only shared ToolRoot",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Join-Path \$privateToolsRoot "Python\\runtime-3\.13"/,
   "the desktop Python runtime should live under the writable WorkRoot tools directory",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /移除旧桌面 Python 运行时联接/,
   "legacy desktop-runtime junctions pointing into ToolRoot should be detached before reuse",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /忽略 PYDROID_PYTHON_EXECUTABLE=/,
   "a stale PYDROID_PYTHON_EXECUTABLE must be diagnosed instead of accepted only because its file exists",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /缺少 venv\/ensurepip/,
   "an embeddable Python without venv must be rejected as Android buildPython",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /预检 Android 完整 Python 3\.13/,
   "Android Python compatibility should be checked before expensive packaging",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\$pythonPinnedInstallerVersion = "3\.13\.14"/,
   "Python 3.13 auto-install should pin an existing full python.org maintenance release",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\$requiredPythonSeries = "3\.13"/,
   "Android Python series should stay aligned with the Chaquopy Python 3.13 configuration",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /已自动迁移/,
   "legacy PythonVersion values such as 3.12 should be normalized instead of aborting the build",
 );
 assert.doesNotMatch(
-  buildScript,
+  buildToolSources,
   /当前 PyDroid Android\/Chaquopy 配置固定使用 Python 3\.13；收到 PythonVersion=.*throw/,
   "legacy PythonVersion values must not hard-fail before the GUI can migrate them",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /python\/\{0\}\/python-\{0\}-amd64\.exe/,
   "Python installer URL must include the full maintenance version directory and filename",
 );
 assert.doesNotMatch(
-  buildScript,
+  buildToolSources,
   /ftp\/python\/\{0\}\/python-\{0\}-amd64\.exe" -f \$PythonVersion/,
   "raw PythonVersion must not be used directly for auto-install URLs because persisted 3.13 values are valid series but invalid download directories",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Include_exe=1[\s\S]*Include_lib=1[\s\S]*Include_pip=1[\s\S]*Include_tools=1[\s\S]*Include_dev=1/,
   "Python auto-install must explicitly request the executable, stdlib, pip, tools, and development components required by Chaquopy",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /"\/log"[\s\S]*pythonInstallLog/,
   "Python bootstrapper should emit an installer log so silent-install failures are diagnosable",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Get-PythonBuildHostDiagnostic/,
   "Python auto-install failures should report version and venv\/ensurepip capability diagnostics",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /if \(\$isUsable\)[\s\S]*\$proc\.ExitCode -ne 0[\s\S]*return \$pythonExe/,
   "a validated full Python host should be accepted even when the bootstrapper returns a non-zero informational code",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Remove-BuildDirectoryRobust -Path \$dest -Quiet/,
   "a partial private Python installation should be removed robustly before retrying the official installer",
 );
 
 
 assert.match(
-  buildScript,
+  buildToolSources,
   /function Install-Python313FromNuGet/,
   "Python 3.13 bootstrap should have an MSI-independent CPython NuGet fallback",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /python\.\{0\}\.nupkg[\s\S]*api\.nuget\.org\/v3-flatcontainer/,
   "the fallback should download the official CPython NuGet package",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\$proc\.ExitCode -eq 1601[\s\S]*Install-Python313FromNuGet/,
   "Windows Installer error 1601 must fall back to CPython NuGet instead of aborting the build",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Test-WindowsInstallerServiceAvailable[\s\S]*改用官方 CPython NuGet buildPython/,
   "an unavailable Windows Installer service should bypass the EXE bootstrapper",
 );
 
 assert.match(
-  buildScript,
+  buildToolSources,
   /共享工具目录（只读）：\$ToolRoot/,
   "the build log should explicitly mark ToolRoot as read-only",
 );
 assert.doesNotMatch(
-  buildScript,
+  buildToolSources,
   /foreach \(\$d in @\(\$ToolRoot,/,
   "initialization must not create or touch the shared ToolRoot",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\$privateToolsRoot = Join-Path \$WorkRoot "tools\\\$projectKey"/,
   "missing tools should be installed into the WorkRoot-scoped private tools directory",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /New-TemporaryAndroidSdkOverlay/,
   "an incomplete shared Android SDK should be overlaid into a writable temporary SDK instead of modified in place",
 );
 
 assert.match(
-  buildScript,
+  buildToolSources,
   /同盘快速移动桌面版/,
   "same-volume desktop finalization should use a directory move instead of copying the Electron/Python tree file-by-file",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /\/MT:16/,
   "cross-volume desktop finalization should use multithreaded robocopy",
 );
 assert.match(
-  buildScript,
+  buildToolSources,
   /Android APK 编译完成/,
   "the GUI should leave the 82% compile stage immediately after Android packaging returns",
 );

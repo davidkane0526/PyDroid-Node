@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "description": "Stable renderer-to-host binding contract. PlatformAdapter remains the application-facing API; this manifest locks transport bindings so Desktop IPC and Android Capacitor cannot drift silently.",
+  "operations": [
+    { "capability": "runtime", "operation": "runWorkflow", "desktop": { "bridge": "runWorkflow", "channel": "pydroid:run-workflow" }, "android": { "plugin": "PythonExecutor", "method": "runWorkflow" } },
+    { "capability": "runtime", "operation": "cancelWorkflow", "desktop": { "bridge": "cancelWorkflow", "channel": "pydroid:cancel-workflow" }, "android": { "plugin": "PythonExecutor", "method": "cancelWorkflow" } },
+    { "capability": "runtime", "operation": "getExecutionStatus", "desktop": { "bridge": "getExecutionStatus", "channel": "pydroid:get-execution-status" }, "android": { "plugin": "PythonExecutor", "method": "getExecutionStatus" } },
+    { "capability": "runtime", "operation": "getEnvironment", "desktop": { "bridge": "getEnvironment", "channel": "pydroid:get-environment" }, "android": { "plugin": "PythonExecutor", "method": "getEnvironment" } },
+    { "capability": "runtime", "operation": "getRuntimeStats", "desktop": { "bridge": "getRuntimeStats", "channel": "pydroid:get-runtime-stats" }, "android": { "plugin": "PythonExecutor", "method": "getRuntimeStats" } },
+    { "capability": "runtime", "operation": "analyzeNotebook", "desktop": { "bridge": "analyzeNotebook", "channel": "pydroid:analyze-notebook" }, "android": { "plugin": "PythonExecutor", "method": "analyzeNotebook" } },
+    { "capability": "runtime", "operation": "analyzeSignature", "desktop": { "bridge": "analyzeSignature", "channel": "pydroid:analyze-signature" }, "android": { "plugin": "PythonExecutor", "method": "analyzeSignature" } },
+
+    { "capability": "files", "operation": "pickCsvFiles", "desktop": { "bridge": "pickCsvFiles", "channel": "pydroid:pick-csv" }, "android": { "plugin": "PythonExecutor", "method": "pickCsv" } },
+
+    { "capability": "smb", "operation": "discoverServers", "desktop": { "bridge": "discoverSmbServers", "channel": "pydroid:discover-smb-servers" }, "android": { "plugin": "PythonExecutor", "method": "discoverSmbServers" } },
+    { "capability": "smb", "operation": "scanShares", "desktop": { "bridge": "scanSmbShares", "channel": "pydroid:scan-smb-shares" }, "android": { "plugin": "PythonExecutor", "method": "scanSmbShares" } },
+    { "capability": "smb", "operation": "listDirectory", "desktop": { "bridge": "listSmb", "channel": "pydroid:list-smb" }, "android": { "plugin": "PythonExecutor", "method": "listSmb" } },
+    { "capability": "smb", "operation": "readCsvFiles", "desktop": { "bridge": "readSmb", "channel": "pydroid:read-smb" }, "android": { "plugin": "PythonExecutor", "method": "readSmbCsv" } },
+
+    { "capability": "secrets", "operation": "saveSmbSecret", "desktop": { "bridge": "saveSmbSecret", "channel": "pydroid:save-smb-secret" }, "android": { "plugin": "PythonExecutor", "method": "saveSmbSecret" } },
+    { "capability": "secrets", "operation": "loadSmbSecret", "desktop": { "bridge": "loadSmbSecret", "channel": "pydroid:load-smb-secret" }, "android": { "plugin": "PythonExecutor", "method": "loadSmbSecret" } },
+    { "capability": "secrets", "operation": "saveAgentSecret", "desktop": { "mode": "renderer-session" }, "android": { "plugin": "PythonExecutor", "method": "saveAgentSecret" } },
+    { "capability": "secrets", "operation": "loadAgentSecret", "desktop": { "mode": "renderer-session" }, "android": { "plugin": "PythonExecutor", "method": "loadAgentSecret" } },
+
+    { "capability": "profile", "operation": "saveFile", "desktop": { "mode": "electron-user-data" }, "android": { "plugin": "PythonExecutor", "method": "saveUserProfileFile" } },
+    { "capability": "profile", "operation": "getInfo", "desktop": { "mode": "electron-user-data" }, "android": { "plugin": "PythonExecutor", "method": "getUserProfileInfo" } },
+    { "capability": "profile", "operation": "chooseWorkflowFolder", "desktop": { "mode": "system-dialog" }, "android": { "plugin": "PythonExecutor", "method": "chooseWorkflowFolder" } },
+    { "capability": "profile", "operation": "openWorkflowFolder", "desktop": { "mode": "system-dialog" }, "android": { "plugin": "PythonExecutor", "method": "openWorkflowFolder" } },
+    { "capability": "profile", "operation": "listWorkflowLibrary", "desktop": { "mode": "system-dialog" }, "android": { "plugin": "PythonExecutor", "method": "listWorkflowLibrary" } },
+    { "capability": "profile", "operation": "renameWorkflowFile", "desktop": { "mode": "system-dialog" }, "android": { "plugin": "PythonExecutor", "method": "renameWorkflowFile" } },
+    { "capability": "profile", "operation": "deleteWorkflowFile", "desktop": { "mode": "system-dialog" }, "android": { "plugin": "PythonExecutor", "method": "deleteWorkflowFile" } },
+
+    { "capability": "remote", "operation": "startServer", "desktop": { "bridge": "startRemoteServer", "channel": "pydroid:start-remote-server" }, "android": { "plugin": "PythonExecutor", "method": "startRemoteServer" } },
+    { "capability": "remote", "operation": "stopServer", "desktop": { "bridge": "stopRemoteServer", "channel": "pydroid:stop-remote-server" }, "android": { "plugin": "PythonExecutor", "method": "stopRemoteServer" } },
+
+    { "capability": "system", "operation": "setSystemTheme", "desktop": { "mode": "renderer-css" }, "android": { "plugin": "UiChrome", "method": "setTheme" } },
+    { "capability": "window", "operation": "minimize", "desktop": { "bridge": "minimize", "channel": "pydroid:window-minimize" }, "android": { "mode": "not-applicable" } },
+    { "capability": "window", "operation": "toggleMaximize", "desktop": { "bridge": "toggleMaximize", "channel": "pydroid:window-toggle-maximize" }, "android": { "mode": "not-applicable" } },
+    { "capability": "window", "operation": "close", "desktop": { "bridge": "close", "channel": "pydroid:window-close" }, "android": { "mode": "not-applicable" } },
+    { "capability": "window", "operation": "isMaximized", "desktop": { "bridge": "isMaximized", "channel": "pydroid:window-is-maximized" }, "android": { "mode": "not-applicable" } }
+  ]
+}

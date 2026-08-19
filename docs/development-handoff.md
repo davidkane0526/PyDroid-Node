@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.44 (67)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + active Phase 7 Host modularization.
+- `dev`: `1.4.45 (68)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
 
 Current working branch: `dev`.
 
@@ -195,8 +195,12 @@ The suite has already found and fixed real divergences in JSON `indent=0`, CSV t
 Read `docs/runtime-engine-modularization.md` before changing runtime structure. Phase 6 is frozen; future runtime changes must preserve its facade/module boundaries and keep Phase 5 parity green. The next architecture stage is Phase 7 Host modularization.
 
 
-## Phase 7 — Host modularization
+## Phase 7 — Host modularization and build boundary
 
-**In progress on `dev` 1.4.44 (67).** Desktop and Android Host boundaries are now both modularized. Desktop: `desktop/main.cjs` is the composition/lifecycle root; concrete host capabilities live under `desktop/services/`; Electron IPC handlers live under `desktop/ipc/`; BrowserWindow creation lives under `desktop/window/`. Preload/renderer IPC channel names must remain stable unless a migration is explicitly planned. Android: `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes; Python/SMB/SAF files/profile/secrets/Remote capabilities live in focused Android services. Existing Capacitor method names and activity callback names must remain stable unless a migration is explicitly planned.
+**Architecture work is complete on `dev` 1.4.45 (68), pending one real Windows build validation before freezing the phase.** Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
 
-Read `docs/desktop-host-modularization.md` before changing Desktop main-process architecture and `docs/android-host.md` before changing Android native bindings. Desktop/Android host decomposition is now in place; the next Phase 7 tranche is cross-platform host-contract cleanup followed by Build Tool modularization, which remains intentionally last.
+Cross-platform transport bindings are now documented in `src/platform/host-contract.json`. `scripts/host-contract-smoke.mjs` checks the stable Desktop preload/IPC and Android Capacitor/Java method surface so PlatformAdapter transport cannot drift silently. Read `docs/host-contract.md` before adding or renaming any native host operation.
+
+The Windows builder keeps `Build PyDroid GUI.cmd` as the only user entry. `tools/build-pydroid.ps1` remains the orchestration root while reusable Network/Paths/Node/Java/Android/Python/Packaging primitives live under `tools/modules/*.psm1`. Do not perform another large build-script rewrite: machine-sensitive installation, Gradle and packaging sequence stays in the orchestration script until a concrete independently testable boundary exists. Read `BUILD_TOOLCHAIN.md` and `tools/README-build.md` before build-tool changes.
+
+The 1.4.45 cloud regression is green, but Linux does not provide Windows PowerShell 5.1. Before Phase 7 is marked frozen, run the normal Windows `Build PyDroid GUI.cmd` path once (Desktop + Android) on a real Windows host.

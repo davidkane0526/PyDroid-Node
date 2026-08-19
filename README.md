@@ -1,8 +1,8 @@
-> **1.4.31 (54) · dev Phase 3.5**：Phase 3 Workflow Core 已完成并冻结；新增多 Workspace 执行调度。Windows Python 按 CPU 最多 4 个并行、超额排队；Android Chaquopy 采用 1 个运行 + FIFO 队列；本地标签页与 Remote Web 共享宿主调度但按 `workspaceId/clientId` 独立控制。Remote Web 配对后每 400 ms 主动同步宿主执行状态，不再需要操作页面才刷新。
+> **1.4.45 (68) · dev Phase 7**：Desktop 与 Android Host 已完成 service/IPC/binding 分域；新增 30 项跨平台 Host binding contract；Windows 构建器开始按 Network / Paths / Node / Java / Android / Python / Packaging 拆为 PowerShell 模块。Phase 1–6 均已冻结。
 
-> **dev 架构线**：Phase 1 PlatformAdapter、Phase 2 ExecutionController、Phase 3 Workflow Core、Phase 3.5 Multi-Workspace Execution 与 Phase 4 Unified NodeSpec / Node Contract 均已完成并冻结；当前进入 Phase 5 Python / JavaScript golden workflow parity。详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md) 与 [docs/runtime-parity.md](docs/runtime-parity.md)。
+> **本次 UI 修复**：Remote/Web 标签被宿主终止后红色错误点会自动消退；Android SMB 输入凭据时避免软键盘挤乱底部操作按钮；设置页双列功能卡按行统一底边。
 
-当前 `dev` Android 调试构建版本：`1.4.31 (54)`；`main` 仍保留稳定 `1.4.27 (50)` LAN 基线。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
+当前 `dev` Android 调试构建版本：`1.4.45 (68)`；稳定 `main` 仍保留 `1.4.27 (50)` LAN 基线。Android 1.4.44 Host 分域已经过真机宿主功能验收；1.4.45 因修改 Windows Build Tool，在 Phase 7 冻结前还需要一次真实 Windows `Build PyDroid GUI.cmd` 构建验证。详见 [docs/development-handoff.md](docs/development-handoff.md)、[docs/host-contract.md](docs/host-contract.md) 与 [BUILD_TOOLCHAIN.md](BUILD_TOOLCHAIN.md)。
 
 # PyDroid Flow
 

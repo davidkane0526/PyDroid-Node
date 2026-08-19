@@ -5,6 +5,10 @@ Baseline: **RC10 unified shared toolchain** (2026-08-17).
 Future build-tool changes should be based on this implementation rather than the older RC3-RC8 wrappers.
 The user-facing entry remains `Build PyDroid GUI.cmd`; PowerShell files under `tools/` are implementation details.
 
+### Phase 7 module layout
+
+The user-facing contract has not changed. `tools/build-pydroid.ps1` remains the orchestration root and imports focused Windows PowerShell 5.1 modules from `tools/modules/` for Network, Paths, Node, Java, Android, Python and Packaging helpers. Keep installation/build sequencing in the root script when it depends on mutable orchestration state; do not turn the module split into a wholesale rewrite. `scripts/build-tool-architecture-smoke.mjs` guards this boundary.
+
 ## Runtime baseline
 
 PyDroid Node development/build runtime is standardized on **Node.js 24**:

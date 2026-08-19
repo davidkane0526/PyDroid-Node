@@ -142,11 +142,27 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.44-dev-r20-phase7-android-host"
+$script:BuildScriptRevision = "1.4.45-dev-r21-phase7-host-contract-build-modules"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+
+# Phase 7 build-tool modules. Keep CLI orchestration in this file; reusable platform/tool helpers live in focused modules.
+$buildModuleRoot = Join-Path $PSScriptRoot "modules"
+foreach ($buildModule in @(
+    "PyDroid.Build.Network.psm1",
+    "PyDroid.Build.Paths.psm1",
+    "PyDroid.Build.Java.psm1",
+    "PyDroid.Build.Android.psm1",
+    "PyDroid.Build.Node.psm1",
+    "PyDroid.Build.Python.psm1",
+    "PyDroid.Build.Packaging.psm1"
+)) {
+    $modulePath = Join-Path $buildModuleRoot $buildModule
+    if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw "缺少构建工具模块：$modulePath" }
+    Import-Module -Name $modulePath -Force -DisableNameChecking -ErrorAction Stop
+}
 
 function Get-DefaultWorkRoot {
     if ($env:PYDROID_BUILD_HOME) { return $env:PYDROID_BUILD_HOME }
@@ -173,142 +189,21 @@ function Get-DefaultCacheRoot {
     return (Join-Path $ResolvedWorkRoot "cache")
 }
 
-function Get-ProjectAndroidApiLevel {
-    param([string]$Root, [int]$Override)
-    if ($Override -gt 0) { return $Override }
-    $variables = Join-Path $Root "android\variables.gradle"
-    if (Test-Path -LiteralPath $variables) {
-        $text = Get-Content -LiteralPath $variables -Raw
-        $m = [regex]::Match($text, 'compileSdkVersion\s*=\s*(\d+)')
-        if ($m.Success) { return [int]$m.Groups[1].Value }
-    }
-    return 36
-}
 
-function Normalize-ProxyUrl {
-    param([string]$Value)
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    $valueTrimmed = $Value.Trim()
-    if ($valueTrimmed -match '^[a-zA-Z][a-zA-Z0-9+.-]*://') { return $valueTrimmed }
-    return "http://$valueTrimmed"
-}
 
-function Get-WindowsInternetProxy {
-    try {
-        $key = Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop
-        if ([int]$key.ProxyEnable -ne 1 -or [string]::IsNullOrWhiteSpace([string]$key.ProxyServer)) { return $null }
-        $raw = [string]$key.ProxyServer
-        if ($raw -match ';' -or $raw -match '=') {
-            $parts = @{}
-            foreach ($piece in ($raw -split ';')) {
-                if ($piece -match '^\s*([^=]+)=(.+)$') { $parts[$matches[1].Trim().ToLowerInvariant()] = $matches[2].Trim() }
-            }
-            if ($parts.ContainsKey('https')) { return Normalize-ProxyUrl $parts['https'] }
-            if ($parts.ContainsKey('http')) { return Normalize-ProxyUrl $parts['http'] }
-            if ($parts.Count -gt 0) { return Normalize-ProxyUrl (($parts.Values | Select-Object -First 1)) }
-        }
-        return Normalize-ProxyUrl $raw
-    } catch {
-        return $null
-    }
-}
 
-function Test-LocalProxyEndpoint {
-    param([string]$Url)
-    if ([string]::IsNullOrWhiteSpace($Url)) { return $true }
-    try {
-        $uri = [Uri]$Url
-        $hostName = $uri.Host
-        if ($hostName -notin @('127.0.0.1', 'localhost', '::1')) { return $true }
-        $port = $uri.Port
-        if ($port -le 0) { return $true }
-        $client = New-Object System.Net.Sockets.TcpClient
-        try {
-            $async = $client.BeginConnect($hostName, $port, $null, $null)
-            if (-not $async.AsyncWaitHandle.WaitOne(1500, $false)) { return $false }
-            $client.EndConnect($async)
-            return $client.Connected
-        } finally {
-            $client.Close()
-        }
-    } catch {
-        return $false
-    }
-}
 
 function Configure-Network {
-    $script:ResolvedProxyUrl = $null
-    $script:ResolvedProxySource = 'direct'
-
-    if ($NetworkMode -eq 'Direct') {
-        foreach ($name in @('HTTPS_PROXY','HTTP_PROXY','https_proxy','http_proxy','ALL_PROXY','all_proxy','GLOBAL_AGENT_HTTP_PROXY','GLOBAL_AGENT_HTTPS_PROXY','ELECTRON_GET_USE_PROXY','npm_config_proxy','npm_config_https_proxy','PNPM_CONFIG_PROXY','PNPM_CONFIG_HTTPS_PROXY')) {
-            Remove-Item "Env:$name" -ErrorAction SilentlyContinue
-        }
-        Write-Step '网络模式：直连（已清除本次构建进程的 HTTP/HTTPS 代理环境变量）'
-    } elseif ($NetworkMode -eq 'Manual') {
-        if ([string]::IsNullOrWhiteSpace($ProxyUrl)) { throw '网络模式为 Manual，但未填写 ProxyUrl。' }
-        $script:ResolvedProxyUrl = Normalize-ProxyUrl $ProxyUrl
-        $script:ResolvedProxySource = 'manual'
-    } else {
-        foreach ($name in @('HTTPS_PROXY','https_proxy','HTTP_PROXY','http_proxy','ALL_PROXY','all_proxy','npm_config_https_proxy','npm_config_proxy','PNPM_CONFIG_HTTPS_PROXY','PNPM_CONFIG_PROXY')) {
-            $candidate = [Environment]::GetEnvironmentVariable($name, 'Process')
-            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-                $script:ResolvedProxyUrl = Normalize-ProxyUrl $candidate
-                $script:ResolvedProxySource = "environment:$name"
-                break
-            }
-        }
-        if (-not $script:ResolvedProxyUrl) {
-            $systemProxy = Get-WindowsInternetProxy
-            if ($systemProxy) {
-                $script:ResolvedProxyUrl = $systemProxy
-                $script:ResolvedProxySource = 'Windows Internet Settings'
-            }
-        }
-    }
-
-    if ($script:ResolvedProxyUrl) {
-        if (-not (Test-LocalProxyEndpoint $script:ResolvedProxyUrl)) {
-            throw "检测到本地代理 $($script:ResolvedProxyUrl)，但代理端口不可访问。请启动代理软件，或在 GUI 中选择‘直连’/填写正确的手动代理。"
-        }
-        $env:HTTPS_PROXY = $script:ResolvedProxyUrl
-        $env:HTTP_PROXY = $script:ResolvedProxyUrl
-        $env:https_proxy = $script:ResolvedProxyUrl
-        $env:http_proxy = $script:ResolvedProxyUrl
-        $env:ALL_PROXY = $script:ResolvedProxyUrl
-        $env:all_proxy = $script:ResolvedProxyUrl
-        # @electron/get only enables its proxy bootstrap when this flag is present.
-        $env:ELECTRON_GET_USE_PROXY = '1'
-        $env:GLOBAL_AGENT_HTTP_PROXY = $script:ResolvedProxyUrl
-        $env:GLOBAL_AGENT_HTTPS_PROXY = $script:ResolvedProxyUrl
-        $env:npm_config_proxy = $script:ResolvedProxyUrl
-        $env:npm_config_https_proxy = $script:ResolvedProxyUrl
-        $env:PNPM_CONFIG_PROXY = $script:ResolvedProxyUrl
-        $env:PNPM_CONFIG_HTTPS_PROXY = $script:ResolvedProxyUrl
-        Write-Step "网络代理：$($script:ResolvedProxyUrl)（来源：$($script:ResolvedProxySource)）"
-    } elseif ($NetworkMode -eq 'Auto') {
-        Write-Step '网络代理：未检测到环境变量或 Windows 固定代理，本次 pnpm 使用直连。'
-        try {
-            $internet = Get-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue
-            if ($internet.AutoConfigURL) {
-                Write-Warning "检测到 Windows PAC 自动代理：$($internet.AutoConfigURL)。pnpm 不能直接使用 PAC URL；如需代理，请在 GUI 中选择‘手动代理’并填写代理软件的 HTTP/Mixed 端口。"
-            }
-        } catch {}
-    }
-
-    $fetchRetries = [string][Math]::Max(2, $DownloadRetryCount)
-    $fetchTimeoutMs = [string]($PnpmFetchTimeoutSeconds * 1000)
-    $networkConcurrency = [string]$PnpmNetworkConcurrency
-    # pnpm supports environment based configuration. Set both pnpm- and npm-compatible
-    # spellings because this build script is intentionally compatible with multiple pnpm generations.
-    $env:PNPM_CONFIG_FETCH_RETRIES = $fetchRetries
-    $env:PNPM_CONFIG_FETCH_TIMEOUT = $fetchTimeoutMs
-    $env:PNPM_CONFIG_NETWORK_CONCURRENCY = $networkConcurrency
-    $env:npm_config_fetch_retries = $fetchRetries
-    $env:npm_config_fetch_timeout = $fetchTimeoutMs
-    $env:npm_config_network_concurrency = $networkConcurrency
-    Write-Step "pnpm 网络参数：timeout=$PnpmFetchTimeoutSeconds s；retries=$([Math]::Max(2, $DownloadRetryCount))；concurrency=$PnpmNetworkConcurrency；prefer-offline=on"
-    if ($RegistryUrl) { Write-Step "npm registry：$RegistryUrl" }
+    $network = Set-PyDroidBuildNetwork `
+        -NetworkMode $NetworkMode `
+        -ProxyUrl $ProxyUrl `
+        -RegistryUrl $RegistryUrl `
+        -DownloadRetryCount $DownloadRetryCount `
+        -PnpmFetchTimeoutSeconds $PnpmFetchTimeoutSeconds `
+        -PnpmNetworkConcurrency $PnpmNetworkConcurrency `
+        -WriteStep { param($Message) Write-Step $Message }
+    $script:ResolvedProxyUrl = $network.ProxyUrl
+    $script:ResolvedProxySource = $network.ProxySource
 }
 
 function Invoke-Download {
@@ -339,50 +234,9 @@ function Invoke-Download {
 # 路径解析
 # ---------------------------------------------------------------
 
-function Resolve-AbsolutePath {
-    param([string]$Path)
-    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
-    return [System.IO.Path]::GetFullPath($Path)
-}
 
-function Test-PathWithinRoot {
-    param(
-        [string]$Path,
-        [string]$Root
-    )
-    if ([string]::IsNullOrWhiteSpace($Path) -or [string]::IsNullOrWhiteSpace($Root)) { return $false }
-    try {
-        $candidate = [System.IO.Path]::GetFullPath($Path).TrimEnd([char[]]'\/') + [System.IO.Path]::DirectorySeparatorChar
-        $rootFull = [System.IO.Path]::GetFullPath($Root).TrimEnd([char[]]'\/') + [System.IO.Path]::DirectorySeparatorChar
-        return $candidate.StartsWith($rootFull, [StringComparison]::OrdinalIgnoreCase)
-    } catch {
-        return $false
-    }
-}
 
-function Get-PackageDependencySpec {
-    param($PackageObject, [string]$Name)
-    foreach ($sectionName in @('devDependencies', 'dependencies', 'optionalDependencies')) {
-        $section = $PackageObject.$sectionName
-        if (-not $section) { continue }
-        $property = $section.PSObject.Properties | Where-Object { $_.Name -eq $Name } | Select-Object -First 1
-        if ($property) { return [string]$property.Value }
-    }
-    return $null
-}
 
-function Get-PnpmLockedVersion {
-    param([string]$Root, [string]$Name)
-    $lockFile = Join-Path $Root 'pnpm-lock.yaml'
-    if (-not (Test-Path -LiteralPath $lockFile)) { return $null }
-    try {
-        $lockText = Get-Content -LiteralPath $lockFile -Raw
-        $pattern = '(?ms)^\s+{0}:\s*\r?\n\s+specifier:[^\r\n]*\r?\n\s+version:\s*([^\s(]+)' -f [regex]::Escape($Name)
-        $match = [regex]::Match($lockText, $pattern)
-        if ($match.Success) { return $match.Groups[1].Value }
-    } catch {}
-    return $null
-}
 
 function Select-ProjectRoot {
     $searchRoots = @()
@@ -624,15 +478,6 @@ function Invoke-Exe {
     }
 }
 
-function Find-ExistingFile {
-    param([string[]]$Candidates)
-    foreach ($c in $Candidates) {
-        if ($c -and (Test-Path -LiteralPath $c)) {
-            return $c
-        }
-    }
-    return $null
-}
 
 # ---------------------------------------------------------------
 # Node / pnpm
@@ -644,52 +489,11 @@ $script:PnpmUseCorepack = $false
 
 function Test-NodeCandidate {
     param([Parameter(Mandatory = $true)][string]$Executable)
-
-    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { return $false }
-    try {
-        $raw = [string]((& $Executable --version | Select-Object -Last 1)).Trim()
-        $actualText = $raw.TrimStart("v")
-        $requiredText = ([string]$NodeVersion).Trim().TrimStart("v")
-        $actual = New-Object System.Version($actualText)
-        $required = New-Object System.Version($requiredText)
-        return ($actual.Major -eq $required.Major -and $actual -ge $required)
-    } catch {
-        return $false
-    }
+    return (Test-PyDroidNodeCandidate -Executable $Executable -RequiredVersion $NodeVersion)
 }
 
 function Find-Node {
-    if ($env:PYDROID_NODE_EXECUTABLE -and (Test-Path -LiteralPath $env:PYDROID_NODE_EXECUTABLE)) {
-        if (Test-NodeCandidate -Executable $env:PYDROID_NODE_EXECUTABLE) {
-            return (Split-Path $env:PYDROID_NODE_EXECUTABLE -Parent)
-        }
-        Write-Warning ("忽略 PYDROID_NODE_EXECUTABLE={0}：版本低于项目要求 Node {1}，或版本无法识别。" -f $env:PYDROID_NODE_EXECUTABLE, $NodeVersion)
-    }
-
-    # 用户选择的共享工具根目录优先，但必须满足项目声明的最低 Node 版本。
-    $candidates = @(
-        (Join-Path $ToolRoot "NodeJs"),
-        (Join-Path $ToolRoot "NodeJS"),
-        (Join-Path $ToolRoot "Language\NodeJS"),
-        (Join-Path $WorkRoot "tools\nodejs"),
-        (Join-Path $WorkRoot "tools\node")
-    )
-    foreach ($c in $candidates) {
-        $exe = Join-Path $c "node.exe"
-        if (Test-NodeCandidate -Executable $exe) { return $c }
-        if (Test-Path -LiteralPath $exe -PathType Leaf) {
-            try {
-                $foundVersion = [string]((& $exe --version | Select-Object -Last 1)).Trim()
-                Write-Warning ("跳过 Node {0}（{1}）：项目要求同一主版本且不低于 {2}。" -f $foundVersion, $exe, $NodeVersion)
-            } catch {}
-        }
-    }
-
-    $cmd = Get-Command node -ErrorAction SilentlyContinue
-    if ($cmd -and $cmd.Source -and (Test-NodeCandidate -Executable $cmd.Source)) {
-        return (Split-Path $cmd.Source -Parent)
-    }
-    return $null
+    return (Find-PyDroidNode -RequiredVersion $NodeVersion -ToolRoot $ToolRoot -WorkRoot $WorkRoot)
 }
 
 function Install-Node {
@@ -716,12 +520,6 @@ function Install-Node {
     return $dest
 }
 
-function Find-Pnpm {
-    $cmd = Get-Command pnpm.cmd -ErrorAction SilentlyContinue
-    if (-not $cmd) { $cmd = Get-Command pnpm -ErrorAction SilentlyContinue }
-    if ($cmd -and $cmd.Source) { return $cmd.Source }
-    return $null
-}
 
 function Invoke-Pnpm {
     param([string[]]$Arguments)
@@ -765,136 +563,8 @@ function Get-PnpmVersion {
 # Java / Android SDK / Python
 # ---------------------------------------------------------------
 
-function Resolve-JavaHomeCandidate {
-    param([string]$JavaHomePath)
-    if ([string]::IsNullOrWhiteSpace($JavaHomePath)) { return $null }
 
-    $candidate = [Environment]::ExpandEnvironmentVariables($JavaHomePath.Trim().Trim('"'))
-    if ([string]::IsNullOrWhiteSpace($candidate)) { return $null }
 
-    # 允许传入：
-    #   1) 真正的 JAVA_HOME，例如 D:\Code\Language\Java
-    #   2) JDK 的 bin 目录，例如 D:\Code\Language\Java\bin
-    #   3) java.exe / javac.exe 的完整路径。
-    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-        $leaf = Split-Path $candidate -Leaf
-        if ($leaf -match '^(java|javac)\.exe$') {
-            $candidate = Split-Path (Split-Path $candidate -Parent) -Parent
-        }
-    } elseif ((Split-Path $candidate -Leaf) -ieq 'bin') {
-        $javaInBin = Join-Path $candidate 'java.exe'
-        $javacInBin = Join-Path $candidate 'javac.exe'
-        if ((Test-Path -LiteralPath $javaInBin -PathType Leaf) -or
-            (Test-Path -LiteralPath $javacInBin -PathType Leaf)) {
-            $candidate = Split-Path $candidate -Parent
-        }
-    }
-
-    try { return [IO.Path]::GetFullPath($candidate) } catch { return $candidate }
-}
-
-function Invoke-JavaVersionProbe {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$ExecutablePath,
-        [string]$Arguments = '-version'
-    )
-
-    $result = [ordered]@{
-        Success  = $false
-        ExitCode = $null
-        StdOut   = ''
-        StdErr   = ''
-        Error    = ''
-    }
-
-    if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
-        $result.Error = "文件不存在：$ExecutablePath"
-        return [pscustomobject]$result
-    }
-
-    $process = $null
-    try {
-        # 不使用：& java.exe -version 2>&1
-        # 原因：Windows PowerShell 5.1 下 native stderr 与
-        # $ErrorActionPreference='Stop' 组合时可能把正常的 java -version
-        # 输出当成错误处理。Java 恰好通常把版本信息写到 stderr。
-        # 使用 ProcessStartInfo 分别读取 stdout/stderr，可彻底绕开该问题。
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = $ExecutablePath
-        $psi.Arguments = $Arguments
-        $psi.UseShellExecute = $false
-        $psi.RedirectStandardOutput = $true
-        $psi.RedirectStandardError = $true
-        $psi.CreateNoWindow = $true
-
-        $process = New-Object System.Diagnostics.Process
-        $process.StartInfo = $psi
-        if (-not $process.Start()) {
-            $result.Error = "无法启动：$ExecutablePath"
-            return [pscustomobject]$result
-        }
-
-        $stdout = $process.StandardOutput.ReadToEnd()
-        $stderr = $process.StandardError.ReadToEnd()
-        $process.WaitForExit()
-
-        $result.ExitCode = $process.ExitCode
-        $result.StdOut = [string]$stdout
-        $result.StdErr = [string]$stderr
-        $result.Success = ($process.ExitCode -eq 0)
-        return [pscustomobject]$result
-    } catch {
-        $result.Error = $_.Exception.Message
-        return [pscustomobject]$result
-    } finally {
-        if ($process) {
-            try { $process.Dispose() } catch {}
-        }
-    }
-}
-
-function Get-JavaMajorVersion {
-    param([string]$JavaHomePath)
-
-    $resolved = Resolve-JavaHomeCandidate $JavaHomePath
-    if ([string]::IsNullOrWhiteSpace($resolved)) { return $null }
-
-    $java = Join-Path $resolved 'bin\java.exe'
-    $javac = Join-Path $resolved 'bin\javac.exe'
-
-    # Android/Gradle 构建需要完整 JDK，不能只存在 java.exe。
-    if (-not (Test-Path -LiteralPath $java -PathType Leaf)) { return $null }
-    if (-not (Test-Path -LiteralPath $javac -PathType Leaf)) { return $null }
-
-    # 先用 java -version。不同发行版的常见格式包括：
-    #   openjdk version "21.0.8" ...
-    #   java version "1.8.0_..." ...
-    $javaProbe = Invoke-JavaVersionProbe -ExecutablePath $java -Arguments '-version'
-    $javaText = (([string]$javaProbe.StdOut) + "`n" + ([string]$javaProbe.StdErr)).Trim()
-    if (-not [string]::IsNullOrWhiteSpace($javaText)) {
-        foreach ($pattern in @(
-            '(?im)^\s*(?:openjdk|java)\s+version\s+["'']?(?:(?:1)\.)?(\d+)',
-            '(?im)\bversion\s+["'']?(?:(?:1)\.)?(\d+)'
-        )) {
-            $m = [regex]::Match($javaText, $pattern)
-            if ($m.Success) { return [int]$m.Groups[1].Value }
-        }
-    }
-
-    # java 的输出格式异常时，再用 javac -version 兜底。
-    # 常见格式：javac 21.0.8
-    $javacProbe = Invoke-JavaVersionProbe -ExecutablePath $javac -Arguments '-version'
-    $javacText = (([string]$javacProbe.StdOut) + "`n" + ([string]$javacProbe.StdErr)).Trim()
-    if (-not [string]::IsNullOrWhiteSpace($javacText)) {
-        $m = [regex]::Match($javacText, '(?im)^\s*javac\s+(?:(?:1)\.)?(\d+)')
-        if ($m.Success) { return [int]$m.Groups[1].Value }
-    }
-
-    Write-Verbose ("JDK 版本解析失败：{0}; java exit={1}; javac exit={2}; java error={3}; javac error={4}" -f `
-        $resolved, $javaProbe.ExitCode, $javacProbe.ExitCode, $javaProbe.Error, $javacProbe.Error)
-    return $null
-}
 
 function Get-JavaHomeDiagnostic {
     param([string]$JavaHomePath)
@@ -987,148 +657,9 @@ function Find-JavaHomeInRoot {
     return $null
 }
 
-function Get-JavaHomesFromRegistry {
-    $results = New-Object System.Collections.Generic.List[string]
 
-    # Oracle-compatible JavaSoft keys. Microsoft OpenJDK only writes these when
-    # FeatureOracleJavaSoft was selected, so this is useful but not sufficient alone.
-    foreach ($root in @(
-        'HKLM:\SOFTWARE\JavaSoft\JDK',
-        'HKLM:\SOFTWARE\WOW6432Node\JavaSoft\JDK',
-        'HKCU:\SOFTWARE\JavaSoft\JDK'
-    )) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
-            try {
-                $javaHome = (Get-ItemProperty -LiteralPath $key.PSPath -Name JavaHome -ErrorAction Stop).JavaHome
-                if ($javaHome) { [void]$results.Add([string]$javaHome) }
-            } catch {}
-        }
-    }
 
-    # Native EXE/MSI installers normally expose InstallLocation in Windows uninstall metadata.
-    foreach ($root in @(
-        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall',
-        'HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall'
-    )) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        foreach ($key in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
-            try {
-                $item = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
-                $displayName = [string]$item.DisplayName
-                $installLocation = [string]$item.InstallLocation
-                if ($displayName -match '(?i)(OpenJDK|JDK|Java)' -and $installLocation) {
-                    [void]$results.Add($installLocation)
-                }
-            } catch {}
-        }
-    }
 
-    return @($results | Select-Object -Unique)
-}
-
-function Get-JavaHomesFromCommonLocations {
-    $results = New-Object System.Collections.Generic.List[string]
-    $patterns = New-Object System.Collections.Generic.List[string]
-
-    if ($env:ProgramFiles) {
-        foreach ($relative in @(
-            'Microsoft\jdk-*',
-            'Eclipse Adoptium\jdk-*',
-            'Java\jdk-*',
-            'Amazon Corretto\jdk*',
-            'Zulu\zulu*'
-        )) { [void]$patterns.Add((Join-Path $env:ProgramFiles $relative)) }
-    }
-    if (${env:ProgramFiles(x86)}) {
-        foreach ($relative in @('Microsoft\jdk-*', 'Java\jdk-*')) {
-            [void]$patterns.Add((Join-Path ${env:ProgramFiles(x86)} $relative))
-        }
-    }
-    if ($env:LOCALAPPDATA) {
-        foreach ($relative in @(
-            'Programs\Microsoft\jdk-*',
-            'Programs\Eclipse Adoptium\jdk-*'
-        )) { [void]$patterns.Add((Join-Path $env:LOCALAPPDATA $relative)) }
-    }
-
-    foreach ($pattern in $patterns) {
-        foreach ($dir in @(Get-Item -Path $pattern -ErrorAction SilentlyContinue | Where-Object { $_.PSIsContainer })) {
-            [void]$results.Add($dir.FullName)
-        }
-    }
-    return @($results | Select-Object -Unique)
-}
-
-function Add-JavaHomeFromExecutablePath {
-    param(
-        [System.Collections.Generic.List[string]]$Results,
-        [string]$ExecutablePath
-    )
-    if ($null -eq $Results -or [string]::IsNullOrWhiteSpace($ExecutablePath)) { return }
-
-    $path = $ExecutablePath.Trim().Trim('"')
-    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
-    $leaf = Split-Path $path -Leaf
-    if ($leaf -notmatch '^(java|javac)\.exe$') { return }
-
-    $bin = Split-Path $path -Parent
-    if ((Split-Path $bin -Leaf) -ieq 'bin') {
-        $candidateHome = Split-Path $bin -Parent
-        if ($candidateHome) { [void]$Results.Add($candidateHome) }
-    }
-}
-
-function Get-JavaHomesFromPath {
-    $results = New-Object System.Collections.Generic.List[string]
-
-    # 先使用 PowerShell 自身的命令解析。java.exe 和 javac.exe 都检查，
-    # 避免“where javac 能找到，但脚本只查 where java”的情况。
-    foreach ($commandName in @('java.exe', 'javac.exe')) {
-        foreach ($command in @(Get-Command $commandName -All -ErrorAction SilentlyContinue)) {
-            $source = $null
-            if ($command.Source) { $source = [string]$command.Source }
-            elseif ($command.Path) { $source = [string]$command.Path }
-            if ($source) {
-                Add-JavaHomeFromExecutablePath -Results $results -ExecutablePath $source
-            }
-        }
-    }
-
-    # 再兼容用户日常用的 where.exe。这里临时把 native stderr 的处理
-    # 调成 Continue，避免 Windows PowerShell 5.1 + Stop 再次触发同类问题。
-    $whereExe = $null
-    if ($env:SystemRoot) {
-        $candidateWhere = Join-Path $env:SystemRoot 'System32\where.exe'
-        if (Test-Path -LiteralPath $candidateWhere -PathType Leaf) { $whereExe = $candidateWhere }
-    }
-    if (-not $whereExe) {
-        $whereCommand = Get-Command 'where.exe' -ErrorAction SilentlyContinue
-        if ($whereCommand) { $whereExe = [string]$whereCommand.Source }
-    }
-
-    if ($whereExe) {
-        foreach ($name in @('java', 'javac')) {
-            $oldPreference = $ErrorActionPreference
-            try {
-                $ErrorActionPreference = 'Continue'
-                $whereOutput = @(& $whereExe $name 2>$null)
-                foreach ($path in $whereOutput) {
-                    if (-not [string]::IsNullOrWhiteSpace([string]$path)) {
-                        Add-JavaHomeFromExecutablePath -Results $results -ExecutablePath ([string]$path)
-                    }
-                }
-            } catch {
-                Write-Verbose "where.exe $name 探测失败：$($_.Exception.Message)"
-            } finally {
-                $ErrorActionPreference = $oldPreference
-            }
-        }
-    }
-
-    return @($results | Select-Object -Unique)
-}
 
 function Find-JavaHome {
     # 0) GUI/命令行手动指定时绝对优先，并具有“禁止自动下载”的语义。
@@ -1225,52 +756,7 @@ function Install-Jdk {
 }
 
 function Find-AndroidSdk {
-    $candidates = @()
-    if ($env:ANDROID_HOME) { $candidates += $env:ANDROID_HOME }
-    if ($env:ANDROID_SDK_ROOT) { $candidates += $env:ANDROID_SDK_ROOT }
-    $candidates += (Join-Path $ToolRoot "Android\Sdk")
-    $candidates += (Join-Path $ToolRoot "Android")
-    $candidates += (Join-Path $ToolRoot "android-sdk")
-    if ($env:LOCALAPPDATA) { $candidates += (Join-Path $env:LOCALAPPDATA "Android\Sdk") }
-    $candidates += @(
-        (Join-Path $privateToolsRoot "Android\Sdk"),
-        (Join-Path $WorkRoot "tools\android-sdk"),
-        (Join-Path $WorkRoot "PyDroid\tools\android-sdk")
-    )
-    foreach ($c in $candidates) {
-        if (-not $c) { continue }
-        if (Test-Path (Join-Path $c "platforms\android-$resolvedAndroidApi\android.jar")) {
-            return $c
-        }
-    }
-    # 有 SDK 根但缺 platform 36 时也返回，由 Install-AndroidSdk 补包
-    foreach ($c in $candidates) {
-        if (-not $c) { continue }
-        if (Test-Path (Join-Path $c "cmdline-tools")) {
-            return $c
-        }
-        if (Test-Path (Join-Path $c "platform-tools\adb.exe")) {
-            return $c
-        }
-    }
-    return $null
-}
-
-function Add-AndroidSdkOverlayDirectory {
-    param(
-        [string]$Source,
-        [string]$Destination
-    )
-    if (-not (Test-Path -LiteralPath $Source -PathType Container)) { return }
-    if (Test-Path -LiteralPath $Destination) { return }
-    New-Item -ItemType Directory -Force -Path (Split-Path $Destination -Parent) | Out-Null
-    try {
-        New-Item -ItemType Junction -Path $Destination -Target $Source | Out-Null
-    } catch {
-        # Junction creation should normally work on local NTFS volumes. Fall back to copying
-        # only inside WorkRoot, never into the read-only shared ToolRoot.
-        Copy-Item -LiteralPath $Source -Destination $Destination -Recurse -Force
-    }
+    return (Find-PyDroidAndroidSdk -ToolRoot $ToolRoot -WorkRoot $WorkRoot -PrivateToolsRoot $privateToolsRoot -ApiLevel $resolvedAndroidApi)
 }
 
 function New-TemporaryAndroidSdkOverlay {
@@ -1468,52 +954,13 @@ function Install-AndroidSdk {
 }
 
 function Test-PythonSeries {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Executable
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
-        return $false
-    }
-
-    try {
-        & $Executable -c "import sys; raise SystemExit(0 if sys.version_info[:2] == ($pythonMajor, $pythonMinor) else 1)" 2>$null | Out-Null
-        return ($LASTEXITCODE -eq 0)
-    } catch {
-        return $false
-    }
+    param([Parameter(Mandatory = $true)][string]$Executable)
+    return (Test-PyDroidPythonSeries -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
 }
 
 function Test-PythonBuildHost {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$Executable
-    )
-
-    if (-not (Test-PythonSeries -Executable $Executable)) { return $false }
-    try {
-        # Chaquopy invokes `python -m venv` while preparing build packages.
-        # The Windows embeddable distribution intentionally omits venv and is therefore
-        # suitable for the packaged desktop runtime, but NOT for Android buildPython.
-        # Android buildPython on a Windows x64 builder must also be a 64-bit interpreter.
-        & $Executable -c "import struct, venv, ensurepip; raise SystemExit(0 if struct.calcsize('P') * 8 == 64 else 1)" 2>$null | Out-Null
-        return ($LASTEXITCODE -eq 0)
-    } catch {
-        return $false
-    }
-}
-
-function Get-PythonVersionLabel {
-    param([string]$Executable)
-    if ([string]::IsNullOrWhiteSpace($Executable) -or -not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
-        return "不可用"
-    }
-    try {
-        $label = & $Executable -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $label) { return ([string]($label | Select-Object -Last 1)).Trim() }
-    } catch {}
-    return "未知"
+    param([Parameter(Mandatory = $true)][string]$Executable)
+    return (Test-PyDroidPythonBuildHost -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
 }
 
 function Get-PythonBuildHostDiagnostic {
@@ -1540,62 +987,7 @@ function Get-PythonBuildHostDiagnostic {
     return ($details -join "; ")
 }
 
-function Get-RegisteredPython313Candidates {
-    $result = New-Object System.Collections.Generic.List[string]
-    $roots = @(
-        "HKCU:\Software\Python\PythonCore",
-        "HKLM:\Software\Python\PythonCore",
-        "HKLM:\Software\WOW6432Node\Python\PythonCore"
-    )
 
-    foreach ($root in $roots) {
-        if (-not (Test-Path -LiteralPath $root)) { continue }
-        try {
-            foreach ($versionKey in @(Get-ChildItem -LiteralPath $root -ErrorAction SilentlyContinue)) {
-                if ($versionKey.PSChildName -notmatch '^3\.13(?:$|[-.])') { continue }
-                $installPathKey = Join-Path $versionKey.PSPath "InstallPath"
-                try {
-                    $key = Get-Item -LiteralPath $installPathKey -ErrorAction Stop
-                    $installDir = [string]$key.GetValue("")
-                    if (-not [string]::IsNullOrWhiteSpace($installDir)) {
-                        $candidate = Join-Path $installDir "python.exe"
-                        if (-not $result.Contains($candidate)) { $result.Add($candidate) }
-                    }
-                    foreach ($valueName in @("ExecutablePath", "WindowedExecutablePath")) {
-                        try {
-                            $value = [string]$key.GetValue($valueName)
-                            if (-not [string]::IsNullOrWhiteSpace($value) -and -not $result.Contains($value)) {
-                                $result.Add($value)
-                            }
-                        } catch {}
-                    }
-                } catch {}
-            }
-        } catch {}
-    }
-    return @($result)
-}
-
-function Test-WindowsInstallerServiceAvailable {
-    try {
-        $service = Get-Service -Name "msiserver" -ErrorAction Stop
-        if ($service.StartType -eq [System.ServiceProcess.ServiceStartMode]::Disabled) {
-            return $false
-        }
-        if ($service.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Running) {
-            try {
-                Start-Service -Name "msiserver" -ErrorAction Stop
-                $service.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(5))
-            } catch {
-                return $false
-            }
-        }
-        $service.Refresh()
-        return ($service.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Running)
-    } catch {
-        return $false
-    }
-}
 
 function Install-Python313FromNuGet {
     if ($SkipToolInstall) {
@@ -1859,71 +1251,13 @@ function Install-Python313 {
 # 工作区同步 / 清理
 # ---------------------------------------------------------------
 
-function Get-ExtendedLengthPath {
-    param([Parameter(Mandatory = $true)][string]$Path)
-
-    $full = [System.IO.Path]::GetFullPath($Path)
-    if ($full.StartsWith('\\?\')) { return $full }
-    if ($full.StartsWith('\\')) {
-        return ('\\?\UNC\' + $full.Substring(2))
-    }
-    return ('\\?\' + $full)
-}
 
 function Remove-BuildDirectoryRobust {
     param(
         [Parameter(Mandatory = $true)][string]$Path,
         [switch]$Quiet
     )
-
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-
-    # Windows PowerShell 5.1 Remove-Item -Recurse can fail while walking Electron/
-    # Android node_modules trees whose descendants exceed MAX_PATH. Try the normal
-    # path first because it is fast and gives good diagnostics for ordinary failures.
-    try {
-        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
-    } catch {
-        if (-not $Quiet) {
-            Write-Warning ("PowerShell 清理目录失败，将切换到 Windows 长路径清理：{0}" -f $Path)
-        }
-    }
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-
-    # cmd.exe rd understands the extended-length Win32 namespace and avoids the
-    # recursive provider traversal which triggers DirectoryNotFoundException above.
-    $extendedPath = Get-ExtendedLengthPath -Path $Path
-    & cmd.exe /d /c rd /s /q "`"$extendedPath`"" 2>$null | Out-Null
-    $global:LASTEXITCODE = 0
-    if (-not (Test-Path -LiteralPath $Path)) { return }
-
-    # Final fallback: mirror an empty directory into the stale tree with robocopy.
-    # Robocopy is long-path aware by default and /XJ avoids following junctions out
-    # of the build workspace. Once emptied, removing the short root path is reliable.
-    $cleanupRoot = Join-Path $WorkRoot "cleanup-empty"
-    $emptyDir = Join-Path $cleanupRoot ([Guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Force -Path $emptyDir | Out-Null
-    try {
-        $cleanupArgs = @(
-            $emptyDir, $Path, "/MIR", "/XJ", "/R:1", "/W:1",
-            "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/NS", "/NC"
-        )
-        & robocopy @cleanupArgs | Out-Null
-        $robocopyExitCode = $LASTEXITCODE
-        $global:LASTEXITCODE = 0
-        if ($robocopyExitCode -ge 8) {
-            throw "robocopy 长路径清理失败，退出码：$robocopyExitCode；目录：$Path"
-        }
-
-        & cmd.exe /d /c rd /s /q "`"$Path`"" 2>$null | Out-Null
-        $global:LASTEXITCODE = 0
-    } finally {
-        Remove-Item -LiteralPath $emptyDir -Recurse -Force -ErrorAction SilentlyContinue
-    }
-
-    if (Test-Path -LiteralPath $Path) {
-        throw "无法清理构建目录：$Path。请确认该目录未被其他进程占用。"
-    }
+    Remove-PyDroidBuildDirectoryRobust -Path $Path -WorkRoot $WorkRoot -Quiet:$Quiet
 }
 
 function Sync-Source {

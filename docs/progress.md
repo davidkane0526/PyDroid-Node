@@ -1,3 +1,12 @@
+## 2026-08-19 — Phase 7 host-contract closure + build-tool module split / 1.4.45 (68)
+
+- Android 1.4.44 native host smoke was accepted by the user; the current tranche fixes three reported UI issues without changing node/runtime semantics: transient remote failure dots, Android SMB keyboard/footer overlap, and settings-card row alignment.
+- Added a versioned 30-operation cross-platform host binding manifest at `src/platform/host-contract.json`. `scripts/host-contract-smoke.mjs` verifies Desktop preload/IPC and Android Capacitor/Java bindings against that manifest while PlatformAdapter remains the application-facing API.
+- Split reusable Windows build-tool primitives into seven focused `.psm1` modules (`Network`, `Paths`, `Node`, `Java`, `Android`, `Python`, `Packaging`). `tools/build-pydroid.ps1` remains the Windows-specific orchestration root and intentionally retains machine-sensitive install/build sequencing.
+- `tools/build-pydroid.ps1` dropped from the pre-modularization 2765-line implementation to roughly 2100 lines in this safe cut; architecture smoke prevents moved implementations from drifting back into the root script.
+- Cloud regression: UI/Host/Build architecture smoke, Phase 1–6 smoke, 66/66 runtime golden workflows, 72/72 JS-capable NodeContracts and Python 106 passed / 1 skipped all remain green. A real Windows PowerShell build remains required before Phase 7 can be considered host-validated/frozen because this Linux environment cannot execute Windows PowerShell 5.1.
+- Build script revision: `1.4.45-dev-r21-phase7-host-contract-build-modules`.
+
 ## 2026-08-19 — Phase 7 Android Host modularization / 1.4.44 (67)
 
 - `PythonExecutorPlugin.java` is now a thin Capacitor method-binding façade instead of the owner of SMB, SAF file access, profile/workflow library, secrets, Remote Web lifecycle and Python execution logic.

@@ -1,3 +1,13 @@
+## 1.4.45 (68) — Phase 7 host contract + build-tool modules + UI fixes — 2026-08-19
+
+- Remote/Web workspace failure indicators are now transient: a host-aborted `failed`/`timeout` tab shows the red diagnostic dot briefly and then clears automatically without erasing the underlying execution error/status.
+- Android SMB credential editing no longer lets the soft keyboard push the file-manager footer actions over the connection form. Native input focus temporarily hides the footer and restores it automatically after editing.
+- Settings cards now stretch to their two-column grid row so the paired LAN SMB / AI Agent and Debug / Profile sections share aligned bottom edges.
+- Added `src/platform/host-contract.json` plus `scripts/host-contract-smoke.mjs` to lock 30 stable Desktop IPC / Android Capacitor transport bindings behind PlatformAdapter and prevent host binding drift.
+- Continued/finalized the safe Phase 7 build-tool split: `tools/build-pydroid.ps1` remains the orchestration root while reusable Network, Paths, Node, Java, Android, Python and Packaging logic lives in focused Windows PowerShell 5.1-compatible `.psm1` modules under `tools/modules/`.
+- Added build-tool architecture and UI regression smoke guards; existing package-manager/network/long-path compatibility smoke now validates both the orchestration script and imported modules.
+- Build script revision: `1.4.45-dev-r21-phase7-host-contract-build-modules`.
+
 ## 1.4.44 (67) — Phase 7 Android Host service modularization — 2026-08-19
 
 - Reduced `PythonExecutorPlugin.java` from 713 lines to a compact Capacitor binding façade. Existing `PythonExecutor` plugin method names and activity callback names remain stable for the TypeScript PlatformAdapter.

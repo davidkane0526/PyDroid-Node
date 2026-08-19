@@ -55,3 +55,29 @@ powershell -ExecutionPolicy Bypass -File .\tools\build-pydroid.ps1 -ProjectRoot 
 - Each real build writes a persistent build log to `<OutputRoot>\logs\build-YYYYMMDD-HHMMSS.log`.
 - GUI collection return values are explicitly discarded, so control/style indexes such as `0 1 2 3 4` are no longer printed in the console.
 - Closing the GUI normally always returns exit code 0. A nonzero launcher exit code now indicates an actual GUI startup/crash condition and is accompanied by the diagnostic log.
+
+
+## Phase 7 build-tool module boundary
+
+`Build PyDroid GUI.cmd` remains the only normal user entry. `tools/build-pydroid.ps1` is still the orchestration script, but reusable discovery/network/path/cleanup logic is now grouped under `tools/modules/`:
+
+```text
+PyDroid.Build.Network.psm1
+PyDroid.Build.Paths.psm1
+PyDroid.Build.Node.psm1
+PyDroid.Build.Java.psm1
+PyDroid.Build.Android.psm1
+PyDroid.Build.Python.psm1
+PyDroid.Build.Packaging.psm1
+```
+
+Do not move code merely to reduce line count. A function belongs in a module only when its inputs can be made explicit and it does not depend on hidden orchestration state. Machine-sensitive install/build sequencing remains in `build-pydroid.ps1`. Modules must stay compatible with Windows PowerShell 5.1 and preserve the Chinese diagnostic messages and existing proxy/cache/long-path behavior.
+
+Architecture guards:
+
+```text
+pnpm test:build-tools
+pnpm test:build-tool-architecture
+```
+
+The first test preserves the accumulated Windows compatibility invariants across the main script **and** modules. The second prevents already-extracted implementations from drifting back into the orchestration root.

@@ -10,7 +10,8 @@ These rules apply to every developer and coding agent on every device.
 4. Read `docs/node-contract.md` before adding/changing node types, runtime support, functions or variables.
 5. Read `docs/runtime-parity.md` before changing any node implemented by both Python and JavaScript.
 6. Read `docs/progress.md` and `CHANGELOG.md` before changing user-visible behavior.
-7. Read `BUILD_TOOLCHAIN.md` before changing build, packaging, dependency-download, or GUI build-tool behavior.
+7. Read `docs/host-contract.md` before adding, renaming, or rerouting Desktop/Android host operations.
+8. Read `BUILD_TOOLCHAIN.md` before changing build, packaging, dependency-download, or GUI build-tool behavior.
 
 This repository is the **only project copy**. Do not create or maintain separate `dev`, `js`, `dev-node`, Android or desktop source folders. Git branches are history/integration tools; platform/runtime differences belong inside the source architecture.
 
@@ -81,5 +82,6 @@ The UI is now treated as a stable layer. Do not start another broad UI redesign 
 3. **Phase 3 Workflow Core is complete/frozen on `dev` 1.4.31.** Workflow snapshot/session/history/input-state/persistence/migration ownership belongs in `src/workflow-core/`, not back in `App.tsx`.
 4. **Phase 3.5 Multi-Workspace Execution is user-validated/frozen.** Preserve `executionId + workspaceId + workspaceLabel + clientId + source`, Desktop 1–4 process scheduling, Android 1-running + FIFO queue, host-priority queued/running tab state, and proactive paired-browser host polling.
 5. **Phase 4 Unified NodeSpec / Node Contract is complete/frozen on `dev` 1.4.36.** Every visible node explicitly declares runtime support; Runtime Auto, JS compatibility, workflow validation and speculative pre-execution consume NodeContract. Future function/global-variable nodes must extend this contract rather than adding parallel metadata.
-6. **Phase 5 Python/JavaScript parity is active.** Run `pnpm test:parity` whenever changing a dual-runtime node. Expand golden coverage by semantic domain and never hide real runtime differences by weakening the comparator without an explicit contract decision.
-7. Only after those boundaries are stable, modularize Python engine, Desktop/Android hosts and build scripts.
+6. **Phase 5 Python/JavaScript parity is complete/frozen on `dev` 1.4.38.** Run `pnpm test:parity` whenever changing a dual-runtime node. Every JavaScript-capable NodeContract must stay covered by the golden corpus.
+7. **Phase 6 Runtime Engine modularization is complete/frozen on `dev` 1.4.42.** Preserve the Python/JavaScript façade, domain-handler and workflow-orchestration module boundaries.
+8. **Phase 7 host/build boundary is implemented on `dev` 1.4.45 and awaits real Windows build validation before freezing.** Desktop/Android host bindings are locked by `src/platform/host-contract.json`; the Build GUI remains the sole user entry while reusable PowerShell helpers live under `tools/modules/`.
