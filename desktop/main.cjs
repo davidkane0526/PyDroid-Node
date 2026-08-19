@@ -673,7 +673,7 @@ function startDesktopRemoteServer(requirePin) {
           const executionId = String(body.executionId ?? `remote-${crypto.randomUUID()}`);
           remoteExecutionIds.add(executionId);
           try {
-            const raw = await runPythonRequest({ workflow: String(body.workflow ?? ""), csvText: String(body.csvText ?? ""), inputFiles: JSON.stringify(body.inputFiles ?? []), executionId, timeoutMs: Number(body.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS), workspaceId: String(body.workspaceId ?? "default"), clientId: String(body.clientId ?? "remote-browser") }, { source: "remote", workspaceId: String(body.workspaceId ?? "default"), clientId: String(body.clientId ?? "remote-browser") });
+            const raw = await runPythonRequest({ workflow: String(body.workflow ?? ""), csvText: String(body.csvText ?? ""), inputFiles: JSON.stringify(body.inputFiles ?? []), executionId, timeoutMs: Number(body.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS), workspaceId: String(body.workspaceId ?? "default"), workspaceLabel: String(body.workspaceLabel ?? "工作流"), clientId: String(body.clientId ?? "remote-browser") }, { source: "remote", workspaceId: String(body.workspaceId ?? "default"), workspaceLabel: String(body.workspaceLabel ?? "工作流"), clientId: String(body.clientId ?? "remote-browser") });
             response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); return response.end(raw);
           } finally { remoteExecutionIds.delete(executionId); }
         }
@@ -807,6 +807,7 @@ function runPythonRequest(payload, metadata = {}) {
   return workflowExecutionScheduler.submit({
     executionId,
     workspaceId: metadata.workspaceId ?? payload?.workspaceId ?? "default",
+    workspaceLabel: metadata.workspaceLabel ?? payload?.workspaceLabel ?? "工作流",
     clientId: metadata.clientId ?? payload?.clientId ?? "local-ui",
     source: metadata.source ?? "local",
   }, start);
@@ -968,7 +969,7 @@ app.whenReady().then(() => {
   });
   ipcMain.on("pydroid:window-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle("pydroid:window-is-maximized", (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
-  ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload, { source: "local", workspaceId: payload?.workspaceId, clientId: payload?.clientId }));
+  ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload, { source: "local", workspaceId: payload?.workspaceId, workspaceLabel: payload?.workspaceLabel, clientId: payload?.clientId }));
   ipcMain.handle("pydroid:cancel-workflow", async (_event, executionId) => cancelPythonRequestAndWait(executionId));
   ipcMain.handle("pydroid:get-execution-status", () => hostExecutionStatus());
   ipcMain.handle("pydroid:get-environment", () => runPythonRequest({ action: "environment" }));

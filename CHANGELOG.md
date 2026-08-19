@@ -1,3 +1,13 @@
+## 1.4.34 (57) — selectable host tasks + deeper Phase 4 Node Contract — 2026-08-19
+
+- Confirmed the 1.4.33 host-priority tab-phase fix is shared by Windows Desktop and Android; queued host executions override renderer-local `running`, so both platforms show queued = orange and running = blue.
+- Replaced the bottom single-action host stop button with a compact task picker. It lists every active/queued host execution with workflow label, source, phase and short execution ID, and allows stopping/cancelling any selected task rather than only the first one.
+- Execution metadata now carries `workspaceLabel` end-to-end across renderer, Desktop IPC/scheduler, Android Capacitor/Chaquopy scheduler and Remote Web, so the task picker can show human-readable workflow names.
+- Phase 4 advanced: NodeSpec now owns runtime-support and contract overrides directly. `nodeContract.ts` normalizes NodeSpec into one contract for runtime support, execution model, determinism, side effects, cache policy, state scope/access and future function-role semantics.
+- JavaScript runtime support is derived from the unified NodeSpec/NodeContract layer; Agent planning now receives execution/state/side-effect metadata; the inspector shows compact PY/JS/state/side-effect badges.
+- Added contract invariants for cache safety and state semantics. The model explicitly reserves temporary/global state plus read/write access and function definition/call roles for future function, temporary-variable and global-variable node families.
+- Build script revision: `1.4.34-dev-r10-phase4-node-contract`.
+
 ## 1.4.33 (56) — Android queued-state indicator fix — 2026-08-19
 
 - Fixed the remaining Android Phase 3.5 tab-state mismatch: queued host executions now override the renderer-local `running` phase for tab badges, so queued = orange and running = blue exactly when the host scheduler transitions state.

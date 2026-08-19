@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.33 (56)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + Phase 3.5 Multi-Workspace Execution + Phase 4 Node Contract foundation.
+- `dev`: `1.4.34 (57)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + active Phase 4 Unified NodeSpec / Node Contract.
 
 Current working branch: `dev`.
 
@@ -135,12 +135,12 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 3.5 status — Multi-Workspace Execution
 
-**Accepted on Android and functionally complete on `dev` 1.4.33 (56); Desktop real-host acceptance is still pending.**
+**Accepted on Windows Desktop and Android; frozen on `dev` 1.4.34 (57) except for concrete bug fixes.**
 
 Shared renderer/application behavior:
 
 - `ExecutionManager` owns one `ExecutionController` per `workspaceId`; successful results are stored by workspace so inactive-tab runs survive remount.
-- every host request carries `executionId`, `workspaceId`, `clientId` and `source`; Remote Web and local UI are peers rather than separate special execution slots.
+- every host request carries `executionId`, `workspaceId`, `workspaceLabel`, `clientId` and `source`; Remote Web and local UI are peers rather than separate special execution slots.
 - the primary Run/Stop button controls only the current workspace; same-client background workspaces are managed by switching tabs, while cross-client host actions are available from the bottom status bar.
 - paired Remote Web pages poll `/api/execution-status` every 400 ms, fixing the former host→browser stale-button defect.
 
@@ -158,7 +158,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Phase 4 — Unified NodeSpec / Node Contract** is now in progress on `dev` 1.4.32 (55). The first step introduces `src/nodeContract.ts`, which centralizes runtime support, execution model, side-effect, determinism, cache and state-scope metadata. Continue by migrating more UI/validation/runtime code to consume this unified contract, then proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
+**Phase 4 — Unified NodeSpec / Node Contract** is now in progress on `dev` 1.4.34 (57). NodeSpec owns runtime support and contract overrides; `src/nodeContract.ts` normalizes the shared execution/state/cache contract. Runtime support, Agent planning and inspector metadata already consume it. Continue by moving remaining validation/capability decisions to NodeContract, then proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
 
 ### Production TypeScript vs test TypeScript
 
@@ -167,4 +167,13 @@ Do not add Node typings to the root browser/Android `tsconfig.json` to make a te
 
 ## Phase 4 status — Unified NodeSpec / Node Contract
 
-**Started on `dev` 1.4.32 (55).** `src/nodeContract.ts` is now the shared metadata layer for runtime support (`python`/`javascript`), execution model (`standard` / `control-flow` / `custom-code` / `ui` / `workflow`), determinism, side effects, cache policy and state scope (`none` / `temporary` / `global`). This prepares the codebase for future function-node, temporary-variable and global-variable families without scattering capability rules across UI, agent and runtime adapters.
+**In progress on `dev` 1.4.34 (57).** NodeSpec is now the authoring source for runtime support and contract overrides; `src/nodeContract.ts` normalizes it into a complete shared contract used by runtime support, Agent context and inspector metadata. Contracts cover runtime support, execution model, determinism, side effects, cache policy, state scope/access and future function role.
+
+Future node families must extend these semantics instead of adding parallel ad-hoc lists:
+
+- function nodes: use `executionModel = function` and `functionRole = definition/call`;
+- temporary variables: `stateScope = temporary` with explicit read/write access;
+- global variables: `stateScope = global` with explicit read/write access and persistence policy to be defined before implementation;
+- stateful or side-effecting nodes must not default to cacheable.
+
+Phase 4 is not frozen yet. Continue moving validation/runtime/UI capability decisions to NodeContract, then add concrete function/variable nodes only after the contract and migration semantics are stable.

@@ -32,6 +32,7 @@ final class PythonExecutionController implements AutoCloseable {
     static final class ExecutionSnapshot {
         final String executionId;
         final String workspaceId;
+        final String workspaceLabel;
         final String clientId;
         final String source;
         final Phase phase;
@@ -40,6 +41,7 @@ final class PythonExecutionController implements AutoCloseable {
         ExecutionSnapshot(ControlledExecution execution) {
             executionId = execution.executionId;
             workspaceId = execution.workspaceId;
+            workspaceLabel = execution.workspaceLabel;
             clientId = execution.clientId;
             source = execution.source;
             phase = execution.phase;
@@ -50,6 +52,7 @@ final class PythonExecutionController implements AutoCloseable {
     static final class ControlledExecution {
         final String executionId;
         final String workspaceId;
+        final String workspaceLabel;
         final String clientId;
         final String source;
         final long timeoutMs;
@@ -59,9 +62,10 @@ final class PythonExecutionController implements AutoCloseable {
         volatile Long startedAt;
         volatile ScheduledFuture<?> timeoutFuture;
 
-        ControlledExecution(String executionId, String workspaceId, String clientId, String source, long timeoutMs, FutureTask<String> future, AtomicReference<EndReason> endReason) {
+        ControlledExecution(String executionId, String workspaceId, String workspaceLabel, String clientId, String source, long timeoutMs, FutureTask<String> future, AtomicReference<EndReason> endReason) {
             this.executionId = executionId;
             this.workspaceId = workspaceId;
+            this.workspaceLabel = workspaceLabel;
             this.clientId = clientId;
             this.source = source;
             this.timeoutMs = timeoutMs;
@@ -94,10 +98,10 @@ final class PythonExecutionController implements AutoCloseable {
     private final ConcurrentHashMap<String, ControlledExecution> active = new ConcurrentHashMap<>();
 
     ControlledExecution submit(String requestedExecutionId, long requestedTimeoutMs, Callable<String> callable) throws Exception {
-        return submit(requestedExecutionId, requestedTimeoutMs, "local", "default", "local-ui", callable);
+        return submit(requestedExecutionId, requestedTimeoutMs, "local", "default", "工作流", "local-ui", callable);
     }
 
-    synchronized ControlledExecution submit(String requestedExecutionId, long requestedTimeoutMs, String source, String workspaceId, String clientId, Callable<String> callable) throws Exception {
+    synchronized ControlledExecution submit(String requestedExecutionId, long requestedTimeoutMs, String source, String workspaceId, String workspaceLabel, String clientId, Callable<String> callable) throws Exception {
         String executionId = requestedExecutionId == null ? "" : requestedExecutionId.trim();
         if (executionId.isEmpty()) throw new IllegalArgumentException("executionId is required");
         if (active.containsKey(executionId)) throw new IllegalStateException("Execution " + executionId + " is already active");
@@ -120,6 +124,7 @@ final class PythonExecutionController implements AutoCloseable {
         ControlledExecution execution = new ControlledExecution(
             executionId,
             normalizeText(workspaceId, "default"),
+            normalizeText(workspaceLabel, "工作流"),
             normalizeText(clientId, "unknown"),
             "remote".equals(source) ? "remote" : "local",
             timeoutMs,

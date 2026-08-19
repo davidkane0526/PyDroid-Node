@@ -149,6 +149,7 @@ async function executePythonWorkflow(
           executionId,
           timeoutMs,
           workspaceId: (control as ExecutionControl & { workspaceId?: string }).workspaceId ?? "default",
+          workspaceLabel: (control as ExecutionControl & { workspaceLabel?: string }).workspaceLabel ?? "工作流",
           clientId: (control as ExecutionControl & { clientId?: string }).clientId ?? getExecutionClientId(),
         }, { signal: control?.signal });
       } catch (error) { normalizeLifecycleError(error); }
@@ -193,7 +194,7 @@ async function executePythonWorkflow(
   let response;
   try {
     try {
-      response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs, workspaceId: (control as ExecutionControl & { workspaceId?: string }).workspaceId ?? "default", clientId: (control as ExecutionControl & { clientId?: string }).clientId ?? getExecutionClientId() });
+      response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs, workspaceId: (control as ExecutionControl & { workspaceId?: string }).workspaceId ?? "default", workspaceLabel: (control as ExecutionControl & { workspaceLabel?: string }).workspaceLabel ?? "工作流", clientId: (control as ExecutionControl & { clientId?: string }).clientId ?? getExecutionClientId() });
     } catch (error) { normalizeLifecycleError(error); }
   } finally {
     unregisterCancel?.();
@@ -246,12 +247,13 @@ export async function executeWorkflow(
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
   preference: RuntimePreference = currentRuntimePreference,
-  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; clientId?: string } = {},
+  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; workspaceLabel?: string; clientId?: string } = {},
 ): Promise<ExecutionResult> {
   const runtime = resolveHostRuntime(preference, nodes);
   const workspaceId = options.workspaceId?.trim() || "default";
+  const workspaceLabel = options.workspaceLabel?.trim() || "工作流";
   const clientId = options.clientId?.trim() || getExecutionClientId();
-  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, clientId } as ExecutionControl & { workspaceId: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
   setWorkspaceExecutionResult(workspaceId, result);
   return result;
 }
@@ -262,12 +264,13 @@ export async function executeWorkflowWithRuntime(
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
-  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; clientId?: string } = {},
+  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; workspaceLabel?: string; clientId?: string } = {},
 ): Promise<ExecutionResult> {
   const runtime = getRuntime(runtimeId);
   const workspaceId = options.workspaceId?.trim() || "default";
+  const workspaceLabel = options.workspaceLabel?.trim() || "工作流";
   const clientId = options.clientId?.trim() || getExecutionClientId();
-  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, clientId } as ExecutionControl & { workspaceId: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
   setWorkspaceExecutionResult(workspaceId, result);
   return result;
 }

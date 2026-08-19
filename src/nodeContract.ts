@@ -1,9 +1,16 @@
-import { NODE_CATALOG, getNodeSpec } from "./nodeCatalog";
+import {
+  NODE_CATALOG,
+  getNodeSpec,
+  type NodeCachePolicy,
+  type NodeExecutionModel,
+  type NodeRuntimeId,
+  type NodeStateAccess,
+  type NodeStateScope,
+  type NodeFunctionRole,
+  type NodeSpec,
+} from "./nodeCatalog";
 
-export type NodeRuntimeId = "python" | "javascript";
-export type NodeExecutionModel = "standard" | "control-flow" | "custom-code" | "ui" | "workflow";
-export type NodeStateScope = "none" | "temporary" | "global";
-export type NodeCachePolicy = "cacheable" | "uncacheable";
+export type { NodeCachePolicy, NodeExecutionModel, NodeFunctionRole, NodeRuntimeId, NodeStateAccess, NodeStateScope } from "./nodeCatalog";
 
 export type NodeContract = {
   nodeType: string;
@@ -13,176 +20,88 @@ export type NodeContract = {
   sideEffect: boolean;
   cachePolicy: NodeCachePolicy;
   stateScope: NodeStateScope;
+  stateAccess: NodeStateAccess;
+  functionRole: NodeFunctionRole;
   executionModel: NodeExecutionModel;
   notes?: string[];
 };
 
-const SPECIAL_NODE_TYPES = ["workflow.group"] as const;
+const SPECIAL_NODE_CONTRACTS: Array<{ nodeType: string; runtimeSupport: NodeRuntimeId[]; executionModel?: NodeExecutionModel; notes?: string[] }> = [
+  { nodeType: "workflow.group", runtimeSupport: ["python", "javascript"], executionModel: "workflow" },
+  { nodeType: "table.group_mean", runtimeSupport: ["python", "javascript"], notes: ["Legacy compatibility contract for workflows created before table.group_mean left the visible catalog."] },
+];
 
-const JAVASCRIPT_RUNTIME_NODE_TYPES = new Set<string>([
-  "analysis.ter_matrix",
-  "convert.json_parse",
-  "convert.json_stringify",
-  "convert.table_to_csv",
-  "convert.table_to_records",
-  "convert.to_boolean",
-  "convert.to_number",
-  "convert.to_table",
-  "convert.to_text",
-  "io.export_csv",
-  "io.read_csv",
-  "io.read_csv_batch",
-  "io.read_image",
-  "io.read_json",
-  "io.read_table",
-  "io.read_text",
-  "generate.empty_list",
-  "generate.empty_table",
-  "generate.random_table",
-  "logic.for_range",
-  "logic.if_rows",
-  "logic.merge_rows",
-  "logic.while_number",
-  "pandas.describe",
-  "pandas.drop_duplicates",
-  "pandas.dropna",
-  "pandas.fillna",
-  "pandas.head",
-  "pandas.query",
-  "pandas.round",
-  "pandas.sample",
-  "pandas.sort_values",
-  "pandas.tail",
-  "plot.area",
-  "plot.bar",
-  "plot.box",
-  "plot.heatmap",
-  "plot.histogram",
-  "plot.line",
-  "plot.scatter",
-  "pulse.combine_channels",
-  "pulse.generate_oscillating_ramp",
-  "pulse.generate_waveform",
-  "pulse.segment_measurement",
-  "python.len",
-  "python.print",
-  "python.round",
-  "table.absolute",
-  "table.concat",
-  "table.difference",
-  "table.filter_range",
-  "table.group_aggregate",
-  "table.groupby_aggregate",
-  "table.group_mean",
-  "table.periodic_tail_mean",
-  "table.periodic_window",
-  "table.pivot",
-  "table.rename_columns",
-  "table.reset_index",
-  "table.select_columns",
-  "table.slice",
-  "table.sort_index",
-  "table.transpose",
-  "ui.alert",
-  "ui.input_dialog",
-  "variable.get",
-  "variable.set",
-  "logic.if_subflow",
-  "logic.for_each_subflow",
-  "logic.while_subflow",
-]);
-
-function baseExecutionModel(nodeType: string): NodeExecutionModel {
+function inferExecutionModel(nodeType: string): NodeExecutionModel {
   if (nodeType === "workflow.group") return "workflow";
   if (nodeType.startsWith("ui.")) return "ui";
   if (nodeType === "custom.python_function" || nodeType === "notebook.code_cell") return "custom-code";
   if (nodeType.startsWith("logic.") && nodeType.endsWith("_subflow")) return "control-flow";
-  if (nodeType.startsWith("notebook.") && (nodeType.endsWith("_block") || nodeType.endsWith("_cell"))) return nodeType.endsWith("_block") ? "control-flow" : "custom-code";
+  if (nodeType.startsWith("notebook.") && nodeType.endsWith("_block")) return "control-flow";
   return "standard";
 }
 
-function baseStateScope(nodeType: string): NodeStateScope {
+function inferStateScope(nodeType: string): NodeStateScope {
   if (nodeType === "variable.get" || nodeType === "variable.set") return "temporary";
   return "none";
 }
 
-function baseDeterministic(nodeType: string): boolean {
-  return !new Set(["generate.random_table", "ui.alert", "ui.input_dialog"]).has(nodeType);
+
+function inferStateAccess(nodeType: string): NodeStateAccess {
+  if (nodeType === "variable.get") return "read";
+  if (nodeType === "variable.set") return "write";
+  return "none";
 }
 
-function baseSideEffect(nodeType: string): boolean {
+function inferDeterministic(nodeType: string): boolean {
+  return !new Set(["generate.random_table", "ui.alert", "ui.input_dialog", "variable.set", "custom.python_function", "notebook.code_cell"]).has(nodeType);
+}
+
+function inferSideEffect(nodeType: string): boolean {
   return nodeType.startsWith("ui.") || nodeType === "python.print" || nodeType === "io.export_csv" || nodeType === "variable.set";
 }
 
-function buildBaseContract(nodeType: string): NodeContract {
-  const sideEffect = baseSideEffect(nodeType);
-  const deterministic = baseDeterministic(nodeType);
+function normalizeContract(nodeType: string, spec?: NodeSpec): NodeContract {
+  const deterministic = spec?.deterministic ?? inferDeterministic(nodeType);
+  const sideEffect = spec?.sideEffect ?? inferSideEffect(nodeType);
+  const runtimeSupport = spec?.runtimeSupport ?? ["python"];
   return {
     nodeType,
     version: 1,
     runtimes: {
-      python: true,
-      javascript: nodeType === "workflow.group" || JAVASCRIPT_RUNTIME_NODE_TYPES.has(nodeType),
+      python: runtimeSupport.includes("python"),
+      javascript: nodeType === "workflow.group" || runtimeSupport.includes("javascript"),
     },
     deterministic,
     sideEffect,
-    cachePolicy: sideEffect || !deterministic ? "uncacheable" : "cacheable",
-    stateScope: baseStateScope(nodeType),
-    executionModel: baseExecutionModel(nodeType),
-  };
-}
-
-const CONTRACT_OVERRIDES: Record<string, Partial<NodeContract>> = {
-  "custom.python_function": {
-    executionModel: "custom-code",
-    runtimes: { python: true, javascript: false },
-    deterministic: false,
-    cachePolicy: "uncacheable",
-    notes: ["Custom code node: future function-node/runtime-neutral contract should build on this metadata."],
-  },
-  "notebook.markdown_cell": {
-    deterministic: false,
-    cachePolicy: "uncacheable",
-  },
-  "notebook.if_block": {
-    executionModel: "control-flow",
-  },
-  "notebook.for_block": {
-    executionModel: "control-flow",
-  },
-  "notebook.while_block": {
-    executionModel: "control-flow",
-  },
-  "variable.get": {
-    stateScope: "temporary",
-  },
-  "variable.set": {
-    stateScope: "temporary",
-    sideEffect: true,
-    deterministic: false,
-    cachePolicy: "uncacheable",
-  },
-};
-
-function withOverrides(contract: NodeContract): NodeContract {
-  const override = CONTRACT_OVERRIDES[contract.nodeType];
-  if (!override) return contract;
-  return {
-    ...contract,
-    ...override,
-    runtimes: override.runtimes ? { ...contract.runtimes, ...override.runtimes } : contract.runtimes,
+    cachePolicy: spec?.cachePolicy ?? (sideEffect || !deterministic ? "uncacheable" : "cacheable"),
+    stateScope: spec?.stateScope ?? inferStateScope(nodeType),
+    stateAccess: spec?.stateAccess ?? inferStateAccess(nodeType),
+    functionRole: spec?.functionRole ?? "none",
+    executionModel: spec?.executionModel ?? inferExecutionModel(nodeType),
+    notes: nodeType === "custom.python_function"
+      ? ["Function-node foundation: future reusable/function-definition nodes should extend this contract instead of creating runtime-specific metadata."]
+      : undefined,
   };
 }
 
 const NODE_CONTRACTS = new Map<string, NodeContract>();
-for (const spec of NODE_CATALOG) NODE_CONTRACTS.set(spec.nodeType, withOverrides(buildBaseContract(spec.nodeType)));
-for (const nodeType of SPECIAL_NODE_TYPES) if (!NODE_CONTRACTS.has(nodeType)) NODE_CONTRACTS.set(nodeType, withOverrides(buildBaseContract(nodeType)));
+for (const spec of NODE_CATALOG) NODE_CONTRACTS.set(spec.nodeType, normalizeContract(spec.nodeType, spec));
+for (const legacy of SPECIAL_NODE_CONTRACTS) {
+  if (NODE_CONTRACTS.has(legacy.nodeType)) continue;
+  const base = normalizeContract(legacy.nodeType);
+  NODE_CONTRACTS.set(legacy.nodeType, {
+    ...base,
+    runtimes: { python: legacy.runtimeSupport.includes("python"), javascript: legacy.runtimeSupport.includes("javascript") },
+    executionModel: legacy.executionModel ?? base.executionModel,
+    notes: legacy.notes ?? base.notes,
+  });
+}
 
 export function getNodeContract(nodeType: string): NodeContract | undefined {
   const contract = NODE_CONTRACTS.get(nodeType);
   if (contract) return contract;
-  if (getNodeSpec(nodeType)) return withOverrides(buildBaseContract(nodeType));
-  return undefined;
+  const spec = getNodeSpec(nodeType);
+  return spec ? normalizeContract(nodeType, spec) : undefined;
 }
 
 export function listNodeContracts(): NodeContract[] {
@@ -195,4 +114,37 @@ export function supportsNodeRuntime(nodeType: string, runtime: NodeRuntimeId): b
 
 export function getJavascriptSupportedNodeTypes(): Set<string> {
   return new Set(listNodeContracts().filter((contract) => contract.runtimes.javascript && contract.nodeType !== "workflow.group").map((contract) => contract.nodeType));
+}
+
+export function nodeHasSideEffects(nodeType: string): boolean {
+  return Boolean(getNodeContract(nodeType)?.sideEffect);
+}
+
+export function nodeUsesState(nodeType: string): boolean {
+  return (getNodeContract(nodeType)?.stateScope ?? "none") !== "none";
+}
+
+export function validateNodeContracts(): string[] {
+  const errors: string[] = [];
+  const seen = new Set<string>();
+  for (const spec of NODE_CATALOG) {
+    if (seen.has(spec.nodeType)) errors.push(`重复 nodeType：${spec.nodeType}`);
+    seen.add(spec.nodeType);
+    const contract = getNodeContract(spec.nodeType);
+    if (!contract) {
+      errors.push(`缺少 NodeContract：${spec.nodeType}`);
+      continue;
+    }
+    if (!contract.runtimes.python && !contract.runtimes.javascript) errors.push(`节点没有可执行 Runtime：${spec.nodeType}`);
+    if (contract.cachePolicy === "cacheable" && (contract.sideEffect || !contract.deterministic)) {
+      errors.push(`不可安全缓存的节点被标记为 cacheable：${spec.nodeType}`);
+    }
+    if (contract.stateScope !== "none" && contract.cachePolicy === "cacheable") {
+      errors.push(`有状态节点不应默认 cacheable：${spec.nodeType}`);
+    }
+    if (contract.stateScope === "none" && contract.stateAccess !== "none") errors.push(`无状态节点不能声明 stateAccess：${spec.nodeType}`);
+    if (contract.stateScope !== "none" && contract.stateAccess === "none") errors.push(`有状态节点缺少 stateAccess：${spec.nodeType}`);
+    if (contract.executionModel !== "function" && contract.functionRole !== "none") errors.push(`非函数节点不能声明 functionRole：${spec.nodeType}`);
+  }
+  return errors;
 }

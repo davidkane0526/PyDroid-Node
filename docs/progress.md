@@ -1,3 +1,11 @@
+## 2026-08-19 — selectable execution task manager + Phase 4 expansion / 1.4.34 (57)
+
+- Desktop 1.4.32 real-host testing reported the same queued-blue issue as Android; the 1.4.33 host-priority phase merge applies to both Desktop and Android, so the fix is cross-platform.
+- Replaced the bottom sequential stop control with a task manager popover. Every host execution can be selected individually; workflow labels now travel through Desktop/Android/Remote execution metadata.
+- Phase 4 moved runtime support into NodeSpec metadata and made NodeContract the normalized shared view consumed by JavaScript runtime support, Agent planning and inspector metadata.
+- Contract semantics now reserve `stateScope = temporary/global`, `stateAccess = read/write/read-write`, `executionModel = function`, and `functionRole = definition/call` for future function and variable node families.
+- Build script revision: `1.4.34-dev-r10-phase4-node-contract`.
+
 ## 2026-08-19 — Android queued indicator acceptance fix / 1.4.33 (56)
 
 - Android Phase 3.5 functional tests passed, with one remaining visual/state issue: a queued workspace still showed the blue running badge.

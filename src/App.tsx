@@ -52,8 +52,9 @@ import {
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
 import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelHostExecution, executeWorkflow, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getHostExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type HostExecutionStatus, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
-import { emptyHostExecutionStatus } from "./execution-host";
+import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, getExecutionClientId, getWorkspaceExecutionResult } from "./execution-workspace";
+import { getNodeContract } from "./nodeContract";
 import { canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
@@ -784,6 +785,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [paletteCollapsed, setPaletteCollapsed] = useState(false);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [hostTaskMenuOpen, setHostTaskMenuOpen] = useState(false);
   const [newWorkflowDialogOpen, setNewWorkflowDialogOpen] = useState(false);
   const [replaceCurrentUnsavedOpen, setReplaceCurrentUnsavedOpen] = useState(false);
   const savedSignatureRef = useRef(initialRuntimeState?.savedSignature ?? workflowSnapshotSignature(startingSnapshot));
@@ -804,7 +806,6 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const localExecutionActive = ["queued", "running", "cancelling"].includes(executionLifecycle.phase);
   const currentHostExecution = hostExecutionLifecycle.executions.find((entry) => entry.workspaceId === tabId && entry.clientId === executionClientId) ?? null;
   const otherHostExecutions = hostExecutionLifecycle.executions.filter((entry) => entry.executionId !== currentHostExecution?.executionId);
-  const crossClientHostExecutions = otherHostExecutions.filter((entry) => entry.clientId !== executionClientId);
   const isRunning = localExecutionActive || Boolean(currentHostExecution);
   const visibleExecutionId = executionLifecycle.executionId ?? currentHostExecution?.executionId ?? null;
   const remoteBrowser = isRemoteRuntime();
@@ -974,6 +975,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
   const selectedSpec = nodeSpecFor(selectedNode ?? undefined);
+  const selectedContract = selectedNode ? getNodeContract(selectedNode.data.nodeType) : undefined;
   const selectedNodeResult = selectedNode ? result?.nodeResults[selectedNode.id] ?? (selectedNode.data.nodeType === "workflow.group" ? result?.nodeResults[selectedNode.data.groupOutputs?.[0]?.internalNodeId ?? ""] : undefined) : undefined;
   const alertInputSourceId = alertDialogNode ? edges.find((edge) => edge.target === alertDialogNode.id && edge.targetHandle === "content")?.source : undefined;
   const alertInputSource = alertInputSourceId ? nodes.find((node) => node.id === alertInputSourceId) : undefined;
@@ -2634,7 +2636,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       const document = notebookCellsToWorkflow("Notebook 交互运行", cells, notebookMetadata);
       const inputFiles = csvFiles.map((file) => ({ name: file.name, text: new TextDecoder("utf-8").decode(file.bytes) }));
-      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, clientId: executionClientId });
+      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
       setResult(nextResult);
       setNotebookCellResults((current) => ({ ...current, ...Object.fromEntries(cells.map((cell, index) => [cell.id, nextResult.nodeResults[`notebook-cell-${index + 1}`]]).filter((entry): entry is [string, NodeExecutionPreview] => Boolean(entry[1]))) }));
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
@@ -3165,7 +3167,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!slice.nodes.length) return undefined;
     setMessage(`正在准备“${alertNode.data.label}”的当前内容…`);
     const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(slice.nodes);
-    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, clientId: executionClientId });
+    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
     return previewResult.nodeResults[contentEdge.source] ?? (previewResult.preview.totalRows || previewResult.preview.totalColumns ? { kind: "table", preview: previewResult.preview } : undefined);
   };
 
@@ -3209,15 +3211,14 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setHostExecutionLifecycle(status);
   };
 
-  const stopOtherHostExecution = async () => {
-    const target = crossClientHostExecutions[0];
-    if (!target) return;
-    const owner = target.clientId === executionClientId ? "其他工作区" : target.source === "remote" ? "网页远程" : "宿主";
-    setMessage(`正在停止${owner}执行…`);
+  const stopHostExecution = async (target: HostExecutionEntry) => {
+    const owner = target.clientId === executionClientId ? (target.workspaceLabel || "其他工作区") : target.source === "remote" ? `远程 · ${target.workspaceLabel || "工作流"}` : `宿主 · ${target.workspaceLabel || "工作流"}`;
+    setMessage(`正在停止 ${owner}…`);
     const cancelled = await cancelHostExecution(target.executionId).catch(() => false);
-    if (!cancelled) setMessage(`${owner}执行已结束或无法找到对应任务`);
+    if (!cancelled) setMessage(`${owner} 已结束或无法找到对应任务`);
     const status = await getHostExecutionStatus().catch(() => emptyHostExecutionStatus(isNativePlatform() ? 1 : 4));
     setHostExecutionLifecycle(status);
+    if (status.executions.length <= 1) setHostTaskMenuOpen(false);
   };
 
   async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string) {
@@ -3272,7 +3273,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
     try {
       const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(workflowNodes);
-      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, clientId: executionClientId });
+      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
       setResult(nextResult);
       setExecutionError(null);
       setDebugPausedAt(stopAt ?? null);
@@ -3789,7 +3790,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           </div>
           {selectedNode ? (
             <>
-              <div className="inspector__selection"><strong className="inspector__node-name">{selectedNode.data.label}</strong><span className="inspector__node-type">{selectedNode.data.nodeType}</span></div>
+              <div className="inspector__selection"><strong className="inspector__node-name">{selectedNode.data.label}</strong><span className="inspector__node-type">{selectedNode.data.nodeType}</span>{selectedContract && <span className="node-contract-badges" title={`执行模型：${selectedContract.executionModel} · 缓存：${selectedContract.cachePolicy} · 状态：${selectedContract.stateScope}`}><i>{selectedContract.runtimes.python ? "PY" : ""}</i>{selectedContract.runtimes.javascript && <i>JS</i>}{selectedContract.sideEffect && <i className="warn">副作用</i>}{selectedContract.stateScope !== "none" && <i className="state">{selectedContract.stateScope === "global" ? "全局" : "临时状态"}</i>}</span>}</div>
               {selectedNodeResult && <section className="node-result-inspector" title={selectedNodeResult.kind === "plot" ? ui("点击或双击展开交互图", "Click or double-click to expand interactive chart") : ui("双击展开、编辑和复制", "Double-click to expand, edit and copy")} tabIndex={0} onDoubleClick={() => { if (selectedNodeResult.kind === "plot") { setPlotZoom(1); setPlotExpandedPreview(selectedNodeResult); return; } setResultDetail({ title: `${selectedNode.data.label} · ${ui("本节点结果", "Node result")}`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined }); }}><h3>{ui("本节点结果", "Node result")} <small>{selectedNodeResult.kind === "plot" ? ui("点击展开", "Click to expand") : ui("双击展开", "Double-click to expand")}</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · ${ui("本节点结果", "Node result")}`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); setPlotZoom(1); setPlotExpandedPreview(preview); }} onClick={(event) => { event.stopPropagation(); setPlotZoom(1); setPlotExpandedPreview(preview); }}><PlotPreview preview={preview} className="plot-preview" alt={ui("节点图表结果", "Node chart result")} /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
               {selectedNode.data.nodeType === "workflow.group" && <section className="group-settings">
                 <label>组名称<input value={selectedNode.data.label} onChange={(event) => updateSelectedGroupLabel(event.target.value)} /></label>
@@ -3864,7 +3865,28 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         <span title="每秒刷新一次的应用内存"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /><path d="M9 3v4m3-4v4m3-4v4M9 17v4m3-4v4m3-4v4M3 9h4m-4 3h4m-4 3h4m10-6h4m-4 3h4m-4 3h4" /></svg>内存 {memoryMb === null ? "不可用" : `${memoryMb.toFixed(1)} MB`}</span>
         <span title="最近一次工作流执行耗时"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 13V8m0 5 3 2M9 3h6" /></svg>计算 {lastRunDurationMs === null ? "—" : lastRunDurationMs < 1000 ? `${Math.round(lastRunDurationMs)} ms` : `${(lastRunDurationMs / 1000).toFixed(2)} s`}</span>
         <span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /><path d="m10 7 4 10" /></svg>节点 {nodes.length}</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="m7.5 7.5 9 9" /></svg>连线 {edges.length}</span>{executionError ? <button className="app-statusbar__error" onClick={() => setErrorDetailOpen(true)} title="点击查看完整错误">⚠ {message}</button> : <span className="app-statusbar__message">{message}</span>}
-        {crossClientHostExecutions.length > 0 && <button className="statusbar-host-action" title={`宿主共有 ${hostExecutionLifecycle.runningCount} 个运行 / ${hostExecutionLifecycle.queuedCount} 个排队任务；点击停止 ${crossClientHostExecutions[0].executionId}`} aria-label={crossClientHostExecutions[0].source === "remote" ? "停止远程任务" : "停止宿主任务"} onClick={() => void stopOtherHostExecution()}>{crossClientHostExecutions[0].source === "remote" ? ui(`停止远程${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`, `Stop remote${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`) : ui(`停止宿主${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`, `Stop host${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`)}</button>}
+        {otherHostExecutions.length > 0 && <div className="statusbar-tasks">
+          <button className={`statusbar-task-trigger ${hostTaskMenuOpen ? "active" : ""}`} title={`宿主任务：${hostExecutionLifecycle.runningCount} 运行 / ${hostExecutionLifecycle.queuedCount} 排队`} aria-label="查看宿主任务" aria-expanded={hostTaskMenuOpen} onClick={() => setHostTaskMenuOpen((open) => !open)}>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h10M7 12h10M7 17h10"/><circle cx="4" cy="7" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="17" r="1"/></svg>
+            <span>{ui("任务", "Tasks")}</span><strong>{hostExecutionLifecycle.executions.length}</strong>
+          </button>
+          {hostTaskMenuOpen && <div className="statusbar-task-menu" role="dialog" aria-label="宿主执行任务">
+            <header><div><strong>{ui("宿主任务", "Host tasks")}</strong><small>{hostExecutionLifecycle.runningCount} {ui("运行", "running")} · {hostExecutionLifecycle.queuedCount} {ui("排队", "queued")}</small></div><button type="button" aria-label="关闭任务列表" onClick={() => setHostTaskMenuOpen(false)}>×</button></header>
+            <div className="statusbar-task-list">
+              {hostExecutionLifecycle.executions.map((entry) => {
+                const isCurrent = entry.executionId === currentHostExecution?.executionId;
+                const sameClient = entry.clientId === executionClientId;
+                const phaseLabel = entry.phase === "queued" ? ui("排队", "Queued") : entry.phase === "cancelling" ? ui("取消中", "Cancelling") : ui("运行", "Running");
+                const sourceLabel = sameClient ? ui("本机标签", "Local tab") : entry.source === "remote" ? ui("远程网页", "Remote web") : ui("宿主", "Host");
+                return <div className="statusbar-task-item" key={entry.executionId}>
+                  <span className={`statusbar-task-dot statusbar-task-dot--${entry.phase}`} aria-hidden="true"/>
+                  <div className="statusbar-task-copy"><strong>{entry.workspaceLabel || entry.workspaceId || ui("工作流", "Workflow")}{isCurrent ? ` · ${ui("当前", "Current")}` : ""}</strong><small>{sourceLabel} · {phaseLabel} · {entry.executionId.slice(0, 8)}</small></div>
+                  <button type="button" disabled={entry.phase === "cancelling"} onClick={() => void stopHostExecution(entry)}>{entry.phase === "queued" ? ui("取消", "Cancel") : ui("停止", "Stop")}</button>
+                </div>;
+              })}
+            </div>
+          </div>}
+        </div>}
         {debugMode && <button className="statusbar-debug" title="调试面板" aria-label="调试面板" onClick={() => setDebugOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9h8v7a4 4 0 0 1-8 0V9Z"/><path d="m9 6-2-2m8 2 2-2M5 11H2m3 4H2m17-4h3m-3 4h3M12 9V5"/></svg></button>}
         <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
       </footer>

@@ -1,6 +1,12 @@
 export type ParameterKind = "text" | "textarea" | "number" | "boolean" | "select" | "list";
 
 export type ValueType = "table" | "plot" | "csv" | "number" | "text" | "boolean" | "list" | "object" | "any";
+export type NodeRuntimeId = "python" | "javascript";
+export type NodeExecutionModel = "standard" | "control-flow" | "custom-code" | "function" | "ui" | "workflow";
+export type NodeStateScope = "none" | "temporary" | "global";
+export type NodeStateAccess = "none" | "read" | "write" | "read-write";
+export type NodeFunctionRole = "none" | "definition" | "call";
+export type NodeCachePolicy = "cacheable" | "uncacheable";
 
 export type PortSpec = {
   id: string;
@@ -40,6 +46,14 @@ export type NodeSpec = {
   parameters: ParameterSpec[];
   inputPorts: PortSpec[];
   outputPorts: PortSpec[];
+  runtimeSupport?: NodeRuntimeId[];
+  executionModel?: NodeExecutionModel;
+  deterministic?: boolean;
+  sideEffect?: boolean;
+  cachePolicy?: NodeCachePolicy;
+  stateScope?: NodeStateScope;
+  stateAccess?: NodeStateAccess;
+  functionRole?: NodeFunctionRole;
 };
 
 const TABLE_INPUT: PortSpec[] = [{ id: "input", label: "表格", valueType: "table", required: true }];
@@ -47,7 +61,7 @@ const TABLE_OUTPUT: PortSpec[] = [{ id: "output", label: "表格", valueType: "t
 
 export const NODE_CATALOG: NodeSpec[] = [
   {
-    nodeType: "notebook.code_cell", label: "Jupyter 代码单元格", category: "自定义",
+    nodeType: "notebook.code_cell", runtimeSupport: ["python"], executionModel: "custom-code", deterministic: false, cachePolicy: "uncacheable", label: "Jupyter 代码单元格", category: "自定义",
     description: "无损承载普通 .ipynb 代码单元格；保留源码、输出、执行计数和 metadata。",
     tags: ["jupyter", "ipynb", "代码", "单元格"],
     defaults: { source: "", metadataJson: "{}", outputsJson: "[]", notebookMetadataJson: "{}", executionCount: null },
@@ -68,22 +82,22 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "previous", label: "前一单元格", valueType: "any" }], outputPorts: [{ id: "next", label: "下一单元格", valueType: "any" }],
   },
   {
-    nodeType: "notebook.if_block", label: "Notebook If", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 If 代码块。", tags: ["jupyter", "if", "条件"],
+    nodeType: "notebook.if_block", runtimeSupport: ["python"], executionModel: "control-flow", label: "Notebook If", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 If 代码块。", tags: ["jupyter", "if", "条件"],
     defaults: { notebookSource: "" }, parameters: [{ key: "notebookSource", label: "If 源码", kind: "textarea", required: true }],
     inputPorts: [{ id: "input", label: "上下文", valueType: "any" }], outputPorts: [{ id: "output", label: "后续", valueType: "any" }],
   },
   {
-    nodeType: "notebook.for_block", label: "Notebook For", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 For 代码块。", tags: ["jupyter", "for", "循环"],
+    nodeType: "notebook.for_block", runtimeSupport: ["python"], executionModel: "control-flow", label: "Notebook For", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 For 代码块。", tags: ["jupyter", "for", "循环"],
     defaults: { notebookSource: "" }, parameters: [{ key: "notebookSource", label: "For 源码", kind: "textarea", required: true }],
     inputPorts: [{ id: "input", label: "上下文", valueType: "any" }], outputPorts: [{ id: "output", label: "后续", valueType: "any" }],
   },
   {
-    nodeType: "notebook.while_block", label: "Notebook While", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 While 代码块。", tags: ["jupyter", "while", "循环"],
+    nodeType: "notebook.while_block", runtimeSupport: ["python"], executionModel: "control-flow", label: "Notebook While", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 While 代码块。", tags: ["jupyter", "while", "循环"],
     defaults: { notebookSource: "" }, parameters: [{ key: "notebookSource", label: "While 源码", kind: "textarea", required: true }],
     inputPorts: [{ id: "input", label: "上下文", valueType: "any" }], outputPorts: [{ id: "output", label: "后续", valueType: "any" }],
   },
   {
-    nodeType: "io.read_csv",
+    nodeType: "io.read_csv", runtimeSupport: ["python", "javascript"],
     label: "读取 CSV",
     description: "从 CSV 文本读取表格，支持表头、列类型、缺失值、日期和编码。",
     tags: ["csv", "读取", "导入", "pandas", "read_csv", "readcsv"],
@@ -141,7 +155,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "io.read_csv_batch",
+    nodeType: "io.read_csv_batch", runtimeSupport: ["python", "javascript"],
     label: "批量读取 CSV",
     description: "一次读取多个 CSV，追加来源文件列，并可从文件名提取 Vg 等元数据。",
     tags: ["csv", "批量", "多文件", "目录", "pandas", "TER"],
@@ -166,28 +180,28 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "io.read_table", label: "读取通用表格", category: "输入输出",
+    nodeType: "io.read_table", runtimeSupport: ["python", "javascript"], label: "读取通用表格", category: "输入输出",
     description: "读取 CSV、TSV、DAT 或记录型 JSON；自动模式根据扩展名和内容选择 pandas.read_csv 或 pandas.read_json。", tags: ["读取", "csv", "tsv", "dat", "json", "表格"], pythonCallable: "pydroid_flow.read_table_auto",
     defaults: { fileIndex: 0, separator: "auto", header: true, encoding: "utf-8", encodingErrors: "strict" }, inputPorts: [], outputPorts: TABLE_OUTPUT,
     parameters: [{ key: "fileIndex", label: "文件序号（从 0 开始）", kind: "number", min: 0, step: 1 }, { key: "separator", label: "分隔符", kind: "select", options: [{ label: "自动识别", value: "auto" }, { label: "逗号", value: "," }, { label: "制表符", value: "\t" }, { label: "空白", value: "\\s+" }, { label: "分号", value: ";" }] }, { key: "header", label: "首行为表头", kind: "boolean" }, { key: "encoding", label: "文件编码", kind: "select", options: [{ label: "UTF-8", value: "utf-8" }, { label: "GBK", value: "gbk" }, { label: "GB18030", value: "gb18030" }, { label: "UTF-16 LE", value: "utf-16le" }] }],
   },
   {
-    nodeType: "io.read_text", label: "读取文本文件", category: "输入输出",
+    nodeType: "io.read_text", runtimeSupport: ["python", "javascript"], label: "读取文本文件", category: "输入输出",
     description: "读取 TXT、DAT、日志或其他文本文件并输出字符串。", tags: ["读取", "txt", "dat", "文本"], pythonCallable: "pathlib.Path.read_text",
     defaults: { fileIndex: 0, encoding: "utf-8", encodingErrors: "strict" }, inputPorts: [], outputPorts: [{ id: "output", label: "文本", valueType: "text" }], parameters: [{ key: "fileIndex", label: "文件序号（从 0 开始）", kind: "number", min: 0, step: 1 }, { key: "encoding", label: "文件编码", kind: "select", options: [{ label: "UTF-8", value: "utf-8" }, { label: "GBK", value: "gbk" }, { label: "GB18030", value: "gb18030" }, { label: "UTF-16 LE", value: "utf-16le" }] }],
   },
   {
-    nodeType: "io.read_json", label: "读取 JSON", category: "输入输出",
+    nodeType: "io.read_json", runtimeSupport: ["python", "javascript"], label: "读取 JSON", category: "输入输出",
     description: "读取 JSON 文件并输出对象或列表；可继续连接“转为 DataFrame”。", tags: ["读取", "json", "对象", "列表"], pythonCallable: "json.load",
     defaults: { fileIndex: 0, encoding: "utf-8", encodingErrors: "strict" }, inputPorts: [], outputPorts: [{ id: "output", label: "对象", valueType: "object" }], parameters: [{ key: "fileIndex", label: "文件序号（从 0 开始）", kind: "number", min: 0, step: 1 }, { key: "encoding", label: "文件编码", kind: "select", options: [{ label: "UTF-8", value: "utf-8" }, { label: "GBK", value: "gbk" }, { label: "GB18030", value: "gb18030" }] }],
   },
   {
-    nodeType: "io.read_image", label: "读取图片", category: "输入输出",
+    nodeType: "io.read_image", runtimeSupport: ["python", "javascript"], label: "读取图片", category: "输入输出",
     description: "读取 PNG、JPG 等 Matplotlib 支持的图片并输出图像预览。", tags: ["读取", "png", "jpg", "jpeg", "图片"], pythonCallable: "matplotlib.pyplot.imread",
     defaults: { fileIndex: 0 }, inputPorts: [], outputPorts: [{ id: "output", label: "图像", valueType: "plot" }], parameters: [{ key: "fileIndex", label: "文件序号（从 0 开始）", kind: "number", min: 0, step: 1 }],
   },
   {
-    nodeType: "generate.random_table",
+    nodeType: "generate.random_table", runtimeSupport: ["python", "javascript"], deterministic: false, cachePolicy: "uncacheable",
     label: "生成随机数表",
     category: "输入输出",
     description: "无输入生成可复现的随机数表，包含索引列和值列；可直接连接打印、统计和绘图节点。Python 与 JavaScript 后端均支持。",
@@ -208,7 +222,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "generate.empty_table",
+    nodeType: "generate.empty_table", runtimeSupport: ["python", "javascript"],
     label: "创建空 DataFrame",
     category: "输入输出",
     description: "创建一个无行 DataFrame，可预先指定列名。适合需要显式空表起点的流程；Python 与 JavaScript 后端均支持。",
@@ -219,7 +233,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "columns", label: "列名", kind: "list", itemType: "text", placeholder: "x,y,value" }],
   },
   {
-    nodeType: "generate.empty_list",
+    nodeType: "generate.empty_list", runtimeSupport: ["python", "javascript"],
     label: "创建空列表",
     category: "输入输出",
     description: "创建一个空列表作为流程数据源；Python 与 JavaScript 后端均支持。",
@@ -230,7 +244,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [],
   },
   {
-    nodeType: "ui.alert",
+    nodeType: "ui.alert", runtimeSupport: ["python", "javascript"], executionModel: "ui", sideEffect: true, deterministic: false, cachePolicy: "uncacheable",
     label: "弹窗提示",
     category: "输入输出",
     description: "运行时显示可交互提示。确认、退出、取消按钮分别输出 true、false、None；按钮文字留空可隐藏。",
@@ -246,7 +260,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "input", label: "触发", valueType: "any" }, { id: "content", label: "内容", valueType: "any" }], outputPorts: [{ id: "output", label: "选择", valueType: "any" }],
   },
   {
-    nodeType: "ui.input_dialog",
+    nodeType: "ui.input_dialog", runtimeSupport: ["python", "javascript"], executionModel: "ui", sideEffect: true, deterministic: false, cachePolicy: "uncacheable",
     label: "弹窗输入",
     category: "输入输出",
     description: "运行前请求文本、数值或下拉选择；值作为输出传给后续节点。导出 Jupyter 时转换为 input 占位符。",
@@ -260,7 +274,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [], outputPorts: [{ id: "output", label: "值", valueType: "any" }],
   },
   {
-    nodeType: "io.export_csv",
+    nodeType: "io.export_csv", runtimeSupport: ["python", "javascript"], sideEffect: true, cachePolicy: "uncacheable",
     label: "导出 CSV",
     category: "输入输出",
     defaults: { fileName: "result.csv" },
@@ -269,7 +283,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "fileName", label: "文件名", kind: "text", required: true, placeholder: "result.csv", description: "导出时建议保留 .csv 扩展名。" }],
   },
   {
-    nodeType: "table.concat",
+    nodeType: "table.concat", runtimeSupport: ["python", "javascript"],
     label: "合并双表",
     category: "表格处理",
     defaults: { axis: 0, ignoreIndex: true },
@@ -292,7 +306,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.select_columns",
+    nodeType: "table.select_columns", runtimeSupport: ["python", "javascript"],
     label: "选择列",
     category: "表格处理",
     defaults: { columns: "0,1" },
@@ -301,7 +315,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "columns", label: "列序号", kind: "text", placeholder: "0,1,2", description: "使用英文逗号分隔；留空表示保留所有列。" }],
   },
   {
-    nodeType: "table.absolute",
+    nodeType: "table.absolute", runtimeSupport: ["python", "javascript"],
     label: "绝对值",
     category: "表格处理",
     defaults: {},
@@ -310,7 +324,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [],
   },
   {
-    nodeType: "table.transpose",
+    nodeType: "table.transpose", runtimeSupport: ["python", "javascript"],
     label: "转置",
     category: "表格处理",
     defaults: {},
@@ -319,7 +333,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [],
   },
   {
-    nodeType: "table.slice",
+    nodeType: "table.slice", runtimeSupport: ["python", "javascript"],
     label: "行列切片",
     description: "按 iloc 语义选取连续或等步的行、列，可覆盖常见的实验数据抽样与隔列取样。",
     category: "表格处理",
@@ -336,7 +350,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.reset_index",
+    nodeType: "table.reset_index", runtimeSupport: ["python", "javascript"],
     label: "重置行索引",
     description: "将行索引恢复为从零开始的连续编号。",
     category: "表格处理",
@@ -346,7 +360,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "drop", label: "丢弃旧索引列", kind: "boolean" }],
   },
   {
-    nodeType: "table.periodic_window",
+    nodeType: "table.periodic_window", runtimeSupport: ["python", "javascript"],
     label: "周期窗口抽取",
     description: "每隔固定行数提取一个连续窗口，适合脉冲、循环读写和 Set/Reset 分段数据。",
     category: "表格处理",
@@ -361,7 +375,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.periodic_tail_mean",
+    nodeType: "table.periodic_tail_mean", runtimeSupport: ["python", "javascript"],
     label: "周期末段均值",
     description: "将数据按固定周期分组，并对每组末尾若干行逐列取均值。",
     category: "统计",
@@ -374,7 +388,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.sort_index",
+    nodeType: "table.sort_index", runtimeSupport: ["python", "javascript"],
     label: "按索引排序",
     description: "按原始行索引或列索引进行稳定排序。",
     category: "表格处理",
@@ -387,7 +401,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.difference",
+    nodeType: "table.difference", runtimeSupport: ["python", "javascript"],
     label: "差分",
     category: "表格处理",
     defaults: { periods: 1, axis: 0 },
@@ -407,7 +421,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.filter_range",
+    nodeType: "table.filter_range", runtimeSupport: ["python", "javascript"],
     label: "范围筛选",
     category: "表格处理",
     defaults: { column: 0, min: "", max: "" },
@@ -420,7 +434,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.rename_columns",
+    nodeType: "table.rename_columns", runtimeSupport: ["python", "javascript"],
     label: "重命名列",
     category: "表格处理",
     defaults: { names: "" },
@@ -438,7 +452,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.pivot",
+    nodeType: "table.pivot", runtimeSupport: ["python", "javascript"],
     label: "透视矩阵",
     description: "将长表按行键、列键和值列转换为矩阵，适合多文件扫描结果和热图输入。",
     category: "表格处理",
@@ -454,7 +468,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.group_aggregate",
+    nodeType: "table.group_aggregate", runtimeSupport: ["python", "javascript"],
     label: "分组聚合",
     category: "统计",
     defaults: { groupSize: 20, startRow: 0, endRow: 20, method: "mean" },
@@ -479,7 +493,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "table.groupby_aggregate",
+    nodeType: "table.groupby_aggregate", runtimeSupport: ["python", "javascript"],
     label: "按列分组聚合",
     description: "按指定列的值分组，对每组数值列求聚合（等价 pandas groupby(...).mean() 等）。",
     tags: ["pandas", "groupby", "分组", "聚合", "统计"],
@@ -506,7 +520,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pandas.dropna",
+    nodeType: "pandas.dropna", runtimeSupport: ["python", "javascript"],
     label: "删除缺失值",
     description: "删除含缺失值的行。",
     tags: ["pandas", "dropna", "空值", "清洗"],
@@ -520,7 +534,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pandas.fillna",
+    nodeType: "pandas.fillna", runtimeSupport: ["python", "javascript"],
     label: "填充缺失值",
     description: "使用固定值或相邻观测填充缺失值。",
     tags: ["pandas", "fillna", "空值", "清洗"],
@@ -534,7 +548,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pandas.sort_values",
+    nodeType: "pandas.sort_values", runtimeSupport: ["python", "javascript"],
     label: "按列排序",
     description: "按照一个或多个列的值排序。",
     tags: ["pandas", "sort_values", "排序"],
@@ -549,7 +563,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pandas.query",
+    nodeType: "pandas.query", runtimeSupport: ["python", "javascript"],
     label: "表达式筛选",
     description: "使用 pandas 查询表达式筛选行。",
     tags: ["pandas", "query", "筛选", "条件"],
@@ -560,7 +574,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "expression", label: "查询表达式", kind: "text", required: true, placeholder: "voltage > 2 and current < 5", description: "使用 pandas query 表达式；含空格的列名用反引号包围。" }],
   },
   {
-    nodeType: "pandas.head",
+    nodeType: "pandas.head", runtimeSupport: ["python", "javascript"],
     label: "前 N 行",
     description: "返回表格开头的 n 行。",
     tags: ["pandas", "head", "预览", "前几行"],
@@ -573,7 +587,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "n", label: "行数 · n", kind: "number", min: 0, step: 1, required: true }],
   },
   {
-    nodeType: "pandas.tail",
+    nodeType: "pandas.tail", runtimeSupport: ["python", "javascript"],
     label: "后 N 行",
     description: "返回表格末尾的 n 行。",
     tags: ["pandas", "tail", "预览", "后几行"],
@@ -586,7 +600,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "n", label: "行数 · n", kind: "number", min: 0, step: 1, required: true }],
   },
   {
-    nodeType: "pandas.drop_duplicates",
+    nodeType: "pandas.drop_duplicates", runtimeSupport: ["python", "javascript"],
     label: "删除重复行",
     description: "删除重复行，可指定用于判断重复的列。",
     tags: ["pandas", "drop_duplicates", "重复", "去重", "清洗"],
@@ -603,7 +617,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pandas.sample",
+    nodeType: "pandas.sample", runtimeSupport: ["python", "javascript"],
     label: "随机抽样",
     description: "从表格随机抽取指定行数或比例。",
     tags: ["pandas", "sample", "随机", "抽样"],
@@ -622,7 +636,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pandas.round",
+    nodeType: "pandas.round", runtimeSupport: ["python", "javascript"],
     label: "数值取整",
     description: "将数值列舍入到指定小数位。",
     tags: ["pandas", "round", "取整", "小数"],
@@ -635,7 +649,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "decimals", label: "小数位 · decimals", kind: "number", min: 0, max: 15, step: 1 }],
   },
   {
-    nodeType: "pandas.describe",
+    nodeType: "pandas.describe", runtimeSupport: ["python", "javascript"],
     label: "描述性统计",
     description: "生成计数、均值、标准差、分位数等描述性统计。",
     tags: ["pandas", "describe", "统计", "摘要"],
@@ -652,7 +666,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "logic.if_subflow",
+    nodeType: "logic.if_subflow", runtimeSupport: ["python", "javascript"],
     label: "If 结构",
     description: "LabVIEW 风格条件结构；将节点拖入 True/False 区域，输入数据经条件分流后分别执行。",
     tags: ["logic", "if", "结构", "容器", "分支"],
@@ -663,7 +677,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "condition", label: "判断条件", kind: "text", required: true, description: "pandas query 表达式；True/False 区域分别接收匹配和未匹配数据。" }],
   },
   {
-    nodeType: "logic.if_rows",
+    nodeType: "logic.if_rows", runtimeSupport: ["python", "javascript"],
     label: "条件分支",
     category: "逻辑控制",
     defaults: { condition: "" },
@@ -675,7 +689,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "condition", label: "判断条件", kind: "text", required: true, placeholder: "voltage >= 3", description: "按行求值，并从两个端口输出成立与不成立的数据。" }],
   },
   {
-    nodeType: "analysis.ter_matrix",
+    nodeType: "analysis.ter_matrix", runtimeSupport: ["python", "javascript"],
     label: "计算 TER 矩阵",
     description: "按 Vg 分组识别 Vds 升降扫描，计算电阻和 TER 长表。",
     tags: ["TER", "Vg", "Vds", "扫描", "电阻", "矩阵"],
@@ -711,7 +725,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pulse.generate_waveform",
+    nodeType: "pulse.generate_waveform", runtimeSupport: ["python", "javascript"],
     label: "生成脉冲波形",
     description: "以读出-写入交替序列生成可复现的电压时间表；可分别用于 Vd、Vs、Vg 后再合并。",
     tags: ["pulse", "脉冲", "波形", "电压", "Vd", "Vs", "Vg"],
@@ -730,7 +744,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pulse.generate_oscillating_ramp",
+    nodeType: "pulse.generate_oscillating_ramp", runtimeSupport: ["python", "javascript"],
     label: "生成周期震荡脉冲",
     description: "生成读出电压与正负交替、逐级增幅的三端口周期脉冲表。",
     tags: ["pulse", "脉冲", "震荡", "周期", "三端口"],
@@ -746,7 +760,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "pulse.combine_channels",
+    nodeType: "pulse.combine_channels", runtimeSupport: ["python", "javascript"],
     label: "合并 Vd / Vs / Vg 波形",
     description: "按时间并集对齐三个脉冲通道，并以前一个有效值保持各通道电压。",
     tags: ["pulse", "脉冲", "波形", "Vd", "Vs", "Vg", "合并"],
@@ -756,7 +770,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "timeColumn", label: "时间列", kind: "text", required: true }, { key: "voltageColumn", label: "电压列", kind: "text", required: true }],
   },
   {
-    nodeType: "pulse.segment_measurement",
+    nodeType: "pulse.segment_measurement", runtimeSupport: ["python", "javascript"],
     label: "脉冲测量分段平均",
     description: "按波形时间边界切分连续电流记录，剔除每段前后样本后计算平均值。",
     tags: ["pulse", "脉冲", "测量", "平均", "电流", "Data_pick"],
@@ -773,7 +787,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "logic.merge_rows",
+    nodeType: "logic.merge_rows", runtimeSupport: ["python", "javascript"],
     label: "分支合流",
     description: "将条件分支的两路表格重新合并，并可恢复原行顺序。",
     tags: ["logic", "merge", "分支", "合流", "if"],
@@ -790,7 +804,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "logic.for_range",
+    nodeType: "logic.for_range", runtimeSupport: ["python", "javascript"],
     label: "For 数值循环",
     description: "按 Python range 语义生成迭代次数和值，适合参数扫描和动态绘图。",
     tags: ["logic", "for", "range", "循环", "参数扫描"],
@@ -805,7 +819,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "logic.while_number",
+    nodeType: "logic.while_number", runtimeSupport: ["python", "javascript"],
     label: "While 数值循环",
     description: "在安全表达式成立时重复更新数值，并输出完整迭代轨迹。",
     tags: ["logic", "while", "循环", "迭代", "数值"],
@@ -821,7 +835,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "variable.set",
+    nodeType: "variable.set", runtimeSupport: ["python", "javascript"], stateScope: "temporary", stateAccess: "write", sideEffect: true, deterministic: false, cachePolicy: "uncacheable",
     label: "设置变量",
     description: "将输入值保存到命名变量并原样透传；配合“读取变量”在工作流中跨节点共享数据。",
     tags: ["变量", "variable", "set", "赋值", "共享"],
@@ -832,7 +846,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "name", label: "变量名", kind: "text", required: true, placeholder: "my_var", description: "变量在工作流执行期间有效；同名变量会被后执行的设置节点覆盖。" }],
   },
   {
-    nodeType: "variable.get",
+    nodeType: "variable.get", runtimeSupport: ["python", "javascript"], stateScope: "temporary", stateAccess: "read", deterministic: false, cachePolicy: "uncacheable",
     label: "读取变量",
     description: "读取命名变量的值；变量由“设置变量”节点在本次执行中写入。",
     tags: ["变量", "variable", "get", "读取", "共享"],
@@ -843,7 +857,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "name", label: "变量名", kind: "text", required: true, placeholder: "my_var", description: "建议从设置变量节点连一条线到“顺序”端口，确保读取发生在设置之后；否则可能因执行顺序早于设置而报错。" }],
   },
   {
-    nodeType: "logic.for_each_subflow",
+    nodeType: "logic.for_each_subflow", runtimeSupport: ["python", "javascript"],
     label: "For 子流程",
     description: "逐行执行 body 端口连接的节点链，并从 continue 端口收集每次结果。",
     tags: ["logic", "for", "子流程", "循环", "逐行"],
@@ -860,7 +874,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "maxIterations", label: "最大循环行数", kind: "number", min: 1, max: 100000, step: 1, description: "连接：body → 任意表格节点组 → continue；done 连接循环后的节点。" }],
   },
   {
-    nodeType: "logic.while_subflow",
+    nodeType: "logic.while_subflow", runtimeSupport: ["python", "javascript"],
     label: "While 子流程",
     description: "条件成立时重复执行 body 节点链，continue 回传下一轮表格。",
     tags: ["logic", "while", "子流程", "循环", "条件"],
@@ -880,7 +894,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "plot.line",
+    nodeType: "plot.line", runtimeSupport: ["python", "javascript"],
     label: "折线图",
     category: "绘图",
     defaults: {
@@ -933,7 +947,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   ...([{"nodeType":"plot.scatter","label":"散点图","description":"按 X/Y 数值列绘制散点关系。"},{"nodeType":"plot.bar","label":"柱状图","description":"按分类或数值 X 轴绘制柱状比较。"},{"nodeType":"plot.histogram","label":"直方图","description":"显示一个或多个数值列的分布。"},{"nodeType":"plot.box","label":"箱线图","description":"比较数值列的中位数、四分位数与异常值。"},{"nodeType":"plot.area","label":"面积图","description":"绘制随 X 轴变化的堆叠或重叠面积。"}] as const).map((item): NodeSpec => ({
-    ...item, category: "绘图", tags: ["plot", "绘图", item.label],
+    ...item, runtimeSupport: ["python", "javascript"], category: "绘图", tags: ["plot", "绘图", item.label],
     defaults: { xColumn: "", yColumns: "", title: "", xLabel: "", yLabel: "", legend: true, grid: true, scientificNotation: true, bins: 20, pointSize: 24, alpha: .8, figureWidth: 8, figureHeight: 4.5, dpi: 120 },
     inputPorts: TABLE_INPUT, outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
     parameters: [
@@ -947,7 +961,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   })),
   {
-    nodeType: "plot.heatmap",
+    nodeType: "plot.heatmap", runtimeSupport: ["python", "javascript"],
     label: "矩阵热图",
     description: "将二维数值表绘制为带颜色条的矩阵热图。",
     tags: ["plot", "heatmap", "matrix", "热图", "矩阵"],
@@ -983,7 +997,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "convert.to_text",
+    nodeType: "convert.to_text", runtimeSupport: ["python", "javascript"],
     label: "转为文本",
     description: "将表格、列表、字典、数字、布尔值等转换为可读文本。",
     tags: ["转换", "文本", "string", "str"], pythonCallable: "str", category: "Python 内置", defaults: { pretty: true },
@@ -991,35 +1005,35 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "pretty", label: "格式化结构", kind: "boolean" }],
   },
   {
-    nodeType: "convert.to_number", label: "转为数字", description: "将单值、单单元格表格或数字文本转换为数字。", tags: ["转换", "数字", "float", "int"], pythonCallable: "float", category: "Python 内置", defaults: { integer: false },
+    nodeType: "convert.to_number", runtimeSupport: ["python", "javascript"], label: "转为数字", description: "将单值、单单元格表格或数字文本转换为数字。", tags: ["转换", "数字", "float", "int"], pythonCallable: "float", category: "Python 内置", defaults: { integer: false },
     inputPorts: [{ id: "input", label: "输入", valueType: "any", required: true }], outputPorts: [{ id: "output", label: "数字", valueType: "number" }], parameters: [{ key: "integer", label: "转换为整数", kind: "boolean" }],
   },
   {
-    nodeType: "convert.to_boolean", label: "转为布尔值", description: "按常见 true/false、是/否、1/0 规则转换为布尔值。", tags: ["转换", "布尔", "bool"], pythonCallable: "bool", category: "Python 内置", defaults: {},
+    nodeType: "convert.to_boolean", runtimeSupport: ["python", "javascript"], label: "转为布尔值", description: "按常见 true/false、是/否、1/0 规则转换为布尔值。", tags: ["转换", "布尔", "bool"], pythonCallable: "bool", category: "Python 内置", defaults: {},
     inputPorts: [{ id: "input", label: "输入", valueType: "any", required: true }], outputPorts: [{ id: "output", label: "布尔", valueType: "boolean" }], parameters: [],
   },
   {
-    nodeType: "convert.to_table", label: "列表 / 对象转 DataFrame", description: "将 Python list、记录列表、字典、Series、NumPy 数组、标量或 CSV 文本规范化为 pandas DataFrame。", tags: ["转换", "DataFrame", "表格", "列表", "list", "字典"], pythonCallable: "pandas.DataFrame", category: "Python 内置", defaults: { csvText: false },
+    nodeType: "convert.to_table", runtimeSupport: ["python", "javascript"], label: "列表 / 对象转 DataFrame", description: "将 Python list、记录列表、字典、Series、NumPy 数组、标量或 CSV 文本规范化为 pandas DataFrame。", tags: ["转换", "DataFrame", "表格", "列表", "list", "字典"], pythonCallable: "pandas.DataFrame", category: "Python 内置", defaults: { csvText: false },
     inputPorts: [{ id: "input", label: "输入", valueType: "any", required: true }], outputPorts: TABLE_OUTPUT, parameters: [{ key: "csvText", label: "按 CSV 文本解析", kind: "boolean" }],
   },
   {
-    nodeType: "convert.table_to_records", label: "表格转记录列表", description: "将 DataFrame 转换为由字典组成的记录列表。", tags: ["转换", "records", "list", "dict"], pythonCallable: "pandas.DataFrame.to_dict", category: "Python 内置", defaults: {},
+    nodeType: "convert.table_to_records", runtimeSupport: ["python", "javascript"], label: "表格转记录列表", description: "将 DataFrame 转换为由字典组成的记录列表。", tags: ["转换", "records", "list", "dict"], pythonCallable: "pandas.DataFrame.to_dict", category: "Python 内置", defaults: {},
     inputPorts: TABLE_INPUT, outputPorts: [{ id: "output", label: "记录列表", valueType: "list" }], parameters: [],
   },
   {
-    nodeType: "convert.table_to_csv", label: "表格转 CSV 文本", description: "将 DataFrame 转换为 CSV 字符串，不写入文件。", tags: ["转换", "csv", "文本"], pythonCallable: "pandas.DataFrame.to_csv", category: "Python 内置", defaults: { includeIndex: false },
+    nodeType: "convert.table_to_csv", runtimeSupport: ["python", "javascript"], label: "表格转 CSV 文本", description: "将 DataFrame 转换为 CSV 字符串，不写入文件。", tags: ["转换", "csv", "文本"], pythonCallable: "pandas.DataFrame.to_csv", category: "Python 内置", defaults: { includeIndex: false },
     inputPorts: TABLE_INPUT, outputPorts: [{ id: "output", label: "CSV", valueType: "csv" }], parameters: [{ key: "includeIndex", label: "包含索引", kind: "boolean" }],
   },
   {
-    nodeType: "convert.json_parse", label: "解析 JSON", description: "将 JSON 文本转换为列表、字典或标量对象。", tags: ["转换", "json", "解析"], pythonCallable: "json.loads", category: "Python 内置", defaults: {},
+    nodeType: "convert.json_parse", runtimeSupport: ["python", "javascript"], label: "解析 JSON", description: "将 JSON 文本转换为列表、字典或标量对象。", tags: ["转换", "json", "解析"], pythonCallable: "json.loads", category: "Python 内置", defaults: {},
     inputPorts: [{ id: "input", label: "JSON 文本", valueType: "text", required: true }], outputPorts: [{ id: "output", label: "对象", valueType: "object" }], parameters: [],
   },
   {
-    nodeType: "convert.json_stringify", label: "生成 JSON", description: "将列表、字典和标量转换为格式化 JSON 文本。", tags: ["转换", "json", "序列化"], pythonCallable: "json.dumps", category: "Python 内置", defaults: { indent: 2 },
+    nodeType: "convert.json_stringify", runtimeSupport: ["python", "javascript"], label: "生成 JSON", description: "将列表、字典和标量转换为格式化 JSON 文本。", tags: ["转换", "json", "序列化"], pythonCallable: "json.dumps", category: "Python 内置", defaults: { indent: 2 },
     inputPorts: [{ id: "input", label: "对象", valueType: "any", required: true }], outputPorts: [{ id: "output", label: "JSON 文本", valueType: "text" }], parameters: [{ key: "indent", label: "缩进", kind: "number", min: 0, max: 8, step: 1 }],
   },
   {
-    nodeType: "python.len",
+    nodeType: "python.len", runtimeSupport: ["python", "javascript"],
     label: "计算长度",
     description: "调用 Python 内置 len，表格输入返回行数。",
     tags: ["python", "builtins", "len", "长度", "行数"],
@@ -1032,7 +1046,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [],
   },
   {
-    nodeType: "python.round",
+    nodeType: "python.round", runtimeSupport: ["python", "javascript"],
     label: "数字舍入",
     description: "调用 Python 内置 round，将数字舍入到指定小数位。",
     tags: ["python", "builtins", "round", "舍入", "小数"],
@@ -1045,7 +1059,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "digits", label: "小数位 · ndigits", kind: "number", min: 0, max: 15, step: 1 }],
   },
   {
-    nodeType: "python.print",
+    nodeType: "python.print", runtimeSupport: ["python", "javascript"], sideEffect: true, cachePolicy: "uncacheable",
     label: "打印输出",
     description: "输出输入对象的可读摘要，并将原始值继续传给后续节点。每个打印结果会独立显示在节点内和结果面板。",
     tags: ["python", "builtins", "print", "日志", "调试", "输出"],
@@ -1058,7 +1072,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [{ key: "prefix", label: "输出前缀", kind: "text", placeholder: "例如：清洗结果" }, { key: "format", label: "显示格式", kind: "select", options: [{ label: "智能格式", value: "pretty" }, { label: "Python repr", value: "repr" }, { label: "JSON", value: "json" }, { label: "纯文本", value: "text" }] }, { key: "includeType", label: "显示类型与尺寸", kind: "boolean" }, { key: "maxRows", label: "表格最大行数", kind: "number", min: 1, max: 500, step: 1 }, { key: "maxChars", label: "最大字符数", kind: "number", min: 100, max: 100000, step: 100 }, { key: "encoding", label: "字节编码格式", kind: "select", advanced: true, options: [{ label: "UTF-8", value: "utf-8" }, { label: "UTF-8 BOM", value: "utf-8-sig" }, { label: "GBK / CP936", value: "gbk" }, { label: "GB18030", value: "gb18030" }, { label: "UTF-16 LE", value: "utf-16le" }, { label: "Windows-1252", value: "windows-1252" }] }, { key: "encodingErrors", label: "字节解码错误", kind: "select", advanced: true, options: [{ label: "替换无效字符", value: "replace" }, { label: "严格报错", value: "strict" }, { label: "忽略无效字符", value: "ignore" }] }, { key: "bytesFormat", label: "字节显示方式", kind: "select", advanced: true, options: [{ label: "按编码解码", value: "decode" }, { label: "十六进制", value: "hex" }, { label: "Base64", value: "base64" }, { label: "Python repr", value: "repr" }] }, { key: "end", label: "结尾文本 · end", kind: "text", advanced: true, placeholder: "例如 \\n" }],
   },
   {
-    nodeType: "custom.python_function",
+    nodeType: "custom.python_function", runtimeSupport: ["python"], executionModel: "custom-code", deterministic: false, cachePolicy: "uncacheable",
     label: "Python 函数",
     category: "自定义",
     defaults: {

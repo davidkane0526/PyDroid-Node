@@ -151,7 +151,7 @@ assert.match(
 
 assert.match(
   buildScript,
-  /\$script:BuildScriptRevision = "1\.4\.33-dev-r9-phase4-queue-indicator"/,
+  /\$script:BuildScriptRevision = "1\.4\.34-dev-r10-phase4-node-contract"/,
   "the build script should expose an explicit revision marker so stale-script runs are diagnosable",
 );
 assert.match(

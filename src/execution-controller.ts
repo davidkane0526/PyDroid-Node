@@ -21,6 +21,7 @@ export type ExecutionControl = {
   executionId: string;
   timeoutMs: number;
   workspaceId?: string;
+  workspaceLabel?: string;
   clientId?: string;
   signal: AbortSignal;
   registerCancellationHandler(handler: () => Promise<unknown> | unknown): () => void;

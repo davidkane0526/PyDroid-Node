@@ -319,3 +319,8 @@ bash scripts/cloud-check.sh
 ### Developer references
 
 - AI Agent planning/validation contract: `docs/AI_AGENT_CONTRACT.md`
+
+
+### Dev architecture status (1.4.34)
+
+`dev` has completed multi-workspace execution and is now in Phase 4 Unified NodeSpec / Node Contract. Desktop Python can run multiple workspaces concurrently; Android queues Python workspaces safely. Host task status now carries human-readable workspace labels and the bottom task picker can stop any selected execution. Node runtime support, side-effect/cache/state semantics and future function/variable-node capabilities are being centralized in NodeSpec/NodeContract rather than separate runtime lists.

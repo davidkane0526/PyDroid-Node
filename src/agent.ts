@@ -1,6 +1,6 @@
 import { NODE_CATALOG, areValueTypesCompatible, getNodeSpec, type NodeSpec } from "./nodeCatalog";
 import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
-import { supportsNodeRuntime } from "./nodeContract";
+import { getNodeContract, supportsNodeRuntime } from "./nodeContract";
 
 export type AgentPermission = "createNodes" | "groupNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";
 export type AgentProvider = "openai-responses" | "openai-compatible" | "anthropic-messages";
@@ -76,6 +76,11 @@ export type AgentCatalogEntry = {
   inputPorts: Array<{ id: string; valueType: string; required?: boolean }>;
   outputPorts: Array<{ id: string; valueType: string }>;
   runtimeSupport?: Array<"python" | "javascript">;
+  executionModel?: string;
+  stateScope?: string;
+  sideEffect?: boolean;
+  deterministic?: boolean;
+  cachePolicy?: string;
 };
 export type AgentConnectionResult = { ok: boolean; message: string };
 
@@ -143,6 +148,7 @@ async function post(settings: AgentSettings, apiKey: string, body: unknown): Pro
 function enrichedEntry(entry: AgentCatalogEntry): AgentCatalogEntry & { tags?: string[] } {
   const spec = NODE_CATALOG.find((candidate) => candidate.nodeType === entry.nodeType);
   if (!spec) return entry;
+  const contract = getNodeContract(spec.nodeType);
   return {
     nodeType: spec.nodeType,
     label: spec.label,
@@ -160,6 +166,11 @@ function enrichedEntry(entry: AgentCatalogEntry): AgentCatalogEntry & { tags?: s
     inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType, required: port.required })),
     outputPorts: spec.outputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
     runtimeSupport: runtimeSupportForNodeType(spec.nodeType),
+    executionModel: contract?.executionModel,
+    stateScope: contract?.stateScope,
+    sideEffect: contract?.sideEffect,
+    deterministic: contract?.deterministic,
+    cachePolicy: contract?.cachePolicy,
   };
 }
 
@@ -203,15 +214,22 @@ export function buildAgentPlanningContext(instruction: string, catalog: AgentCat
     .map(({ entry }) => entry);
   const index = NODE_CATALOG
     .filter((spec) => available.has(spec.nodeType))
-    .map((spec) => ({
+    .map((spec) => {
+      const contract = getNodeContract(spec.nodeType);
+      return {
       nodeType: spec.nodeType,
       label: spec.label,
       role: spec.inputPorts.length === 0 ? "source" : spec.outputPorts.length === 0 ? "sink" : "transform",
       runtimeSupport: runtimeSupportForNodeType(spec.nodeType),
+      executionModel: contract?.executionModel,
+      stateScope: contract?.stateScope,
+      sideEffect: contract?.sideEffect,
+      deterministic: contract?.deterministic,
       parameterKeys: spec.parameters.map((parameter) => parameter.key),
       inputs: spec.inputPorts.map((port) => `${port.id}:${port.valueType}${port.required ? "!required" : ""}`),
       outputs: spec.outputPorts.map((port) => `${port.id}:${port.valueType}`),
-    }));
+      };
+    });
   return { index, detailed, diagnostic: agentPlanningDiagnostic(instruction) };
 }
 

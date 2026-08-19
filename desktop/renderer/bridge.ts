@@ -10,7 +10,7 @@ import type {
 import type { HostExecutionStatus } from "../../src/execution-host";
 
 export type DesktopRuntimeBridge = {
-  runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number; workspaceId: string; clientId: string }): Promise<string>;
+  runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number; workspaceId: string; workspaceLabel: string; clientId: string }): Promise<string>;
   cancelWorkflow(executionId: string): Promise<{ cancelled: boolean }>;
   getExecutionStatus(): Promise<HostExecutionStatus>;
   getEnvironment(): Promise<string>;

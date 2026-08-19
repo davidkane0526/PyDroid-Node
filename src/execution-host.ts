@@ -4,6 +4,7 @@ export type HostExecutionPhase = "queued" | "running" | "cancelling";
 export type HostExecutionEntry = {
   executionId: string;
   workspaceId: string;
+  workspaceLabel?: string;
   clientId: string;
   source: HostExecutionSource;
   phase: HostExecutionPhase;
@@ -45,6 +46,7 @@ export function normalizeHostExecutionStatus(value: unknown, fallbackCapacity = 
     executions.push({
       executionId: record.executionId,
       workspaceId: "default",
+      workspaceLabel: "工作流",
       clientId: "legacy",
       source: record.source === "remote" ? "remote" : "local",
       phase: "running",

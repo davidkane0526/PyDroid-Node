@@ -48,8 +48,12 @@ assert.match(androidController, /EXECUTION_TIMEOUT/, "Android controller must cl
 assert.match(androidController, /EXECUTION_CANCELLED/, "Android controller must classify cancellations");
 assert.match(app, /cancelActiveExecution/, "UI must consume the unified controller cancellation API");
 assert.match(app, /getHostExecutionStatus/, "host UI must observe externally-started remote workflows");
-assert.match(app, /停止远程/, "host UI should visibly expose remote workflow state");
-assert.match(app, /停止宿主/, "remote browser should proactively expose host workflow state after pairing");
+assert.match(app, /宿主任务/, "host UI should expose a selectable host-task overview");
+assert.match(app, /远程网页/, "remote browser executions should be distinguishable in the host task picker");
+assert.match(app, /statusbar-task-item/, "host task picker should expose individually cancellable execution rows");
+assert.match(app, /workspaceLabel/, "execution UI should carry human-readable workspace labels into host metadata");
+assert.match(desktopScheduler, /workspaceLabel/, "Desktop scheduler status should preserve workflow labels");
+assert.match(androidController, /workspaceLabel/, "Android scheduler status should preserve workflow labels");
 assert.match(app, /subscribeExecutionStatus\(tabId/, "FlowEditor execution lifecycle must be scoped to its workspace tab");
 assert.match(app, /hostEntry\?\.phase \?\? getExecutionStatus\(tab\.id\)\.phase/, "tab execution badges must prefer real host queued/running phase over renderer-local running state");
 assert.match(app, /otherHostExecutions/, "current workspace Run must remain independent from other host/client executions");

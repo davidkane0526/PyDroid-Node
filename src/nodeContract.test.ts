@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getNodeContract, supportsNodeRuntime } from "./nodeContract";
+import { getNodeContract, supportsNodeRuntime, validateNodeContracts } from "./nodeContract";
 
 describe("node contracts", () => {
   it("marks portable nodes as python+javascript", () => {
@@ -19,6 +19,10 @@ describe("node contracts", () => {
   it("marks temporary variable nodes with temporary state scope", () => {
     expect(getNodeContract("variable.set")?.stateScope).toBe("temporary");
     expect(getNodeContract("variable.get")?.stateScope).toBe("temporary");
+  });
+
+  it("keeps the whole catalog internally consistent", () => {
+    expect(validateNodeContracts()).toEqual([]);
   });
 
   it("exposes workflow.group even though it is not a catalog node", () => {

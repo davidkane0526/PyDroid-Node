@@ -7,8 +7,9 @@ These rules apply to every developer and coding agent on every device.
 1. Read `docs/development-handoff.md` for the current branch, validation state and immediate next tasks.
 2. Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before architecture/refactor/reliability work.
 3. Read `docs/runtime-architecture.md` before changing execution/runtime boundaries.
-4. Read `docs/progress.md` and `CHANGELOG.md` before changing user-visible behavior.
-5. Read `BUILD_TOOLCHAIN.md` before changing build, packaging, dependency-download, or GUI build-tool behavior.
+4. Read `docs/node-contract.md` before adding/changing node types, runtime support, functions or variables.
+5. Read `docs/progress.md` and `CHANGELOG.md` before changing user-visible behavior.
+6. Read `BUILD_TOOLCHAIN.md` before changing build, packaging, dependency-download, or GUI build-tool behavior.
 
 This repository is the **only project copy**. Do not create or maintain separate `dev`, `js`, `dev-node`, Android or desktop source folders. Git branches are history/integration tools; platform/runtime differences belong inside the source architecture.
 
@@ -77,6 +78,6 @@ The UI is now treated as a stable layer. Do not start another broad UI redesign 
 1. **Phase 1 PlatformAdapter is implemented and user-validated.** Treat its public contract as frozen unless a concrete bug is reported.
 2. **Phase 2 ExecutionController is user-validated and frozen.** Preserve executionId/timeout/cancel semantics and host-release barriers.
 3. **Phase 3 Workflow Core is complete/frozen on `dev` 1.4.31.** Workflow snapshot/session/history/input-state/persistence/migration ownership belongs in `src/workflow-core/`, not back in `App.tsx`.
-4. **Phase 3.5 Multi-Workspace Execution is implemented and awaiting real-host acceptance.** Preserve `executionId + workspaceId + clientId + source`, Desktop 1–4 process scheduling, Android 1-running + FIFO queue, and proactive paired-browser host polling.
-5. After Phase 3.5 acceptance, implement Phase 4 Unified NodeSpec, then Python/JavaScript golden-workflow parity tests.
+4. **Phase 3.5 Multi-Workspace Execution is user-validated/frozen.** Preserve `executionId + workspaceId + workspaceLabel + clientId + source`, Desktop 1–4 process scheduling, Android 1-running + FIFO queue, host-priority queued/running tab state, and proactive paired-browser host polling.
+5. **Phase 4 Unified NodeSpec / Node Contract is active.** New nodes must declare runtime support and any non-default execution/state/cache semantics in NodeSpec. Do not add new parallel supported-node lists. Function nodes must use the reserved function execution/role contract; temporary/global variable nodes must use explicit state scope and read/write access. Then proceed to Python/JavaScript golden-workflow parity tests.
 6. Only after those boundaries are stable, modularize Python engine, Desktop/Android hosts and build scripts.

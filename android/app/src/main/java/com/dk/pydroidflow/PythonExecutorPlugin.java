@@ -578,6 +578,7 @@ public class PythonExecutorPlugin extends Plugin {
         Long timeoutValue = call.getLong("timeoutMs");
         long timeoutMs = timeoutValue == null ? PythonExecutionController.DEFAULT_TIMEOUT_MS : timeoutValue;
         String workspaceId = call.getString("workspaceId", "default");
+        String workspaceLabel = call.getString("workspaceLabel", "工作流");
         String clientId = call.getString("clientId", "local-ui");
 
         if (workflow == null || csvText == null || executionId.isEmpty()) {
@@ -586,7 +587,7 @@ public class PythonExecutorPlugin extends Plugin {
         }
 
         try {
-            PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, "local", workspaceId, clientId, () -> {
+            PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, "local", workspaceId, workspaceLabel, clientId, () -> {
                 Python python = Python.getInstance();
                 PyObject module = python.getModule("pydroid_flow.engine");
                 return module.callAttr("execute_workflow", workflow, csvText, inputFiles, executionId).toString();
@@ -628,6 +629,7 @@ public class PythonExecutorPlugin extends Plugin {
             JSObject item = new JSObject();
             item.put("executionId", snapshot.executionId);
             item.put("workspaceId", snapshot.workspaceId);
+            item.put("workspaceLabel", snapshot.workspaceLabel);
             item.put("clientId", snapshot.clientId);
             item.put("source", snapshot.source);
             item.put("phase", snapshot.phase.name().toLowerCase(java.util.Locale.ROOT));

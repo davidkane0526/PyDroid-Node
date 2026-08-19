@@ -7,7 +7,7 @@ let running = 0;
 let maxRunning = 0;
 const releases = [];
 const scheduler = new WorkflowExecutionScheduler({ capacity: 2, cancelRunning: () => true });
-const submit = (executionId, workspaceId) => scheduler.submit({ executionId, workspaceId, clientId: "client", source: "local" }, () => new Promise((resolve) => {
+const submit = (executionId, workspaceId) => scheduler.submit({ executionId, workspaceId, workspaceLabel: `Flow ${workspaceId}`, clientId: "client", source: "local" }, () => new Promise((resolve) => {
   running += 1;
   maxRunning = Math.max(maxRunning, running);
   releases.push(() => { running -= 1; resolve(executionId); });
@@ -21,6 +21,7 @@ let status = scheduler.status();
 assert.equal(status.runningCount, 2);
 assert.equal(status.queuedCount, 1);
 assert.equal(status.executions.find((entry) => entry.executionId === "exec-c")?.phase, "queued");
+assert.equal(status.executions.find((entry) => entry.executionId === "exec-c")?.workspaceLabel, "Flow tab-c");
 assert.equal(maxRunning, 2);
 assert.equal(scheduler.cancel("exec-c"), true);
 await assert.rejects(c, /EXECUTION_CANCELLED/);

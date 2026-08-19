@@ -2,7 +2,7 @@
 
 更新时间：2026-08-19
 长期开发分支：`dev`
-稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.33 (56)`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.34 (57)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -385,7 +385,7 @@ src/workflow-core/
 
 ## 6.5 Phase 3.5 — Multi-Workspace Execution
 
-状态：**1.4.31 已实现，等待用户 Windows/Android 实机验收。**
+状态：**已通过 Windows/Android 实机验收并冻结；1.4.34 仅保留具体执行层 bug 修复。**
 
 目标不是无限并行，而是把单全局执行槽改成资源受控的 workspace 调度：
 
@@ -412,9 +412,11 @@ Host Scheduler
 - 配对后的 Remote Web 每 400 ms 主动读取宿主执行状态，避免 host→browser 状态只在用户交互后刷新；
 - Android native C/NumPy 取消限制继续遵守 Phase 2 定义。
 
-Phase 3.5 通过实机验收后，不继续扩大执行层范围，直接进入 Phase 4。
+Phase 3.5 已通过 Windows/Android 实机验收并冻结。1.4.34 起进入 Phase 4；执行层只接受具体 bug 修复。
 
 ## 7. Phase 4 — Node Contract 统一
+
+状态：**1.4.34 正在实施。NodeSpec 已开始承载 runtime/contract override，NodeContract 作为统一规范化视图。**
 
 扩展 `NodeSpec`，至少增加：
 
@@ -428,14 +430,19 @@ deterministic
 parameters
 inputPorts
 outputPorts
+stateScope / stateAccess
+executionModel / functionRole
 ```
 
 目标：
 
 - Palette、Agent、Runtime Auto 和执行校验都读取同一份 runtime support；
-- 删除人工维护的独立 JavaScript supported-node 列表；
+- 删除人工维护的独立 JavaScript supported-node 列表；现有 JS support 已从 NodeSpec/NodeContract 派生；
 - 新节点必须在元数据中明确 Python/JavaScript 支持状态；
-- UI 可在运行前展示不兼容，而不是执行后才报错。
+- UI 可在运行前展示不兼容，而不是执行后才报错；
+- 为未来函数节点保留 `executionModel=function` + `functionRole=definition/call`；
+- 为临时/全局变量保留 `stateScope=temporary/global` 与 `stateAccess=read/write/read-write`；
+- 任何有状态、副作用或非确定性节点不得默认进入缓存。
 
 ---
 
@@ -555,8 +562,8 @@ desktop/
 1. Phase 1 PlatformAdapter：已完成并冻结。
 2. Phase 2 ExecutionController：已完成 Windows/Android 实机验收并冻结。
 3. Phase 3 Workflow Core：已完成并冻结。
-4. Phase 3.5 Multi-Workspace Execution：1.4.31 已实现，等待用户实机验收。
-5. Phase 4 Unified NodeSpec：Phase 3.5 验收后的下一阶段。
+4. Phase 3.5 Multi-Workspace Execution：已通过 Windows/Android 实机验收并冻结。
+5. Phase 4 Unified NodeSpec / Node Contract：1.4.34 正在实施。
 6. Phase 5 Python/JavaScript parity tests。
 7. 最后再拆 Python/JS engine、Desktop/Android host 和 Build Tool。
 

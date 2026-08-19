@@ -24,6 +24,7 @@ class WorkflowExecutionScheduler {
       const entry = {
         executionId,
         workspaceId: String(meta?.workspaceId || "default"),
+        workspaceLabel: String(meta?.workspaceLabel || "工作流"),
         clientId: String(meta?.clientId || "unknown"),
         source: meta?.source === "remote" ? "remote" : "local",
         phase: "queued",
@@ -87,7 +88,7 @@ class WorkflowExecutionScheduler {
 
   status() {
     const executions = [...this.entries.values()]
-      .map(({ executionId, workspaceId, clientId, source, phase, startedAt }) => ({ executionId, workspaceId, clientId, source, phase, startedAt }))
+      .map(({ executionId, workspaceId, workspaceLabel, clientId, source, phase, startedAt }) => ({ executionId, workspaceId, workspaceLabel, clientId, source, phase, startedAt }))
       .sort((left, right) => {
         if (left.phase === "queued" && right.phase !== "queued") return 1;
         if (left.phase !== "queued" && right.phase === "queued") return -1;

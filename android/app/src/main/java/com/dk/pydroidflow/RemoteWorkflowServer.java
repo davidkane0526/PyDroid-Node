@@ -178,11 +178,12 @@ final class RemoteWorkflowServer {
             String executionId = payload.optString("executionId", "").trim();
             long timeoutMs = payload.optLong("timeoutMs", PythonExecutionController.DEFAULT_TIMEOUT_MS);
             String workspaceId = payload.optString("workspaceId", "default");
+            String workspaceLabel = payload.optString("workspaceLabel", "工作流");
             String clientId = payload.optString("clientId", "remote-browser");
             if (workflow == null || executionId.isEmpty()) throw new IllegalArgumentException("workflow and executionId are required");
             remoteExecutionIds.add(executionId);
             try {
-                PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, "remote", workspaceId, clientId, () -> {
+                PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, "remote", workspaceId, workspaceLabel, clientId, () -> {
                     Python python = Python.getInstance();
                     PyObject module = python.getModule("pydroid_flow.engine");
                     return module.callAttr("execute_workflow", workflow, csvText, inputFiles == null ? "[]" : inputFiles.toString(), executionId).toString();
@@ -203,6 +204,7 @@ final class RemoteWorkflowServer {
                 JSONObject item = new JSONObject();
                 item.put("executionId", snapshot.executionId);
                 item.put("workspaceId", snapshot.workspaceId);
+                item.put("workspaceLabel", snapshot.workspaceLabel);
                 item.put("clientId", snapshot.clientId);
                 item.put("source", snapshot.source);
                 item.put("phase", snapshot.phase.name().toLowerCase(java.util.Locale.ROOT));

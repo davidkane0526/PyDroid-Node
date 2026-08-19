@@ -21,7 +21,7 @@ export type PythonExecutorPlugin = {
   deleteWorkflowFile(options: { uri: string }): Promise<{ deleted: boolean }>;
   analyzeNotebook(options: { notebook: string }): Promise<NativeExecutionResponse>;
   analyzeSignature(options: { code: string }): Promise<NativeExecutionResponse>;
-  runWorkflow(options: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number; workspaceId: string; clientId: string }): Promise<NativeExecutionResponse>;
+  runWorkflow(options: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number; workspaceId: string; workspaceLabel: string; clientId: string }): Promise<NativeExecutionResponse>;
   cancelWorkflow(options: { executionId: string }): Promise<{ cancelled: boolean }>;
   getExecutionStatus(): Promise<HostExecutionStatus>;
   pickCsv(options: { mode: FilePickMode }): Promise<{ files: Array<{ name: string; base64: string }> }>;
