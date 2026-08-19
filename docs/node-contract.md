@@ -21,7 +21,7 @@ Current contract dimensions:
 
 ## 2. Runtime support
 
-New catalog nodes default to Python-only unless `runtimeSupport` is explicitly declared. Nodes implemented by both engines must use:
+Every visible catalog node must explicitly declare `runtimeSupport`. Nodes implemented by both engines must use:
 
 ```ts
 runtimeSupport: ["python", "javascript"]
@@ -111,3 +111,17 @@ Node Contract is no longer limited to catalog inspection. It now also owns sever
 - **Side-effect-aware preview execution**: any helper execution used only to preview UI content (for example alert preview preparation) must consult Node Contract first and skip slices containing stateful or side-effecting nodes.
 
 Rule of thumb: if a decision depends on whether a node is portable, stateful, safe to re-run, or eligible for speculative execution, that decision belongs to Node Contract or a helper derived from it.
+
+## 5. Phase 4 completion rules
+
+Phase 4 is complete once the following invariants are maintained:
+
+- every visible NodeSpec explicitly declares `runtimeSupport`;
+- NodeSpec may declare `nodeVersion`, normalized into `NodeContract.version` for future per-node migrations;
+- Runtime Auto uses NodeContract capability helpers;
+- JavaScript unsupported-node diagnostics use NodeContract helpers;
+- workflow import validation resolves node identity/version and declared port compatibility through NodeSpec/NodeContract;
+- speculative UI execution must call `canSafelyPreExecuteNodes()` and must not pre-run stateful or side-effecting slices;
+- no independent JavaScript support table may be introduced; compatibility exports may exist only as derived views over NodeContract.
+
+Future function/global-variable work must extend this contract rather than adding runtime-specific flags elsewhere.

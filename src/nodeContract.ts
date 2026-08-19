@@ -67,7 +67,7 @@ function normalizeContract(nodeType: string, spec?: NodeSpec): NodeContract {
   const runtimeSupport = spec?.runtimeSupport ?? ["python"];
   return {
     nodeType,
-    version: 1,
+    version: spec?.nodeVersion ?? 1,
     runtimes: {
       python: runtimeSupport.includes("python"),
       javascript: nodeType === "workflow.group" || runtimeSupport.includes("javascript"),
@@ -167,4 +167,9 @@ export function canSafelyPreExecuteNodes(nodes: WorkflowNode[]): { safe: boolean
     .filter((nodeType) => nodeHasSideEffects(nodeType) || nodeUsesState(nodeType))
   )].sort();
   return { safe: blockingNodeTypes.length === 0, blockingNodeTypes };
+}
+
+
+export function getNodeContractVersion(nodeType: string): number | null {
+  return getNodeContract(nodeType)?.version ?? null;
 }

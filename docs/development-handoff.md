@@ -158,7 +158,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Phase 4 — Unified NodeSpec / Node Contract** is now in progress on `dev` 1.4.34 (57). NodeSpec owns runtime support and contract overrides; `src/nodeContract.ts` normalizes the shared execution/state/cache contract. Runtime support, Agent planning and inspector metadata already consume it. Continue by finishing the remaining NodeContract migrations around runtime auto-selection, validation and safe pre-execution guards; once stable, proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
+**Phase 4 — Unified NodeSpec / Node Contract** is complete/frozen on `dev` 1.4.36 (59). NodeSpec owns explicit runtime support and contract overrides; `src/nodeContract.ts` normalizes runtime/state/cache/function metadata. Runtime Auto, JavaScript compatibility diagnostics, Agent planning, inspector metadata, workflow import validation and speculative pre-execution guards consume this contract. The next architecture stage is Phase 5 Python/JavaScript golden-workflow parity testing.
 
 ### Production TypeScript vs test TypeScript
 
@@ -167,7 +167,7 @@ Do not add Node typings to the root browser/Android `tsconfig.json` to make a te
 
 ## Phase 4 status — Unified NodeSpec / Node Contract
 
-**In progress on `dev` 1.4.35 (58).** NodeSpec is now the authoring source for runtime support and contract overrides; `src/nodeContract.ts` normalizes it into a complete shared contract used by runtime support, Agent context, inspector metadata, runtime auto-selection, workflow import validation and side-effect-aware preview guards. Contracts cover runtime support, execution model, determinism, side effects, cache policy, state scope/access and future function role.
+**Complete/frozen on `dev` 1.4.36 (59).** NodeSpec is the authoring source for explicit runtime support, node version and contract overrides; `src/nodeContract.ts` normalizes it into the shared contract used by Runtime Auto, JavaScript compatibility diagnostics, Agent context, inspector metadata, workflow validation and safe speculative execution. Contracts cover runtime support, execution model, determinism, side effects, cache policy, state scope/access and future function role.
 
 Future node families must extend these semantics instead of adding parallel ad-hoc lists:
 
@@ -176,4 +176,4 @@ Future node families must extend these semantics instead of adding parallel ad-h
 - global variables: `stateScope = global` with explicit read/write access and persistence policy to be defined before implementation;
 - stateful or side-effecting nodes must not default to cacheable.
 
-Phase 4 is not frozen yet. Continue moving validation/runtime/UI capability decisions to NodeContract, then add concrete function/variable nodes only after the contract and migration semantics are stable.
+Phase 4 is frozen. Concrete function/global-variable nodes may now be added later, but must extend the established contract and migration semantics; do not create parallel capability lists.

@@ -416,7 +416,7 @@ Phase 3.5 已通过 Windows/Android 实机验收并冻结。1.4.34 起进入 Pha
 
 ## 7. Phase 4 — Node Contract 统一
 
-状态：**1.4.34 正在实施。NodeSpec 已开始承载 runtime/contract override，NodeContract 作为统一规范化视图。**
+状态：**1.4.36 已完成并冻结。NodeSpec 是节点元数据 authoring source，NodeContract 是 runtime/validation/speculative-execution 的统一规范化视图。**
 
 扩展 `NodeSpec`，至少增加：
 
@@ -563,7 +563,7 @@ desktop/
 2. Phase 2 ExecutionController：已完成 Windows/Android 实机验收并冻结。
 3. Phase 3 Workflow Core：已完成并冻结。
 4. Phase 3.5 Multi-Workspace Execution：已通过 Windows/Android 实机验收并冻结。
-5. Phase 4 Unified NodeSpec / Node Contract：1.4.34 正在实施。
+5. Phase 4 Unified NodeSpec / Node Contract：1.4.36 已完成并冻结。
 6. Phase 5 Python/JavaScript parity tests。
 7. 最后再拆 Python/JS engine、Desktop/Android host 和 Build Tool。
 

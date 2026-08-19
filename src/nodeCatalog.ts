@@ -35,6 +35,7 @@ export type ParameterSpec = {
 
 export type NodeSpec = {
   nodeType: string;
+  nodeVersion?: number;
   label: string;
   description?: string;
   tags?: string[];
@@ -75,7 +76,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "previous", label: "前一单元格", valueType: "any" }], outputPorts: [{ id: "next", label: "下一单元格", valueType: "any" }],
   },
   {
-    nodeType: "notebook.markdown_cell", label: "Jupyter Markdown", category: "自定义",
+    nodeType: "notebook.markdown_cell", runtimeSupport: ["python", "javascript"], label: "Jupyter Markdown", category: "自定义",
     description: "无损承载普通 .ipynb Markdown 单元格及 metadata。", tags: ["jupyter", "ipynb", "markdown", "文本"],
     defaults: { source: "", metadataJson: "{}", outputsJson: "[]", notebookMetadataJson: "{}", executionCount: null },
     parameters: [{ key: "source", label: "Markdown", kind: "textarea", required: true }, { key: "metadataJson", label: "单元格 metadata", kind: "textarea", advanced: true }, { key: "notebookMetadataJson", label: "Notebook metadata", kind: "textarea", advanced: true }],
@@ -711,7 +712,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
-    nodeType: "analysis.linear_fit",
+    nodeType: "analysis.linear_fit", runtimeSupport: ["python"],
     label: "线性拟合",
     description: "对两列做最小二乘线性回归（scipy.stats.linregress），输出斜率、截距、相关系数等。",
     tags: ["拟合", "线性", "linregress", "回归", "斜率", "scipy"],

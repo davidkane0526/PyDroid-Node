@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:execution-architecture && pnpm test:workflow-core && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:build-tools && pnpm test:architecture && pnpm test:execution-architecture && pnpm test:workflow-core && pnpm test:node-contract && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -41,7 +41,8 @@
     "test:architecture": "node scripts/platform-architecture-smoke.mjs",
     "test:types": "tsc --noEmit -p tsconfig.test.json",
     "test:execution-architecture": "node scripts/execution-architecture-smoke.mjs && node scripts/execution-controller-smoke.mjs && node scripts/execution-scheduler-smoke.mjs",
-    "test:workflow-core": "node scripts/workflow-core-architecture-smoke.mjs"
+    "test:workflow-core": "node scripts/workflow-core-architecture-smoke.mjs",
+    "test:node-contract": "node scripts/node-contract-architecture-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
