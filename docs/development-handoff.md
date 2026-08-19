@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.32 (55)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + Phase 3.5 Multi-Workspace Execution + Phase 4 Node Contract foundation.
+- `dev`: `1.4.33 (56)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + Phase 3.5 Multi-Workspace Execution + Phase 4 Node Contract foundation.
 
 Current working branch: `dev`.
 
@@ -135,7 +135,7 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 3.5 status — Multi-Workspace Execution
 
-**Accepted on `dev` 1.4.32 (55).**
+**Accepted on Android and functionally complete on `dev` 1.4.33 (56); Desktop real-host acceptance is still pending.**
 
 Shared renderer/application behavior:
 

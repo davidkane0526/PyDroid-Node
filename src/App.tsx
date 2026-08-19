@@ -4189,6 +4189,33 @@ function MultiTabWorkspace() {
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
   }, [tabs]);
 
+  useEffect(() => {
+    let disposed = false;
+    const clientId = getExecutionClientId();
+    const syncHostPhases = async () => {
+      const hostStatus = await getHostExecutionStatus().catch(() => null);
+      if (disposed || !hostStatus) return;
+      setExecutionPhases((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const tab of tabs) {
+          const hostEntry = hostStatus.executions.find((entry) => entry.workspaceId === tab.id && entry.clientId === clientId);
+          const phase = hostEntry?.phase ?? getExecutionStatus(tab.id).phase;
+          if (next[tab.id] !== phase) {
+            next[tab.id] = phase;
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
+    };
+    void syncHostPhases();
+    const timer = window.setInterval(() => void syncHostPhases(), 300);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [tabs]);
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
 

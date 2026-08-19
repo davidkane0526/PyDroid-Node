@@ -1,3 +1,10 @@
+## 1.4.33 (56) — Android queued-state indicator fix — 2026-08-19
+
+- Fixed the remaining Android Phase 3.5 tab-state mismatch: queued host executions now override the renderer-local `running` phase for tab badges, so queued = orange and running = blue exactly when the host scheduler transitions state.
+- Added an execution architecture guard requiring tab badges to prefer the real host `queued/running/cancelling` phase over the renderer-local lifecycle.
+- Phase 4 Node Contract foundation from 1.4.32 is unchanged; this release is intentionally a narrow real-host acceptance fix while Desktop 1.4.32/1.4.33 testing is still pending.
+- Build script revision: `1.4.33-dev-r9-phase4-queue-indicator`.
+
 ## 1.4.32 (55) — Phase 3.5 UI polish + Phase 4 node-contract foundation — 2026-08-19
 
 - User real-host acceptance completed for Phase 3.5: Desktop concurrent tabs, Android queueing, and proactive host→web state synchronization all passed.

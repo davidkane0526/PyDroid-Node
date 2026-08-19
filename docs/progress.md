@@ -1,3 +1,10 @@
+## 2026-08-19 — Android queued indicator acceptance fix / 1.4.33 (56)
+
+- Android Phase 3.5 functional tests passed, with one remaining visual/state issue: a queued workspace still showed the blue running badge.
+- Root cause: tab headers subscribed only to the renderer ExecutionController, which publishes `running` immediately after submission while the Android host may still have the request in its FIFO queue.
+- MultiTabWorkspace now polls host execution metadata and gives the matching `workspaceId + clientId` host phase priority. Result: queued = orange, running = blue, and failed/timeout continue to use the renderer terminal state.
+- Phase 4 Node Contract foundation remains unchanged pending Desktop real-host acceptance.
+
 ## 2026-08-19 — Phase 3.5 accepted / Phase 4 Node Contract foundation / 1.4.32 (55)
 
 - User accepted Phase 3.5 multi-workspace execution on Windows and Android: concurrent Desktop tabs, Android queueing, and proactive host→web state sync all passed.

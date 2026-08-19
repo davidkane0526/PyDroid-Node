@@ -51,6 +51,7 @@ assert.match(app, /getHostExecutionStatus/, "host UI must observe externally-sta
 assert.match(app, /停止远程/, "host UI should visibly expose remote workflow state");
 assert.match(app, /停止宿主/, "remote browser should proactively expose host workflow state after pairing");
 assert.match(app, /subscribeExecutionStatus\(tabId/, "FlowEditor execution lifecycle must be scoped to its workspace tab");
+assert.match(app, /hostEntry\?\.phase \?\? getExecutionStatus\(tab\.id\)\.phase/, "tab execution badges must prefer real host queued/running phase over renderer-local running state");
 assert.match(app, /otherHostExecutions/, "current workspace Run must remain independent from other host/client executions");
 assert.ok(pkg.build.files.includes("desktop/execution/**/*"), "Packaged desktop must include execution lifecycle modules");
 console.log("Execution architecture smoke test passed");
