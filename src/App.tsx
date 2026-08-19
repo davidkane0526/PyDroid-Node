@@ -54,7 +54,7 @@ import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow,
 import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelHostExecution, executeWorkflow, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getHostExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type HostExecutionStatus, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, getExecutionClientId, getWorkspaceExecutionResult } from "./execution-workspace";
-import { getNodeContract } from "./nodeContract";
+import { canSafelyPreExecuteNodes, getNodeContract } from "./nodeContract";
 import { canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
@@ -3165,6 +3165,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
     const slice = upstreamSubgraph(workflowNodes, workflowEdges, [contentEdge.source]);
     if (!slice.nodes.length) return undefined;
+    const previewSafety = canSafelyPreExecuteNodes(slice.nodes);
+    if (!previewSafety.safe) {
+      setMessage(`“${alertNode.data.label}”的上游包含副作用或状态节点，已跳过自动预执行预览`);
+      return undefined;
+    }
     setMessage(`正在准备“${alertNode.data.label}”的当前内容…`);
     const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(slice.nodes);
     const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
@@ -3924,6 +3929,7 @@ type TabsApi = {
   tabs: WorkspaceTab[];
   activeId: string;
   executionPhases: Record<string, string>;
+  completedIndicators: Record<string, boolean>;
   selectTab: (id: string) => void;
   addTab: () => void;
   closeTab: (id: string) => void;
@@ -4033,7 +4039,7 @@ function TabBar() {
   }, [touchCloseId, tabMenu]);
 
   if (!api) return null;
-  const { tabs, activeId, executionPhases, selectTab, addTab, closeTab, renameTab, reorderTab } = api;
+  const { tabs, activeId, executionPhases, completedIndicators, selectTab, addTab, closeTab, renameTab, reorderTab } = api;
 
   const commitRename = () => {
     const name = editingName.trim();
@@ -4054,6 +4060,7 @@ function TabBar() {
           const executionPhase = executionPhases[tab.id] ?? "idle";
           const executionIndicatorPhase = executionPhase === "timeout" ? "failed" : executionPhase;
           const executionIndicatorVisible = ["queued", "running", "cancelling", "failed", "timeout"].includes(executionPhase);
+          const completedIndicatorVisible = !executionIndicatorVisible && !isActive && Boolean(completedIndicators[tab.id]);
           return (
             <div
               key={tab.id}
@@ -4103,7 +4110,7 @@ function TabBar() {
               onDoubleClick={() => { if (pointerMode === "mouse") { setEditingId(tab.id); setEditingName(tab.name); } }}
               title={`${tab.name}${executionIndicatorVisible ? ` · ${executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : executionPhase === "failed" || executionPhase === "timeout" ? "执行错误" : "运行中"}` : ""}${pointerMode === "mouse" ? " · 双击改名，右键菜单" : " · 长按显示关闭"}`}
             >
-              {executionIndicatorVisible && <span className={`tabbar__execution tabbar__execution--${executionIndicatorPhase}`} aria-label={executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : executionPhase === "failed" || executionPhase === "timeout" ? "执行错误" : "运行中"} />}
+              {(executionIndicatorVisible || completedIndicatorVisible) && <span className={`tabbar__execution tabbar__execution--${completedIndicatorVisible ? "completed" : executionIndicatorPhase}`} aria-label={completedIndicatorVisible ? "后台执行已完成" : executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : executionPhase === "failed" || executionPhase === "timeout" ? "执行错误" : "运行中"} />}
               {isEditing ? (
                 <input
                   className="tabbar__rename"
@@ -4203,13 +4210,29 @@ function MultiTabWorkspace() {
   const sessionStoreRef = useRef(new WorkspaceSessionStore("default", emptySnapshot));
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
   const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus("default").phase });
+  const [completedIndicators, setCompletedIndicators] = useState<Record<string, boolean>>({});
+  const previousExecutionPhasesRef = useRef<Record<string, string>>({ default: getExecutionStatus("default").phase });
+
+  const applyWorkspaceExecutionPhase = useCallback((workspaceId: string, phase: string, isActiveWorkspace: boolean) => {
+    const previousPhase = previousExecutionPhasesRef.current[workspaceId] ?? "idle";
+    previousExecutionPhasesRef.current[workspaceId] = phase;
+    setExecutionPhases((current) => current[workspaceId] === phase ? current : { ...current, [workspaceId]: phase });
+    if (phase === "success" && previousPhase !== "success") {
+      if (isActiveWorkspace) setCompletedIndicators((current) => current[workspaceId] ? { ...current, [workspaceId]: false } : current);
+      else setCompletedIndicators((current) => current[workspaceId] ? current : { ...current, [workspaceId]: true });
+      return;
+    }
+    if (["queued", "running", "cancelling", "failed", "timeout", "cancelled"].includes(phase)) {
+      setCompletedIndicators((current) => current[workspaceId] ? { ...current, [workspaceId]: false } : current);
+    }
+  }, []);
 
   useEffect(() => {
     const unsubscribers = tabs.map((tab) => subscribeExecutionStatus(tab.id, (status) => {
-      setExecutionPhases((current) => current[tab.id] === status.phase ? current : { ...current, [tab.id]: status.phase });
+      applyWorkspaceExecutionPhase(tab.id, status.phase, tab.id === activeId);
     }));
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
-  }, [tabs]);
+  }, [activeId, applyWorkspaceExecutionPhase, tabs]);
 
   useEffect(() => {
     let disposed = false;
@@ -4217,19 +4240,11 @@ function MultiTabWorkspace() {
     const syncHostPhases = async () => {
       const hostStatus = await getHostExecutionStatus().catch(() => null);
       if (disposed || !hostStatus) return;
-      setExecutionPhases((current) => {
-        let changed = false;
-        const next = { ...current };
-        for (const tab of tabs) {
-          const hostEntry = hostStatus.executions.find((entry) => entry.workspaceId === tab.id && entry.clientId === clientId);
-          const phase = hostEntry?.phase ?? getExecutionStatus(tab.id).phase;
-          if (next[tab.id] !== phase) {
-            next[tab.id] = phase;
-            changed = true;
-          }
-        }
-        return changed ? next : current;
-      });
+      for (const tab of tabs) {
+        const hostEntry = hostStatus.executions.find((entry) => entry.workspaceId === tab.id && entry.clientId === clientId);
+        const phase = hostEntry?.phase ?? getExecutionStatus(tab.id).phase;
+        applyWorkspaceExecutionPhase(tab.id, phase, tab.id === activeId);
+      }
     };
     void syncHostPhases();
     const timer = window.setInterval(() => void syncHostPhases(), 300);
@@ -4237,9 +4252,18 @@ function MultiTabWorkspace() {
       disposed = true;
       window.clearInterval(timer);
     };
-  }, [tabs]);
+  }, [activeId, applyWorkspaceExecutionPhase, tabs]);
 
   const activeTab = tabs.find((tab) => tab.id === activeId) ?? tabs[0];
+
+  useEffect(() => {
+    setCompletedIndicators((current) => current[activeId] ? { ...current, [activeId]: false } : current);
+  }, [activeId]);
+
+  const selectTab = useCallback((id: string) => {
+    setActiveId(id);
+    setCompletedIndicators((current) => current[id] ? { ...current, [id]: false } : current);
+  }, []);
 
   const updateRuntimeState = useCallback((tabId: string, state: WorkspaceRuntimeState) => {
     sessionStoreRef.current.set(tabId, state);
@@ -4272,6 +4296,8 @@ function MultiTabWorkspace() {
       sessionStoreRef.current.delete(id);
       localStorage.removeItem(`${AUTOSAVE_KEY}.${id}`);
       setExecutionPhases((phases) => { const next = { ...phases }; delete next[id]; return next; });
+      setCompletedIndicators((markers) => { const next = { ...markers }; delete next[id]; return next; });
+      delete previousExecutionPhasesRef.current[id];
       return next;
     });
   }, [activeId]);
@@ -4323,7 +4349,7 @@ function MultiTabWorkspace() {
     });
   };
 
-  const api: TabsApi = { tabs, activeId, executionPhases, selectTab: setActiveId, addTab, closeTab, renameTab, reorderTab };
+  const api: TabsApi = { tabs, activeId, executionPhases, completedIndicators, selectTab, addTab, closeTab, renameTab, reorderTab };
 
   return (
     <TabsContext.Provider value={api}>

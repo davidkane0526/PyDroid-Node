@@ -1,3 +1,4 @@
+import { getNodeContract } from "../nodeContract";
 import type { WorkflowDocument } from "../workflow";
 
 export function validateWorkflowDocument(document: Record<string, unknown>): asserts document is WorkflowDocument {
@@ -12,6 +13,7 @@ export function validateWorkflowDocument(document: Record<string, unknown>): ass
     if (!raw || typeof raw !== "object") throw new Error("工作流包含无效节点");
     const node = raw as { id?: unknown; data?: { nodeType?: unknown } };
     if (typeof node.id !== "string" || !node.data || typeof node.data.nodeType !== "string") throw new Error("工作流包含无效节点");
+    if (!getNodeContract(node.data.nodeType)) throw new Error(`未知节点类型：${node.data.nodeType}`);
     if (ids.has(node.id)) throw new Error(`节点ID重复：${node.id}`);
     ids.add(node.id);
   }

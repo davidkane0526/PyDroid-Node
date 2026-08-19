@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getNodeContract, supportsNodeRuntime, validateNodeContracts } from "./nodeContract";
+import { canSafelyPreExecuteNodes, canWorkflowRunInRuntime, getNodeContract, supportsNodeRuntime, validateNodeContracts } from "./nodeContract";
 
 describe("node contracts", () => {
   it("marks portable nodes as python+javascript", () => {
@@ -23,6 +23,20 @@ describe("node contracts", () => {
 
   it("keeps the whole catalog internally consistent", () => {
     expect(validateNodeContracts()).toEqual([]);
+  });
+
+  it("drives runtime auto capability checks from the shared contract", () => {
+    const portable = [{ id: "n1", position: { x: 0, y: 0 }, data: { label: "随机数表", nodeType: "generate.random_table", nodeVersion: 1, parameters: {}, status: "idle" } }];
+    const pythonOnly = [{ id: "n1", position: { x: 0, y: 0 }, data: { label: "自定义函数", nodeType: "custom.python_function", nodeVersion: 1, parameters: {}, status: "idle" } }];
+    expect(canWorkflowRunInRuntime(portable, "javascript").supported).toBe(true);
+    expect(canWorkflowRunInRuntime(pythonOnly, "javascript").supported).toBe(false);
+  });
+
+  it("flags side-effectful preview slices as unsafe to pre-execute", () => {
+    const safeNodes = [{ id: "n1", position: { x: 0, y: 0 }, data: { label: "随机数表", nodeType: "generate.random_table", nodeVersion: 1, parameters: {}, status: "idle" } }];
+    const unsafeNodes = [{ id: "n2", position: { x: 0, y: 0 }, data: { label: "变量写入", nodeType: "variable.set", nodeVersion: 1, parameters: {}, status: "idle" } }];
+    expect(canSafelyPreExecuteNodes(safeNodes).safe).toBe(true);
+    expect(canSafelyPreExecuteNodes(unsafeNodes).safe).toBe(false);
   });
 
   it("exposes workflow.group even though it is not a catalog node", () => {

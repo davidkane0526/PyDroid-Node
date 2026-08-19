@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.34-dev-r10-phase4-node-contract"
+$script:BuildScriptRevision = "1.4.35-dev-r11-phase4-node-contract"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

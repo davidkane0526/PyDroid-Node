@@ -101,3 +101,13 @@ Rules:
 7. If workflow serialization changes, add schema migration before shipping.
 8. Do not add a new parallel capability list in UI, Agent or runtime code.
 
+
+## 5. Runtime auto / validation / pre-execution
+
+Node Contract is no longer limited to catalog inspection. It now also owns several previously scattered runtime decisions:
+
+- **Runtime auto-selection**: the preferred runtime checks should use Node Contract runtime support rather than a separate hand-maintained capability table.
+- **Workflow import validation**: workflow documents should reject unknown node types by looking up a Node Contract, not by assuming every stringly-typed node is valid.
+- **Side-effect-aware preview execution**: any helper execution used only to preview UI content (for example alert preview preparation) must consult Node Contract first and skip slices containing stateful or side-effecting nodes.
+
+Rule of thumb: if a decision depends on whether a node is portable, stateful, safe to re-run, or eligible for speculative execution, that decision belongs to Node Contract or a helper derived from it.

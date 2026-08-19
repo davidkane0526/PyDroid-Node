@@ -1,3 +1,10 @@
+## 1.4.35 (58) — background completion badge + Phase 4 contract migration — 2026-08-19
+
+- Added a green background-completed badge for non-active tabs. When a workflow finishes successfully on a tab that is not in the foreground, the tab gets a green indicator; opening that tab clears the badge automatically.
+- Refined the status-bar task entry visual style by removing the outer pill outline and keeping only the icon, label and task count. The selectable task menu from 1.4.34 remains unchanged.
+- Continued Phase 4 Node Contract migration: runtime auto-selection now uses Node Contract runtime support; JavaScript runtime compatibility checks now derive directly from Node Contract helpers; workflow import validation now rejects unknown node types via Node Contract; UI alert preview pre-execution now consults Node Contract side-effect/state metadata and skips unsafe upstream slices.
+- Build script revision: `1.4.35-dev-r11-phase4-node-contract`.
+
 ## 1.4.34 (57) — selectable host tasks + deeper Phase 4 Node Contract — 2026-08-19
 
 - Confirmed the 1.4.33 host-priority tab-phase fix is shared by Windows Desktop and Android; queued host executions override renderer-local `running`, so both platforms show queued = orange and running = blue.

@@ -1,4 +1,5 @@
 import type { WorkflowNode } from "../workflow";
+import { canWorkflowRunInRuntime } from "../nodeContract";
 import type { RuntimeAdapter, RuntimeId, RuntimePreference } from "./types";
 
 const adapters = new Map<RuntimeId, RuntimeAdapter>();
@@ -20,9 +21,6 @@ export function listRuntimes(): RuntimeAdapter[] {
 export function resolveRuntime(preference: RuntimePreference, nodes: WorkflowNode[]): RuntimeAdapter {
   if (preference !== "auto") return getRuntime(preference);
   const javascript = adapters.get("javascript");
-  if (javascript) {
-    const support = javascript.canExecute?.(nodes) ?? { supported: true };
-    if (support.supported) return javascript;
-  }
+  if (javascript && canWorkflowRunInRuntime(nodes, "javascript").supported) return javascript;
   return getRuntime("python");
 }

@@ -1,3 +1,10 @@
+## 2026-08-19 — background completion indicator + deeper Phase 4 migration / 1.4.35 (58)
+
+- Added a green completion indicator for successful background tabs. It appears only when a non-foreground workspace finishes and clears automatically once the user opens that tab.
+- Simplified the bottom task trigger appearance by removing the extra outer outline while preserving the icon, task label and count.
+- Phase 4 continued: Node Contract now also drives runtime auto-selection, JavaScript runtime compatibility checks, workflow import validation for unknown node types, and side-effect-aware alert-preview pre-execution safeguards.
+- Build script revision: `1.4.35-dev-r11-phase4-node-contract`.
+
 ## 2026-08-19 — selectable execution task manager + Phase 4 expansion / 1.4.34 (57)
 
 - Desktop 1.4.32 real-host testing reported the same queued-blue issue as Android; the 1.4.33 host-priority phase merge applies to both Desktop and Android, so the fix is cross-platform.

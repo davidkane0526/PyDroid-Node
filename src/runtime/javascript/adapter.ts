@@ -1,3 +1,4 @@
+import { getUnsupportedNodeTypesForRuntime } from "../../nodeContract";
 import { serializeWorkflow } from "../../workflow";
 import { executeWorkflowJson, environmentInfoJson } from "./engine";
 import type {
@@ -12,7 +13,6 @@ import type {
 } from "../types";
 import { WorkflowExecutionError } from "../types";
 
-import { JAVASCRIPT_SUPPORTED_NODE_TYPES } from "./support";
 type RawJsExecutionResult = {
   status: "success" | "error";
   preview?: TablePreview | null;
@@ -29,10 +29,7 @@ type RawJsExecutionResult = {
 };
 
 function unsupportedTypes(request: RuntimeExecutionRequest): string[] {
-  return [...new Set(request.nodes
-    .map((node) => node.data.nodeType)
-    .filter((nodeType) => nodeType !== "workflow.group" && !JAVASCRIPT_SUPPORTED_NODE_TYPES.has(nodeType)))]
-    .sort();
+  return getUnsupportedNodeTypesForRuntime(request.nodes, "javascript");
 }
 
 function environment(): RuntimeEnvironment {
@@ -64,10 +61,7 @@ export const javascriptRuntime: RuntimeAdapter = {
   },
 
   canExecute(nodes) {
-    const unsupported = [...new Set(nodes
-      .map((node) => node.data.nodeType)
-      .filter((nodeType) => nodeType !== "workflow.group" && !JAVASCRIPT_SUPPORTED_NODE_TYPES.has(nodeType)))]
-      .sort();
+    const unsupported = getUnsupportedNodeTypesForRuntime(nodes, "javascript");
     return unsupported.length
       ? { supported: false, reason: `JS 引擎暂不支持：${unsupported.join("、")}` }
       : { supported: true };

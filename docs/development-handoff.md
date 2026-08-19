@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.34 (57)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + active Phase 4 Unified NodeSpec / Node Contract.
+- `dev`: `1.4.35 (58)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + active Phase 4 Unified NodeSpec / Node Contract.
 
 Current working branch: `dev`.
 
@@ -135,7 +135,7 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 3.5 status — Multi-Workspace Execution
 
-**Accepted on Windows Desktop and Android; frozen on `dev` 1.4.34 (57) except for concrete bug fixes.**
+**Accepted on Windows Desktop and Android; refined on `dev` 1.4.35 (58) with a background completion badge and task-trigger polish.**
 
 Shared renderer/application behavior:
 
@@ -158,7 +158,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Phase 4 — Unified NodeSpec / Node Contract** is now in progress on `dev` 1.4.34 (57). NodeSpec owns runtime support and contract overrides; `src/nodeContract.ts` normalizes the shared execution/state/cache contract. Runtime support, Agent planning and inspector metadata already consume it. Continue by moving remaining validation/capability decisions to NodeContract, then proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
+**Phase 4 — Unified NodeSpec / Node Contract** is now in progress on `dev` 1.4.34 (57). NodeSpec owns runtime support and contract overrides; `src/nodeContract.ts` normalizes the shared execution/state/cache contract. Runtime support, Agent planning and inspector metadata already consume it. Continue by finishing the remaining NodeContract migrations around runtime auto-selection, validation and safe pre-execution guards; once stable, proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
 
 ### Production TypeScript vs test TypeScript
 
@@ -167,7 +167,7 @@ Do not add Node typings to the root browser/Android `tsconfig.json` to make a te
 
 ## Phase 4 status — Unified NodeSpec / Node Contract
 
-**In progress on `dev` 1.4.34 (57).** NodeSpec is now the authoring source for runtime support and contract overrides; `src/nodeContract.ts` normalizes it into a complete shared contract used by runtime support, Agent context and inspector metadata. Contracts cover runtime support, execution model, determinism, side effects, cache policy, state scope/access and future function role.
+**In progress on `dev` 1.4.35 (58).** NodeSpec is now the authoring source for runtime support and contract overrides; `src/nodeContract.ts` normalizes it into a complete shared contract used by runtime support, Agent context, inspector metadata, runtime auto-selection, workflow import validation and side-effect-aware preview guards. Contracts cover runtime support, execution model, determinism, side effects, cache policy, state scope/access and future function role.
 
 Future node families must extend these semantics instead of adding parallel ad-hoc lists:
 

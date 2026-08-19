@@ -9,6 +9,7 @@ import {
   type NodeFunctionRole,
   type NodeSpec,
 } from "./nodeCatalog";
+import type { WorkflowNode } from "./workflow";
 
 export type { NodeCachePolicy, NodeExecutionModel, NodeFunctionRole, NodeRuntimeId, NodeStateAccess, NodeStateScope } from "./nodeCatalog";
 
@@ -147,4 +148,23 @@ export function validateNodeContracts(): string[] {
     if (contract.executionModel !== "function" && contract.functionRole !== "none") errors.push(`非函数节点不能声明 functionRole：${spec.nodeType}`);
   }
   return errors;
+}
+
+
+export function getUnsupportedNodeTypesForRuntime(nodes: WorkflowNode[], runtime: NodeRuntimeId): string[] {
+  return [...new Set(nodes.map((node) => node.data.nodeType).filter((nodeType) => nodeType !== "workflow.group" && !supportsNodeRuntime(nodeType, runtime)))].sort();
+}
+
+export function canWorkflowRunInRuntime(nodes: WorkflowNode[], runtime: NodeRuntimeId): { supported: boolean; unsupportedNodeTypes: string[] } {
+  const unsupportedNodeTypes = getUnsupportedNodeTypesForRuntime(nodes, runtime);
+  return { supported: unsupportedNodeTypes.length === 0, unsupportedNodeTypes };
+}
+
+export function canSafelyPreExecuteNodes(nodes: WorkflowNode[]): { safe: boolean; blockingNodeTypes: string[] } {
+  const blockingNodeTypes = [...new Set(nodes
+    .map((node) => node.data.nodeType)
+    .filter((nodeType) => nodeType !== "workflow.group")
+    .filter((nodeType) => nodeHasSideEffects(nodeType) || nodeUsesState(nodeType))
+  )].sort();
+  return { safe: blockingNodeTypes.length === 0, blockingNodeTypes };
 }
