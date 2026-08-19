@@ -3930,6 +3930,7 @@ type TabsApi = {
   activeId: string;
   executionPhases: Record<string, string>;
   completedIndicators: Record<string, boolean>;
+  errorIndicators: Record<string, boolean>;
   selectTab: (id: string) => void;
   addTab: () => void;
   closeTab: (id: string) => void;
@@ -4039,7 +4040,7 @@ function TabBar() {
   }, [touchCloseId, tabMenu]);
 
   if (!api) return null;
-  const { tabs, activeId, executionPhases, completedIndicators, selectTab, addTab, closeTab, renameTab, reorderTab } = api;
+  const { tabs, activeId, executionPhases, completedIndicators, errorIndicators, selectTab, addTab, closeTab, renameTab, reorderTab } = api;
 
   const commitRename = () => {
     const name = editingName.trim();
@@ -4059,7 +4060,8 @@ function TabBar() {
           const isEditing = editingId === tab.id;
           const executionPhase = executionPhases[tab.id] ?? "idle";
           const executionIndicatorPhase = executionPhase === "timeout" ? "failed" : executionPhase;
-          const executionIndicatorVisible = ["queued", "running", "cancelling", "failed", "timeout"].includes(executionPhase);
+          const executionErrorVisible = ["failed", "timeout"].includes(executionPhase) && Boolean(errorIndicators[tab.id]);
+          const executionIndicatorVisible = ["queued", "running", "cancelling"].includes(executionPhase) || executionErrorVisible;
           const completedIndicatorVisible = !executionIndicatorVisible && !isActive && Boolean(completedIndicators[tab.id]);
           return (
             <div
@@ -4211,21 +4213,52 @@ function MultiTabWorkspace() {
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
   const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus("default").phase });
   const [completedIndicators, setCompletedIndicators] = useState<Record<string, boolean>>({});
+  const [errorIndicators, setErrorIndicators] = useState<Record<string, boolean>>({});
   const previousExecutionPhasesRef = useRef<Record<string, string>>({ default: getExecutionStatus("default").phase });
+  const errorIndicatorTimersRef = useRef(new Map<string, number>());
+
+  const clearWorkspaceErrorIndicator = useCallback((workspaceId: string) => {
+    const existing = errorIndicatorTimersRef.current.get(workspaceId);
+    if (existing !== undefined) window.clearTimeout(existing);
+    errorIndicatorTimersRef.current.delete(workspaceId);
+    setErrorIndicators((current) => current[workspaceId] ? { ...current, [workspaceId]: false } : current);
+  }, []);
+
+  const showTransientWorkspaceError = useCallback((workspaceId: string) => {
+    const existing = errorIndicatorTimersRef.current.get(workspaceId);
+    if (existing !== undefined) window.clearTimeout(existing);
+    setErrorIndicators((current) => current[workspaceId] ? current : { ...current, [workspaceId]: true });
+    const timer = window.setTimeout(() => {
+      errorIndicatorTimersRef.current.delete(workspaceId);
+      setErrorIndicators((current) => current[workspaceId] ? { ...current, [workspaceId]: false } : current);
+    }, 4500);
+    errorIndicatorTimersRef.current.set(workspaceId, timer);
+  }, []);
+
+  useEffect(() => () => {
+    for (const timer of errorIndicatorTimersRef.current.values()) window.clearTimeout(timer);
+    errorIndicatorTimersRef.current.clear();
+  }, []);
 
   const applyWorkspaceExecutionPhase = useCallback((workspaceId: string, phase: string, isActiveWorkspace: boolean) => {
     const previousPhase = previousExecutionPhasesRef.current[workspaceId] ?? "idle";
     previousExecutionPhasesRef.current[workspaceId] = phase;
     setExecutionPhases((current) => current[workspaceId] === phase ? current : { ...current, [workspaceId]: phase });
     if (phase === "success" && previousPhase !== "success") {
+      clearWorkspaceErrorIndicator(workspaceId);
       if (isActiveWorkspace) setCompletedIndicators((current) => current[workspaceId] ? { ...current, [workspaceId]: false } : current);
       else setCompletedIndicators((current) => current[workspaceId] ? current : { ...current, [workspaceId]: true });
       return;
     }
+    if ((phase === "failed" || phase === "timeout") && phase !== previousPhase) {
+      showTransientWorkspaceError(workspaceId);
+    } else if (!["failed", "timeout"].includes(phase)) {
+      clearWorkspaceErrorIndicator(workspaceId);
+    }
     if (["queued", "running", "cancelling", "failed", "timeout", "cancelled"].includes(phase)) {
       setCompletedIndicators((current) => current[workspaceId] ? { ...current, [workspaceId]: false } : current);
     }
-  }, []);
+  }, [clearWorkspaceErrorIndicator, showTransientWorkspaceError]);
 
   useEffect(() => {
     const unsubscribers = tabs.map((tab) => subscribeExecutionStatus(tab.id, (status) => {
@@ -4297,6 +4330,10 @@ function MultiTabWorkspace() {
       localStorage.removeItem(`${AUTOSAVE_KEY}.${id}`);
       setExecutionPhases((phases) => { const next = { ...phases }; delete next[id]; return next; });
       setCompletedIndicators((markers) => { const next = { ...markers }; delete next[id]; return next; });
+      setErrorIndicators((markers) => { const next = { ...markers }; delete next[id]; return next; });
+      const errorTimer = errorIndicatorTimersRef.current.get(id);
+      if (errorTimer !== undefined) window.clearTimeout(errorTimer);
+      errorIndicatorTimersRef.current.delete(id);
       delete previousExecutionPhasesRef.current[id];
       return next;
     });
@@ -4349,7 +4386,7 @@ function MultiTabWorkspace() {
     });
   };
 
-  const api: TabsApi = { tabs, activeId, executionPhases, completedIndicators, selectTab, addTab, closeTab, renameTab, reorderTab };
+  const api: TabsApi = { tabs, activeId, executionPhases, completedIndicators, errorIndicators, selectTab, addTab, closeTab, renameTab, reorderTab };
 
   return (
     <TabsContext.Provider value={api}>

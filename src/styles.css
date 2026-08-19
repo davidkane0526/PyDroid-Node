@@ -1770,6 +1770,23 @@ button, input, select, textarea { font: inherit; }
     display: block;
   }
 }
+/* Android soft keyboard: footer actions are not useful while editing SMB credentials.
+   Hiding the footer prevents Chromium/WebView scroll-to-focus from floating those actions
+   over the connection fields; it returns automatically when focus leaves the form. */
+.app-shell.native-platform .smb-file-manager:has(.smb-connection-form input:focus) .smb-manager-footer {
+  display: none !important;
+}
+.app-shell.native-platform .smb-file-manager:has(.smb-connection-form input:focus) {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.app-shell.native-platform .smb-file-manager:has(.smb-connection-form input:focus) .smb-browser {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.app-shell.native-platform .smb-connection-form input:focus {
+  scroll-margin-block: 96px;
+}
+
 @media (max-width: 760px) {
   .app-shell.native-platform .topbar__actions .icon-button.topbar-tool-action {
     display: none !important;
@@ -2992,7 +3009,7 @@ button, input, select, textarea { font: inherit; }
 .settings-dialog--adaptive > header strong { font-size: 17px; }
 .settings-layout {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
+  align-items: stretch;
   gap: 12px;
   padding: 14px;
   overscroll-behavior: contain;
@@ -3006,6 +3023,8 @@ button, input, select, textarea { font: inherit; }
 .settings-layout::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
 .settings-layout .settings-section {
   min-width: 0;
+  height: 100%;
+  align-content: start;
   gap: 11px;
   padding: 14px 15px;
   border-color: color-mix(in srgb, var(--border-soft) 90%, transparent);
