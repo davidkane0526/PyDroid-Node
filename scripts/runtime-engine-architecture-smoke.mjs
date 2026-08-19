@@ -28,6 +28,24 @@ const requiredPythonNodeHandlers = [
   "conversion_ui.py",
 ];
 const requiredJsParts = ["engine.ts", "nodes.ts", "table.ts", "plots.ts", "csv.ts", "notebook.ts", "random.ts"];
+const requiredJsNodeHandlers = [
+  "io_generate.ts",
+  "table_pandas.ts",
+  "control_state.ts",
+  "analysis_pulse.ts",
+  "plots.ts",
+  "conversion_ui.ts",
+];
+const requiredJsNodeSupport = [
+  "types.ts",
+  "common.ts",
+  "io.ts",
+  "table_ops.ts",
+  "control.ts",
+  "analysis.ts",
+  "pulse.ts",
+  "serialization.ts",
+];
 
 function fail(message) {
   throw new Error(`[runtime-engine-architecture] ${message}`);
@@ -60,5 +78,22 @@ for (const file of requiredJsParts) {
   const target = path.join(root, "src", "runtime", "javascript", "engine", file);
   if (!existsSync(target)) fail(`missing JavaScript engine module: engine/${file}`);
 }
+const jsFacade = path.join(root, "src", "runtime", "javascript", "engine", "nodes.ts");
+const jsFacadeText = readFileSync(jsFacade, "utf8");
+const jsFacadeLines = jsFacadeText.split(/\r?\n/).length;
+if (jsFacadeLines > 80) fail(`JavaScript engine/nodes.ts must remain a routing facade (got ${jsFacadeLines} lines)`);
+if (/case\s+["']/.test(jsFacadeText)) fail("JavaScript node implementations must live in engine/nodes domain handlers, not nodes.ts");
+for (const file of requiredJsNodeHandlers) {
+  const target = path.join(root, "src", "runtime", "javascript", "engine", "nodes", file);
+  if (!existsSync(target)) fail(`missing JavaScript node-domain handler: engine/nodes/${file}`);
+  const lines = readFileSync(target, "utf8").split(/\r?\n/).length;
+  if (lines > 260) fail(`JavaScript node-domain handler ${file} grew beyond 260 lines (${lines}); split the domain instead of recreating a monolith`);
+}
+for (const file of requiredJsNodeSupport) {
+  const target = path.join(root, "src", "runtime", "javascript", "engine", "nodes", "support", file);
+  if (!existsSync(target)) fail(`missing JavaScript node support module: engine/nodes/support/${file}`);
+  const lines = readFileSync(target, "utf8").split(/\r?\n/).length;
+  if (lines > 220) fail(`JavaScript node support module ${file} grew beyond 220 lines (${lines}); split helper responsibilities again`);
+}
 
-console.log(`Runtime engine architecture smoke passed (Python facade ${engineLines} lines; dispatcher ${dispatchLines} lines; ${requiredPythonNodeHandlers.length - 1} domain handlers).`);
+console.log(`Runtime engine architecture smoke passed (Python facade ${engineLines} lines; dispatcher ${dispatchLines} lines; ${requiredPythonNodeHandlers.length - 1} Python domain handlers; JS facade ${jsFacadeLines} lines; ${requiredJsNodeHandlers.length} JS domain handlers; ${requiredJsNodeSupport.length} JS support modules).`);

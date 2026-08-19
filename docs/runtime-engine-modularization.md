@@ -26,6 +26,8 @@ engine_parts/
 
 As of 1.4.40, `node_dispatch.py` is no longer a transitional implementation file: it is a routing-only facade. Concrete Python node families live under `engine_parts/nodes/` (`io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, `conversion_ui`). Architecture smoke caps the dispatcher and every domain module so a new monolith cannot silently reappear.
 
+As of 1.4.41, JavaScript `engine/nodes.ts` follows the same architectural rule: it is a routing facade only. Concrete JS families live in `engine/nodes/`, while reusable helpers are split under `engine/nodes/support/` (`types`, `common`, `io`, `table_ops`, `control`, `analysis`, `pulse`, `serialization`). This is intentionally not a requirement for file-name symmetry with Python; the invariant is that domain logic is isolated and parity-protected.
+
 The next Phase 6 target is JavaScript `engine/nodes.ts`, which still combines helpers and many node implementations. Split it by domain while preserving the public `executeNode` facade and keeping the Phase 5 parity gate green.
 
 ## JavaScript

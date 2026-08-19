@@ -1,3 +1,11 @@
+## 2026-08-19 — Phase 6 JavaScript node-domain dispatch / 1.4.41 (64)
+
+- JavaScript `engine/nodes.ts` is now a 27-line compatibility/router facade instead of the previous ~1129-line implementation file.
+- Concrete JavaScript node families now live under `engine/nodes/`: `io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, and `conversion_ui`. Shared helpers are further split into eight focused support modules.
+- Architecture smoke now prevents the JavaScript facade, domain handlers, or support helpers from silently growing back into monoliths.
+- Phase 5 semantic protection remains intact: 66/66 golden workflows and 72/72 JS-capable NodeContract coverage pass; Python remains 106 passed / 1 skipped.
+- Build script revision: `1.4.41-dev-r17-phase6-js-domain-handlers`. Next Phase 6 target is JavaScript workflow orchestration (`engine.ts`) and remaining runtime-support boundaries, not another node-implementation reshuffle.
+
 ## 2026-08-19 — Phase 6 Python node-domain dispatch / 1.4.40 (63)
 
 - Continued the 1.4.39 Python runtime modularization. `engine_parts/node_dispatch.py` is now routing-only and concrete node implementations live under `engine_parts/nodes/` by domain.

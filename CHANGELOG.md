@@ -1,3 +1,11 @@
+## 1.4.41 (64) — Phase 6 JavaScript node-domain handlers — 2026-08-19
+
+- Split the former ~1129-line `src/runtime/javascript/engine/nodes.ts` into a 27-line routing facade plus six domain handlers: `io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, and `conversion_ui`.
+- Split shared JavaScript node helpers into focused support modules (`types`, `common`, `io`, `table_ops`, `control`, `analysis`, `pulse`, `serialization`) instead of replacing one monolith with another helper monolith.
+- Extended `runtime-engine-architecture-smoke.mjs` so `engine/nodes.ts` must remain routing-only, domain handlers stay below 260 lines, and support modules stay below 220 lines.
+- Full Phase 5 parity remains green after the refactor: 66/66 golden workflows and 72/72 JavaScript-capable NodeContracts. Python regression remains 106 passed / 1 skipped.
+- Build script revision: `1.4.41-dev-r17-phase6-js-domain-handlers`.
+
 ## 1.4.40 (63) — Phase 6 Python node-domain handlers — 2026-08-19
 
 - Continued Phase 6 without changing workflow semantics. The transitional Python `engine_parts/node_dispatch.py` dropped from 577 lines to a routing-only facade (~28 lines).

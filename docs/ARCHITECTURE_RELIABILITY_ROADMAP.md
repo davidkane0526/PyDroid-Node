@@ -483,7 +483,7 @@ Golden fixtures 位于 `tests/runtime-parity/golden/`，按 table / control-stat
 
 ## 9. Phase 6 — Runtime Engine 模块化
 
-状态：**1.4.40 已完成 Python engine façade/core/domain-handler 两级拆分；Python node dispatch 已变成纯路由。Phase 6 继续处理 JavaScript nodes.ts 与后续 runtime orchestration。**
+状态：**1.4.41 已完成 Python 与 JavaScript 两侧的 node-domain 拆分；Python node dispatch 与 JavaScript `engine/nodes.ts` 都已变成纯路由 façade。Phase 6 下一步继续处理 JavaScript workflow orchestration 与剩余 runtime support 模块边界。**
 
 Python 建议：
 
