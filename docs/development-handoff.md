@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.43 (66)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + active Phase 7 Host modularization.
+- `dev`: `1.4.44 (67)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + active Phase 7 Host modularization.
 
 Current working branch: `dev`.
 
@@ -197,6 +197,6 @@ Read `docs/runtime-engine-modularization.md` before changing runtime structure. 
 
 ## Phase 7 — Host modularization
 
-**In progress on `dev` 1.4.43 (66).** Desktop Host tranche is complete enough to freeze its public boundary: `desktop/main.cjs` is the composition/lifecycle root; concrete host capabilities live under `desktop/services/`; Electron IPC handlers live under `desktop/ipc/`; BrowserWindow creation lives under `desktop/window/`. Preload/renderer IPC channel names must remain stable unless a migration is explicitly planned.
+**In progress on `dev` 1.4.44 (67).** Desktop and Android Host boundaries are now both modularized. Desktop: `desktop/main.cjs` is the composition/lifecycle root; concrete host capabilities live under `desktop/services/`; Electron IPC handlers live under `desktop/ipc/`; BrowserWindow creation lives under `desktop/window/`. Preload/renderer IPC channel names must remain stable unless a migration is explicitly planned. Android: `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes; Python/SMB/SAF files/profile/secrets/Remote capabilities live in focused Android services. Existing Capacitor method names and activity callback names must remain stable unless a migration is explicitly planned.
 
-Read `docs/desktop-host-modularization.md` before changing Desktop main-process architecture. Next Phase 7 tranche is Android native service decomposition. Build-tool modularization is intentionally last.
+Read `docs/desktop-host-modularization.md` before changing Desktop main-process architecture and `docs/android-host.md` before changing Android native bindings. Desktop/Android host decomposition is now in place; the next Phase 7 tranche is cross-platform host-contract cleanup followed by Build Tool modularization, which remains intentionally last.

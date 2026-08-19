@@ -1,3 +1,12 @@
+## 1.4.44 (67) — Phase 7 Android Host service modularization — 2026-08-19
+
+- Reduced `PythonExecutorPlugin.java` from 713 lines to a compact Capacitor binding façade. Existing `PythonExecutor` plugin method names and activity callback names remain stable for the TypeScript PlatformAdapter.
+- Added Android host service composition under `android/app/src/main/java/com/dk/pydroidflow/host/`: lifecycle/composition, Python execution, SMB, Storage Access Framework files, profile/workflow library, encrypted secrets, and Remote Web server lifecycle.
+- Kept `PythonExecutionController`, `RemoteWorkflowServer`, LAN discovery and keystore primitives behind these service boundaries rather than reimplementing them.
+- Added `test:android-host-architecture` to prevent native logic from accumulating back inside the Capacitor plugin and to enforce stable plugin bindings/service ownership.
+- Android Gradle compilation was attempted in the cloud but could not download the Gradle 8.14.3 distribution because outbound Gradle network access is unavailable; Java source syntax and architecture checks plus all platform-independent regression suites are still run.
+- Build script revision: `1.4.44-dev-r20-phase7-android-host`.
+
 ## 1.4.43 (66) — Phase 7 Desktop Host services and IPC modularization — 2026-08-19
 
 - Started Phase 7 by reducing `desktop/main.cjs` from 1021 lines to a small composition/lifecycle root.

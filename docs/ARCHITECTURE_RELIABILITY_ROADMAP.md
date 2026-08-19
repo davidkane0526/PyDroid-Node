@@ -2,7 +2,7 @@
 
 更新时间：2026-08-19
 长期开发分支：`dev`
-稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.43 (66)`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.44 (67)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -507,7 +507,7 @@ JavaScript 使用对应职责划分，但不要求文件结构完全镜像。共
 
 ## 10. Phase 7 — Host 模块化与构建器整理
 
-状态：**1.4.43 已进入 Phase 7。Desktop Host 第一阶段已完成：`main.cjs` 已收敛为 composition/lifecycle root，服务与 IPC 分域模块化；下一阶段处理 Android Host，构建工具仍放在最后。**
+状态：**1.4.44 Phase 7 Host 模块化继续推进。Desktop Host 与 Android Host 均已收敛为 composition/binding façade + focused services；下一阶段整理跨平台 Host contract 与构建工具，构建工具仍放在 Phase 7 最后。**
 
 ### Desktop
 
@@ -531,7 +531,7 @@ desktop/
 
 ### Android
 
-逐步把 `PythonExecutorPlugin.java` 拆成 Python/File/SMB/Profile/Remote services，Plugin 只负责 Capacitor method binding。
+`PythonExecutorPlugin.java` 已收敛为 Capacitor method binding façade；Python/File/SMB/Profile/Secret/Remote 能力由 `AndroidHostServices` 组合的 focused Java services 承担。后续只允许通过稳定的 Capacitor contract 扩展，不应把实现重新塞回 Plugin。
 
 ### Build Tool
 
@@ -573,7 +573,8 @@ desktop/
 4. Phase 3.5 Multi-Workspace Execution：已通过 Windows/Android 实机验收并冻结。
 5. Phase 4 Unified NodeSpec / Node Contract：1.4.36 已完成并冻结。
 6. Phase 5 Python/JavaScript parity tests：1.4.38 已完成并冻结，66 个 golden workflows 覆盖 72/72 JS-capable NodeContracts。
-7. 最后再拆 Python/JS engine、Desktop/Android host 和 Build Tool。
+7. Phase 6 Runtime Engine modularization：1.4.42 已完成并冻结。
+8. Phase 7 Host modularization：Desktop 与 Android host 已完成主要分域；下一步整理 host contract，并最后拆 Build Tool。
 
 核心原则始终是：
 

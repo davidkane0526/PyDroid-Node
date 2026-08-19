@@ -12,6 +12,8 @@ const desktopRemoteService = read("desktop/services/remote-server.cjs");
 const desktopIpc = read("desktop/ipc/register.cjs");
 const desktopPreload = read("desktop/preload.cjs");
 const androidPlugin = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutorPlugin.java");
+const androidHostServices = read("android/app/src/main/java/com/dk/pydroidflow/host/AndroidHostServices.java");
+const androidPythonService = read("android/app/src/main/java/com/dk/pydroidflow/host/AndroidPythonService.java");
 const androidController = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutionController.java");
 const androidRemote = read("android/app/src/main/java/com/dk/pydroidflow/RemoteWorkflowServer.java");
 const androidCancellation = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutionCancellation.java");
@@ -36,7 +38,8 @@ assert.match(desktopScheduler, /phase = "queued"|phase: "queued"/, "Desktop sche
 assert.match(desktopRemoteService, /\/api\/cancel/, "Desktop remote host must expose cancellation");
 assert.match(desktopRemoteService, /\/api\/execution-status/, "Desktop remote host must expose execution status for host/remote observability");
 assert.match(desktopProcessController, /termination confirmation timed out/, "Desktop cancellation must keep the execution slot until the Python process closes");
-assert.match(androidPlugin, /PythonExecutionController/, "Android plugin must use the execution controller");
+assert.match(androidHostServices, /PythonExecutionController/, "Android host composition must own the execution controller");
+assert.match(androidPythonService, /executionController\.submit/, "Android Python service must route workflow execution through the controller");
 assert.match(androidPlugin, /cancelWorkflow/, "Android plugin must expose cancelWorkflow");
 assert.match(androidRemote, /\/api\/cancel/, "Android remote host must expose cancellation");
 assert.match(androidRemote, /\/api\/execution-status/, "Android remote host must expose execution status");

@@ -1,3 +1,12 @@
+## 2026-08-19 — Phase 7 Android Host modularization / 1.4.44 (67)
+
+- `PythonExecutorPlugin.java` is now a thin Capacitor method-binding façade instead of the owner of SMB, SAF file access, profile/workflow library, secrets, Remote Web lifecycle and Python execution logic.
+- Added `AndroidHostServices` as the Android composition/lifetime root with focused `AndroidPythonService`, `AndroidSmbService`, `AndroidFileService`, `AndroidProfileService`, `AndroidSecretService` and `AndroidRemoteService`.
+- Existing PlatformAdapter/Capacitor method names are preserved. `PythonExecutionController` remains the single Android execution scheduler and `RemoteWorkflowServer` remains the LAN HTTP/discovery implementation.
+- Added Android Host architecture smoke to `pnpm check`; the plugin is capped as a binding façade and host-domain services are guarded against re-forming a monolith.
+- Cloud Gradle compile remains blocked by unavailable Gradle distribution/network; syntax scanning and platform-independent regressions remain available, with final Android build/runtime verification reserved for the normal real-device build stage.
+- Build script revision: `1.4.44-dev-r20-phase7-android-host`.
+
 ## 2026-08-19 — Phase 7 Desktop Host modularization / 1.4.43 (66)
 
 - Phase 7 has started. Desktop Host is the first tranche; Android Host and build-tool modularization are intentionally deferred until the Desktop boundary is stable.
