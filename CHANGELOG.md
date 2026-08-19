@@ -1,3 +1,11 @@
+## 1.4.47 (70) — Windows build-module command resolution hotfix — 2026-08-19
+
+- Fixed the Phase 7 Windows build-tool regression where `Resolve-AbsolutePath` and other helpers moved to `.psm1` modules could be unavailable in the GUI-launched Windows PowerShell child process.
+- Build modules are now imported with global scope and all orchestration calls use explicit `ModuleName\CommandName` qualification, so helper resolution no longer depends on PowerShell scope lookup.
+- Added an immediate module-surface preflight for `PyDroid.Build.Paths\Resolve-AbsolutePath` and strengthened build-tool architecture smoke checks to prevent unqualified helper calls from returning.
+- No application/runtime behavior changed; this is a build-tool reliability hotfix on top of the accepted 1.4.46 Android gesture fix.
+- Build script revision: `1.4.47-dev-r23-phase7-build-module-import-fix`.
+
 ## 1.4.46 (69) — Android node drag/menu gesture separation — 2026-08-19
 
 - Fixed Android resource dragging so moving a palette node/group/saved node cancels the menu hold and enters drag mode instead of triggering the node resource menu.

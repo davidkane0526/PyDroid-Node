@@ -23,7 +23,9 @@ for (const name of required) {
   assert.match(body, /Export-ModuleMember\s+-Function/, `${name} should expose an explicit public surface`);
 }
 
-assert.match(main, /Import-Module\s+-Name\s+\$modulePath\s+-Force\s+-DisableNameChecking/, "main build script must load focused modules explicitly");
+assert.match(main, /Import-Module\s+-Name\s+\$modulePath\s+-Force\s+-Global\s+-DisableNameChecking/, "main build script must load focused modules globally for GUI child-process compatibility");
+assert.match(main, /PyDroid\.Build\.Paths\\Resolve-AbsolutePath/, "path helpers should be called with an explicit module qualifier");
+assert.doesNotMatch(main, /(?<![\\\w.])Resolve-AbsolutePath\s+\$ProjectRoot/, "core build path resolution must not depend on unqualified module command lookup");
 assert.doesNotMatch(main, /^function\s+Resolve-JavaHomeCandidate\b/m, "Java probing implementation belongs in the Java module");
 assert.doesNotMatch(main, /^function\s+Normalize-ProxyUrl\b/m, "network parsing implementation belongs in the Network module");
 assert.doesNotMatch(main, /^function\s+Get-ExtendedLengthPath\b/m, "path implementation belongs in the Paths module");

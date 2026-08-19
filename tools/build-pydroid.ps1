@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.46-dev-r22-phase7-touch-gesture-fix"
+$script:BuildScriptRevision = "1.4.47-dev-r23-phase7-build-module-import-fix"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -161,7 +161,13 @@ foreach ($buildModule in @(
 )) {
     $modulePath = Join-Path $buildModuleRoot $buildModule
     if (-not (Test-Path -LiteralPath $modulePath -PathType Leaf)) { throw "缺少构建工具模块：$modulePath" }
-    Import-Module -Name $modulePath -Force -DisableNameChecking -ErrorAction Stop
+    Import-Module -Name $modulePath -Force -Global -DisableNameChecking -ErrorAction Stop
+}
+
+# The GUI launches the builder in a fresh Windows PowerShell process. Keep module imports
+# global and use module-qualified calls so helper lookup cannot depend on child-process scope.
+if (-not (Get-Command 'PyDroid.Build.Paths\Resolve-AbsolutePath' -ErrorAction SilentlyContinue)) {
+    throw "构建工具模块加载失败：PyDroid.Build.Paths 未导出 Resolve-AbsolutePath。请确认 tools\modules 与 build-pydroid.ps1 来自同一版本。"
 }
 
 function Get-DefaultWorkRoot {
@@ -194,7 +200,7 @@ function Get-DefaultCacheRoot {
 
 
 function Configure-Network {
-    $network = Set-PyDroidBuildNetwork `
+    $network = PyDroid.Build.Network\Set-PyDroidBuildNetwork `
         -NetworkMode $NetworkMode `
         -ProxyUrl $ProxyUrl `
         -RegistryUrl $RegistryUrl `
@@ -353,19 +359,19 @@ if (-not $ProjectRoot) {
     }
 }
 
-$ProjectRoot = Resolve-AbsolutePath $ProjectRoot
-$ToolRoot    = Resolve-AbsolutePath $ToolRoot
-$CacheRoot   = Resolve-AbsolutePath $CacheRoot
-$WorkRoot    = Resolve-AbsolutePath $WorkRoot
+$ProjectRoot = PyDroid.Build.Paths\Resolve-AbsolutePath $ProjectRoot
+$ToolRoot    = PyDroid.Build.Paths\Resolve-AbsolutePath $ToolRoot
+$CacheRoot   = PyDroid.Build.Paths\Resolve-AbsolutePath $CacheRoot
+$WorkRoot    = PyDroid.Build.Paths\Resolve-AbsolutePath $WorkRoot
 if (-not $OutputRoot) { $OutputRoot = $WorkRoot }
-$OutputRoot  = Resolve-AbsolutePath $OutputRoot
+$OutputRoot  = PyDroid.Build.Paths\Resolve-AbsolutePath $OutputRoot
 
 # ToolRoot is strictly read-only. If an old configuration points CacheRoot into ToolRoot,
 # move caches to WorkRoot instead of writing into the shared tool tree.
-if ((Test-PathWithinRoot -Path $CacheRoot -Root $ToolRoot) -and
-    -not (Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
+if ((PyDroid.Build.Paths\Test-PathWithinRoot -Path $CacheRoot -Root $ToolRoot) -and
+    -not (PyDroid.Build.Paths\Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
     $oldCacheRoot = $CacheRoot
-    $CacheRoot = Resolve-AbsolutePath (Join-Path $WorkRoot "cache")
+    $CacheRoot = PyDroid.Build.Paths\Resolve-AbsolutePath (Join-Path $WorkRoot "cache")
     Write-Warning ("缓存目录 {0} 位于只读共享工具目录 {1} 内，已改用临时缓存：{2}" -f $oldCacheRoot, $ToolRoot, $CacheRoot)
 }
 
@@ -384,10 +390,10 @@ if ($SkipAndroid -and $SkipDesktop) {
 
 $package = Get-Content -LiteralPath (Join-Path $ProjectRoot "package.json") -Raw | ConvertFrom-Json
 $packageManagerSpec = [string]$package.packageManager
-$electronSpec = Get-PackageDependencySpec -PackageObject $package -Name 'electron'
-$electronBuilderSpec = Get-PackageDependencySpec -PackageObject $package -Name 'electron-builder'
-$electronLockedVersion = Get-PnpmLockedVersion -Root $ProjectRoot -Name 'electron'
-$electronBuilderLockedVersion = Get-PnpmLockedVersion -Root $ProjectRoot -Name 'electron-builder'
+$electronSpec = PyDroid.Build.Paths\Get-PackageDependencySpec -PackageObject $package -Name 'electron'
+$electronBuilderSpec = PyDroid.Build.Paths\Get-PackageDependencySpec -PackageObject $package -Name 'electron-builder'
+$electronLockedVersion = PyDroid.Build.Paths\Get-PnpmLockedVersion -Root $ProjectRoot -Name 'electron'
+$electronBuilderLockedVersion = PyDroid.Build.Paths\Get-PnpmLockedVersion -Root $ProjectRoot -Name 'electron-builder'
 $version = [string]$package.version
 if (-not $version) { $version = "0.0.0" }
 $productName = [string]$package.build.productName
@@ -399,7 +405,7 @@ foreach ($invalidChar in [IO.Path]::GetInvalidFileNameChars()) {
 }
 $outputBaseName = ($outputBaseName -replace '\s+', '-').Trim([char[]]'-.')
 if ([string]::IsNullOrWhiteSpace($outputBaseName)) { $outputBaseName = "PyDroid-Flow" }
-$resolvedAndroidApi = Get-ProjectAndroidApiLevel -Root $ProjectRoot -Override $AndroidApiLevel
+$resolvedAndroidApi = PyDroid.Build.Android\Get-ProjectAndroidApiLevel -Root $ProjectRoot -Override $AndroidApiLevel
 
 $projectKey = [string]$package.name
 if ([string]::IsNullOrWhiteSpace($projectKey)) {
@@ -489,11 +495,11 @@ $script:PnpmUseCorepack = $false
 
 function Test-NodeCandidate {
     param([Parameter(Mandatory = $true)][string]$Executable)
-    return (Test-PyDroidNodeCandidate -Executable $Executable -RequiredVersion $NodeVersion)
+    return (PyDroid.Build.Node\Test-PyDroidNodeCandidate -Executable $Executable -RequiredVersion $NodeVersion)
 }
 
 function Find-Node {
-    return (Find-PyDroidNode -RequiredVersion $NodeVersion -ToolRoot $ToolRoot -WorkRoot $WorkRoot)
+    return (PyDroid.Build.Node\Find-PyDroidNode -RequiredVersion $NodeVersion -ToolRoot $ToolRoot -WorkRoot $WorkRoot)
 }
 
 function Install-Node {
@@ -569,7 +575,7 @@ function Get-PnpmVersion {
 function Get-JavaHomeDiagnostic {
     param([string]$JavaHomePath)
 
-    $resolved = Resolve-JavaHomeCandidate $JavaHomePath
+    $resolved = PyDroid.Build.Java\Resolve-JavaHomeCandidate $JavaHomePath
     if ([string]::IsNullOrWhiteSpace($resolved)) {
         return '路径为空或无法解析。'
     }
@@ -587,7 +593,7 @@ function Get-JavaHomeDiagnostic {
         return ("不是完整 JDK，缺少：{0}" -f ($missing -join '；'))
     }
 
-    $major = Get-JavaMajorVersion $resolved
+    $major = PyDroid.Build.Java\Get-JavaMajorVersion $resolved
     if ($null -ne $major) {
         if ($major -eq $JdkMajor) {
             return "有效 JDK $major：$resolved"
@@ -595,8 +601,8 @@ function Get-JavaHomeDiagnostic {
         return "检测到完整 JDK $major，但当前构建要求 JDK $JdkMajor：$resolved"
     }
 
-    $javaProbe = Invoke-JavaVersionProbe -ExecutablePath $java -Arguments '-version'
-    $javacProbe = Invoke-JavaVersionProbe -ExecutablePath $javac -Arguments '-version'
+    $javaProbe = PyDroid.Build.Java\Invoke-JavaVersionProbe -ExecutablePath $java -Arguments '-version'
+    $javacProbe = PyDroid.Build.Java\Invoke-JavaVersionProbe -ExecutablePath $javac -Arguments '-version'
     $parts = @("完整 JDK 文件存在，但无法解析版本：$resolved")
     if (-not [string]::IsNullOrWhiteSpace([string]$javaProbe.Error)) {
         $parts += "java.exe 启动错误：$($javaProbe.Error)"
@@ -613,7 +619,7 @@ function Get-JavaHomeDiagnostic {
 
 function Test-JavaHome {
     param([string]$JavaHomePath)
-    $major = Get-JavaMajorVersion $JavaHomePath
+    $major = PyDroid.Build.Java\Get-JavaMajorVersion $JavaHomePath
     return ($null -ne $major -and $major -eq $JdkMajor)
 }
 
@@ -624,7 +630,7 @@ function Find-JavaHomeInRoot {
     )
     if ([string]::IsNullOrWhiteSpace($RootPath)) { return $null }
 
-    $root = Resolve-JavaHomeCandidate $RootPath
+    $root = PyDroid.Build.Java\Resolve-JavaHomeCandidate $RootPath
     if ([string]::IsNullOrWhiteSpace($root)) { return $null }
 
     # 最常见情况：用户直接指定真正的 JAVA_HOME。
@@ -669,7 +675,7 @@ function Find-JavaHome {
         $explicitRoot = [Environment]::ExpandEnvironmentVariables($JavaHome.Trim().Trim('"'))
         $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 2
         if ($explicit) {
-            $major = Get-JavaMajorVersion $explicit
+            $major = PyDroid.Build.Java\Get-JavaMajorVersion $explicit
             Write-Step ("使用手动指定的 JDK {0}：{1}" -f $major, $explicit)
             return $explicit
         }
@@ -679,7 +685,7 @@ function Find-JavaHome {
         [void]$diagnostics.Add((Get-JavaHomeDiagnostic $explicitRoot))
         if (Test-Path -LiteralPath $explicitRoot -PathType Container) {
             foreach ($dir in @(Get-ChildItem -LiteralPath $explicitRoot -Directory -ErrorAction SilentlyContinue)) {
-                $resolvedDir = Resolve-JavaHomeCandidate $dir.FullName
+                $resolvedDir = PyDroid.Build.Java\Resolve-JavaHomeCandidate $dir.FullName
                 $javaCandidate = Join-Path $resolvedDir 'bin\java.exe'
                 $javacCandidate = Join-Path $resolvedDir 'bin\javac.exe'
                 if ((Test-Path -LiteralPath $javaCandidate -PathType Leaf) -or
@@ -718,9 +724,9 @@ function Find-JavaHome {
     # 3) Windows 已安装 JDK。Microsoft OpenJDK 的 JAVA_HOME 是可选安装项，
     # 所以即使环境变量没有配置，也主动检查注册表、常见目录、PATH。
     $systemCandidates = @()
-    $systemCandidates += @(Get-JavaHomesFromRegistry)
-    $systemCandidates += @(Get-JavaHomesFromCommonLocations)
-    $systemCandidates += @(Get-JavaHomesFromPath)
+    $systemCandidates += @(PyDroid.Build.Java\Get-JavaHomesFromRegistry)
+    $systemCandidates += @(PyDroid.Build.Java\Get-JavaHomesFromCommonLocations)
+    $systemCandidates += @(PyDroid.Build.Java\Get-JavaHomesFromPath)
     foreach ($candidate in @($systemCandidates | Where-Object { $_ } | Select-Object -Unique)) {
         $resolved = Find-JavaHomeInRoot -RootPath $candidate -MaxDepth 1
         if ($resolved) { return $resolved }
@@ -756,7 +762,7 @@ function Install-Jdk {
 }
 
 function Find-AndroidSdk {
-    return (Find-PyDroidAndroidSdk -ToolRoot $ToolRoot -WorkRoot $WorkRoot -PrivateToolsRoot $privateToolsRoot -ApiLevel $resolvedAndroidApi)
+    return (PyDroid.Build.Android\Find-PyDroidAndroidSdk -ToolRoot $ToolRoot -WorkRoot $WorkRoot -PrivateToolsRoot $privateToolsRoot -ApiLevel $resolvedAndroidApi)
 }
 
 function New-TemporaryAndroidSdkOverlay {
@@ -766,10 +772,10 @@ function New-TemporaryAndroidSdkOverlay {
     New-Item -ItemType Directory -Force -Path $overlay | Out-Null
     $buildToolsVersion = ("{0}.0.0" -f $resolvedAndroidApi)
 
-    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "cmdline-tools") -Destination (Join-Path $overlay "cmdline-tools")
-    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "platform-tools") -Destination (Join-Path $overlay "platform-tools")
-    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("platforms\android-{0}" -f $resolvedAndroidApi)) -Destination (Join-Path $overlay ("platforms\android-{0}" -f $resolvedAndroidApi))
-    Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("build-tools\{0}" -f $buildToolsVersion)) -Destination (Join-Path $overlay ("build-tools\{0}" -f $buildToolsVersion))
+    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "cmdline-tools") -Destination (Join-Path $overlay "cmdline-tools")
+    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "platform-tools") -Destination (Join-Path $overlay "platform-tools")
+    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("platforms\android-{0}" -f $resolvedAndroidApi)) -Destination (Join-Path $overlay ("platforms\android-{0}" -f $resolvedAndroidApi))
+    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("build-tools\{0}" -f $buildToolsVersion)) -Destination (Join-Path $overlay ("build-tools\{0}" -f $buildToolsVersion))
 
     $sharedLicenses = Join-Path $SharedSdkRoot "licenses"
     $overlayLicenses = Join-Path $overlay "licenses"
@@ -788,7 +794,7 @@ function Install-AndroidSdk {
         $SdkRoot = Join-Path $privateToolsRoot "Android\Sdk"
     }
 
-    $sdkRoot = Resolve-AbsolutePath $SdkRoot
+    $sdkRoot = PyDroid.Build.Paths\Resolve-AbsolutePath $SdkRoot
     Write-Step "Android SDK：$sdkRoot"
     if (-not (Test-Path -LiteralPath $sdkRoot -PathType Container)) {
         New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
@@ -829,8 +835,8 @@ function Install-AndroidSdk {
         return [string]$sdkRoot
     }
 
-    if ((Test-PathWithinRoot -Path $sdkRoot -Root $ToolRoot) -and
-        -not (Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
+    if ((PyDroid.Build.Paths\Test-PathWithinRoot -Path $sdkRoot -Root $ToolRoot) -and
+        -not (PyDroid.Build.Paths\Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
         $overlayRoot = New-TemporaryAndroidSdkOverlay -SharedSdkRoot $sdkRoot
         return (Install-AndroidSdk -SdkRoot $overlayRoot)
     }
@@ -840,13 +846,13 @@ function Install-AndroidSdk {
     }
 
     # 只有真的需要补包时才要求 sdkmanager。
-    $sdkManager = Find-ExistingFile @(
+    $sdkManager = PyDroid.Build.Paths\Find-ExistingFile @(
         (Join-Path $sdkRoot "cmdline-tools\latest\bin\sdkmanager.bat"),
         (Join-Path $sdkRoot "cmdline-tools\bin\sdkmanager.bat")
     )
 
     if (-not $sdkManager) {
-        $zip = Find-ExistingFile @(
+        $zip = PyDroid.Build.Paths\Find-ExistingFile @(
             (Join-Path $WorkRoot "PyDroid\tools\downloads\commandlinetools-win.zip"),
             (Join-Path $downloads "commandlinetools-win.zip")
         )
@@ -955,12 +961,12 @@ function Install-AndroidSdk {
 
 function Test-PythonSeries {
     param([Parameter(Mandatory = $true)][string]$Executable)
-    return (Test-PyDroidPythonSeries -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
+    return (PyDroid.Build.Python\Test-PyDroidPythonSeries -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
 }
 
 function Test-PythonBuildHost {
     param([Parameter(Mandatory = $true)][string]$Executable)
-    return (Test-PyDroidPythonBuildHost -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
+    return (PyDroid.Build.Python\Test-PyDroidPythonBuildHost -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
 }
 
 function Get-PythonBuildHostDiagnostic {
@@ -970,7 +976,7 @@ function Get-PythonBuildHostDiagnostic {
     if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { return "python.exe 不存在：$Executable" }
 
     $details = New-Object System.Collections.Generic.List[string]
-    $details.Add(("version={0}" -f (Get-PythonVersionLabel $Executable)))
+    $details.Add(("version={0}" -f (PyDroid.Build.Python\Get-PythonVersionLabel $Executable)))
     foreach ($module in @("venv", "ensurepip")) {
         try {
             $probe = & $Executable -c ("import {0}; print('ok')" -f $module) 2>&1
@@ -1055,7 +1061,7 @@ function Install-Python313FromNuGet {
                 throw "NuGet Python 可以导入 venv，但实际创建 Windows venv 失败。"
             }
 
-            Write-Step ("已准备官方 CPython NuGet buildPython：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (Get-PythonVersionLabel $pythonExe))
+            Write-Step ("已准备官方 CPython NuGet buildPython：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (PyDroid.Build.Python\Get-PythonVersionLabel $pythonExe))
             return $pythonExe
         } catch {
             $reason = $_.Exception.Message
@@ -1086,7 +1092,7 @@ function Find-Python313 {
             return $configured
         }
         if (Test-Path -LiteralPath $configured -PathType Leaf) {
-            $reason = if (Test-PythonSeries -Executable $configured) { "缺少 venv/ensurepip（便携精简运行时不能作为 Chaquopy buildPython）" } else { "检测到 Python $(Get-PythonVersionLabel $configured)，Android 需要 Python $pythonSeries" }
+            $reason = if (Test-PythonSeries -Executable $configured) { "缺少 venv/ensurepip（便携精简运行时不能作为 Chaquopy buildPython）" } else { "检测到 Python $(PyDroid.Build.Python\Get-PythonVersionLabel $configured)，Android 需要 Python $pythonSeries" }
             Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：{1}。" -f $configured, $reason)
         } else {
             Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：文件不存在。" -f $configured)
@@ -1120,7 +1126,7 @@ function Find-Python313 {
 
     # PEP 514 registry discovery catches custom/per-user Python installs which are not on
     # PATH and are not located under the default Python313 directories.
-    $candidates += @(Get-RegisteredPython313Candidates)
+    $candidates += @(PyDroid.Build.Python\Get-RegisteredPython313Candidates)
 
     foreach ($candidate in $candidates) {
         if (Test-PythonBuildHost -Executable $candidate) {
@@ -1152,7 +1158,7 @@ function Install-Python313 {
 
     # Prefer zero-impact build tooling when Windows Installer is unavailable. The official
     # CPython NuGet package is designed for CI/build systems and does not depend on MSI.
-    if (-not (Test-WindowsInstallerServiceAvailable)) {
+    if (-not (PyDroid.Build.Python\Test-WindowsInstallerServiceAvailable)) {
         Write-Warning "Windows Installer 服务（msiserver）当前不可用；跳过 EXE/MSI 安装，改用官方 CPython NuGet buildPython。"
         return Install-Python313FromNuGet
     }
@@ -1211,7 +1217,7 @@ function Install-Python313 {
         if ($proc.ExitCode -ne 0) {
             Write-Warning ("Python 安装器退出码为 {0}，但完整 Python 已通过版本/venv/ensurepip 校验，将继续构建。" -f $proc.ExitCode)
         }
-        Write-Step ("完整 Python 安装完成：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (Get-PythonVersionLabel $pythonExe))
+        Write-Step ("完整 Python 安装完成：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (PyDroid.Build.Python\Get-PythonVersionLabel $pythonExe))
         return $pythonExe
     }
 
@@ -1257,7 +1263,7 @@ function Remove-BuildDirectoryRobust {
         [Parameter(Mandatory = $true)][string]$Path,
         [switch]$Quiet
     )
-    Remove-PyDroidBuildDirectoryRobust -Path $Path -WorkRoot $WorkRoot -Quiet:$Quiet
+    PyDroid.Build.Packaging\Remove-PyDroidBuildDirectoryRobust -Path $Path -WorkRoot $WorkRoot -Quiet:$Quiet
 }
 
 function Sync-Source {
@@ -1777,9 +1783,9 @@ function Build-Android {
     }
     $python = [string]$python
     if (-not (Test-PythonBuildHost -Executable $python)) {
-        throw ("Android 构建要求带 venv 的完整 Python {0}，但解析到的解释器不满足要求：{1}（检测版本：{2}）。" -f $pythonSeries, $python, (Get-PythonVersionLabel $python))
+        throw ("Android 构建要求带 venv 的完整 Python {0}，但解析到的解释器不满足要求：{1}（检测版本：{2}）。" -f $pythonSeries, $python, (PyDroid.Build.Python\Get-PythonVersionLabel $python))
     }
-    Write-Step ("Android buildPython：{0}（Python {1}）" -f $python, (Get-PythonVersionLabel $python))
+    Write-Step ("Android buildPython：{0}（Python {1}）" -f $python, (PyDroid.Build.Python\Get-PythonVersionLabel $python))
 
     $env:JAVA_HOME = $jdk
     $env:ANDROID_HOME = $sdk
@@ -1886,8 +1892,8 @@ function Copy-Outputs {
             catch { Remove-Item -LiteralPath $desktopDest -Recurse -Force -ErrorAction SilentlyContinue }
         }
 
-        $sourceRoot = [System.IO.Path]::GetPathRoot((Resolve-AbsolutePath $unpacked))
-        $destRoot = [System.IO.Path]::GetPathRoot((Resolve-AbsolutePath $OutputRoot))
+        $sourceRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $unpacked))
+        $destRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $OutputRoot))
         if ($sourceRoot -and $destRoot -and $sourceRoot.Equals($destRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
             # Same volume: directory rename/move avoids copying the bundled Electron/Python
             # tree file-by-file and is normally almost instantaneous.
@@ -1965,13 +1971,13 @@ if (-not (Test-NodeCandidate -Executable $selectedNodeExe)) {
 }
 # 共享 ToolRoot 只读；仅把已存在的 Node 放到 PATH，再探测 pnpm/corepack。
 $env:Path = "$script:NodeDir;$ToolRoot\NodeJs;$ToolRoot\NodeJS;$env:Path"
-$script:PnpmCommand = Find-Pnpm
+$script:PnpmCommand = PyDroid.Build.Node\Find-Pnpm
 if (-not $script:PnpmCommand) {
     if ($SkipToolInstall) {
         throw "未找到 pnpm/corepack，且已指定 -SkipToolInstall。"
     }
     Write-Step "未找到 pnpm，使用 corepack 启用 pnpm ..."
-    $corepack = Find-ExistingFile @(
+    $corepack = PyDroid.Build.Paths\Find-ExistingFile @(
         (Join-Path $script:NodeDir "corepack.cmd"),
         (Join-Path $ToolRoot "NodeJS\corepack.cmd")
     )
@@ -2060,10 +2066,10 @@ if ($hasApk) {
     }
     $pythonPreflight = [string]$pythonPreflight
     if (-not (Test-PythonBuildHost -Executable $pythonPreflight)) {
-        throw ("Android Python 预检失败：需要带 venv 的完整 Python {0}，当前解释器为 {1}（检测版本：{2}）。" -f $pythonSeries, $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
+        throw ("Android Python 预检失败：需要带 venv 的完整 Python {0}，当前解释器为 {1}（检测版本：{2}）。" -f $pythonSeries, $pythonPreflight, (PyDroid.Build.Python\Get-PythonVersionLabel $pythonPreflight))
     }
     $script:ResolvedAndroidPython = $pythonPreflight
-    Write-Step ("Android 完整 Python 预检通过：{0}（Python {1}，venv 可用）" -f $pythonPreflight, (Get-PythonVersionLabel $pythonPreflight))
+    Write-Step ("Android 完整 Python 预检通过：{0}（Python {1}，venv 可用）" -f $pythonPreflight, (PyDroid.Build.Python\Get-PythonVersionLabel $pythonPreflight))
 }
 
 if ($hasDesktop) {

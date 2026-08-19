@@ -1,3 +1,10 @@
+## 2026-08-19 — Phase 7 Windows build module command-resolution fix / 1.4.47 (70)
+
+- Real Windows GUI-build validation exposed a Phase 7 module-scope regression: `Resolve-AbsolutePath` was exported by `PyDroid.Build.Paths.psm1` but was not resolved by the child PowerShell process launched from the GUI.
+- The build orchestrator now imports focused build modules globally and calls every exported helper with an explicit module qualifier. A startup preflight fails immediately with a clear module-version diagnostic if the Paths surface is unavailable.
+- Phase 7 remains pending real Windows Desktop + Android build validation; use 1.4.47 as the new validation baseline.
+- Build script revision: `1.4.47-dev-r23-phase7-build-module-import-fix`.
+
 ## 2026-08-19 — Android node drag/menu gesture fix / 1.4.46 (69)
 
 - Separated Android palette drag and resource-menu gestures. Movement beyond the drag threshold cancels the menu hold; a stationary ~760 ms hold opens the resource menu.

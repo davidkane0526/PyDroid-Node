@@ -81,3 +81,7 @@ pnpm test:build-tool-architecture
 ```
 
 The first test preserves the accumulated Windows compatibility invariants across the main script **and** modules. The second prevents already-extracted implementations from drifting back into the orchestration root.
+
+### Windows PowerShell module-resolution rule
+
+`build-pydroid.ps1` is launched by the WinForms GUI in a fresh child PowerShell process. Phase 7 build modules are therefore imported with global scope, and orchestration calls use explicit module-qualified names such as `PyDroid.Build.Paths\Resolve-AbsolutePath`. Do not revert these calls to unqualified helper names: Windows PowerShell 5.1 scope behavior under GUI child-process launch has been validated to require the explicit boundary.
