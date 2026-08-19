@@ -12,6 +12,7 @@ export type ExecutionContext = {
   inputFiles: Array<{ name: string; text?: string; base64?: string }>;
   notebookNamespace: Record<string, unknown>;
   variables: Map<string, unknown>;
+  workspaceVariables: Map<string, unknown>;
   alertResponse?: unknown;
   inputDialogValue?: unknown;
 };

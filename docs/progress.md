@@ -1,3 +1,15 @@
+## 2026-08-20 — Phase 8 Workflow Language / State & Function System / 1.4.56 (79)
+
+- Started from the user-provided clean `PyDroid Node 1.4.55.zip` only; no GitHub baseline was used.
+- Added explicit execution-local and per-workspace-session variable scopes. Workspace values are transported into/out of each run, isolated by editor tab/workspace ID, and never stored as process-global runtime state.
+- Added Workflow schema v2 reusable function resources with stable IDs, versions, typed signatures, interface mappings, dynamic `function.call` NodeContracts, v1→v2 migration, call-reference validation and recursion rejection.
+- Added Python/JavaScript function execution, nested calls/structure support, function-body-aware Auto runtime selection, and Python notebook-cell support inside functions.
+- Added the Functions resource tab, workspace-variable management, save/update function from group, insert call, expand editable copy and guarded deletion. Function signature updates synchronize call nodes and drop obsolete call-port edges.
+- Added Phase 8 runtime parity fixtures, Python tests, Vitest source tests, and `tests/manual/phase8/` real-host acceptance workflows/data.
+- Cloud validation: Phase 8 architecture smoke groups green, runtime parity 68/68 with 75/75 JS-capable NodeContract coverage, offline parser/migration/manual fixtures green, TypeScript engine/source compilation green, and Chromium dark/light CSS rendering checked at the default 176 px palette width.
+- Full dependency-backed Vite/Electron/Android packaging is not claimed in the cloud because npm/Gradle distribution access and the Android SDK are unavailable. Real-host testing is limited to the supplied acceptance pack.
+- Build script revision: `1.4.56-dev-r32-phase8-workflow-language`.
+
 ## 2026-08-20 — Phase 7 final UI acceptance correction / 1.4.55 (78)
 
 - Remote Web banner returns to the Phase-1 compact content-width model and is now forced to one aligned row on Desktop and Android: status + URL + copy + PIN + collapse. Fixed banner width and the mobile multi-row grid were removed.

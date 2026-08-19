@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "name": "Phase 8 · 写入工作区变量",
+  "nodes": [
+    {"id":"read","position":{"x":80,"y":120},"data":{"label":"读取 CSV","nodeType":"io.read_csv","nodeVersion":1,"parameters":{"header":"infer"},"status":"idle"}},
+    {"id":"len","position":{"x":360,"y":120},"data":{"label":"计算长度","nodeType":"python.len","nodeVersion":1,"parameters":{},"status":"idle"}},
+    {"id":"set","position":{"x":640,"y":120},"data":{"label":"设置工作区变量","nodeType":"variable.set_workspace","nodeVersion":1,"parameters":{"name":"phase8_rows"},"status":"idle"}},
+    {"id":"print","position":{"x":920,"y":120},"data":{"label":"打印输出","nodeType":"python.print","nodeVersion":1,"parameters":{"prefix":"phase8_rows = "},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"read","target":"len","sourceHandle":"output","targetHandle":"input"},
+    {"id":"e2","source":"len","target":"set","sourceHandle":"output","targetHandle":"input"},
+    {"id":"e3","source":"set","target":"print","sourceHandle":"output","targetHandle":"input"}
+  ],
+  "functions": []
+}

@@ -1,5 +1,5 @@
 import { getUnsupportedNodeTypesForRuntime } from "../../nodeContract";
-import { serializeWorkflow } from "../../workflow";
+import { collectReachableFunctionNodes, serializeWorkflow } from "../../workflow";
 import { executeWorkflowJson, environmentInfoJson } from "./engine";
 import type {
   ExecutionErrorResult,
@@ -26,10 +26,11 @@ type RawJsExecutionResult = {
   nodeType?: string;
   message?: string;
   debugTraceback?: string | null;
+  workspaceState?: Record<string, unknown>;
 };
 
 function unsupportedTypes(request: RuntimeExecutionRequest): string[] {
-  return getUnsupportedNodeTypesForRuntime(request.nodes, "javascript");
+  return getUnsupportedNodeTypesForRuntime(collectReachableFunctionNodes(request.nodes, request.functions ?? []), "javascript");
 }
 
 function environment(): RuntimeEnvironment {
@@ -78,7 +79,7 @@ export const javascriptRuntime: RuntimeAdapter = {
       );
     }
 
-    const document = serializeWorkflow("JavaScript 工作流", request.nodes, request.edges);
+    const document = { ...serializeWorkflow("JavaScript 工作流", request.nodes, request.edges, [], request.functions ?? []), workspaceState: request.workspaceState ?? {} };
     const raw = JSON.parse(executeWorkflowJson(
       JSON.stringify(document),
       request.csvText,
@@ -111,6 +112,7 @@ export const javascriptRuntime: RuntimeAdapter = {
       nodeResults: raw.nodeResults ?? {},
       nodeTimingsMs: raw.nodeTimingsMs,
       executionOrder: raw.executionOrder,
+      workspaceState: raw.workspaceState ?? {},
       runtimeId: "javascript",
     };
     return result;

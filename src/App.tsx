@@ -47,13 +47,14 @@ import {
   normalizeNodePositions,
   parseWorkflow,
   serializeWorkflow,
+  type WorkflowFunctionDefinition,
   type WorkflowGroupPort,
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
 import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelHostExecution, executeWorkflow, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getHostExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type HostExecutionStatus, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
-import { clearWorkspaceExecutionResult, getExecutionClientId, getWorkspaceExecutionResult } from "./execution-workspace";
+import { clearWorkspaceExecutionResult, clearWorkspaceVariableState, getExecutionClientId, getWorkspaceExecutionResult, listWorkspaceVariableNames } from "./execution-workspace";
 import { canSafelyPreExecuteNodes, getNodeContract } from "./nodeContract";
 import { canHostRemoteServer, chooseWorkflowFolder, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
@@ -61,6 +62,7 @@ import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { WorkflowHistory, WorkspaceSessionStore, cloneWorkflowSnapshot, createWorkspaceRuntimeState, deleteNodesFromGraph, disconnectEdgesFromGraph, disconnectNodesFromGraph, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, workflowSnapshotSignature, writeStorage, type WorkflowSnapshot, type WorkspaceRuntimeState } from "./workflow-core";
+import { createFunctionCallNode, createFunctionDefinitionFromGroup, functionCallCount, materializeFunctionAsGroup, synchronizeFunctionDefinitionCalls, synchronizeFunctionGraphCalls } from "./workflow-functions";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -349,7 +351,7 @@ function safeWorkflowFileName(name: string): string {
 
 function persistWorkflowSnapshot(snapshot: WorkflowSnapshot, name: string): FlowLibraryEntry {
   const persistent = workflowSnapshotForPersistence(snapshot);
-  const json = JSON.stringify(serializeWorkflow(name || "PyDroid Flow 工作流", persistent.nodes, persistent.edges, persistent.requirements ?? []), null, 2);
+  const json = JSON.stringify(serializeWorkflow(name || "PyDroid Flow 工作流", persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? []), null, 2);
   downloadTextFile(json, safeWorkflowFileName(name), "application/json");
   const entry: FlowLibraryEntry = { id: `flow-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: name || `流程 ${new Date().toLocaleString()}`, savedAt: new Date().toISOString(), document: json };
   const library = [entry, ...loadFlowLibrary()].slice(0, 40);
@@ -437,6 +439,7 @@ function hydrateNodeDefaults(node: WorkflowNode): WorkflowNode {
 
 function nodeSpecFor(node: WorkflowNode | undefined): NodeSpec | undefined {
   if (!node) return undefined;
+  if (node.data.nodeType === "function.call") return { nodeType: "function.call", nodeVersion: 1, label: node.data.label, category: "自定义", defaults: {}, parameters: [], inputPorts: node.data.functionInputs ?? [], outputPorts: node.data.functionOutputs ?? [], runtimeSupport: ["python", "javascript"], executionModel: "function", functionRole: "call", deterministic: false, cachePolicy: "uncacheable" };
   if (node.data.nodeType !== "workflow.group") return resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters);
   return { nodeType: "workflow.group", label: node.data.label, category: "逻辑控制", defaults: { description: "" }, parameters: [{ key: "description", label: "说明", kind: "textarea" }], inputPorts: node.data.groupInputs ?? [], outputPorts: node.data.groupOutputs ?? [] };
 }
@@ -492,6 +495,7 @@ function loadAutosave(key: string = AUTOSAVE_KEY): WorkflowSnapshot | null {
     return {
       nodes: repairWorkflowGroupInterfaces(nodes, document.edges),
       edges: document.edges,
+      functions: document.functions ?? [],
       requirements: document.requirements ?? loadPackageRequirements(),
     };
   } catch {
@@ -723,7 +727,7 @@ function isAgentValue(value: unknown): value is string | number | boolean | null
 
 function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntimeState, workspaceHistory, onRuntimeStateChange, onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { tabId?: string; tabName?: string; initialRuntimeState?: WorkspaceRuntimeState; workspaceHistory?: WorkflowHistory; onRuntimeStateChange: (tabId: string, state: WorkspaceRuntimeState) => void; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
   const autosaveKey = `${AUTOSAVE_KEY}.${tabId}`;
-  const startingSnapshot = initialRuntimeState?.snapshot ?? { nodes: initialNodes, edges: initialEdges, requirements: [] };
+  const startingSnapshot = initialRuntimeState?.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
   const restoredExecutionStatus = getExecutionStatus(tabId);
   const restoredExecutionResult = getWorkspaceExecutionResult(tabId);
   const restoredCompletedNodes = new Set(restoredExecutionResult?.executionOrder ?? (restoredExecutionResult ? startingSnapshot.nodes.map((node) => node.id) : []));
@@ -819,7 +823,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [endpointScale, setEndpointScale] = useState(() => loadAppSettings().endpointScale);
   const [edgeWidth, setEdgeWidth] = useState(() => loadAppSettings().edgeWidth);
   const [nodeSearch, setNodeSearch] = useState("");
-  const [paletteTab, setPaletteTab] = useState<"nodes" | "groups" | "flows">("nodes");
+  const [paletteTab, setPaletteTab] = useState<"nodes" | "groups" | "functions" | "flows">("nodes");
   const [groupLibrary, setGroupLibrary] = useState<GroupLibraryEntry[]>(loadGroupLibrary);
   const [savedNodeLibrary, setSavedNodeLibrary] = useState<SavedNodeEntry[]>(loadSavedNodeLibrary);
 const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(null);
@@ -849,6 +853,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [packageManagerOpen, setPackageManagerOpen] = useState(false);
   const [packageRequirement, setPackageRequirement] = useState("");
   const [requirements, setRequirements] = useState<string[]>(startingSnapshot.requirements ?? []);
+  const [functions, setFunctions] = useState<WorkflowFunctionDefinition[]>(startingSnapshot.functions ?? []);
+  const [workspaceVariableRevision, setWorkspaceVariableRevision] = useState(0);
   const [pythonEnvironment, setPythonEnvironment] = useState<PythonEnvironment | null>(null);
   const [environmentLoading, setEnvironmentLoading] = useState(false);
   const [layoutMode, setLayoutMode] = useState<"auto" | "horizontal" | "vertical">(() => {
@@ -978,6 +984,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
+  const selectedFunctionDefinition = selectedNode?.data.nodeType === "function.call"
+    ? functions.find((definition) => definition.id === String(selectedNode.data.parameters.functionId ?? "")) ?? null
+    : selectedNode?.data.nodeType === "workflow.group" && selectedNode.data.functionSourceId
+      ? functions.find((definition) => definition.id === selectedNode.data.functionSourceId) ?? null
+      : null;
+  const workspaceVariableNames = useMemo(() => listWorkspaceVariableNames(tabId), [tabId, workspaceVariableRevision, result]);
   const selectedSpec = nodeSpecFor(selectedNode ?? undefined);
   const selectedContract = selectedNode ? getNodeContract(selectedNode.data.nodeType) : undefined;
   const selectedNodeResult = selectedNode ? result?.nodeResults[selectedNode.id] ?? (selectedNode.data.nodeType === "workflow.group" ? result?.nodeResults[selectedNode.data.groupOutputs?.[0]?.internalNodeId ?? ""] : undefined) : undefined;
@@ -1088,7 +1100,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     return trail;
   }, [currentCanvasId, nodes]);
 
-  const currentSnapshot = () => cloneWorkflowSnapshot({ nodes, edges, requirements });
+  const currentSnapshot = () => cloneWorkflowSnapshot({ nodes, edges, functions, requirements });
 
   const pushHistory = () => {
     historyManager.current.push(currentSnapshot());
@@ -1098,6 +1110,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const restoreSnapshot = (snapshot: WorkflowSnapshot) => {
     setNodes(snapshot.nodes.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
     setEdges(snapshot.edges);
+    setFunctions(snapshot.functions ?? []);
     setRequirements(snapshot.requirements ?? []);
     setSelectedId(null);
     setSelectedIds([]);
@@ -1140,7 +1153,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const autosaveErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const saved = writeStorage(localStorage, autosaveKey, JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements)));
+      const saved = writeStorage(localStorage, autosaveKey, JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements, functions)));
       if (!saved.ok) {
         const message = saved.reason === "quota" ? "自动保存空间不足，请导出工作流后清理浏览器存储" : `自动保存失败：${saved.message}`;
         if (autosaveErrorRef.current !== message) { autosaveErrorRef.current = message; setMessage(message); }
@@ -1149,15 +1162,15 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       }
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [autosaveKey, edges, nodes, requirements]);
+  }, [autosaveKey, edges, functions, nodes, requirements]);
 
   useEffect(() => {
     onRuntimeStateChange(tabId, {
-      snapshot: { nodes, edges, requirements },
+      snapshot: { nodes, edges, functions, requirements },
       savedSignature: savedSignatureRef.current,
       input: { fileName, csvText, csvBytes, csvFiles },
     });
-  }, [csvBytes, csvFiles, csvText, edges, fileName, nodes, onRuntimeStateChange, requirements, tabId]);
+  }, [csvBytes, csvFiles, csvText, edges, fileName, functions, nodes, onRuntimeStateChange, requirements, tabId]);
 
   useEffect(() => {
     localStorage.setItem(PACKAGE_REQUIREMENTS_KEY, JSON.stringify(requirements));
@@ -1306,7 +1319,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   useEffect(() => {
     if (remoteBrowser && !remotePaired) { setMemoryMb(null); return; }
     let active = true;
-    warmUpExecutionRuntime(runtimePreference, nodes)
+    warmUpExecutionRuntime(runtimePreference, nodes, functions)
       .then((runtime) => {
         if (active) setMessage((current) => current === "尚未执行" ? `${runtime.label} 已就绪` : current);
       })
@@ -2270,6 +2283,70 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setMessage(`已将“${entry.name}”保存到组合资源`);
   };
 
+  const saveSelectedGroupAsFunction = () => {
+    if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") { setMessage("请先选择一个组合"); return; }
+    try {
+      pushHistory();
+      const previous = selectedNode.data.functionSourceId ? functions.find((definition) => definition.id === selectedNode.data.functionSourceId) : undefined;
+      const definition = createFunctionDefinitionFromGroup(selectedNode.id, nodes, edges, previous);
+      setFunctions((current) => {
+        const base = previous ? current.map((item) => item.id === previous.id ? definition : item) : [definition, ...current];
+        return synchronizeFunctionDefinitionCalls(base, definition);
+      });
+      const markedNodes = nodes.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, functionSourceId: definition.id } } : node);
+      const synchronizedRoot = synchronizeFunctionGraphCalls(markedNodes, edges, definition);
+      setNodes(synchronizedRoot.nodes);
+      setEdges(synchronizedRoot.edges);
+      clearExecutionResult();
+      setMessage(previous ? `已更新函数“${definition.name}”至 v${definition.version}，调用节点已同步` : `已创建函数“${definition.name}” v1`);
+      setPaletteTab("functions");
+    } catch (error) {
+      setMessage(error instanceof Error ? `保存函数失败：${error.message}` : "保存函数失败");
+    }
+  };
+
+  const insertFunctionCall = (definition: WorkflowFunctionDefinition) => {
+    pushHistory();
+    const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
+    const position = resolvedLayoutDirection === "vertical"
+      ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
+      : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
+    const call = createFunctionCallNode(definition, position, currentCanvasId ?? undefined);
+    setNodes((current) => [...current, call]);
+    setSelectedId(call.id); setSelectedIds([call.id]); clearExecutionResult();
+    window.setTimeout(() => updateNodeInternals(call.id), 0);
+    setMessage(`已添加函数调用“${definition.name}” v${definition.version}`);
+  };
+
+  const insertFunctionEditableGroup = (definition: WorkflowFunctionDefinition) => {
+    pushHistory();
+    const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
+    const position = { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 260 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
+    const materialized = materializeFunctionAsGroup(definition, position, currentCanvasId ?? undefined);
+    setNodes((current) => [...current, ...materialized.nodes]);
+    setEdges((current) => [...current, ...materialized.edges]);
+    setSelectedId(materialized.groupId); setSelectedIds([materialized.groupId]); clearExecutionResult();
+    setMessage(`已将“${definition.name}”展开为可编辑组合；修改后可更新函数版本`);
+  };
+
+  const deleteWorkflowFunction = async (definition: WorkflowFunctionDefinition) => {
+    const calls = functionCallCount(nodes, definition.id);
+    if (calls > 0) { setMessage(`“${definition.name}”仍有 ${calls} 个调用节点，请先删除或展开这些调用`); return; }
+    const nestedCalls = functions.reduce((count, item) => count + functionCallCount(item.nodes, definition.id), 0);
+    if (nestedCalls > 0) { setMessage(`“${definition.name}”仍被其他函数调用 ${nestedCalls} 次，无法删除`); return; }
+    if (!(await requestConfirm({ title: "删除函数", message: `确定删除函数“${definition.name}” v${definition.version}？`, confirmLabel: "删除", danger: true }))) return;
+    pushHistory();
+    setFunctions((current) => current.filter((item) => item.id !== definition.id));
+    setNodes((current) => current.map((node) => node.data.functionSourceId === definition.id ? { ...node, data: { ...node.data, functionSourceId: undefined } } : node));
+    setMessage(`已删除函数“${definition.name}”`);
+  };
+
+  const clearWorkspaceVariables = () => {
+    clearWorkspaceVariableState(tabId);
+    setWorkspaceVariableRevision((value) => value + 1);
+    setMessage("已清空当前标签页的工作区变量；其他标签页不受影响");
+  };
+
   const saveSelectedNodeToLibrary = () => {
     if (!selectedNode || selectedNode.data.nodeType === "workflow.group") { setMessage("请先选择一个普通节点"); return; }
     const cleanNode = cloneWorkflowSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0];
@@ -2703,6 +2780,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
       }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
       setEdges(document.edges);
+      setFunctions(document.functions ?? []);
       setRequirements(document.requirements ?? []);
       setSelectedId(null);
       setSelectedIds([]);
@@ -2729,7 +2807,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       const document = notebookCellsToWorkflow("Notebook 交互运行", cells, notebookMetadata);
       const inputFiles = csvFiles.map((file) => ({ name: file.name, text: new TextDecoder("utf-8").decode(file.bytes) }));
-      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
+      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, functions });
       setResult(nextResult);
       setNotebookCellResults((current) => ({ ...current, ...Object.fromEntries(cells.map((cell, index) => [cell.id, nextResult.nodeResults[`notebook-cell-${index + 1}`]]).filter((entry): entry is [string, NodeExecutionPreview] => Boolean(entry[1]))) }));
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
@@ -2779,6 +2857,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
       }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
       setEdges(document.edges);
+      setFunctions(document.functions ?? []);
       setRequirements(document.requirements ?? []);
       setSelectedId(null);
       setSelectedIds([]);
@@ -2797,7 +2876,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
   };
 
-  const currentWorkflowSnapshot = () => ({ nodes, edges, requirements } satisfies WorkflowSnapshot);
+  const currentWorkflowSnapshot = () => ({ nodes, edges, functions, requirements } satisfies WorkflowSnapshot);
   const currentWorkflowSignature = () => workflowSnapshotSignature(currentWorkflowSnapshot());
   const hasUnsavedWorkflowChanges = () => currentWorkflowSignature() !== savedSignatureRef.current;
 
@@ -2805,11 +2884,14 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     pushHistory();
     setNodes([]);
     setEdges([]);
+    setFunctions([]);
     setRequirements([]);
     setSelectedId(null);
     setSelectedIds([]);
     setCurrentCanvasId(null);
     clearExecutionResult();
+    clearWorkspaceVariableState(tabId);
+    setWorkspaceVariableRevision((value) => value + 1);
     setViewMode("nodes");
     setNotebookCells([]);
     setNotebookCellResults({});
@@ -2817,7 +2899,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setNotebookError(null);
     setExecutionError(null);
     setErrorDetailOpen(false);
-    const blankSnapshot: WorkflowSnapshot = { nodes: [], edges: [], requirements: [] };
+    const blankSnapshot: WorkflowSnapshot = { nodes: [], edges: [], functions: [], requirements: [] };
     savedSignatureRef.current = workflowSnapshotSignature(blankSnapshot);
     onRuntimeStateChange(tabId, { snapshot: blankSnapshot, savedSignature: savedSignatureRef.current, input: { fileName, csvText, csvBytes, csvFiles } });
     setMessage("已在当前标签页新建空白流程");
@@ -2905,6 +2987,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setNodes(nextNodes);
       window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
       setEdges(document.edges);
+      setFunctions(document.functions ?? []);
       setRequirements(document.requirements ?? []);
       setSelectedId(null); setSelectedIds([]); setCurrentCanvasId(null); clearExecutionResult();
       setMessage(`已打开流程“${entry.name}”`);
@@ -3013,6 +3096,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
         }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
         setEdges(document.edges);
+        setFunctions(document.functions ?? []);
         setRequirements(document.requirements ?? []);
         setSelectedId(null);
         setSelectedIds([]);
@@ -3032,6 +3116,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
       }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
       setEdges(document.edges);
+      setFunctions(document.functions ?? []);
       setRequirements(document.requirements ?? []);
       setSelectedId(null);
       setSelectedIds([]);
@@ -3266,7 +3351,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
     setMessage(`正在准备“${alertNode.data.label}”的当前内容…`);
     const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(slice.nodes);
-    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
+    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, functions });
     return previewResult.nodeResults[contentEdge.source] ?? (previewResult.preview.totalRows || previewResult.preview.totalColumns ? { kind: "table", preview: previewResult.preview } : undefined);
   };
 
@@ -3365,14 +3450,14 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       return;
     }
     const runStartedAt = performance.now();
-    const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes);
+    const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes, functions);
     setMessage(`正在执行 ${selectedRuntime.label} 工作流…`);
     setExecutionError(null);
     setErrorDetailOpen(false);
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
     try {
       const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(workflowNodes);
-      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId });
+      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, functions });
       setResult(nextResult);
       setExecutionError(null);
       setDebugPausedAt(stopAt ?? null);
@@ -3699,7 +3784,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <div className="sidebar-resizer sidebar-resizer--palette" role="separator" aria-orientation="vertical" aria-label="调整节点列表宽度" onPointerDown={(event) => startSidebarResize("palette", event)} />
           <div className="palette-fixed">
             <div className="palette-heading"><h2>{ui("资源", "Resources")}</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>{ui("收起", "Collapse")}</button></div>
-            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">{ui("节点", "Nodes")}</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">{ui("组合", "Groups")}</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">{ui("流程", "Flows")}</span></button></nav>
+            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">{ui("节点", "Nodes")}</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">{ui("组合", "Groups")}</span></button><button className={paletteTab === "functions" ? "active" : ""} onClick={() => setPaletteTab("functions")}><span className="palette-tabs__icon" aria-hidden="true">ƒ</span><span className="palette-tabs__label">{ui("函数", "Functions")}</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">{ui("流程", "Flows")}</span></button></nav>
             <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={ui("搜索内置或导入节点", "Search built-in or imported nodes")} /><span>{matchedCatalog.length}</span></label>
           </div>
           <div className="palette-content">
@@ -3712,6 +3797,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             ))}
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
             {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`拖动添加 · 静止长按约 0.7 秒或双击打开菜单 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "functions" && <>
+              <section className="palette-group palette-group--custom workflow-language-state"><h3>{ui("工作区变量", "Workspace variables")}<small>{workspaceVariableNames.length} · {ui("当前标签页", "current tab")}</small></h3>{workspaceVariableNames.length ? <div className="workflow-variable-list">{workspaceVariableNames.map((name) => <code key={name}>{name}</code>)}</div> : <p className="muted">{ui("尚未写入工作区变量。使用“设置工作区变量”节点后会显示在这里。", "No workspace variables yet. Use a Set Workspace Variable node to create one.")}</p>}<button className="secondary" disabled={!workspaceVariableNames.length} onClick={clearWorkspaceVariables}>{ui("清空当前标签变量", "Clear tab variables")}</button></section>
+              {functions.map((definition) => <section className="palette-group palette-group--custom workflow-function-card" key={definition.id}><h3>{definition.name}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{definition.description && <p className="muted">{definition.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button><button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>)}
+              {!functions.length && <p className="muted">{ui("先将节点组合，然后在组合检查器中选择“保存为函数”。函数会随工作流一起保存。", "Group nodes first, then choose Save as function in the group inspector. Functions are stored with the workflow.")}</p>}
+            </>}
             {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
@@ -3904,11 +3994,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               {selectedNodeResult && <section className="node-result-inspector" title={selectedNodeResult.kind === "plot" ? ui("点击或双击展开交互图", "Click or double-click to expand interactive chart") : ui("双击展开、编辑和复制", "Double-click to expand, edit and copy")} tabIndex={0} onDoubleClick={() => { if (selectedNodeResult.kind === "plot") { setPlotZoom(1); setPlotExpandedPreview(selectedNodeResult); return; } setResultDetail({ title: `${selectedNode.data.label} · ${ui("本节点结果", "Node result")}`, text: resultPreviewText(selectedNodeResult), preview: selectedNodeResult.kind === "table" ? selectedNodeResult.preview : undefined }); }}><h3>{ui("本节点结果", "Node result")} <small>{selectedNodeResult.kind === "plot" ? ui("点击展开", "Click to expand") : ui("双击展开", "Double-click to expand")}</small></h3>{(() => { const preview = selectedNodeResult; return preview.kind === "table" ? <DataGrid preview={preview.preview} onExpand={() => setResultDetail({ title: `${selectedNode.data.label} · ${ui("本节点结果", "Node result")}`, text: resultPreviewText(preview), preview: preview.preview })} /> : preview.kind === "plot" ? <button className="plot-preview-button" onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); setPlotZoom(1); setPlotExpandedPreview(preview); }} onClick={(event) => { event.stopPropagation(); setPlotZoom(1); setPlotExpandedPreview(preview); }}><PlotPreview preview={preview} className="plot-preview" alt={ui("节点图表结果", "Node chart result")} /></button> : <pre className="node-result-value">{preview.text}</pre>; })()}</section>}
               {selectedNode.data.nodeType === "workflow.group" && <section className="group-settings">
                 <label>组名称<input value={selectedNode.data.label} onChange={(event) => updateSelectedGroupLabel(event.target.value)} /></label>
-                <button className="primary" onClick={() => openSubflowGroup(selectedNode.id)}>进入子流程画布</button>
+                <button className="primary" onClick={() => openSubflowGroup(selectedNode.id)}>进入子流程画布</button><button onClick={saveSelectedGroupAsFunction}>{selectedNode.data.functionSourceId ? `更新函数${selectedFunctionDefinition ? ` · v${selectedFunctionDefinition.version}` : ""}` : "保存为函数"}</button>
                 <div><strong>公开输入</strong>{(selectedNode.data.groupInputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("input", port.id, event.target.value)} /></label>)}</div>
                 <div><strong>公开输出</strong>{(selectedNode.data.groupOutputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("output", port.id, event.target.value)} /></label>)}</div>
                 <small>端口由组合时跨越组边界的连线自动生成；内部连线和节点参数在子画布中编辑。</small>
               </section>}
+              {selectedNode.data.nodeType === "function.call" && <section className="group-settings function-call-settings"><strong>{selectedFunctionDefinition?.name ?? selectedNode.data.label}</strong><small>{selectedFunctionDefinition ? `函数 ${selectedFunctionDefinition.id} · v${selectedFunctionDefinition.version}` : "函数定义缺失"}</small>{selectedFunctionDefinition && <button onClick={() => insertFunctionEditableGroup(selectedFunctionDefinition)}>展开为可编辑组合</button>}<small>调用端口来自函数签名；更新函数时当前工作流中的调用节点会同步到新版本。</small></section>}
               <div className="inspector-node-overview">
               {["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{selectedNode.data.nodeType === "io.read_csv_batch" ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
               {selectedNode.data.nodeType !== "workflow.group" && selectedSpec?.pythonCallable && (
@@ -4004,7 +4095,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
         </div>
       </footer>
-      {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
+      {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements, functions), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
       {historyOpen && <HistoryDialog entries={historyManager.current.entries} futureCount={historyManager.current.futureCount} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
       {smbOpen && <SmbDialog open={smbOpen} language={language} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
       {remoteAccessDialog && <RemoteAccessDialog open={remoteAccessDialog} requirePin={remoteRequirePin} onRequirePin={setRemoteRequirePin} onClose={() => setRemoteAccessDialog(false)} onStart={() => void startConfiguredRemoteServer()} />}
@@ -4435,6 +4526,7 @@ function MultiTabWorkspace() {
       }
       cancelActiveExecution(id);
       clearWorkspaceExecutionResult(id);
+      clearWorkspaceVariableState(id);
       sessionStoreRef.current.delete(id);
       localStorage.removeItem(`${AUTOSAVE_KEY}.${id}`);
       setExecutionPhases((phases) => { const next = { ...phases }; delete next[id]; return next; });

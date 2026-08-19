@@ -1,4 +1,4 @@
-import { executeNode } from "../nodes";
+import { executeNode, type NodeOutput } from "../nodes";
 import { Table } from "../table";
 import { containerChildren, edgeValue, loopBody, nodeUpstream, orderedNodes, requireTable } from "./graph";
 import type { Workflow, WorkflowInputFile, WorkflowNode } from "./types";
@@ -11,6 +11,8 @@ function executeContainerGraph(
   inputFiles: WorkflowInputFile[],
   notebookNamespace: Record<string, unknown>,
   variables: Map<string, unknown>,
+  workspaceVariables: Map<string, unknown>,
+  executeChild?: (node: WorkflowNode, upstream: unknown) => NodeOutput,
 ): unknown {
   const childIds = new Set(children.map((child) => child.id));
   const internalEdges = workflow.edges.filter((edge) => childIds.has(edge.source) && childIds.has(edge.target));
@@ -24,7 +26,9 @@ function executeContainerGraph(
     }
     const hasInternalInput = internalEdges.some((edge) => edge.target === child.id);
     const upstream = hasInternalInput ? nodeUpstream(child.id, data.nodeType, internalWorkflow, values) : seed;
-    const result = executeNode(data.nodeType, data.parameters, upstream, { csvText, inputFiles, notebookNamespace, variables });
+    const result = executeChild
+      ? executeChild(child, upstream)
+      : executeNode(data.nodeType, data.parameters, upstream, { csvText, inputFiles, notebookNamespace, variables, workspaceVariables });
     values.set(child.id, result.outputs);
   }
   if (!ordered.length) return seed;
@@ -42,6 +46,8 @@ export function executeVisualStructure(
   inputFiles: WorkflowInputFile[],
   notebookNamespace: Record<string, unknown>,
   variables: Map<string, unknown>,
+  workspaceVariables: Map<string, unknown>,
+  executeChild?: (node: WorkflowNode, upstream: unknown) => NodeOutput,
 ): Record<string, unknown> {
   const nodeType = node.data.nodeType;
   const params = node.data.parameters;
@@ -55,8 +61,8 @@ export function executeVisualStructure(
     const trueSeed = new Table(table.columns, matching.rows());
     const falseSeed = new Table(table.columns, falseRows);
     return {
-      true: executeContainerGraph(workflow, containerChildren(workflow, node.id, "true"), trueSeed, csvText, inputFiles, notebookNamespace, variables),
-      false: executeContainerGraph(workflow, containerChildren(workflow, node.id, "false"), falseSeed, csvText, inputFiles, notebookNamespace, variables),
+      true: executeContainerGraph(workflow, containerChildren(workflow, node.id, "true"), trueSeed, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild),
+      false: executeContainerGraph(workflow, containerChildren(workflow, node.id, "false"), falseSeed, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild),
     };
   }
 
@@ -67,7 +73,7 @@ export function executeVisualStructure(
     const rows: unknown[] = [];
     for (let index = 0; index < table.rowCount; index += 1) {
       const rowSeed = new Table(table.columns, [table.row(index)]);
-      rows.push(executeContainerGraph(workflow, body, rowSeed, csvText, inputFiles, notebookNamespace, variables));
+      rows.push(executeContainerGraph(workflow, body, rowSeed, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild));
     }
     const frames = rows.filter((item): item is Table => item instanceof Table);
     const done = frames.length ? frames.reduce((acc, frame) => acc.concat(frame, 0, true)) : new Table(table.columns, []);
@@ -81,7 +87,7 @@ export function executeVisualStructure(
       const result = current.resetIndex(true);
       return { done: result, output: result };
     }
-    const bodyResult = executeContainerGraph(workflow, body, current, csvText, inputFiles, notebookNamespace, variables);
+    const bodyResult = executeContainerGraph(workflow, body, current, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild);
     current = requireTable(bodyResult, "While structure body");
   }
   throw new Error(`While structure reached maxIterations=${maximum}`);
@@ -95,6 +101,8 @@ export function executeLoopSubflow(
   inputFiles: WorkflowInputFile[],
   notebookNamespace: Record<string, unknown>,
   variables: Map<string, unknown>,
+  workspaceVariables: Map<string, unknown>,
+  executeChild?: (node: WorkflowNode, upstream: unknown) => NodeOutput,
 ): Table {
   const loopId = loopNode.id;
   const nodeType = loopNode.data.nodeType;
@@ -115,7 +123,9 @@ export function executeLoopSubflow(
         throw new Error("Nested loop subflows are not supported yet");
       }
       const upstream = nodeUpstream(bodyNode.id, bodyData.nodeType, workflow, localValues);
-      const result = executeNode(bodyData.nodeType, bodyData.parameters, upstream, { csvText, inputFiles, notebookNamespace, variables });
+      const result = executeChild
+        ? executeChild(bodyNode, upstream)
+        : executeNode(bodyData.nodeType, bodyData.parameters, upstream, { csvText, inputFiles, notebookNamespace, variables, workspaceVariables });
       localValues.set(bodyNode.id, result.outputs);
     }
     return requireTable(edgeValue(backEdge, localValues), "Loop continue output");

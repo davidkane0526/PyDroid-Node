@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "workflow_function_call",
+      "description": "Reusable versioned workflow function executes identically in Python and JavaScript",
+      "csvText": "x,y\n-2,3\n4,-5\n",
+      "workflow": {
+        "schemaVersion": 2,
+        "name": "Function parity",
+        "nodes": [
+          {
+            "id": "read",
+            "position": { "x": 0, "y": 0 },
+            "data": {
+              "label": "读取 CSV",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": { "separator": ",", "header": "infer" },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "call",
+            "position": { "x": 220, "y": 0 },
+            "data": {
+              "label": "绝对值函数",
+              "nodeType": "function.call",
+              "nodeVersion": 1,
+              "parameters": { "functionId": "fn-absolute", "functionVersion": 1 },
+              "status": "idle",
+              "functionInputs": [{ "id": "table", "label": "表格", "valueType": "table" }],
+              "functionOutputs": [{ "id": "result", "label": "结果", "valueType": "table" }]
+            }
+          }
+        ],
+        "edges": [
+          { "id": "e1", "source": "read", "target": "call", "targetHandle": "table" }
+        ],
+        "functions": [
+          {
+            "id": "fn-absolute",
+            "name": "绝对值函数",
+            "version": 1,
+            "inputs": [
+              { "id": "table", "label": "表格", "valueType": "table", "internalNodeId": "abs", "internalHandle": "input" }
+            ],
+            "outputs": [
+              { "id": "result", "label": "结果", "valueType": "table", "internalNodeId": "abs", "internalHandle": "output" }
+            ],
+            "nodes": [
+              {
+                "id": "abs",
+                "position": { "x": 0, "y": 0 },
+                "data": {
+                  "label": "绝对值",
+                  "nodeType": "table.absolute",
+                  "nodeVersion": 1,
+                  "parameters": {},
+                  "status": "idle"
+                }
+              }
+            ],
+            "edges": []
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["read", "call"],
+        "preview": {
+          "columns": ["x", "y"],
+          "rows": [[2, 3], [4, 5]],
+          "totalRows": 2,
+          "totalColumns": 2
+        },
+        "nodePreviews": {
+          "call": {
+            "columns": ["x", "y"],
+            "rows": [[2, 3], [4, 5]],
+            "totalRows": 2,
+            "totalColumns": 2
+          }
+        }
+      }
+    }
+  ]
+}

@@ -28,8 +28,10 @@ export type NodeContract = {
   notes?: string[];
 };
 
-const SPECIAL_NODE_CONTRACTS: Array<{ nodeType: string; runtimeSupport: NodeRuntimeId[]; executionModel?: NodeExecutionModel; notes?: string[] }> = [
+const SPECIAL_NODE_CONTRACTS: Array<{ nodeType: string; runtimeSupport: NodeRuntimeId[]; executionModel?: NodeExecutionModel; functionRole?: NodeFunctionRole; notes?: string[] }> = [
   { nodeType: "workflow.group", runtimeSupport: ["python", "javascript"], executionModel: "workflow" },
+  { nodeType: "function.definition", runtimeSupport: [], executionModel: "function", functionRole: "definition", notes: ["Document-level reusable function definition contract; not executed as a graph node."] },
+  { nodeType: "function.call", runtimeSupport: ["python", "javascript"], executionModel: "function", functionRole: "call", notes: ["Ports are derived from the referenced workflow function signature."] },
   { nodeType: "table.group_mean", runtimeSupport: ["python", "javascript"], notes: ["Legacy compatibility contract for workflows created before table.group_mean left the visible catalog."] },
 ];
 
@@ -44,22 +46,23 @@ function inferExecutionModel(nodeType: string): NodeExecutionModel {
 
 function inferStateScope(nodeType: string): NodeStateScope {
   if (nodeType === "variable.get" || nodeType === "variable.set") return "temporary";
+  if (nodeType === "variable.get_workspace" || nodeType === "variable.set_workspace") return "global";
   return "none";
 }
 
 
 function inferStateAccess(nodeType: string): NodeStateAccess {
-  if (nodeType === "variable.get") return "read";
-  if (nodeType === "variable.set") return "write";
+  if (nodeType === "variable.get" || nodeType === "variable.get_workspace") return "read";
+  if (nodeType === "variable.set" || nodeType === "variable.set_workspace") return "write";
   return "none";
 }
 
 function inferDeterministic(nodeType: string): boolean {
-  return !new Set(["generate.random_table", "ui.alert", "ui.input_dialog", "variable.set", "custom.python_function", "notebook.code_cell"]).has(nodeType);
+  return !new Set(["generate.random_table", "ui.alert", "ui.input_dialog", "variable.set", "variable.set_workspace", "variable.get_workspace", "custom.python_function", "notebook.code_cell"]).has(nodeType);
 }
 
 function inferSideEffect(nodeType: string): boolean {
-  return nodeType.startsWith("ui.") || nodeType === "python.print" || nodeType === "io.export_csv" || nodeType === "variable.set";
+  return nodeType.startsWith("ui.") || nodeType === "python.print" || nodeType === "io.export_csv" || nodeType === "variable.set" || nodeType === "variable.set_workspace";
 }
 
 function normalizeContract(nodeType: string, spec?: NodeSpec): NodeContract {
@@ -95,6 +98,7 @@ for (const legacy of SPECIAL_NODE_CONTRACTS) {
     ...base,
     runtimes: { python: legacy.runtimeSupport.includes("python"), javascript: legacy.runtimeSupport.includes("javascript") },
     executionModel: legacy.executionModel ?? base.executionModel,
+    functionRole: legacy.functionRole ?? base.functionRole,
     notes: legacy.notes ?? base.notes,
   });
 }

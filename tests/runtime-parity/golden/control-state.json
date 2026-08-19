@@ -651,6 +651,138 @@
           "md"
         ]
       }
+    },
+    {
+      "id": "workspace_variable",
+      "description": "Read prior workspace state, overwrite it, and return the isolated next state",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "workspace variable",
+        "workspaceState": {
+          "count": 2
+        },
+        "nodes": [
+          {
+            "id": "get-before",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取工作区变量",
+              "nodeType": "variable.get_workspace",
+              "nodeVersion": 1,
+              "parameters": {
+                "name": "count"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "range",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "For",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 5,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "len",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "长度",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "set",
+            "position": {
+              "x": 540,
+              "y": 0
+            },
+            "data": {
+              "label": "设置工作区变量",
+              "nodeType": "variable.set_workspace",
+              "nodeVersion": 1,
+              "parameters": {
+                "name": "count"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "get-after",
+            "position": {
+              "x": 720,
+              "y": 0
+            },
+            "data": {
+              "label": "读取工作区变量",
+              "nodeType": "variable.get_workspace",
+              "nodeVersion": 1,
+              "parameters": {
+                "name": "count"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "range",
+            "target": "len"
+          },
+          {
+            "id": "e2",
+            "source": "len",
+            "target": "set"
+          },
+          {
+            "id": "e3",
+            "source": "set",
+            "target": "get-after",
+            "sourceHandle": "output",
+            "targetHandle": "previous"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "get-before",
+          "range",
+          "len",
+          "set",
+          "get-after"
+        ],
+        "valueResults": {
+          "get-before": "2",
+          "len": "5",
+          "set": "5",
+          "get-after": "5"
+        },
+        "workspaceState": {
+          "count": 5
+        }
+      }
     }
   ]
 }

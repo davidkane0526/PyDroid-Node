@@ -1,3 +1,12 @@
+## 1.4.56 (79) — Phase 8 Workflow Language / State & Function System — 2026-08-20
+
+- Added per-workspace session variables alongside execution-local variables, with explicit JSON-safe runtime state transport and tab isolation.
+- Added schema-v2 versioned reusable workflow functions, dynamic function-call ports, migration/validation/recursion guards and Python/JavaScript execution parity.
+- Auto runtime selection now inspects reachable function bodies; Python-only nodes hidden inside a reusable function correctly force Python.
+- Added Functions resource UI, editable function expansion/update, call synchronization and obsolete-port edge cleanup.
+- Added Phase 8 automated coverage and a complete real-host acceptance pack under `tests/manual/phase8/`.
+- Build script revision: `1.4.56-dev-r32-phase8-workflow-language`.
+
 ## 1.4.55 (78) — Phase 7 final UI acceptance correction — 2026-08-20
 
 - Restored the Phase-1 content-width Remote Web banner model and kept status, URL, copy, PIN and collapse on one aligned row on both Desktop and Android.

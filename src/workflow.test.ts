@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { compactNodeLayout, flattenWorkflowGroups, normalizeNodePositions, parseWorkflow, serializeWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowNode } from "./workflow";
+import { collectReachableFunctionNodes, compactNodeLayout, flattenWorkflowGroups, normalizeNodePositions, parseWorkflow, serializeWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowFunctionDefinition, type WorkflowNode } from "./workflow";
 
 describe("serializeWorkflow", () => {
   it("uses the current schema version", () => {
@@ -11,6 +11,23 @@ describe("serializeWorkflow", () => {
   it("round-trips a valid workflow", () => {
     const workflow = serializeWorkflow("valid", [], []);
     expect(parseWorkflow(JSON.stringify(workflow))).toEqual(workflow);
+  });
+
+  it("migrates schema v1 workflows to schema v2 without inventing function resources", () => {
+    const parsed = parseWorkflow(JSON.stringify({ schemaVersion: 1, name: "legacy", nodes: [], edges: [] }));
+    expect(parsed.schemaVersion).toBe(2);
+    expect(parsed.functions).toEqual([]);
+  });
+
+  it("collects only function bodies reachable from root calls", () => {
+    const call = { id: "call", position: { x: 0, y: 0 }, data: { label: "call", nodeType: "function.call", nodeVersion: 1, parameters: { functionId: "fn-a", functionVersion: 1 }, status: "idle" } } as WorkflowNode;
+    const body = { id: "body", position: { x: 0, y: 0 }, data: { label: "body", nodeType: "table.absolute", nodeVersion: 1, parameters: {}, status: "idle" } } as WorkflowNode;
+    const unused = { id: "unused", position: { x: 0, y: 0 }, data: { label: "unused", nodeType: "custom.python_function", nodeVersion: 1, parameters: { code: "def transform(table): return table" }, status: "idle" } } as WorkflowNode;
+    const functions: WorkflowFunctionDefinition[] = [
+      { id: "fn-a", name: "A", version: 1, inputs: [], outputs: [{ id: "result", label: "result", valueType: "table", internalNodeId: "body", internalHandle: "output" }], nodes: [body], edges: [] },
+      { id: "fn-unused", name: "unused", version: 1, inputs: [], outputs: [{ id: "result", label: "result", valueType: "table", internalNodeId: "unused", internalHandle: "output" }], nodes: [unused], edges: [] },
+    ];
+    expect(collectReachableFunctionNodes([call], functions).map((node) => node.id)).toEqual(["call", "body"]);
   });
 
   it("repairs non-finite or extreme node positions", () => {

@@ -77,17 +77,21 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
       const value = groupByAggregate(table(), params);
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
-    case "variable.set": {
+    case "variable.set":
+    case "variable.set_workspace": {
       const name = String(params.name ?? "").trim();
       if (!name) throw new Error("Set variable requires a name");
-      context.variables.set(name, upstream);
+      const target = nodeType === "variable.set_workspace" ? context.workspaceVariables : context.variables;
+      target.set(name, upstream);
       return { outputs: { output: upstream }, tableResult: upstream instanceof Table ? upstream : null, plotResult, exportResult };
     }
-    case "variable.get": {
+    case "variable.get":
+    case "variable.get_workspace": {
       const name = String(params.name ?? "").trim();
       if (!name) throw new Error("Get variable requires a name");
-      if (!context.variables.has(name)) throw new Error(`Variable ${JSON.stringify(name)} is not defined; add a 设置变量 node before reading it`);
-      const value = context.variables.get(name);
+      const source = nodeType === "variable.get_workspace" ? context.workspaceVariables : context.variables;
+      if (!source.has(name)) throw new Error(`${nodeType === "variable.get_workspace" ? "Workspace variable" : "Variable"} ${JSON.stringify(name)} is not defined`);
+      const value = source.get(name);
       return { outputs: { output: value }, tableResult: value instanceof Table ? value : null, plotResult, exportResult };
     }
     default:

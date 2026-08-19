@@ -35,4 +35,33 @@ describe("workflow validation", () => {
       edges: [{ source: "source", target: "target", sourceHandle: "output", targetHandle: "input" }],
     })).not.toThrow();
   });
+
+
+  it("validates versioned reusable function calls and dynamic ports", () => {
+    const functions = [{
+      id: "fn-abs", name: "Abs", version: 1,
+      inputs: [{ id: "table", label: "Table", valueType: "table", internalNodeId: "abs", internalHandle: "input" }],
+      outputs: [{ id: "result", label: "Result", valueType: "table", internalNodeId: "abs", internalHandle: "output" }],
+      nodes: [node("abs", "table.absolute")], edges: [],
+    }];
+    expect(() => validateWorkflowDocument({
+      name: "functions", functions,
+      nodes: [node("source", "generate.empty_table"), { id: "call", data: { nodeType: "function.call", nodeVersion: 1, parameters: { functionId: "fn-abs", functionVersion: 1 } } }],
+      edges: [{ source: "source", target: "call", sourceHandle: "output", targetHandle: "table" }],
+    })).not.toThrow();
+  });
+
+  it("rejects function version drift and recursive definitions", () => {
+    const definition = {
+      id: "fn-rec", name: "Recursive", version: 2, inputs: [],
+      outputs: [{ id: "result", label: "Result", valueType: "any", internalNodeId: "self", internalHandle: "output" }],
+      nodes: [{ id: "self", data: { nodeType: "function.call", nodeVersion: 1, parameters: { functionId: "fn-rec", functionVersion: 2 } } }], edges: [],
+    };
+    expect(() => validateWorkflowDocument({ name: "recursive", functions: [definition], nodes: [], edges: [] })).toThrow(/递归环/);
+    expect(() => validateWorkflowDocument({
+      name: "mismatch",
+      functions: [{ ...definition, nodes: [node("range", "logic.for_range")], outputs: [{ id: "result", label: "Result", valueType: "table", internalNodeId: "range", internalHandle: "output" }] }],
+      nodes: [{ id: "call", data: { nodeType: "function.call", nodeVersion: 1, parameters: { functionId: "fn-rec", functionVersion: 1 } } }], edges: [],
+    })).toThrow(/版本不匹配/);
+  });
 });

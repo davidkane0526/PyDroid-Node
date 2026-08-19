@@ -197,6 +197,7 @@ function comparableResult(result) {
     exports: result.exports ?? [],
     executionOrder: result.executionOrder ?? [],
     nodeResults,
+    workspaceState: result.workspaceState ?? {},
   };
   if (result.status === "error") {
     comparable.nodeId = result.nodeId ?? null;
@@ -226,6 +227,7 @@ function assertExpected(testCase, result, runtimeLabel) {
     if (!Object.prototype.hasOwnProperty.call(actual, "value")) fail(`${testCase.id}/${runtimeLabel}: ${nodeId} has no semantic value`);
     deepEqual(actual.value, value, `${testCase.id}/${runtimeLabel}.nodeResults.${nodeId}.value`);
   }
+  if (expected.workspaceState) deepEqual(result.workspaceState ?? {}, expected.workspaceState, `${testCase.id}/${runtimeLabel}.workspaceState`);
   for (const nodeId of expected.plotNodes ?? []) {
     const actual = result.nodeResults?.[nodeId];
     if (!actual || actual.kind !== "plot") fail(`${testCase.id}/${runtimeLabel}: ${nodeId} is not a plot result`);

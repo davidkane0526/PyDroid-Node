@@ -85,7 +85,7 @@ function upstreamInputs(nodeId: string, workflow: Workflow, values: Map<string, 
 
 export function nodeUpstream(nodeId: string, nodeType: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): unknown {
   if (["table.concat", "logic.merge_rows"].includes(nodeType)) return upstreamTables(nodeId, workflow, values);
-  if (["pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert"].includes(nodeType)) {
+  if (["pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert", "function.call"].includes(nodeType)) {
     return upstreamInputs(nodeId, workflow, values);
   }
   return upstreamValue(nodeId, workflow, values);
@@ -181,5 +181,5 @@ export function flattenWorkflowGroups(workflow: Workflow): Workflow {
     delete data.canvasParentId;
     return { ...node, data };
   });
-  return { nodes: flatNodes, edges: flatEdges };
+  return { ...workflow, nodes: flatNodes, edges: flatEdges };
 }

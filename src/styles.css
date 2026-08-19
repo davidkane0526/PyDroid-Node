@@ -3628,3 +3628,13 @@ button.smb-file-row { cursor: pointer; }
   .remote-server-banner__collapse svg { width: 12px; height: 12px; }
   .remote-server-banner .remote-server-banner__pin { font-size: 8px; }
 }
+
+/* Phase 8 · workflow language resources */
+.palette-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.workflow-variable-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; }
+.workflow-variable-list code { max-width: 100%; overflow: hidden; padding: 3px 6px; border: 1px solid var(--border-soft); border-radius: 5px; color: var(--text-highlight); background: var(--surface-deep); font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
+.workflow-language-state > button { width: 100%; }
+.workflow-function-card .flow-library-actions { grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 4px; }
+.workflow-function-card .flow-library-actions button { min-width: 0; padding-inline: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.function-call-settings > strong, .function-call-settings > small { display: block; }
+.app-shell[data-theme="light"] .workflow-variable-list code { border-color: #cbd5e1; color: #1e3a5f; background: #f8fafc; }

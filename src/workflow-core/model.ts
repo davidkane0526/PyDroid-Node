@@ -1,9 +1,10 @@
 import type { Edge } from "@xyflow/react";
-import type { WorkflowNode } from "../workflow";
+import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 
 export type WorkflowSnapshot = {
   nodes: WorkflowNode[];
   edges: Edge[];
+  functions?: WorkflowFunctionDefinition[];
   requirements?: string[];
 };
 
@@ -35,6 +36,7 @@ export function workflowSnapshotForPersistence(snapshot: WorkflowSnapshot): Work
       const { selected: _selected, ...rest } = edge;
       return rest as Edge;
     }),
+    functions: structuredClone(snapshot.functions ?? []),
     requirements: [...(snapshot.requirements ?? [])],
   };
 }
@@ -44,11 +46,11 @@ export function workflowSnapshotSignature(snapshot: WorkflowSnapshot): string {
 }
 
 export function workflowHasContent(snapshot: WorkflowSnapshot): boolean {
-  return snapshot.nodes.length > 0 || snapshot.edges.length > 0 || Boolean(snapshot.requirements?.length);
+  return snapshot.nodes.length > 0 || snapshot.edges.length > 0 || Boolean(snapshot.functions?.length) || Boolean(snapshot.requirements?.length);
 }
 
 export function emptyWorkflowSnapshot(): WorkflowSnapshot {
-  return { nodes: [], edges: [], requirements: [] };
+  return { nodes: [], edges: [], functions: [], requirements: [] };
 }
 
 export function createWorkspaceRuntimeState(snapshot: WorkflowSnapshot = emptyWorkflowSnapshot(), savedSignature?: string): WorkspaceRuntimeState {

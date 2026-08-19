@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "name": "Phase 8 · Phase 7 schema v1 兼容性",
+  "nodes": [
+    {"id":"read","position":{"x":100,"y":120},"data":{"label":"读取 CSV","nodeType":"io.read_csv","nodeVersion":1,"parameters":{"header":"infer"},"status":"idle"}},
+    {"id":"abs","position":{"x":420,"y":120},"data":{"label":"绝对值","nodeType":"table.absolute","nodeVersion":1,"parameters":{},"status":"idle"}},
+    {"id":"print","position":{"x":740,"y":120},"data":{"label":"打印输出","nodeType":"python.print","nodeVersion":1,"parameters":{"prefix":"legacy-v1"},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"read","target":"abs","sourceHandle":"output","targetHandle":"input"},
+    {"id":"e2","source":"abs","target":"print","sourceHandle":"output","targetHandle":"input"}
+  ]
+}

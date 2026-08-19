@@ -14,6 +14,8 @@ NODE_TYPES = {
     "logic.while_number",
     "variable.set",
     "variable.get",
+    "variable.set_workspace",
+    "variable.get_workspace",
 }
 
 
@@ -78,20 +80,33 @@ def execute(
                 raise ValueError(f"While reached the safety limit of {maximum} iterations")
         value = pd.DataFrame(rows, columns=["iteration", "value"])
         table_result = value
-    elif node_type == "variable.set":
+    elif node_type in {"variable.set", "variable.set_workspace"}:
         name = str(params.get("name", "")).strip()
         if not name:
             raise ValueError("Set variable requires a name")
-        if variables is not None:
-            variables[name] = upstream
+        if variables is None:
+            target = None
+        elif "__execution__" in variables or "__workspace__" in variables:
+            target = variables.setdefault("__workspace__" if node_type.endswith("_workspace") else "__execution__", {})
+        else:
+            target = variables
+        if target is not None:
+            target[name] = upstream
         value = upstream
-    elif node_type == "variable.get":
+    elif node_type in {"variable.get", "variable.get_workspace"}:
         name = str(params.get("name", "")).strip()
         if not name:
             raise ValueError("Get variable requires a name")
-        if variables is None or name not in variables:
-            raise ValueError(f"Variable {name!r} is not defined; add a 设置变量 node before reading it")
-        value = variables[name]
+        if variables is None:
+            source = None
+        elif "__execution__" in variables or "__workspace__" in variables:
+            source = variables.get("__workspace__" if node_type.endswith("_workspace") else "__execution__", {})
+        else:
+            source = variables
+        if source is None or name not in source:
+            scope_label = "工作区变量" if node_type.endswith("_workspace") else "变量"
+            raise ValueError(f"{scope_label} {name!r} is not defined")
+        value = source[name]
     else:
         raise ValueError(f"Unsupported control/state node type: {node_type}")
 

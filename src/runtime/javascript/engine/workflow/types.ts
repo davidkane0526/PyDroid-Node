@@ -36,4 +36,29 @@ export type WorkflowEdge = {
   targetHandle?: string | null;
 };
 
-export type Workflow = { nodes: WorkflowNode[]; edges: WorkflowEdge[] };
+
+export type WorkflowFunctionPort = {
+  id: string;
+  label: string;
+  valueType?: string;
+  internalNodeId: string;
+  internalHandle?: string | null;
+};
+
+export type WorkflowFunctionDefinition = {
+  id: string;
+  name: string;
+  version: number;
+  description?: string;
+  inputs: WorkflowFunctionPort[];
+  outputs: WorkflowFunctionPort[];
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+};
+
+export type Workflow = {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  workspaceState?: Record<string, unknown>;
+  functions?: WorkflowFunctionDefinition[];
+};

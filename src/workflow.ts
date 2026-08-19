@@ -1,9 +1,11 @@
 import type { Edge, Node } from "@xyflow/react";
-import type { ValueType } from "./nodeCatalog";
-import { migrateWorkflowDocument, normalizeWorkflowNodeVersions } from "./workflow-core/migrations";
+import type { PortSpec, ValueType } from "./nodeCatalog";
+import { migrateWorkflowDocument, normalizeWorkflowNodeVersions, registerWorkflowMigration } from "./workflow-core/migrations";
 import { validateWorkflowDocument } from "./workflow-core/validation";
 
-export const WORKFLOW_SCHEMA_VERSION = 1;
+export const WORKFLOW_SCHEMA_VERSION = 2;
+
+registerWorkflowMigration(1, (document) => ({ ...document, schemaVersion: 2, functions: Array.isArray(document.functions) ? document.functions : [] }));
 
 export type NodeStatus = "idle" | "running" | "success" | "error";
 
@@ -18,6 +20,9 @@ export type WorkflowNodeData = {
   canvasParentId?: string;
   groupInputs?: WorkflowGroupPort[];
   groupOutputs?: WorkflowGroupPort[];
+  functionInputs?: PortSpec[];
+  functionOutputs?: PortSpec[];
+  functionSourceId?: string;
 };
 
 export type WorkflowGroupPort = {
@@ -29,12 +34,23 @@ export type WorkflowGroupPort = {
 };
 
 export type WorkflowNode = Node<WorkflowNodeData>;
+export type WorkflowFunctionDefinition = {
+  id: string;
+  name: string;
+  version: number;
+  description?: string;
+  inputs: WorkflowGroupPort[];
+  outputs: WorkflowGroupPort[];
+  nodes: WorkflowNode[];
+  edges: Edge[];
+};
 
 export type WorkflowDocument = {
   schemaVersion: number;
   name: string;
   nodes: WorkflowNode[];
   edges: Edge[];
+  functions?: WorkflowFunctionDefinition[];
   requirements?: string[];
 };
 
@@ -167,17 +183,39 @@ export function compactNodeLayout(nodes: WorkflowNode[], viewportWidth = 1200, d
   return nodes.map((node) => ({ ...node, position: positions.get(node.id) ?? node.position }));
 }
 
+export function collectReachableFunctionNodes(nodes: WorkflowNode[], functions: WorkflowFunctionDefinition[] = []): WorkflowNode[] {
+  const byId = new Map(functions.map((definition) => [definition.id, definition]));
+  const collected: WorkflowNode[] = [...nodes];
+  const visited = new Set<string>();
+  const visitNodes = (items: WorkflowNode[]) => {
+    for (const node of items) {
+      if (node.data.nodeType !== "function.call") continue;
+      const functionId = String(node.data.parameters.functionId ?? "").trim();
+      if (!functionId || visited.has(functionId)) continue;
+      visited.add(functionId);
+      const definition = byId.get(functionId);
+      if (!definition) continue;
+      collected.push(...definition.nodes);
+      visitNodes(definition.nodes);
+    }
+  };
+  visitNodes(nodes);
+  return collected;
+}
+
 export function serializeWorkflow(
   name: string,
   nodes: WorkflowNode[],
   edges: Edge[],
   requirements: string[] = [],
+  functions: WorkflowFunctionDefinition[] = [],
 ): WorkflowDocument {
   return {
     schemaVersion: WORKFLOW_SCHEMA_VERSION,
     name,
     nodes,
     edges,
+    ...(functions.length ? { functions } : {}),
     ...(requirements.length ? { requirements } : {}),
   };
 }

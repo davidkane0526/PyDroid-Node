@@ -1,5 +1,5 @@
 import type { Edge } from "@xyflow/react";
-import type { WorkflowNode } from "../workflow";
+import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import type { ExecutionControl } from "../execution-controller";
 
 export type RuntimeId = "python" | "javascript";
@@ -28,6 +28,8 @@ export type RuntimeExecutionRequest = {
   edges: Edge[];
   csvText: string;
   inputFiles?: WorkflowInputFile[];
+  workspaceState?: Record<string, unknown>;
+  functions?: WorkflowFunctionDefinition[];
   control?: ExecutionControl;
 };
 
@@ -68,6 +70,7 @@ export type ExecutionResult = {
   nodeResults: Record<string, NodeExecutionPreview>;
   nodeTimingsMs?: Record<string, number>;
   executionOrder?: string[];
+  workspaceState?: Record<string, unknown>;
   runtimeId?: RuntimeId;
 };
 

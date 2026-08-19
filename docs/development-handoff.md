@@ -4,16 +4,17 @@ Updated: 2026-08-20
 
 ## Current repository state
 
-This delivery is a **single local Git repository** based only on the user-provided `PyDroid Node 1.4.27 dev architecture baseline.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
+This delivery is a **single local Git repository** whose Phase 8 work is based only on the user-provided clean `PyDroid Node 1.4.55.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
 
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
 - `dev`: `1.4.53 (76)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
 - `fix/phase7-android-service-polish`: `1.4.54 (77)` superseded visual candidate.
-- `fix/phase7-final-ui-acceptance`: `1.4.55 (78)` current Phase 7 visual-acceptance candidate. It restores the Phase-1 content-width Remote Web banner as a single aligned row on Desktop/Android, compacts SMB/AI footer actions, and removes the Remote shortcut blue fill while preserving the green running indicator; host contracts and service behavior are unchanged.
+- `fix/phase7-final-ui-acceptance`: `1.4.55 (78)` accepted Phase 7 visual baseline used for this phase.
+- `phase8/workflow-language-state-functions`: `1.4.56 (79)` current Phase 8 implementation with workspace state, schema-v2 reusable functions, dual-runtime execution/parity and Functions-resource UI.
 
-Current working branch: `fix/phase7-final-ui-acceptance`.
+Current working branch: `phase8/workflow-language-state-functions`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -219,4 +220,10 @@ Remote Web startup must remain lightweight: do not add synchronous shell/asset/L
 
 ## Phase 8 — Workflow Language / State & Function System
 
-**Next planned phase after frozen Phase 7.** Build on the NodeContract fields already reserved for `stateScope`, `stateAccess`, `executionModel=function`, and `functionRole`. Start with execution/workspace state isolation, then stable function-definition signatures/IDs/versions, dynamic function-call NodeSpecs, Python/JavaScript runtime implementations, parity coverage, and only then the user-facing function/variable management UI. Do not move these semantics into `App.tsx`.
+**Implemented on `phase8/workflow-language-state-functions` as 1.4.56 (79); cloud validation complete, real-host acceptance pending.** The implementation follows the planned order: execution/workspace state isolation, stable function IDs/versions/signatures, dynamic function-call NodeContracts, Python/JavaScript runtime support, parity coverage, then UI. Runtime semantics remain outside `App.tsx`.
+
+Workspace state is renderer/workspace-session scoped, passed explicitly to each execution and returned from successful runs; it is never host/process global. Temporary `variable.get/set` semantics are unchanged. Closing a tab or creating a new workflow clears that workspace's session state.
+
+Workflow schema v2 persists reusable `functions[]`. Calls bind an exact function ID/version and derive typed ports from the signature. Validation rejects broken mappings, version drift and recursive function graphs. Updating a function synchronizes existing calls and removes obsolete call-port edges. Auto runtime selection inspects reachable function bodies, including nested functions, so hidden Python-only dependencies cannot be dispatched to JavaScript accidentally.
+
+The existing Resources sidebar now contains a Functions tab for current-tab workspace variables and persisted function resources. Groups can be saved/updated as functions; calls can be inserted or expanded as editable groups. See `docs/phase8-workflow-language.md` and `tests/manual/phase8/README.md`.

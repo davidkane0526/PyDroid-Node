@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "name": "Phase 8 · 函数体自动回退 Python",
+  "nodes": [
+    {"id":"read","position":{"x":80,"y":120},"data":{"label":"读取 CSV","nodeType":"io.read_csv","nodeVersion":1,"parameters":{"header":"infer"},"status":"idle"}},
+    {"id":"call","position":{"x":380,"y":120},"data":{"label":"Python-only 函数","nodeType":"function.call","nodeVersion":1,"parameters":{"functionId":"phase8-fn-python-only","functionVersion":1},"status":"idle","functionInputs":[{"id":"table","label":"表格","valueType":"table","required":true}],"functionOutputs":[{"id":"result","label":"结果","valueType":"table"}]}},
+    {"id":"print","position":{"x":680,"y":120},"data":{"label":"打印输出","nodeType":"python.print","nodeVersion":1,"parameters":{"prefix":"Python fallback"},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"read","target":"call","sourceHandle":"output","targetHandle":"table"},
+    {"id":"e2","source":"call","target":"print","sourceHandle":"result","targetHandle":"input"}
+  ],
+  "functions": [
+    {
+      "id":"phase8-fn-python-only",
+      "name":"Python-only 函数",
+      "version":1,
+      "description":"函数体包含 custom.python_function，用于验证 Auto 会检查函数体并选择 Python。",
+      "inputs":[{"id":"table","label":"表格","valueType":"table","internalNodeId":"custom","internalHandle":"table"}],
+      "outputs":[{"id":"result","label":"结果","valueType":"table","internalNodeId":"custom","internalHandle":"output"}],
+      "nodes":[{"id":"custom","position":{"x":80,"y":100},"data":{"label":"Python 自定义变换","nodeType":"custom.python_function","nodeVersion":1,"parameters":{"code":"def transform(table: 'table') -> 'table':\n    result = table.copy()\n    result['phase8_sum'] = result.sum(axis=1)\n    return result"},"status":"idle"}}],
+      "edges":[]
+    }
+  ]
+}
