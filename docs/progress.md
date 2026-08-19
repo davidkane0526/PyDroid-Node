@@ -1,3 +1,11 @@
+## 2026-08-19 — Phase 4 frozen / Phase 5 golden parity started / 1.4.36 (59)
+
+- Phase 4 Unified NodeSpec / Node Contract is complete/frozen. All 71 visible NodeSpec entries explicitly declare runtime support; NodeContract owns runtime/state/cache/function/version semantics used by Runtime Auto, JavaScript compatibility, workflow validation and speculative pre-execution policy.
+- Workflow validation now checks supported node versions plus explicit port existence/type compatibility while preserving dynamic custom-function/group behavior.
+- Phase 5 starts with a cross-runtime golden harness (`pnpm test:parity`): 4 workflows pass Python ↔ JavaScript semantic comparison and cover 7 node types, null/NaN handling, scalar outputs and error-node parity.
+- Build-tool smoke no longer hard-codes one release revision; it validates revision/package-version alignment so future version bumps do not create false smoke failures.
+- Build script revision: `1.4.36-dev-r12-phase5-parity`.
+
 ## 2026-08-19 — background completion indicator + deeper Phase 4 migration / 1.4.35 (58)
 
 - Added a green completion indicator for successful background tabs. It appears only when a non-foreground workspace finishes and clears automatically once the user opens that tab.

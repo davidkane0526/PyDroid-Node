@@ -1,6 +1,6 @@
 > **1.4.31 (54) · dev Phase 3.5**：Phase 3 Workflow Core 已完成并冻结；新增多 Workspace 执行调度。Windows Python 按 CPU 最多 4 个并行、超额排队；Android Chaquopy 采用 1 个运行 + FIFO 队列；本地标签页与 Remote Web 共享宿主调度但按 `workspaceId/clientId` 独立控制。Remote Web 配对后每 400 ms 主动同步宿主执行状态，不再需要操作页面才刷新。
 
-> **dev 架构线**：Phase 1 PlatformAdapter、Phase 2 ExecutionController、Phase 3 Workflow Core 已完成。Phase 3.5 等待 Windows/Android 实机验收；通过后下一阶段为 Phase 4 Unified NodeSpec。详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。
+> **dev 架构线**：Phase 1 PlatformAdapter、Phase 2 ExecutionController、Phase 3 Workflow Core、Phase 3.5 Multi-Workspace Execution 与 Phase 4 Unified NodeSpec / Node Contract 均已完成并冻结；当前进入 Phase 5 Python / JavaScript golden workflow parity。详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md) 与 [docs/runtime-parity.md](docs/runtime-parity.md)。
 
 当前 `dev` Android 调试构建版本：`1.4.31 (54)`；`main` 仍保留稳定 `1.4.27 (50)` LAN 基线。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
 
@@ -323,4 +323,4 @@ bash scripts/cloud-check.sh
 
 ### Dev architecture status (1.4.34)
 
-`dev` has completed multi-workspace execution and is now in Phase 4 Unified NodeSpec / Node Contract. Desktop Python can run multiple workspaces concurrently; Android queues Python workspaces safely. Host task status now carries human-readable workspace labels and the bottom task picker can stop any selected execution. Node runtime support, side-effect/cache/state semantics and future function/variable-node capabilities are being centralized in NodeSpec/NodeContract rather than separate runtime lists.
+`dev` has completed/frozen multi-workspace execution and Phase 4 Unified NodeSpec / Node Contract. Desktop Python can run multiple workspaces concurrently; Android queues Python workspaces safely. Node runtime support, node version, side-effect/cache/state semantics and future function/variable-node capabilities now flow through NodeSpec/NodeContract. Phase 5 is active: `pnpm test:parity` executes the same golden workflows in Python and JavaScript and compares semantic results.

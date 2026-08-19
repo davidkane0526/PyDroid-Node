@@ -1,3 +1,12 @@
+## 1.4.36 (59) — Phase 4 complete + Phase 5 golden runtime parity — 2026-08-19
+
+- Completed/froze Phase 4 Unified NodeSpec / Node Contract. Every visible NodeSpec now explicitly declares runtime support; NodeSpec also exposes `nodeVersion` for future per-node migration. Runtime Auto, JavaScript unsupported-node diagnostics, workflow import validation and speculative preview safety use NodeContract-derived helpers.
+- Workflow validation now rejects unknown/newer node versions, explicit unknown ports and declared incompatible port types while preserving dynamic `custom.python_function` signature handles and dynamic workflow-group ports.
+- Fixed build-tool smoke maintenance: the build-script revision assertion now checks that the revision starts with the package version instead of hard-coding one release string.
+- Started Phase 5 with `pnpm test:parity` and `tests/runtime-parity/golden-workflows.json`. The harness runs identical workflows in Python 3.13 and the bundled JS engine, validates fixture expectations, and compares execution order, tables, node results, exports, numeric values/null semantics and error identity.
+- Initial parity suite: 4/4 golden workflows covering `io.read_csv`, `table.select_columns`, `table.filter_range`, `pandas.head`, `table.difference`, `pandas.fillna` and `python.len`, including a deliberate invalid-column error path.
+- Build script revision: `1.4.36-dev-r12-phase5-parity`.
+
 ## 1.4.35 (58) — background completion badge + Phase 4 contract migration — 2026-08-19
 
 - Added a green background-completed badge for non-active tabs. When a workflow finishes successfully on a tab that is not in the foreground, the tab gets a green indicator; opening that tab clears the badge automatically.

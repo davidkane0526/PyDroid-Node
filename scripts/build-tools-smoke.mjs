@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { packageManagerInvocation } from "./desktop-package-invocation.mjs";
 import { readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const buildScriptPath = fileURLToPath(new URL("../tools/build-pydroid.ps1", import.meta.url));
 const buildScript = readFileSync(buildScriptPath, "utf8");
+const packageJson = JSON.parse(readFileSync(path.resolve(fileURLToPath(new URL("..", import.meta.url)), "package.json"), "utf8"));
 assert.doesNotMatch(
   buildScript,
   /param\s*\([^)]*\$Home\b/i,
@@ -149,10 +151,11 @@ assert.match(
 );
 
 
-assert.match(
-  buildScript,
-  /\$script:BuildScriptRevision = "1\.4\.34-dev-r10-phase4-node-contract"/,
-  "the build script should expose an explicit revision marker so stale-script runs are diagnosable",
+const revisionMatch = buildScript.match(/\$script:BuildScriptRevision = "([^"]+)"/);
+assert.ok(revisionMatch, "the build script should expose an explicit revision marker so stale-script runs are diagnosable");
+assert.ok(
+  revisionMatch[1].startsWith(`${packageJson.version}-`),
+  `build-script revision ${revisionMatch[1]} should start with package version ${packageJson.version}`,
 );
 assert.match(
   buildScript,
