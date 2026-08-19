@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.39 (62)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity.
+- `dev`: `1.4.40 (63)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity.
 
 Current working branch: `dev`.
 
@@ -190,6 +190,6 @@ The suite has already found and fixed real divergences in JSON `indent=0`, CSV t
 
 ## Phase 6 status — Runtime Engine modularization
 
-**In progress on `dev` 1.4.39 (62).** `python/pydroid_flow/engine.py` is now a compatibility facade; runtime implementation moved to `python/pydroid_flow/engine_parts/`. Workflow orchestration, graph/cache/value helpers, portable RNG, I/O, custom-function execution, analysis/pulse helpers, notebook execution and presentation are separated. `node_dispatch.py` is intentionally transitional and is the next split target (table/pandas, plotting, control/state, conversion/UI families).
+**In progress on `dev` 1.4.40 (63).** `python/pydroid_flow/engine.py` remains a compatibility facade; `node_dispatch.py` is now routing-only, while concrete Python node families live in `engine_parts/nodes/` (`io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, `conversion_ui`). Registry overlap tests and architecture limits protect this boundary. The next split target is JavaScript `src/runtime/javascript/engine/nodes.ts`, then shared orchestration cleanup.
 
 Read `docs/runtime-engine-modularization.md` before changing runtime structure. Phase 5 parity remains mandatory and Phase 6 must not change workflow-visible behavior merely to make file boundaries cleaner.

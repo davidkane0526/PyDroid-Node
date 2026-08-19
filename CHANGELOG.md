@@ -1,3 +1,13 @@
+## 1.4.40 (63) — Phase 6 Python node-domain handlers — 2026-08-19
+
+- Continued Phase 6 without changing workflow semantics. The transitional Python `engine_parts/node_dispatch.py` dropped from 577 lines to a routing-only facade (~28 lines).
+- Added `engine_parts/nodes/` domain handlers for IO/generators, table/pandas, control/state, analysis/pulse, plotting, and conversion/UI/custom-code nodes. Concrete node algorithms no longer live in the central dispatcher.
+- Added Python registry tests which require domain handler node-type sets to be disjoint and cover representative node families.
+- Strengthened `runtime-engine-architecture-smoke.mjs`: `node_dispatch.py` is now capped at 80 lines, cannot contain node implementation branches, all six handler modules are required, and individual domain handlers are capped to prevent another monolith.
+- Full Python regression and Phase 5 parity remained unchanged after the move: 106 passed / 1 skipped; 66/66 golden workflows; 72/72 JS-capable NodeContract coverage.
+- JavaScript `engine/nodes.ts` remains the next Phase 6 split target; Phase 6 is not frozen yet.
+- Build script revision: `1.4.40-dev-r16-phase6-domain-handlers`.
+
 ## 1.4.39 (62) — Phase 6 Python runtime core modularization — 2026-08-19
 
 - Started Phase 6 Runtime Engine modularization without changing workflow-visible semantics. `python/pydroid_flow/engine.py` is reduced from 2361 lines to a small compatibility facade which preserves the existing public/legacy imports.

@@ -1,3 +1,11 @@
+## 2026-08-19 — Phase 6 Python node-domain dispatch / 1.4.40 (63)
+
+- Continued the 1.4.39 Python runtime modularization. `engine_parts/node_dispatch.py` is now routing-only and concrete node implementations live under `engine_parts/nodes/` by domain.
+- Added six domain handlers: `io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, and `conversion_ui`.
+- Added registry overlap tests and stricter architecture limits so future node additions must extend/split a domain handler instead of recreating the 500+ line dispatcher.
+- Regression remained stable: Python 106 passed / 1 skipped; runtime parity 66/66; JS-capable contract coverage 72/72.
+- Build script revision: `1.4.40-dev-r16-phase6-domain-handlers`. Next Phase 6 target is the JavaScript `engine/nodes.ts` monolith (currently ~1100 lines), followed by runtime orchestration cleanup.
+
 ## 2026-08-19 — Phase 6 Python Runtime Core modularization / 1.4.39 (62)
 
 - Phase 6 started from the frozen 1.4.38 Phase 5 baseline. Python `engine.py` dropped from 2361 lines to a compatibility facade; implementation now lives in `engine_parts/` modules for workflow execution, dispatch, graph/cache/value helpers, RNG, I/O, custom functions, analysis/pulse and presentation.

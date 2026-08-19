@@ -24,7 +24,9 @@ engine_parts/
 └─ presentation.py         # printable/preview/semantic serialization
 ```
 
-The current `node_dispatch.py` remains a transitional dispatcher. Future Phase 6 work should split coherent families (table/pandas, plot, control/state, conversion/UI) into handlers instead of growing this file. `scripts/runtime-engine-architecture-smoke.mjs` keeps `engine.py` as a small facade and caps dispatcher growth.
+As of 1.4.40, `node_dispatch.py` is no longer a transitional implementation file: it is a routing-only facade. Concrete Python node families live under `engine_parts/nodes/` (`io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, `conversion_ui`). Architecture smoke caps the dispatcher and every domain module so a new monolith cannot silently reappear.
+
+The next Phase 6 target is JavaScript `engine/nodes.ts`, which still combines helpers and many node implementations. Split it by domain while preserving the public `executeNode` facade and keeping the Phase 5 parity gate green.
 
 ## JavaScript
 

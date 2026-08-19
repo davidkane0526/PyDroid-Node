@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.39-dev-r15-phase6-runtime-modules"
+$script:BuildScriptRevision = "1.4.40-dev-r16-phase6-domain-handlers"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
