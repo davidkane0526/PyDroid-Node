@@ -1,3 +1,12 @@
+## 1.4.46 (69) — Android node drag/menu gesture separation — 2026-08-19
+
+- Fixed Android resource dragging so moving a palette node/group/saved node cancels the menu hold and enters drag mode instead of triggering the node resource menu.
+- Preserved touch resource management: a stationary long press (~760 ms) still opens the node/group menu, including rename/delete actions for saved/custom nodes. Desktop right-click behavior is unchanged.
+- Saved/custom nodes now use the same touch drag gesture path on coarse pointers while keeping desktop drag sorting.
+- Added a touch-drag guard for canvas nodes so the synthetic WebView context-menu event emitted during an active node drag is ignored, while a stationary long press can still open the node menu.
+- Phase 7 architecture remains unchanged from 1.4.45 and still awaits the planned combined Windows + Android validation.
+- Build script revision: `1.4.46-dev-r22-phase7-touch-gesture-fix`.
+
 ## 1.4.45 (68) — Phase 7 host contract + build-tool modules + UI fixes — 2026-08-19
 
 - Remote/Web workspace failure indicators are now transient: a host-aborted `failed`/`timeout` tab shows the red diagnostic dot briefly and then clears automatically without erasing the underlying execution error/status.

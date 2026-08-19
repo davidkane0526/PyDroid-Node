@@ -1,3 +1,11 @@
+## 2026-08-19 — Android node drag/menu gesture fix / 1.4.46 (69)
+
+- Separated Android palette drag and resource-menu gestures. Movement beyond the drag threshold cancels the menu hold; a stationary ~760 ms hold opens the resource menu.
+- Retained saved/custom-node rename/delete management and Desktop right-click menus. Saved nodes now share the touch pointer-drag path on Android.
+- Suppressed only drag-time synthetic context-menu events for canvas nodes; stationary long-press menus remain available.
+- Phase 7 host/build architecture is otherwise unchanged and remains pending the user's combined real Windows/Android validation.
+- Build script revision: `1.4.46-dev-r22-phase7-touch-gesture-fix`.
+
 ## 2026-08-19 — Phase 7 host-contract closure + build-tool module split / 1.4.45 (68)
 
 - Android 1.4.44 native host smoke was accepted by the user; the current tranche fixes three reported UI issues without changing node/runtime semantics: transient remote failure dots, Android SMB keyboard/footer overlap, and settings-card row alignment.

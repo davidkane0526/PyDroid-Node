@@ -11,4 +11,8 @@ assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "fai
 assert.match(css, /\.smb-file-manager:has\(\.smb-connection-form input:focus\) \.smb-manager-footer[\s\S]*display:\s*none\s*!important/, "Android SMB footer should hide while editing credentials to avoid keyboard overlap");
 assert.match(css, /\.settings-layout\s*\{[\s\S]*align-items:\s*stretch/, "settings grid rows should stretch paired cards to equal height");
 assert.match(css, /\.settings-layout \.settings-section\s*\{[\s\S]*height:\s*100%/, "settings cards should fill their grid row height");
+assert.match(app, /startPaletteResourceMenuHold[\s\S]*760/, "touch resource menu should use an explicit stationary long-press delay");
+assert.match(app, /distance > 8[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold");
+assert.match(app, /pointerMode !== "mouse"\) return/, "synthetic Android contextmenu events should not race the explicit touch gesture");
+assert.match(app, /nodeTouchDragSuppressMenuUntil/, "dragging a canvas node on touch should suppress only the synthetic drag-time context menu");
 console.log("UI regression smoke passed.");
