@@ -20,6 +20,8 @@ export type ExecutionStatus = {
 export type ExecutionControl = {
   executionId: string;
   timeoutMs: number;
+  workspaceId?: string;
+  clientId?: string;
   signal: AbortSignal;
   registerCancellationHandler(handler: () => Promise<unknown> | unknown): () => void;
 };
@@ -52,7 +54,7 @@ type ActiveExecution = {
   abortController: AbortController;
   runtimeId: RuntimeId;
   startedAt: number;
-  timeoutHandle: ReturnType<typeof setTimeout>;
+  timeoutHandle: ReturnType<typeof setTimeout> | null;
   timeoutTriggered: boolean;
   abortReject: (reason: unknown) => void;
   cancelHandlers: Set<CancelHandler>;
@@ -118,7 +120,7 @@ export class ExecutionController {
   async execute<T>(
     runtimeId: RuntimeId,
     runner: (control: ExecutionControl) => Promise<T>,
-    options: { timeoutMs?: number; executionId?: string } = {},
+    options: { timeoutMs?: number; executionId?: string; enforceTimeout?: boolean } = {},
   ): Promise<T> {
     if (this.active) throw new ExecutionBusyError(this.active.control.executionId);
 
@@ -150,15 +152,18 @@ export class ExecutionController {
       abortReject: (reason) => abortReject?.(reason),
       cancelHandlers,
       cancellationPromise: null,
-      timeoutHandle: setTimeout(() => {
+      timeoutHandle: null,
+    };
+    this.active = active;
+    if (options.enforceTimeout !== false) {
+      active.timeoutHandle = setTimeout(() => {
         if (this.active !== active) return;
         active.timeoutTriggered = true;
         const error = new ExecutionTimeoutError(executionId, timeoutMs);
         void this.beginCancellation(active, error);
         active.abortReject(error);
-      }, timeoutMs),
-    };
-    this.active = active;
+      }, timeoutMs);
+    }
     this.publish({ executionId, phase: "running", runtimeId, timeoutMs, startedAt });
 
     try {
@@ -182,7 +187,7 @@ export class ExecutionController {
       this.publish({ executionId, phase: "failed", runtimeId, timeoutMs, startedAt, finishedAt: Date.now(), message });
       throw error;
     } finally {
-      clearTimeout(active.timeoutHandle);
+      if (active.timeoutHandle) clearTimeout(active.timeoutHandle);
       if (this.active === active) this.active = null;
     }
   }
@@ -211,4 +216,38 @@ export class ExecutionController {
   }
 }
 
-export const executionController = new ExecutionController();
+export class ExecutionManager {
+  private readonly controllers = new Map<string, ExecutionController>();
+
+  controller(workspaceId = "default"): ExecutionController {
+    const key = workspaceId.trim() || "default";
+    let controller = this.controllers.get(key);
+    if (!controller) {
+      controller = new ExecutionController();
+      this.controllers.set(key, controller);
+    }
+    return controller;
+  }
+
+  getStatus(workspaceId = "default"): ExecutionStatus { return this.controller(workspaceId).getStatus(); }
+  isActive(workspaceId = "default"): boolean { return this.controller(workspaceId).isActive(); }
+  subscribe(workspaceId: string, listener: Listener): () => void { return this.controller(workspaceId).subscribe(listener); }
+  cancel(workspaceId = "default"): boolean { return this.controller(workspaceId).cancel(); }
+  cleanup(workspaceId = "default"): void { this.controller(workspaceId).cleanup(); }
+  activeWorkspaceIds(): string[] {
+    return [...this.controllers.entries()].filter(([, controller]) => controller.isActive()).map(([workspaceId]) => workspaceId);
+  }
+
+  execute<T>(
+    workspaceId: string,
+    runtimeId: RuntimeId,
+    runner: (control: ExecutionControl) => Promise<T>,
+    options: { timeoutMs?: number; executionId?: string; enforceTimeout?: boolean } = {},
+  ): Promise<T> {
+    return this.controller(workspaceId).execute(runtimeId, runner, options);
+  }
+}
+
+export const executionManager = new ExecutionManager();
+// Backward-compatible default controller for focused unit tests and older internal callers.
+export const executionController = executionManager.controller("default");

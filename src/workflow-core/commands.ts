@@ -25,3 +25,35 @@ export function upstreamSubgraph(nodes: WorkflowNode[], edges: Edge[], targetNod
     edges: edges.filter((edge) => included.has(edge.source) && included.has(edge.target)),
   };
 }
+
+export function deleteNodesFromGraph(nodes: WorkflowNode[], edges: Edge[], initialIds: Iterable<string>): { nodes: WorkflowNode[]; edges: Edge[]; removedIds: Set<string> } {
+  const removedIds = new Set(initialIds);
+  for (let changed = removedIds.size > 0; changed;) {
+    changed = false;
+    for (const node of nodes) {
+      const parent = node.parentId ?? node.data.canvasParentId;
+      if (parent && removedIds.has(parent) && !removedIds.has(node.id)) {
+        removedIds.add(node.id);
+        changed = true;
+      }
+    }
+  }
+  if (!removedIds.size) return { nodes, edges, removedIds };
+  return {
+    nodes: nodes.filter((node) => !removedIds.has(node.id)),
+    edges: edges.filter((edge) => !removedIds.has(edge.source) && !removedIds.has(edge.target)),
+    removedIds,
+  };
+}
+
+export function disconnectNodesFromGraph(edges: Edge[], nodeIds: Iterable<string>): Edge[] {
+  const ids = new Set(nodeIds);
+  if (!ids.size) return edges;
+  return edges.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target));
+}
+
+export function disconnectEdgesFromGraph(edges: Edge[], edgeIds: Iterable<string>): Edge[] {
+  const ids = new Set(edgeIds);
+  if (!ids.size) return edges;
+  return edges.filter((edge) => !ids.has(edge.id));
+}

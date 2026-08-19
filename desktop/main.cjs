@@ -10,6 +10,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 const { LanDiscoveryService } = require("./lan/LanDiscoveryService.cjs");
 const { PythonProcessController, DEFAULT_TIMEOUT_MS: DEFAULT_EXECUTION_TIMEOUT_MS } = require("./execution/PythonProcessController.cjs");
+const { WorkflowExecutionScheduler } = require("./execution/WorkflowExecutionScheduler.cjs");
 
 const MAX_OUTPUT_BYTES = 64 * 1024 * 1024;
 let remoteServer = null;
@@ -18,8 +19,12 @@ let lanDiscovery = null;
 const remoteTokens = new Set();
 const SMB_FILE_PATTERN = /\.(csv|tsv|txt|dat|json|png|jpe?g)$/i;
 const pythonProcessController = new PythonProcessController({ maxOutputBytes: MAX_OUTPUT_BYTES, log: appendDesktopLog });
-let activeWorkflowExecutionId = null;
 const remoteExecutionIds = new Set();
+const desktopPythonConcurrency = Math.max(1, Math.min(4, typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length));
+const workflowExecutionScheduler = new WorkflowExecutionScheduler({
+  capacity: desktopPythonConcurrency,
+  cancelRunning: (executionId) => pythonProcessController.cancel(executionId),
+});
 
 function probeSmbHost(address, timeout = 380) {
   return new Promise((resolve) => {
@@ -668,7 +673,7 @@ function startDesktopRemoteServer(requirePin) {
           const executionId = String(body.executionId ?? `remote-${crypto.randomUUID()}`);
           remoteExecutionIds.add(executionId);
           try {
-            const raw = await runPythonRequest({ workflow: String(body.workflow ?? ""), csvText: String(body.csvText ?? ""), inputFiles: JSON.stringify(body.inputFiles ?? []), executionId, timeoutMs: Number(body.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS) });
+            const raw = await runPythonRequest({ workflow: String(body.workflow ?? ""), csvText: String(body.csvText ?? ""), inputFiles: JSON.stringify(body.inputFiles ?? []), executionId, timeoutMs: Number(body.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS), workspaceId: String(body.workspaceId ?? "default"), clientId: String(body.clientId ?? "remote-browser") }, { source: "remote", workspaceId: String(body.workspaceId ?? "default"), clientId: String(body.clientId ?? "remote-browser") });
             response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }); return response.end(raw);
           } finally { remoteExecutionIds.delete(executionId); }
         }
@@ -776,7 +781,7 @@ function pythonCommand(scriptPath, pythonRoot) {
   return { executable: "python3.13", args: [scriptPath] };
 }
 
-function runPythonRequest(payload) {
+function runPythonRequest(payload, metadata = {}) {
   const isUtilityRequest = payload?.action === "environment" || payload?.action === "analyze_notebook" || payload?.action === "analyze_signature";
   if (!isUtilityRequest && (!payload || typeof payload.workflow !== "string" || typeof payload.csvText !== "string" || typeof payload.inputFiles !== "string")) {
     return Promise.reject(new Error("workflow, csvText, and inputFiles are required"));
@@ -788,12 +793,7 @@ function runPythonRequest(payload) {
   const pythonPath = [python, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
   const executionId = String(payload?.executionId || `${isUtilityRequest ? "utility" : "exec"}-${crypto.randomUUID()}`);
   const timeoutMs = Number(payload?.timeoutMs ?? (isUtilityRequest ? 60_000 : DEFAULT_EXECUTION_TIMEOUT_MS));
-
-  if (!isUtilityRequest && activeWorkflowExecutionId && activeWorkflowExecutionId !== executionId) {
-    return Promise.reject(new Error(`[EXECUTION_BUSY] ${executionId}: 已有工作流正在执行（${activeWorkflowExecutionId}）`));
-  }
-  if (!isUtilityRequest) activeWorkflowExecutionId = executionId;
-  return pythonProcessController.execute({
+  const start = () => pythonProcessController.execute({
     executionId,
     timeoutMs,
     executable: command.executable,
@@ -801,33 +801,30 @@ function runPythonRequest(payload) {
     cwd: python,
     env: { ...process.env, PYTHONPATH: pythonPath, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" },
     payload,
-  }).finally(() => {
-    if (!isUtilityRequest && activeWorkflowExecutionId === executionId) activeWorkflowExecutionId = null;
   });
-}
 
-function hostExecutionStatus() {
-  const executionId = activeWorkflowExecutionId || null;
-  return {
-    active: Boolean(executionId),
+  if (isUtilityRequest) return start();
+  return workflowExecutionScheduler.submit({
     executionId,
-    source: executionId ? (remoteExecutionIds.has(executionId) ? "remote" : "local") : null,
-  };
+    workspaceId: metadata.workspaceId ?? payload?.workspaceId ?? "default",
+    clientId: metadata.clientId ?? payload?.clientId ?? "local-ui",
+    source: metadata.source ?? "local",
+  }, start);
 }
 
-function cancelPythonRequest(executionId) {
-  return pythonProcessController.cancel(executionId);
-}
+function hostExecutionStatus() { return workflowExecutionScheduler.status(); }
 
-async function cancelPythonRequestAndWait(executionId, waitMs = 2500) {
+function cancelPythonRequest(executionId) { return workflowExecutionScheduler.cancel(executionId); }
+
+async function cancelPythonRequestAndWait(executionId, waitMs = 5000) {
   const id = String(executionId || "").trim();
   const cancelled = cancelPythonRequest(id);
-  if (!cancelled) return { cancelled: false, released: activeWorkflowExecutionId !== id };
+  if (!cancelled) return { cancelled: false, released: !workflowExecutionScheduler.has(id) };
   const deadline = Date.now() + Math.max(0, waitMs);
-  while (activeWorkflowExecutionId === id && Date.now() < deadline) {
+  while (workflowExecutionScheduler.has(id) && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  return { cancelled: true, released: activeWorkflowExecutionId !== id };
+  return { cancelled: true, released: !workflowExecutionScheduler.has(id) };
 }
 
 function createWindow() {
@@ -971,7 +968,7 @@ app.whenReady().then(() => {
   });
   ipcMain.on("pydroid:window-close", (event) => BrowserWindow.fromWebContents(event.sender)?.close());
   ipcMain.handle("pydroid:window-is-maximized", (event) => BrowserWindow.fromWebContents(event.sender)?.isMaximized() ?? false);
-  ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload));
+  ipcMain.handle("pydroid:run-workflow", (_event, payload) => runPythonRequest(payload, { source: "local", workspaceId: payload?.workspaceId, clientId: payload?.clientId }));
   ipcMain.handle("pydroid:cancel-workflow", async (_event, executionId) => cancelPythonRequestAndWait(executionId));
   ipcMain.handle("pydroid:get-execution-status", () => hostExecutionStatus());
   ipcMain.handle("pydroid:get-environment", () => runPythonRequest({ action: "environment" }));
@@ -1006,7 +1003,7 @@ app.whenReady().then(() => {
   });
 });
 
-app.on("before-quit", () => pythonProcessController.cancelAll());
+app.on("before-quit", () => { workflowExecutionScheduler.cancelWhere(() => true); pythonProcessController.cancelAll(); });
 
 app.on("window-all-closed", async () => {
   await stopDesktopRemoteServer();

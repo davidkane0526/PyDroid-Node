@@ -1,4 +1,15 @@
-﻿## 1.4.30 (53) — Phase 3 desktop TypeScript build fix — 2026-08-19
+﻿## 1.4.31 (54) — Phase 3 complete + Phase 3.5 multi-workspace execution — 2026-08-19
+
+- Fixed Remote Web host-state refresh on Android/Desktop: once paired, the browser polls `/api/execution-status` every 400 ms, so a workflow started on the host changes the web run controls without requiring a click, tab change or other UI interaction.
+- Phase 3 Workflow Core is complete/frozen for this architecture line. Per-workspace sessions now retain workflow snapshot/dirty state, independent undo/redo history and selected input files across tab switches; dead session-tab localStorage persistence was removed. Core graph deletion/disconnection semantics also moved out of `App.tsx` into reusable workflow commands.
+- Added shared `ExecutionManager` and workspace/client identity. Each workflow execution carries `executionId + workspaceId + clientId + source`; switching tabs no longer destroys the execution lifecycle or successful result of a background workspace.
+- Windows Desktop Python now uses `WorkflowExecutionScheduler`: host concurrency is `min(4, available CPU parallelism)` with FIFO queuing beyond capacity. Local tabs and Remote Web clients share the same scheduler and each execution remains independently cancellable.
+- Android Python keeps one Chaquopy worker for safety but now accepts multiple workspace/client requests: one runs and the rest queue FIFO. Queue waiting does not consume execution timeout; queued cancellation is immediate; running cancellation retains the slot until the Python callable really exits.
+- Current-tab Run/Stop controls only the current workspace. Other host/client executions remain observable through a secondary stop action, and tab headers show active execution state. JavaScript remains renderer-main-thread and is not advertised as truly parallel until it moves to Web Workers.
+- Added Desktop scheduler smoke coverage, Android queue/cancel harness coverage, multi-workspace controller/session regression coverage and architecture guards for proactive Remote Web polling.
+- Build script revision: `1.4.31-dev-r7-phase35`. Phase 4 `NodeSpec` / unified node contract is the next architecture stage after real-host acceptance of Phase 3.5.
+
+## 1.4.30 (53) — Phase 3 desktop TypeScript build fix — 2026-08-19
 
 - Fixed the Phase 3 host-execution polling regression where `remoteBrowser` was referenced by a React effect before its block-scoped declaration, which caused `TS2448/TS2454` during `desktop:build`.
 - Added a Workflow Core architecture smoke assertion which requires the FlowEditor `remoteBrowser` declaration to precede the host-execution polling hook.

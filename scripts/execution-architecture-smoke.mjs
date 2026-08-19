@@ -14,6 +14,7 @@ const androidRemote = read("android/app/src/main/java/com/dk/pydroidflow/RemoteW
 const androidCancellation = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutionCancellation.java");
 const pythonEngine = read("python/pydroid_flow/engine.py");
 const desktopProcessController = read("desktop/execution/PythonProcessController.cjs");
+const desktopScheduler = read("desktop/execution/WorkflowExecutionScheduler.cjs");
 const app = read("src/App.tsx");
 const pkg = JSON.parse(read("package.json"));
 
@@ -21,10 +22,14 @@ assert.match(controller, /queued.*running/s, "ExecutionController must publish q
 assert.match(controller, /ExecutionTimeoutError/, "ExecutionController must distinguish timeout");
 assert.match(controller, /ExecutionCancelledError/, "ExecutionController must distinguish cancellation");
 assert.match(runtimeTypes, /control\?: ExecutionControl/, "Runtime requests must carry execution control");
-assert.match(execution, /executionController\.execute/, "Shared execution facade must use ExecutionController");
+assert.match(execution, /executionManager\.execute/, "Shared execution facade must route work through the workspace-aware ExecutionManager");
+assert.match(execution, /enforceTimeout: runtime\.descriptor\.id !== "python"/, "Python host scheduler must own timeout so queued time is not charged by the renderer");
 assert.match(desktopExecution, /cancelWorkflow\(executionId\)/, "Desktop renderer must terminate host Python on abort");
 assert.match(desktopPreload, /pydroid:cancel-workflow/, "Electron preload must expose cancelWorkflow");
 assert.match(desktopMain, /PythonProcessController/, "Desktop host must own Python process lifecycle");
+assert.match(desktopMain, /WorkflowExecutionScheduler/, "Desktop host must schedule multiple workspace executions instead of using a single global slot");
+assert.match(desktopScheduler, /capacity.*4|DEFAULT_CAPACITY = 4/s, "Desktop workflow scheduler should default to four concurrent Python jobs");
+assert.match(desktopScheduler, /phase = "queued"|phase: "queued"/, "Desktop scheduler must queue jobs when capacity is full");
 assert.match(desktopMain, /\/api\/cancel/, "Desktop remote host must expose cancellation");
 assert.match(desktopMain, /\/api\/execution-status/, "Desktop remote host must expose execution status for host/remote observability");
 assert.match(desktopProcessController, /termination confirmation timed out/, "Desktop cancellation must keep the execution slot until the Python process closes");
@@ -34,12 +39,18 @@ assert.match(androidRemote, /\/api\/cancel/, "Android remote host must expose ca
 assert.match(androidRemote, /\/api\/execution-status/, "Android remote host must expose execution status");
 assert.match(androidPlugin, /getExecutionStatus/, "Android host UI must be able to observe remote execution state");
 assert.match(androidController, /cleanupWhenWorkerExited/, "Android must retain the execution slot until the embedded Python worker really exits");
+assert.match(androidController, /Executors\.newSingleThreadExecutor/, "Android Python scheduler must serialize Chaquopy work through one worker");
+assert.match(androidController, /Phase\.QUEUED/, "Android must expose queued workspace execution state");
+assert.doesNotMatch(androidController, /EXECUTION_BUSY.*已有工作流正在执行/s, "Android should queue a second workspace instead of rejecting it as globally busy");
 assert.match(androidCancellation, /ConcurrentHashMap/, "Android cancellation tokens must be visible to embedded Python");
 assert.match(pythonEngine, /_run_with_cancel_trace/, "pure-Python notebook execution should cooperatively observe Android cancellation");
 assert.match(androidController, /EXECUTION_TIMEOUT/, "Android controller must classify timeouts");
 assert.match(androidController, /EXECUTION_CANCELLED/, "Android controller must classify cancellations");
 assert.match(app, /cancelActiveExecution/, "UI must consume the unified controller cancellation API");
 assert.match(app, /getHostExecutionStatus/, "host UI must observe externally-started remote workflows");
-assert.match(app, /停止远程/, "host run control should visibly stop a remote workflow instead of remaining labelled Run");
+assert.match(app, /停止远程/, "host UI should visibly expose remote workflow state");
+assert.match(app, /停止宿主/, "remote browser should proactively expose host workflow state after pairing");
+assert.match(app, /subscribeExecutionStatus\(tabId/, "FlowEditor execution lifecycle must be scoped to its workspace tab");
+assert.match(app, /otherHostExecutions/, "current workspace Run must remain independent from other host/client executions");
 assert.ok(pkg.build.files.includes("desktop/execution/**/*"), "Packaged desktop must include execution lifecycle modules");
 console.log("Execution architecture smoke test passed");

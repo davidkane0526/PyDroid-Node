@@ -11,15 +11,14 @@ const commands = readFileSync(fileURLToPath(new URL("../src/workflow-core/comman
 
 
 const remoteBrowserDeclaration = app.indexOf("const remoteBrowser = isRemoteRuntime();");
-const remoteBrowserPollingUse = app.indexOf("if (remoteBrowser) return;");
+const remotePairState = app.indexOf("const [remotePaired, setRemotePaired]");
+const hostPolling = app.indexOf("const refresh = async () =>", remotePairState);
 assert.ok(remoteBrowserDeclaration >= 0, "FlowEditor should declare remoteBrowser");
-assert.ok(remoteBrowserPollingUse >= 0, "FlowEditor should use remoteBrowser in host execution polling");
-assert.ok(
-  remoteBrowserDeclaration < remoteBrowserPollingUse,
-  "remoteBrowser must be declared before the host execution polling hook uses it",
-);
+assert.ok(remotePairState > remoteBrowserDeclaration, "remote pairing state should be declared after runtime detection");
+assert.ok(hostPolling > remotePairState, "host execution polling should run after remote pairing state exists");
+assert.match(app.slice(remotePairState, hostPolling + 900), /remoteBrowser && !remotePaired/, "remote browser should poll host state immediately after pairing instead of waiting for UI interaction");
 
-assert.match(app, /new WorkflowHistory\(50\)/, "App should delegate undo/redo storage to WorkflowHistory");
+assert.match(app, /workspaceHistory\s*\?\?\s*new WorkflowHistory\(50\)/, "FlowEditor should consume the per-workspace history owner");
 assert.match(app, /new WorkspaceSessionStore\(/, "App should delegate per-tab runtime state to WorkspaceSessionStore");
 assert.doesNotMatch(app, /const historyRef\s*=\s*useRef/, "App should not recreate the legacy history-array owner");
 assert.match(app, /writeStorage\(localStorage/, "autosave should use the guarded Workflow Core persistence wrapper");
@@ -28,7 +27,12 @@ assert.match(workflow, /migrateWorkflowDocument/, "workflow parsing should pass 
 assert.match(workflow, /validateWorkflowDocument/, "workflow parsing should pass through structural validation");
 assert.match(history, /class WorkflowHistory/, "Workflow Core should own history behavior");
 assert.match(session, /class WorkspaceSessionStore/, "Workflow Core should own workspace dirty-state sessions");
+assert.match(session, /histories = new Map/, "WorkspaceSessionStore should retain independent undo\/redo history across tab switches");
+assert.match(app, /initialRuntimeState\?\.input/, "workspace input selections should survive tab switches");
+assert.doesNotMatch(app, /pydroid-flow\.tabs\.v1/, "session-only tabs should not leave dead localStorage persistence behind");
 assert.match(persistence, /QuotaExceededError/, "Workflow Core persistence should classify storage quota failures");
 assert.match(commands, /function upstreamSubgraph/, "Workflow Core should expose reusable graph slicing commands");
+assert.match(commands, /function deleteNodesFromGraph/, "Workflow Core should own graph deletion semantics instead of App.tsx");
+assert.match(commands, /function disconnectNodesFromGraph/, "Workflow Core should own graph disconnection semantics instead of App.tsx");
 
 console.log("workflow-core architecture smoke passed");

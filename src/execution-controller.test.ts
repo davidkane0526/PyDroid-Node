@@ -3,6 +3,7 @@ import {
   ExecutionBusyError,
   ExecutionCancelledError,
   ExecutionController,
+  ExecutionManager,
   ExecutionTimeoutError,
 } from "./execution-controller";
 
@@ -43,6 +44,21 @@ describe("ExecutionController", () => {
     expect(aborted).toBe(true);
     expect(controller.getStatus().phase).toBe("timeout");
   });
+  it("can delegate the timeout clock to a queued host scheduler", async () => {
+    vi.useFakeTimers();
+    const controller = new ExecutionController();
+    const run = controller.execute("python", async () => new Promise<string>(() => {}), {
+      executionId: "exec-host-timeout",
+      timeoutMs: 1_000,
+      enforceTimeout: false,
+    });
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(controller.isActive()).toBe(true);
+    expect(controller.getStatus().phase).toBe("running");
+    controller.cancel();
+    await expect(run).rejects.toBeInstanceOf(ExecutionCancelledError);
+  });
+
   it("does not publish cancelled until host cancellation cleanup finishes", async () => {
     const controller = new ExecutionController();
     let releaseHost!: () => void;
@@ -63,4 +79,21 @@ describe("ExecutionController", () => {
     expect(controller.isActive()).toBe(false);
   });
 
+});
+
+
+describe("ExecutionManager", () => {
+  it("allows independent workspaces to execute concurrently", async () => {
+    const manager = new ExecutionManager();
+    let releaseA!: () => void;
+    const aGate = new Promise<void>((resolve) => { releaseA = resolve; });
+    const first = manager.execute("workspace-a", "python", async () => { await aGate; return "A"; }, { executionId: "exec-a" });
+    const second = manager.execute("workspace-b", "python", async () => "B", { executionId: "exec-b" });
+    await expect(second).resolves.toBe("B");
+    expect(manager.isActive("workspace-a")).toBe(true);
+    expect(manager.isActive("workspace-b")).toBe(false);
+    expect(manager.activeWorkspaceIds()).toContain("workspace-a");
+    releaseA();
+    await expect(first).resolves.toBe("A");
+  });
 });

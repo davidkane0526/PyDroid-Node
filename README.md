@@ -1,8 +1,8 @@
-> **1.4.30 (53) · dev Phase 3**：Phase 2 取消链路完成可靠性收口（等待宿主真实释放、远程执行可观测/可停止），并开始 Workflow Core 抽离 history/session/persistence/migration；`ui.alert` 首次运行显示当前上游结果，Android 构建 82% 增加细分阶段与心跳。UI 布局继续保持稳定。
+> **1.4.31 (54) · dev Phase 3.5**：Phase 3 Workflow Core 已完成并冻结；新增多 Workspace 执行调度。Windows Python 按 CPU 最多 4 个并行、超额排队；Android Chaquopy 采用 1 个运行 + FIFO 队列；本地标签页与 Remote Web 共享宿主调度但按 `workspaceId/clientId` 独立控制。Remote Web 配对后每 400 ms 主动同步宿主执行状态，不再需要操作页面才刷新。
 
-> **dev 架构线**：UI 进入稳定期；Phase 1 `PlatformAdapter` 已把 SMB、文件选择、Profile、Secrets、Remote Access 和系统状态从 Runtime facade 中抽离。后续以执行可靠性和 Workflow Core 为主，详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。
+> **dev 架构线**：Phase 1 PlatformAdapter、Phase 2 ExecutionController、Phase 3 Workflow Core 已完成。Phase 3.5 等待 Windows/Android 实机验收；通过后下一阶段为 Phase 4 Unified NodeSpec。详见 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。
 
-当前 `dev` Android 调试构建版本：`1.4.30 (53)`；`main` 仍保留稳定 `1.4.27 (50)` LAN 基线。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
+当前 `dev` Android 调试构建版本：`1.4.31 (54)`；`main` 仍保留稳定 `1.4.27 (50)` LAN 基线。本次交付只以用户提供的 ZIP 为代码基线，不依赖 GitHub。
 
 # PyDroid Flow
 

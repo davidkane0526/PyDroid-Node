@@ -3233,3 +3233,8 @@ button.smb-file-row { cursor: pointer; }
   .settings-control-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .settings-range-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Phase 3.5: compact per-workspace execution state without changing tab geometry. */
+.tabbar__execution { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent); }
+.tabbar__execution--queued { background: transparent; border: 1px solid var(--accent); box-shadow: none; }
+.tabbar__execution--cancelling { opacity: .55; }

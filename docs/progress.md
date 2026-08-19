@@ -1,4 +1,14 @@
-﻿## 2026-08-19 — dev Phase 3 desktop TypeScript build hotfix / 1.4.30 (53)
+﻿## 2026-08-19 — Phase 3 complete / Phase 3.5 Multi-Workspace Execution / 1.4.31 (54)
+
+- User acceptance completed for Phase 2 cancellation, Remote Web host observability, first-run `ui.alert` data and Android 82–87% build progress. Phase 3 Workflow Core is now marked complete/frozen.
+- Fixed the remaining one-way Remote Web refresh defect: paired browsers actively poll host execution status every 400 ms, so host-started execution appears without user interaction.
+- Added `ExecutionManager` and host scheduling metadata (`executionId`, `workspaceId`, `clientId`, `source`). Desktop Python supports 1–4 concurrent processes depending on available CPU and queues excess jobs; Android Python runs one Chaquopy job and queues additional jobs. Remote and local clients share the same host scheduler.
+- Multi-tab workspaces retain independent history, input selection and successful execution results while inactive. Closing a tab cancels its local execution and clears its stored result. Recursive graph deletion and node/edge disconnection are now Workflow Core commands rather than UI-owned graph semantics.
+- Current workspace Run/Stop is no longer globally blocked by another tab or remote client. Other host jobs remain visible through a separate stop control.
+- JavaScript is still synchronous renderer execution and therefore remains effectively single-threaded; true JS parallelism/hard cancel requires a future Web Worker runtime.
+- Build script revision: `1.4.31-dev-r7-phase35`. Next planned architecture work after user acceptance is Phase 4 unified NodeSpec metadata.
+
+## 2026-08-19 — dev Phase 3 desktop TypeScript build hotfix / 1.4.30 (53)
 
 - Fixed `src/App.tsx` declaration ordering so `remoteBrowser` is defined before the host execution polling effect.
 - Added architecture regression coverage for the declaration-order failure which previously blocked Windows Desktop TypeScript compilation.

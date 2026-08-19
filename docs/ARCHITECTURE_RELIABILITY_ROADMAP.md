@@ -2,7 +2,7 @@
 
 更新时间：2026-08-19
 长期开发分支：`dev`
-稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.29 (52)`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.31 (54)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -304,7 +304,7 @@ desktop/renderer/
 
 ## 5. Phase 2 — Execution Controller
 
-状态：**已实现并完成用户实机验证；1.4.29 进一步关闭假空闲/远程可观测性问题。**
+状态：**已实现、完成用户 Windows/Android 实机验证并冻结。1.4.29 关闭假空闲/远程可观测性问题。**
 
 优先级：**P0。1.4.28 完成主体，1.4.29 根据用户实测关闭取消竞态与远程可观测性问题。**
 
@@ -344,7 +344,7 @@ queued → running → success
 - Android Future 控制：`android/app/src/main/java/com/dk/pydroidflow/PythonExecutionController.java`；
 - Remote Web：Desktop/Android 均通过 `/api/cancel` 将浏览器取消传递到宿主。
 
-并发策略：宿主与共享 UI 均只允许一个活动工作流；Python environment/signature/notebook-analysis 等 utility 请求不占用工作流执行槽。
+Phase 2 最初用单执行槽先保证取消/超时语义。Phase 3.5 已把并发策略迁移到按 workspace/client 的调度层；Python environment/signature/notebook-analysis 等 utility 请求仍不占用工作流执行槽。
 
 Android 限制：Chaquopy 为应用内嵌解释器，Future/线程中断不能等价于 Windows 独立进程强杀。Java Future 和 registry 会及时释放，但 native C/NumPy 段可能在返回 Python 之前继续占用解释器线程。若需要绝对硬终止，应在后续单独设计 Android 进程隔离。
 
@@ -352,7 +352,7 @@ Android 限制：Chaquopy 为应用内嵌解释器，Future/线程中断不能�
 
 ## 6. Phase 3 — Workflow Core
 
-状态：**1.4.29 已开始实现：history/session/persistence/validation/migration/graph commands 已进入 `src/workflow-core/`，继续小步抽离。**
+状态：**1.4.31 已完成并冻结：history/session/input-state/persistence/validation/migration/graph commands 已进入 `src/workflow-core/`。**
 
 优先级：P0/P1。
 
@@ -380,6 +380,39 @@ src/workflow-core/
 不要把“拆 JSX 组件”误当作 Phase 3 完成标准。
 
 ---
+
+---
+
+## 6.5 Phase 3.5 — Multi-Workspace Execution
+
+状态：**1.4.31 已实现，等待用户 Windows/Android 实机验收。**
+
+目标不是无限并行，而是把单全局执行槽改成资源受控的 workspace 调度：
+
+```text
+Execution Request
+├─ executionId
+├─ workspaceId
+├─ clientId
+└─ source
+        ↓
+Host Scheduler
+├─ Desktop Python: 1–4 running + FIFO queue
+├─ Android Python: 1 running + FIFO queue
+└─ JavaScript: renderer main thread, effectively single
+```
+
+实现要求：
+
+- 当前标签页 Run/Stop 只控制当前 workspace；
+- 切换标签不丢失 history、输入文件、运行状态和成功结果；
+- Remote Web 与本地标签使用同一宿主 scheduler，不设“远程专用槽”；
+- Desktop 超过并发上限后排队而不是报全局 `EXECUTION_BUSY`；
+- Android 排队时间不消耗 timeout，排队任务可立即取消；
+- 配对后的 Remote Web 每 400 ms 主动读取宿主执行状态，避免 host→browser 状态只在用户交互后刷新；
+- Android native C/NumPy 取消限制继续遵守 Phase 2 定义。
+
+Phase 3.5 通过实机验收后，不继续扩大执行层范围，直接进入 Phase 4。
 
 ## 7. Phase 4 — Node Contract 统一
 
@@ -519,13 +552,13 @@ desktop/
 
 ## 12. 下一步执行顺序
 
-当前 `dev` 分支在 Phase 1 完成云端测试后，应按以下顺序推进：
-
-1. Phase 1 PlatformAdapter 已完成 Windows/Android 实机验收并冻结接口。
-2. Phase 2 `ExecutionController` 已完成实机验证；1.4.29 继续修正假空闲、远程状态和 Android cooperative cancellation。
-3. Phase 3 Workflow Core 已启动，继续抽离 workflow command/session/history/serialization，而不是继续大改 UI。
-5. Node Contract 与 Runtime parity 紧随 Workflow Core。
-6. 最后再拆 Python engine、Desktop/Android host 和 Build Tool。
+1. Phase 1 PlatformAdapter：已完成并冻结。
+2. Phase 2 ExecutionController：已完成 Windows/Android 实机验收并冻结。
+3. Phase 3 Workflow Core：已完成并冻结。
+4. Phase 3.5 Multi-Workspace Execution：1.4.31 已实现，等待用户实机验收。
+5. Phase 4 Unified NodeSpec：Phase 3.5 验收后的下一阶段。
+6. Phase 5 Python/JavaScript parity tests。
+7. 最后再拆 Python/JS engine、Desktop/Android host 和 Build Tool。
 
 核心原则始终是：
 
@@ -537,6 +570,8 @@ UI 稳定
 执行生命周期可靠
   ↓
 工作流核心可演进
+  ↓
+多 Workspace 资源受控调度
   ↓
 双 Runtime 可证明一致
   ↓

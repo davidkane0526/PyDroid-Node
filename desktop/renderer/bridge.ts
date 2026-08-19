@@ -7,11 +7,12 @@ import type {
   SmbServer,
   WindowControls,
 } from "../../src/platform/types";
+import type { HostExecutionStatus } from "../../src/execution-host";
 
 export type DesktopRuntimeBridge = {
-  runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number }): Promise<string>;
+  runWorkflow(payload: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number; workspaceId: string; clientId: string }): Promise<string>;
   cancelWorkflow(executionId: string): Promise<{ cancelled: boolean }>;
-  getExecutionStatus(): Promise<{ active: boolean; executionId: string | null; source: "local" | "remote" | null }>;
+  getExecutionStatus(): Promise<HostExecutionStatus>;
   getEnvironment(): Promise<string>;
   getRuntimeStats(): Promise<RuntimeStats>;
   analyzeNotebook(notebook: string): Promise<string>;

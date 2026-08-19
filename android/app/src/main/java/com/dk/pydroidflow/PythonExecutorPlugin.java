@@ -577,6 +577,8 @@ public class PythonExecutorPlugin extends Plugin {
         String executionId = call.getString("executionId", "").trim();
         Long timeoutValue = call.getLong("timeoutMs");
         long timeoutMs = timeoutValue == null ? PythonExecutionController.DEFAULT_TIMEOUT_MS : timeoutValue;
+        String workspaceId = call.getString("workspaceId", "default");
+        String clientId = call.getString("clientId", "local-ui");
 
         if (workflow == null || csvText == null || executionId.isEmpty()) {
             call.reject("workflow, csvText, and executionId are required");
@@ -584,7 +586,7 @@ public class PythonExecutorPlugin extends Plugin {
         }
 
         try {
-            PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, () -> {
+            PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, "local", workspaceId, clientId, () -> {
                 Python python = Python.getInstance();
                 PyObject module = python.getModule("pydroid_flow.engine");
                 return module.callAttr("execute_workflow", workflow, csvText, inputFiles, executionId).toString();
@@ -615,11 +617,27 @@ public class PythonExecutorPlugin extends Plugin {
 
     @PluginMethod
     public void getExecutionStatus(PluginCall call) {
-        String executionId = executionController.currentExecutionId();
+        java.util.List<PythonExecutionController.ExecutionSnapshot> snapshots = executionController.snapshots();
+        PythonExecutionController.ExecutionSnapshot first = snapshots.isEmpty() ? null : snapshots.get(0);
         JSObject response = new JSObject();
-        response.put("active", executionId != null);
-        response.put("executionId", executionId == null ? JSONObject.NULL : executionId);
-        response.put("source", executionId == null ? JSONObject.NULL : (remoteServer != null && remoteServer.ownsExecution(executionId) ? "remote" : "local"));
+        response.put("active", first != null);
+        response.put("executionId", first == null ? JSONObject.NULL : first.executionId);
+        response.put("source", first == null ? JSONObject.NULL : first.source);
+        JSArray executions = new JSArray();
+        for (PythonExecutionController.ExecutionSnapshot snapshot : snapshots) {
+            JSObject item = new JSObject();
+            item.put("executionId", snapshot.executionId);
+            item.put("workspaceId", snapshot.workspaceId);
+            item.put("clientId", snapshot.clientId);
+            item.put("source", snapshot.source);
+            item.put("phase", snapshot.phase.name().toLowerCase(java.util.Locale.ROOT));
+            item.put("startedAt", snapshot.startedAt == null ? JSONObject.NULL : snapshot.startedAt);
+            executions.put(item);
+        }
+        response.put("executions", executions);
+        response.put("runningCount", executionController.runningCount());
+        response.put("queuedCount", executionController.queuedCount());
+        response.put("capacity", executionController.capacity());
         call.resolve(response);
     }
 

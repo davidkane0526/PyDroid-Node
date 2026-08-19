@@ -75,7 +75,8 @@ Before delivery, at minimum:
 The UI is now treated as a stable layer. Do not start another broad UI redesign unless the user reports a concrete interaction defect. Follow `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`.
 
 1. **Phase 1 PlatformAdapter is implemented and user-validated.** Treat its public contract as frozen unless a concrete bug is reported.
-2. **Phase 2 ExecutionController is accepted and reliability-closed on `dev` 1.4.29.** Preserve executionId/timeout/cancel semantics, host-release barriers and Remote Web execution observability across Desktop and Android.
-3. **Phase 3 Workflow Core is active.** Continue extracting workflow document/session/dirty-state/history/serialization/migrations/commands from the large `App.tsx` without redesigning the UI.
-4. Move runtime compatibility declarations into node metadata and add Python/JavaScript golden-workflow parity tests.
-5. Only after those boundaries are stable, modularize Python engine, Desktop/Android hosts and build scripts.
+2. **Phase 2 ExecutionController is user-validated and frozen.** Preserve executionId/timeout/cancel semantics and host-release barriers.
+3. **Phase 3 Workflow Core is complete/frozen on `dev` 1.4.31.** Workflow snapshot/session/history/input-state/persistence/migration ownership belongs in `src/workflow-core/`, not back in `App.tsx`.
+4. **Phase 3.5 Multi-Workspace Execution is implemented and awaiting real-host acceptance.** Preserve `executionId + workspaceId + clientId + source`, Desktop 1–4 process scheduling, Android 1-running + FIFO queue, and proactive paired-browser host polling.
+5. After Phase 3.5 acceptance, implement Phase 4 Unified NodeSpec, then Python/JavaScript golden-workflow parity tests.
+6. Only after those boundaries are stable, modularize Python engine, Desktop/Android hosts and build scripts.

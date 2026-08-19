@@ -1,5 +1,6 @@
 import { registerPlugin } from "@capacitor/core";
 import type { FilePickMode, SmbConnection, SmbEntry, SmbServer } from "./types";
+import type { HostExecutionStatus } from "../execution-host";
 
 export type NativeExecutionResponse = { result: string };
 
@@ -20,9 +21,9 @@ export type PythonExecutorPlugin = {
   deleteWorkflowFile(options: { uri: string }): Promise<{ deleted: boolean }>;
   analyzeNotebook(options: { notebook: string }): Promise<NativeExecutionResponse>;
   analyzeSignature(options: { code: string }): Promise<NativeExecutionResponse>;
-  runWorkflow(options: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number }): Promise<NativeExecutionResponse>;
+  runWorkflow(options: { workflow: string; csvText: string; inputFiles: string; executionId: string; timeoutMs: number; workspaceId: string; clientId: string }): Promise<NativeExecutionResponse>;
   cancelWorkflow(options: { executionId: string }): Promise<{ cancelled: boolean }>;
-  getExecutionStatus(): Promise<{ active: boolean; executionId: string | null; source: "local" | "remote" | null }>;
+  getExecutionStatus(): Promise<HostExecutionStatus>;
   pickCsv(options: { mode: FilePickMode }): Promise<{ files: Array<{ name: string; base64: string }> }>;
   listSmb(options: SmbConnection & { path: string }): Promise<{ entries: SmbEntry[] }>;
   scanSmbShares(options: Omit<SmbConnection, "share">): Promise<{ shares: string[] }>;

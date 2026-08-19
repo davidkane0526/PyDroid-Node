@@ -7,9 +7,17 @@ export type WorkflowSnapshot = {
   requirements?: string[];
 };
 
+export type WorkspaceRuntimeInputState = {
+  fileName: string | null;
+  csvText: string;
+  csvBytes: Uint8Array | null;
+  csvFiles: Array<{ name: string; bytes: Uint8Array }>;
+};
+
 export type WorkspaceRuntimeState = {
   snapshot: WorkflowSnapshot;
   savedSignature: string;
+  input?: WorkspaceRuntimeInputState;
 };
 
 export function cloneWorkflowSnapshot(snapshot: WorkflowSnapshot): WorkflowSnapshot {

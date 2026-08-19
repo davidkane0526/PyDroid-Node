@@ -177,10 +177,12 @@ final class RemoteWorkflowServer {
             JSONArray inputFiles = payload.optJSONArray("inputFiles");
             String executionId = payload.optString("executionId", "").trim();
             long timeoutMs = payload.optLong("timeoutMs", PythonExecutionController.DEFAULT_TIMEOUT_MS);
+            String workspaceId = payload.optString("workspaceId", "default");
+            String clientId = payload.optString("clientId", "remote-browser");
             if (workflow == null || executionId.isEmpty()) throw new IllegalArgumentException("workflow and executionId are required");
             remoteExecutionIds.add(executionId);
             try {
-                PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, () -> {
+                PythonExecutionController.ControlledExecution execution = executionController.submit(executionId, timeoutMs, "remote", workspaceId, clientId, () -> {
                     Python python = Python.getInstance();
                     PyObject module = python.getModule("pydroid_flow.engine");
                     return module.callAttr("execute_workflow", workflow, csvText, inputFiles == null ? "[]" : inputFiles.toString(), executionId).toString();
@@ -190,11 +192,27 @@ final class RemoteWorkflowServer {
         } else if ("/api/cancel".equals(request.path)) {
             sendJson(output, 200, new JSONObject().put("cancelled", executionController.cancel(payload.optString("executionId", ""))));
         } else if ("/api/execution-status".equals(request.path)) {
-            String activeExecutionId = executionController.currentExecutionId();
+            java.util.List<PythonExecutionController.ExecutionSnapshot> snapshots = executionController.snapshots();
+            PythonExecutionController.ExecutionSnapshot first = snapshots.isEmpty() ? null : snapshots.get(0);
             JSONObject status = new JSONObject();
-            status.put("active", activeExecutionId != null);
-            status.put("executionId", activeExecutionId == null ? JSONObject.NULL : activeExecutionId);
-            status.put("source", activeExecutionId == null ? JSONObject.NULL : (remoteExecutionIds.contains(activeExecutionId) ? "remote" : "local"));
+            status.put("active", first != null);
+            status.put("executionId", first == null ? JSONObject.NULL : first.executionId);
+            status.put("source", first == null ? JSONObject.NULL : first.source);
+            JSONArray executions = new JSONArray();
+            for (PythonExecutionController.ExecutionSnapshot snapshot : snapshots) {
+                JSONObject item = new JSONObject();
+                item.put("executionId", snapshot.executionId);
+                item.put("workspaceId", snapshot.workspaceId);
+                item.put("clientId", snapshot.clientId);
+                item.put("source", snapshot.source);
+                item.put("phase", snapshot.phase.name().toLowerCase(java.util.Locale.ROOT));
+                item.put("startedAt", snapshot.startedAt == null ? JSONObject.NULL : snapshot.startedAt);
+                executions.put(item);
+            }
+            status.put("executions", executions);
+            status.put("runningCount", executionController.runningCount());
+            status.put("queuedCount", executionController.queuedCount());
+            status.put("capacity", executionController.capacity());
             sendJson(output, 200, status);
         } else if ("/api/runtime-stats".equals(request.path)) {
             sendJson(output, 200, new JSONObject().put("memoryBytes", (long) android.os.Debug.getPss() * 1024L));
@@ -220,9 +238,6 @@ final class RemoteWorkflowServer {
         }
     }
 
-    boolean ownsExecution(String executionId) {
-        return executionId != null && remoteExecutionIds.contains(executionId);
-    }
 
     private JSONObject readSettings() {
         File file = new File(new File(new File(context.getFilesDir(), "pydroid-flow"), "settings"), "app-settings.json");

@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.30 (53)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController reliability closure + Phase 3 Workflow Core extraction.
+- `dev`: `1.4.31 (54)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + Phase 3.5 Multi-Workspace Execution.
 
 Current working branch: `dev`.
 
@@ -21,8 +21,8 @@ The UI is considered stable. Unless the user reports a concrete UI/interaction d
 
 1. architecture boundaries;
 2. execution reliability;
-3. workflow-core extraction;
-4. Python/JavaScript semantic parity;
+3. multi-workspace execution scheduling;
+4. unified NodeSpec and Python/JavaScript semantic parity;
 5. host/build modularization after the previous layers stabilize.
 
 Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture work.
@@ -125,59 +125,40 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 2 status — ExecutionController
 
-**Implemented and user-tested; reliability closure is included in `dev` 1.4.29 (52).**
-
-Shared lifecycle:
-
-- `src/execution-controller.ts`
-- one active workflow at a time;
-- generated/preserved `executionId`;
-- `queued → running → success|failed|timeout` and `running → cancelling → cancelled`;
-- default timeout 10 minutes; callers may supply another timeout;
-- `App.tsx` subscribes to controller state and uses one Stop action for node and Notebook execution.
-
-Windows host:
-
-- `desktop/execution/PythonProcessController.cjs` owns Python child processes;
-- `desktop/main.cjs` maps executionId to the host process lifecycle;
-- timeout/cancel terminates the Python process (`taskkill /T /F` on Windows) and keeps registry state until the child actually closes; the renderer remains `cancelling` until host release is confirmed;
-- `desktop/preload.cjs` / `desktop/renderer/bridge.ts` expose `cancelWorkflow`;
-- Desktop Remote Web exposes `/api/cancel` and cancels tracked remote executions when the server stops.
-
-Android host:
-
-- `PythonExecutionController.java` owns a dedicated workflow executor, Future registry and timeout scheduler;
-- workflow execution no longer occupies the generic SMB/Profile `worker`;
-- `PythonExecutorPlugin.cancelWorkflow` and Remote `/api/cancel` use the same controller; execution status is exposed locally and remotely so the host UI can show/stop browser-started work;
-- Remote Web and local Android execution therefore share one host concurrency policy.
-
-Known Android limitation: Chaquopy is embedded in the app process. Cancellation marks a shared token, interrupts the Future and keeps the host execution slot occupied until the worker really exits. Pure-Python/Notebook code also observes the token through tracing, but native C/NumPy code may ignore interruption until it returns. Do not claim Android has Windows-style hard process termination. A strict hard-kill guarantee would require a separate process architecture.
+**Complete, user-tested and frozen.** Phase 2 established execution IDs, timeout/cancel semantics and real host-release barriers. Do not reintroduce global UI booleans as an execution authority. Windows Python can hard-terminate child process trees; Android Chaquopy remains cooperative for native C/NumPy work.
 
 ## Phase 3 status — Workflow Core
 
-**Started on `dev` as 1.4.29 (52). UI layout is intentionally unchanged.**
+**Complete/frozen on `dev` 1.4.31 (54).** `src/workflow-core/` owns workflow snapshot/signature semantics, guarded persistence, migration/validation, reusable graph commands (including recursive node deletion and node/edge disconnection), independent per-workspace history and dirty/saved session state. Workspace runtime state also retains selected input files across tab switches. Session-only tabs no longer use the dead `pydroid-flow.tabs.v1` localStorage path.
 
-New core modules under `src/workflow-core/` own:
+`ui.alert` continues to use `upstreamSubgraph` to compute its current content before opening. Side-effecting ancestors can still be executed again by the final workflow; Phase 4 NodeSpec side-effect metadata will make this policy explicit.
 
-- persistent `WorkflowSnapshot` cloning/signatures;
-- `WorkflowHistory` undo/redo/restore behavior;
-- `WorkspaceSessionStore` per-tab dirty/saved state;
-- guarded localStorage writes with quota/unavailable classification;
-- structural workflow validation and version migration infrastructure;
-- serialization helpers;
-- reusable upstream graph slicing, currently used by `ui.alert` preflight.
+## Phase 3.5 status — Multi-Workspace Execution
 
-The popup interaction fix deliberately computes only the ancestors feeding the alert `content` port before showing the dialog. The final workflow still executes after the user chooses a button, so side-effecting upstream nodes can execute again; avoid adding hidden side effects to alert-content preparation until the future command/cache layer can resume from a preflight result.
+**Implemented on `dev` 1.4.31 (54), pending user real-host acceptance.**
 
-### Android build 82% interpretation
+Shared renderer/application behavior:
 
-The old single 82% stage covered several expensive operations: production TypeScript/Vite build, Capacitor sync, Gradle startup, Chaquopy Python packaging, Java/resource compilation, DEX merge and APK packaging. `scripts/android-package.ps1` now emits 82/84/85/86/87 nested stage events and a 20-second heartbeat. The build GUI Cancel action is valid throughout this period and terminates the current build process tree and PyDroid Gradle daemon.
+- `ExecutionManager` owns one `ExecutionController` per `workspaceId`; successful results are stored by workspace so inactive-tab runs survive remount.
+- every host request carries `executionId`, `workspaceId`, `clientId` and `source`; Remote Web and local UI are peers rather than separate special execution slots.
+- the primary Run/Stop button controls only the current workspace; other host/client executions remain observable through a separate stop action.
+- paired Remote Web pages poll `/api/execution-status` every 400 ms, fixing the former host→browser stale-button defect.
+
+Desktop host:
+
+- `desktop/execution/WorkflowExecutionScheduler.cjs` schedules Python child processes; capacity is `min(4, available CPU parallelism)` with FIFO queueing above capacity.
+- each execution keeps independent process/cancel/timeout lifecycle and shares the scheduler with remote clients.
+
+Android host:
+
+- one Chaquopy worker remains the safe execution capacity; additional workspaces/remote clients queue FIFO instead of receiving global `EXECUTION_BUSY`.
+- queued time does not consume execution timeout; queued cancellation is immediate; running cancellation keeps the slot until the callable exits.
+
+JavaScript limitation: the current JS engine still executes synchronously in the renderer and must not be described as truly parallel. Move it to Web Workers before enabling true JS concurrency/hard cancellation.
 
 ## Next development task
 
-Continue Phase 3 by reducing the remaining workflow command/state ownership in `App.tsx` without changing UI layout. After the Workflow Core contract stabilizes, proceed to NodeSpec runtime metadata and Python/JavaScript parity tests.
-
-
+After Phase 3.5 Windows/Android acceptance, start **Phase 4 — Unified NodeSpec / Node Contract**. Move runtime support, side-effect, deterministic and cache metadata into one node specification source, then proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
 
 ### Production TypeScript vs test TypeScript
 

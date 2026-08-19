@@ -1,7 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import { PythonExecutor } from "./platform/android-plugin";
 import { getPlatformAdapter, isRemoteRuntime } from "./platform";
-import { executionController, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, type ExecutionControl } from "./execution-controller";
+import { executionManager, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, type ExecutionControl } from "./execution-controller";
 import {
   createPythonRuntime,
   getRuntime,
@@ -21,9 +21,12 @@ import {
   type WorkflowInputFile,
 } from "./runtime";
 import { flattenWorkflowGroups, serializeWorkflow, type WorkflowNode } from "./workflow";
+import { emptyHostExecutionStatus, normalizeHostExecutionStatus, type HostExecutionStatus } from "./execution-host";
+import { getExecutionClientId, setWorkspaceExecutionResult } from "./execution-workspace";
 
 export { WorkflowExecutionError } from "./runtime";
 export { ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError } from "./execution-controller";
+export type { HostExecutionStatus } from "./execution-host";
 export type {
   ExecutionResult,
   NodeExecutionPreview,
@@ -36,8 +39,6 @@ export type {
 
 export type PythonEnvironment = { pythonVersion: string; packages: Array<{ name: string; version: string }> };
 
-export type HostExecutionStatus = { active: boolean; executionId: string | null; source: "local" | "remote" | null };
-
 function normalizeLifecycleError(error: unknown): never {
   const message = error instanceof Error ? error.message : String(error ?? "执行失败");
   const busy = message.match(/\[EXECUTION_BUSY\].*?已有工作流正在执行（([^）]+)）/);
@@ -48,8 +49,9 @@ function normalizeLifecycleError(error: unknown): never {
 async function waitForHostRelease(getStatus: () => Promise<HostExecutionStatus>, executionId: string, timeoutMs = 3000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const status = await getStatus().catch(() => ({ active: false, executionId: null, source: null } satisfies HostExecutionStatus));
-    if (!status.active || status.executionId !== executionId) return;
+    const status = await getStatus().catch(() => emptyHostExecutionStatus());
+    const stillPresent = status.executions?.some((entry) => entry.executionId === executionId) ?? (status.active && status.executionId === executionId);
+    if (!stillPresent) return;
     await new Promise((resolve) => setTimeout(resolve, 40));
   }
 }
@@ -146,6 +148,8 @@ async function executePythonWorkflow(
           inputFiles,
           executionId,
           timeoutMs,
+          workspaceId: (control as ExecutionControl & { workspaceId?: string }).workspaceId ?? "default",
+          clientId: (control as ExecutionControl & { clientId?: string }).clientId ?? getExecutionClientId(),
         }, { signal: control?.signal });
       } catch (error) { normalizeLifecycleError(error); }
       if (result.status === "error") {
@@ -183,14 +187,13 @@ async function executePythonWorkflow(
   const unregisterCancel = control?.registerCancellationHandler(async () => {
     await PythonExecutor.cancelWorkflow({ executionId }).catch(() => undefined);
     await waitForHostRelease(async () => {
-      const status = await PythonExecutor.getExecutionStatus();
-      return { active: status.active, executionId: status.executionId, source: status.source };
+      return PythonExecutor.getExecutionStatus();
     }, executionId);
   });
   let response;
   try {
     try {
-      response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs });
+      response = await PythonExecutor.runWorkflow({ workflow, csvText, inputFiles: JSON.stringify(inputFiles), executionId, timeoutMs, workspaceId: (control as ExecutionControl & { workspaceId?: string }).workspaceId ?? "default", clientId: (control as ExecutionControl & { clientId?: string }).clientId ?? getExecutionClientId() });
     } catch (error) { normalizeLifecycleError(error); }
   } finally {
     unregisterCancel?.();
@@ -243,10 +246,14 @@ export async function executeWorkflow(
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
   preference: RuntimePreference = currentRuntimePreference,
-  options: { timeoutMs?: number; executionId?: string } = {},
+  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; clientId?: string } = {},
 ): Promise<ExecutionResult> {
   const runtime = resolveHostRuntime(preference, nodes);
-  return executionController.execute(runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control }), options);
+  const workspaceId = options.workspaceId?.trim() || "default";
+  const clientId = options.clientId?.trim() || getExecutionClientId();
+  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, clientId } as ExecutionControl & { workspaceId: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  setWorkspaceExecutionResult(workspaceId, result);
+  return result;
 }
 
 export async function executeWorkflowWithRuntime(
@@ -255,19 +262,22 @@ export async function executeWorkflowWithRuntime(
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
-  options: { timeoutMs?: number; executionId?: string } = {},
+  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; clientId?: string } = {},
 ): Promise<ExecutionResult> {
   const runtime = getRuntime(runtimeId);
-  return executionController.execute(runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control }), options);
+  const workspaceId = options.workspaceId?.trim() || "default";
+  const clientId = options.clientId?.trim() || getExecutionClientId();
+  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, clientId } as ExecutionControl & { workspaceId: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  setWorkspaceExecutionResult(workspaceId, result);
+  return result;
 }
 
 export async function getHostExecutionStatus(): Promise<HostExecutionStatus> {
-  if (isRemoteRuntime()) return getPlatformAdapter().remote.request<HostExecutionStatus>("/api/execution-status");
+  if (isRemoteRuntime()) return normalizeHostExecutionStatus(await getPlatformAdapter().remote.request<HostExecutionStatus>("/api/execution-status"));
   if (getPlatformAdapter().id === "android") {
-    const status = await PythonExecutor.getExecutionStatus();
-    return { active: status.active, executionId: status.executionId, source: status.source };
+    return normalizeHostExecutionStatus(await PythonExecutor.getExecutionStatus());
   }
-  return { active: false, executionId: null, source: null };
+  return emptyHostExecutionStatus();
 }
 
 export async function cancelHostExecution(executionId: string): Promise<boolean> {
@@ -280,6 +290,6 @@ export async function cancelHostExecution(executionId: string): Promise<boolean>
   return false;
 }
 
-export function cancelActiveExecution(): boolean { return executionController.cancel(); }
-export function getExecutionStatus() { return executionController.getStatus(); }
-export function subscribeExecutionStatus(listener: Parameters<typeof executionController.subscribe>[0]) { return executionController.subscribe(listener); }
+export function cancelActiveExecution(workspaceId = "default"): boolean { return executionManager.cancel(workspaceId); }
+export function getExecutionStatus(workspaceId = "default") { return executionManager.getStatus(workspaceId); }
+export function subscribeExecutionStatus(workspaceId: string, listener: Parameters<ReturnType<typeof executionManager.controller>["subscribe"]>[0]) { return executionManager.subscribe(workspaceId, listener); }

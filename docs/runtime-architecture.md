@@ -64,7 +64,7 @@ It is a pure TypeScript data-flow engine and does not replace Python. Its main a
 
 ## Execution lifecycle (Phase 2)
 
-Phase 2 adds `src/execution-controller.ts` as the renderer-side authority for one active workflow execution. Every run receives a persistent-for-that-run `executionId`, a normalized timeout and an `AbortSignal`. The controller publishes the explicit lifecycle states `queued`, `running`, `cancelling`, `cancelled`, `success`, `failed` and `timeout`; UI code observes these states instead of maintaining a second independent `isRunning` flag.
+Phase 2 established `src/execution-controller.ts` as the renderer-side authority for one workspace execution lifecycle. Phase 3.5 adds an `ExecutionManager` which keeps one controller per workspace and delegates host concurrency to platform schedulers. Every run receives a persistent-for-that-run `executionId`, a normalized timeout and an `AbortSignal`. The controller publishes the explicit lifecycle states `queued`, `running`, `cancelling`, `cancelled`, `success`, `failed` and `timeout`; UI code observes these states instead of maintaining a second independent `isRunning` flag.
 
 Host cancellation is intentionally platform-specific behind the runtime transport:
 
@@ -73,7 +73,7 @@ Host cancellation is intentionally platform-specific behind the runtime transpor
 - **LAN Remote Web:** the same `executionId` crosses `/api/execute`. Browser abort additionally calls `/api/cancel`, so cancellation reaches the host instead of merely stopping `fetch`.
 - **JavaScript runtime:** the shared controller can classify cancellation/timeout at the orchestration layer, but the current JavaScript engine executes synchronously in the renderer. A CPU-bound synchronous JS node cannot be forcibly interrupted while it blocks the event loop. Hard cancellation for JS requires future worker isolation and is not claimed by Phase 2.
 
-The default workflow timeout is 10 minutes, normalized to the supported 1-second to 24-hour range. The current host policy permits one active workflow at a time to prevent overlapping writes/results while leaving utility/platform tasks independent.
+The default workflow timeout is 10 minutes, normalized to the supported 1-second to 24-hour range. In Phase 3.5, Desktop Python permits up to `min(4, available CPU parallelism)` active workflow processes and queues excess jobs; Android keeps one Chaquopy workflow active and queues the rest. Utility/platform tasks remain outside the workflow scheduler.
 
 ## Plot presentation
 
@@ -112,11 +112,11 @@ The former JavaScript branch is a migration source, not a second application to 
 ## Next phases
 
 1. **Phase 1 complete and user-accepted:** keep the PlatformAdapter boundary frozen unless a verified host-capability bug requires a compatible extension.
-2. **Phase 2 implemented on `dev` 1.4.28:** validate ExecutionController behavior on real Windows and Android hosts; do not claim Android/native hard-kill semantics beyond the documented best-effort boundary.
-3. **Next: Phase 3 Workflow Core:** extract workflow session/history/serialization/migrations from the large application component without changing UI behavior.
-4. Add typed runtime capability metadata to node definitions so the palette can show runtime support before execution.
-5. Build Python/JavaScript golden-workflow parity tests and expand JavaScript support only where semantics can be matched.
-6. After these boundaries are stable, modularize the Python engine and platform host implementations.
+2. **Phase 2 complete and user-accepted:** preserve host-release cancellation semantics and Android native-code limitations.
+3. **Phase 3 Workflow Core complete/frozen:** workflow session/history/input-state/persistence/migration semantics live under `src/workflow-core/`.
+4. **Phase 3.5 implemented, pending acceptance:** multi-workspace scheduling, Desktop bounded parallelism, Android FIFO queueing, and proactive Remote Web host-status polling.
+5. **Next: Phase 4 Unified NodeSpec:** centralize runtime/side-effect/cache/deterministic metadata.
+6. Build Phase 5 Python/JavaScript golden-workflow parity tests, then modularize runtime engines and hosts.
 
 The authoritative architecture/reliability roadmap is `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md`.
 
@@ -134,3 +134,13 @@ The project should not return to separate Python-UI and JavaScript-UI branches.
 `src/workflow-core/` is now the home for workflow state semantics which previously lived in `App.tsx`: snapshot persistence signatures, history, per-tab session/dirty state, guarded persistence, serialization, migration/validation and reusable graph commands. UI components should invoke these abstractions rather than recreate equivalent arrays/maps/localStorage logic.
 
 `ui.alert` currently uses the core `upstreamSubgraph` command to execute only the graph feeding its `content` port before opening the dialog. This fixes stale previous-run popup data without changing the visual UI.
+
+## Multi-Workspace Execution (Phase 3.5)
+
+Execution identity is now four-dimensional: `executionId` identifies the run, `workspaceId` identifies the tab/workspace, `clientId` identifies the UI/browser session, and `source` records local vs Remote Web origin. Local and remote requests share the same host scheduler.
+
+- **Desktop Python:** `WorkflowExecutionScheduler.cjs` runs up to 1–4 child processes depending on available CPU parallelism and queues excess jobs FIFO. Each process remains independently cancellable.
+- **Android Python:** one embedded Chaquopy worker runs at a time and additional requests queue FIFO. Queue waiting is not counted against execution timeout.
+- **Workspace UI:** switching tabs does not discard the execution controller, successful result, input selection or undo/redo history of the inactive workspace. The primary run button controls only the active workspace.
+- **Remote state:** after pairing, the browser polls host execution state every 400 ms. Host-started runs therefore update the browser controls without requiring interaction.
+- **JavaScript:** remains synchronous in the renderer and is effectively single-threaded. A later Web Worker runtime is required for real JS parallelism and hard cancel.
