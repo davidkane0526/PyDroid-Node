@@ -38,7 +38,7 @@ assert.match(
 );
 assert.match(
   buildToolSources,
-  /Get-ExtendedLengthPath -Path \$Path/,
+  /(?:Get-ExtendedLengthPath|ConvertTo-PyDroidExtendedLengthPath) -Path \$Path/,
   "robust cleanup should retry through the Windows extended-length path namespace",
 );
 assert.match(

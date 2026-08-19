@@ -1,7 +1,14 @@
 ﻿# PyDroid workspace/output cleanup helpers. Windows PowerShell 5.1 compatible.
+# Keep this module self-contained. Nested -Force imports can evict a module instance
+# previously imported by the GUI build script under Windows PowerShell 5.1.
 
-$pathsModule = Join-Path $PSScriptRoot "PyDroid.Build.Paths.psm1"
-Import-Module -Name $pathsModule -Force -DisableNameChecking -ErrorAction Stop
+function ConvertTo-PyDroidExtendedLengthPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    $full = [System.IO.Path]::GetFullPath($Path)
+    if ($full.StartsWith('\\?\')) { return $full }
+    if ($full.StartsWith('\\')) { return ('\\?\UNC\' + $full.Substring(2)) }
+    return ('\\?\' + $full)
+}
 
 function Remove-PyDroidBuildDirectoryRobust {
     param(
@@ -17,7 +24,7 @@ function Remove-PyDroidBuildDirectoryRobust {
     }
     if (-not (Test-Path -LiteralPath $Path)) { return }
 
-    $extendedPath = Get-ExtendedLengthPath -Path $Path
+    $extendedPath = ConvertTo-PyDroidExtendedLengthPath -Path $Path
     & cmd.exe /d /c rd /s /q "`"$extendedPath`"" 2>$null | Out-Null
     $global:LASTEXITCODE = 0
     if (-not (Test-Path -LiteralPath $Path)) { return }

@@ -1,3 +1,10 @@
+## 1.4.48 (71) — Windows PowerShell 5.1 nested-module scope fix — 2026-08-19
+
+- Fixed the real root cause of the Phase 7 Windows GUI build failure: `PyDroid.Build.Packaging.psm1` was force-importing `PyDroid.Build.Paths.psm1` inside another module, which can evict/re-scope the globally imported Paths module under Windows PowerShell 5.1.
+- Removed all nested imports between PyDroid build modules. Packaging now owns a private extended-length-path helper and no longer reloads Paths.
+- Strengthened the build-tool architecture guard so focused build modules may not import one another; module composition is owned only by `build-pydroid.ps1`.
+- Build script revision: `1.4.48-dev-r24-phase7-build-module-scope-fix`.
+
 ## 1.4.47 (70) — Windows build-module command resolution hotfix — 2026-08-19
 
 - Fixed the Phase 7 Windows build-tool regression where `Resolve-AbsolutePath` and other helpers moved to `.psm1` modules could be unavailable in the GUI-launched Windows PowerShell child process.

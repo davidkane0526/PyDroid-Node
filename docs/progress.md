@@ -1,3 +1,10 @@
+## 2026-08-19 — Phase 7 Windows PowerShell 5.1 nested-module scope fix / 1.4.48 (71)
+
+- Real Windows validation of 1.4.47 proved the Paths module itself exported correctly but was no longer addressable after all modules loaded. Root cause: Packaging nested-imported Paths with `-Force`, replacing/re-scoping the module instance in Windows PowerShell 5.1.
+- Build modules are now self-contained and cannot nested-import one another. `build-pydroid.ps1` is the sole composition root.
+- Phase 7 remains pending one successful normal Windows + Android build validation.
+- Build script revision: `1.4.48-dev-r24-phase7-build-module-scope-fix`.
+
 ## 2026-08-19 — Phase 7 Windows build module command-resolution fix / 1.4.47 (70)
 
 - Real Windows GUI-build validation exposed a Phase 7 module-scope regression: `Resolve-AbsolutePath` was exported by `PyDroid.Build.Paths.psm1` but was not resolved by the child PowerShell process launched from the GUI.

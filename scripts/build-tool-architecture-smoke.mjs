@@ -21,6 +21,7 @@ for (const name of required) {
   assert.match(main, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `build-pydroid.ps1 must import ${name}`);
   const body = readFileSync(path.join(moduleDir, name), "utf8");
   assert.match(body, /Export-ModuleMember\s+-Function/, `${name} should expose an explicit public surface`);
+  assert.doesNotMatch(body, /Import-Module[\s\S]*PyDroid\.Build\./i, `${name} must not nested-import another PyDroid build module; Windows PowerShell 5.1 -Force reloads can evict the caller's module instance`);
 }
 
 assert.match(main, /Import-Module\s+-Name\s+\$modulePath\s+-Force\s+-Global\s+-DisableNameChecking/, "main build script must load focused modules globally for GUI child-process compatibility");

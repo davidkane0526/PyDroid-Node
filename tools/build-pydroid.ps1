@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.47-dev-r23-phase7-build-module-import-fix"
+$script:BuildScriptRevision = "1.4.48-dev-r24-phase7-build-module-scope-fix"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

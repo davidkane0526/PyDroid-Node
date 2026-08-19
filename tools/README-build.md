@@ -69,6 +69,8 @@ PyDroid.Build.Java.psm1
 PyDroid.Build.Android.psm1
 PyDroid.Build.Python.psm1
 PyDroid.Build.Packaging.psm1
+
+Build modules must not import one another (especially with `-Force`). `build-pydroid.ps1` is the sole composition root; this avoids Windows PowerShell 5.1 module-instance replacement/scope bugs.
 ```
 
 Do not move code merely to reduce line count. A function belongs in a module only when its inputs can be made explicit and it does not depend on hidden orchestration state. Machine-sensitive install/build sequencing remains in `build-pydroid.ps1`. Modules must stay compatible with Windows PowerShell 5.1 and preserve the Chinese diagnostic messages and existing proxy/cache/long-path behavior.
