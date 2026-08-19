@@ -50,6 +50,7 @@ final class RemoteWorkflowServer {
     private final Set<String> remoteExecutionIds = ConcurrentHashMap.newKeySet();
     private ServerSocket socket;
     private Thread acceptThread;
+    private String assetRoot = "public";
 
     private RemoteWorkflowServer(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) {
         this.context = context.getApplicationContext();
@@ -66,6 +67,7 @@ final class RemoteWorkflowServer {
 
     static RemoteWorkflowServer start(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) throws IOException {
         RemoteWorkflowServer server = new RemoteWorkflowServer(context, pythonWorker, requestWorker, executionController, requiresPin);
+        server.assetRoot = server.resolveAssetRoot();
         server.socket = new ServerSocket(PORT);
         server.socket.setReuseAddress(true);
         server.running = true;
@@ -81,7 +83,7 @@ final class RemoteWorkflowServer {
         result.put("port", PORT);
         result.put("requiresPin", requiresPin);
         result.put("pin", requiresPin ? pin : JSONObject.NULL);
-        result.put("url", "http://" + discovery.primaryAddress() + ":" + PORT + "/?remote=1");
+        result.put("url", "http://" + discovery.primaryAddress() + ":" + PORT + "/?remote=1&v=" + BuildConfig.VERSION_NAME);
         return result;
     }
 
@@ -265,6 +267,25 @@ final class RemoteWorkflowServer {
         }
     }
 
+    private String resolveAssetRoot() throws IOException {
+        AssetManager assets = context.getAssets();
+        String[] roots = new String[] { "public", "www", "" };
+        IOException last = null;
+        for (String root : roots) {
+            String candidate = root.isEmpty() ? "index.html" : root + "/index.html";
+            try (InputStream ignored = assets.open(candidate)) {
+                return root;
+            } catch (IOException exception) {
+                last = exception;
+            }
+        }
+        throw new IOException("Remote Web index.html is missing from packaged Android assets", last);
+    }
+
+    private String assetPath(String path) {
+        return assetRoot == null || assetRoot.isEmpty() ? path : assetRoot + "/" + path;
+    }
+
     private void serveAsset(String rawPath, OutputStream output) throws IOException {
         String path = rawPath.equals("/") ? "index.html" : rawPath.substring(1);
         if (path.contains("..") || path.contains("\\") || path.isEmpty()) {
@@ -272,9 +293,16 @@ final class RemoteWorkflowServer {
             return;
         }
         AssetManager assets = context.getAssets();
-        try (InputStream input = assets.open("public/" + path)) {
+        try (InputStream input = assets.open(assetPath(path))) {
             send(output, 200, contentType(path), readAll(input, MAX_BODY_BYTES));
         } catch (IOException exception) {
+            // Client-side routes should still resolve to the Remote Web SPA shell.
+            if (!path.contains(".")) {
+                try (InputStream input = assets.open(assetPath("index.html"))) {
+                    send(output, 200, "text/html; charset=utf-8", readAll(input, MAX_BODY_BYTES));
+                    return;
+                }
+            }
             send(output, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
         }
     }
@@ -336,7 +364,7 @@ final class RemoteWorkflowServer {
     private static void sendJsonText(OutputStream output, int status, String value) throws IOException { send(output, status, "application/json; charset=utf-8", value.getBytes(StandardCharsets.UTF_8)); }
     private static void send(OutputStream output, int status, String type, byte[] body) throws IOException {
         String text = status == 200 ? "OK" : status == 204 ? "No Content" : status == 400 ? "Bad Request" : status == 401 ? "Unauthorized" : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Internal Server Error";
-        String headers = "HTTP/1.1 " + status + " " + text + "\r\nContent-Type: " + type + "\r\nContent-Length: " + body.length + "\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Content-Type, X-PyDroid-Token\r\n\r\n";
+        String headers = "HTTP/1.1 " + status + " " + text + "\r\nContent-Type: " + type + "\r\nContent-Length: " + body.length + "\r\nCache-Control: no-store\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Content-Type, X-PyDroid-Token\r\n\r\n";
         output.write(headers.getBytes(StandardCharsets.ISO_8859_1));
         output.write(body);
         output.flush();

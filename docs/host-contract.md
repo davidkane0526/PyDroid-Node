@@ -35,3 +35,7 @@ pnpm test:host-contract
 ```
 
 The smoke checks Desktop preload methods/channels, Desktop IPC registration, Android TypeScript plugin methods, Android Java bindings and the main PlatformAdapter capability surface.
+
+## Remote Web presentation stability
+
+Host start success requires the packaged SPA shell to be readable. Desktop verifies `desktop/package-renderer/index.html`; Android verifies the packaged asset root before opening the LAN service. Presentation URLs include `?remote=1&v=<app-version>` (including discovery/UPnP paths) and the SPA shell is served without stale caching so a browser cannot reuse an older index which points at removed hashed assets after an upgrade.

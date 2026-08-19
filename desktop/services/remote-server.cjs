@@ -6,6 +6,34 @@ const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
 const { projectPaths } = require("./profile-service.cjs");
 
+function resolveRendererRoot() {
+  const candidates = app.isPackaged
+    ? [
+        path.dirname(projectPaths(app).renderer),
+        path.join(app.getAppPath(), "desktop", "package-renderer"),
+        path.join(process.resourcesPath, "app.asar", "desktop", "package-renderer"),
+      ]
+    : [
+        path.resolve(__dirname, "..", "..", "dist-desktop"),
+        path.resolve(__dirname, "..", "..", "dist"),
+      ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const index = path.join(candidate, "index.html");
+    try { if (fs.existsSync(index) && fs.statSync(index).isFile()) return path.resolve(candidate); } catch { /* try next candidate */ }
+  }
+  throw new Error(`Remote Web renderer not found. Checked: ${candidates.join(" | ")}`);
+}
+
+function safeStaticPath(rendererRoot, pathname) {
+  let requested = pathname === "/" ? "index.html" : decodeURIComponent(pathname.replace(/^\/+/, ""));
+  if (!requested || requested.includes("\\0")) requested = "index.html";
+  const root = path.resolve(rendererRoot);
+  const filePath = path.resolve(root, requested);
+  if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) return null;
+  return filePath;
+}
+
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
   let remotePin = null;
@@ -41,7 +69,8 @@ function createRemoteServerService({ pythonService, log }) {
     if (remoteServer) return Promise.resolve(remoteServer.__info);
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
-    const rendererRoot = app.isPackaged ? path.dirname(projectPaths(app).renderer) : path.resolve(__dirname, "..", "..", "dist-desktop");
+    const rendererRoot = resolveRendererRoot();
+    log(`[Remote Web] Renderer root: ${rendererRoot}`);
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url, "http://localhost");
@@ -109,14 +138,18 @@ function createRemoteServerService({ pythonService, log }) {
           }
           return sendJson(response, 404, { error: "接口不存在" });
         }
-        const requested = url.pathname === "/" ? "index.html" : decodeURIComponent(url.pathname.slice(1));
-        const filePath = path.resolve(rendererRoot, requested);
-        if (!filePath.startsWith(path.resolve(rendererRoot)) || !fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-          response.writeHead(404);
-          return response.end("Not found");
+        let filePath = safeStaticPath(rendererRoot, url.pathname);
+        if (!filePath) { response.writeHead(400); return response.end("Invalid path"); }
+        let exists = false;
+        try { exists = fs.existsSync(filePath) && fs.statSync(filePath).isFile(); } catch { exists = false; }
+        // Remote Web is a SPA. A browser refresh on a client-side route should still load index.html.
+        if (!exists && request.method === "GET" && String(request.headers.accept ?? "").includes("text/html")) {
+          filePath = path.join(rendererRoot, "index.html");
+          exists = fs.existsSync(filePath);
         }
-        const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png" }[path.extname(filePath)] ?? "application/octet-stream";
-        response.writeHead(200, { "Content-Type": mime });
+        if (!exists) { response.writeHead(404); return response.end("Not found"); }
+        const mime = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp", ".ico": "image/x-icon", ".json": "application/json; charset=utf-8", ".woff2": "font/woff2" }[path.extname(filePath).toLowerCase()] ?? "application/octet-stream";
+        response.writeHead(200, { "Content-Type": mime, "Cache-Control": path.basename(filePath) === "index.html" ? "no-store" : "public, max-age=31536000, immutable" });
         fs.createReadStream(filePath).pipe(response);
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
@@ -124,7 +157,7 @@ function createRemoteServerService({ pythonService, log }) {
     return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", () => {
       const port = server.address().port;
       try {
-        lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log });
+        lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
         const discovery = lanDiscovery.start({ port });
         log(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
         log(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
@@ -133,7 +166,7 @@ function createRemoteServerService({ pythonService, log }) {
         log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
       }
       const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
-      const info = { url: `http://${address}:${port}/?remote=1`, pin: remotePin, requiresPin: Boolean(remotePin), port };
+      const info = { url: `http://${address}:${port}/?remote=1&v=${encodeURIComponent(app.getVersion())}`, pin: remotePin, requiresPin: Boolean(remotePin), port };
       server.__info = info;
       remoteServer = server;
       resolve(info);

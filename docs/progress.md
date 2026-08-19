@@ -1,3 +1,11 @@
+## 2026-08-19 — Phase 7 real-device validation fixes / 1.4.49 (72)
+
+- Windows build finalization redesigned: each platform exposes a directly usable path immediately after compilation; large old-output and release/dist cleanup is detached and no longer blocks the GUI from reaching build completion.
+- Remote Web hardened on both hosts: packaged web root is verified before start succeeds, index responses are cache-safe, presentation URLs include the app version, and SPA route fallback is supported. This targets the real-device symptom where Desktop/Android reported LAN service start success but the browser could not load the application.
+- Android palette gestures refined for node groups and workflows: move >8 px wins as drag, stationary 520 ms opens management menu, and double-click/double-tap opens the same menu.
+- Android workspace footer no longer rides above the soft keyboard while editing palette/inspector text fields.
+- Build script revision: `1.4.49-dev-r25-phase7-validation-fixes`.
+
 ## 2026-08-19 — Phase 7 Windows PowerShell 5.1 nested-module scope fix / 1.4.48 (71)
 
 - Real Windows validation of 1.4.47 proved the Paths module itself exported correctly but was no longer addressable after all modules loaded. Root cause: Packaging nested-imported Paths with `-Force`, replacing/re-scoping the module instance in Windows PowerShell 5.1.

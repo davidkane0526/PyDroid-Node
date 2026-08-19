@@ -35,6 +35,14 @@ assert.match(main, /function\s+Test-NodeCandidate[\s\S]*Test-PyDroidNodeCandidat
 assert.match(main, /function\s+Test-PythonSeries[\s\S]*Test-PyDroidPythonSeries/, "Python wrapper should delegate series validation to its module");
 assert.match(main, /function\s+Remove-BuildDirectoryRobust[\s\S]*Remove-PyDroidBuildDirectoryRobust/, "packaging cleanup should delegate to its module");
 
+
+const deferredCleanup = path.join(root, "tools", "deferred-cleanup.ps1");
+assert.ok(readFileSync(deferredCleanup, "utf8").includes("ManifestPath"), "deferred cleanup worker must exist");
+assert.match(main, /Start-DeferredCleanup/, "successful builds should launch cleanup out-of-process");
+assert.match(main, /构建完成（后台清理不阻塞）/, "build completion should be reported before cleanup finishes");
+assert.match(main, /Windows Desktop 已编译完成，可直接运行目录/, "Desktop output path should be displayed as soon as Desktop compilation finishes");
+assert.match(main, /Android APK 已编译完成，可直接安装/, "Android APK path should be displayed as soon as Android compilation finishes");
+
 const mainLines = main.split(/\r?\n/).length;
 assert.ok(mainLines < 2500, `build-pydroid.ps1 should keep shrinking as orchestration root (currently ${mainLines} lines)`);
 console.log(`Build-tool architecture smoke passed (${required.length} modules; main ${mainLines} lines).`);

@@ -51,7 +51,7 @@ final class LanDiscoveryService {
     }
 
     synchronized String primaryAddress() { return interfaces.isEmpty() ? "127.0.0.1" : interfaces.get(0).address.getHostAddress(); }
-    String localUrl() { return "http://" + identity.hostname + ".local:" + webPort + "/?remote=1"; }
+    String localUrl() { return "http://" + identity.hostname + ".local:" + webPort + "/?remote=1&v=" + BuildConfig.VERSION_NAME; }
     String deviceXml(String requestedAddress) {
         String ip = requestedAddress == null || requestedAddress.isBlank() || requestedAddress.contains(":") ? primaryAddress() : requestedAddress;
         return UpnpDeviceDescription.build(ip, webPort, identity);
@@ -79,7 +79,7 @@ final class LanDiscoveryService {
         catch (Exception exception) { ssdp = null; Log.w(TAG, "[SSDP] startup failed; HTTP/mDNS continue", exception); }
         try { mdns = new MdnsService(identity, webPort, next); mdns.start(); }
         catch (Exception exception) { mdns = null; Log.w(TAG, "[mDNS] startup failed; HTTP/SSDP continue", exception); }
-        Log.i(TAG, "[LAN] HTTP http://" + primaryAddress() + ":" + webPort + "/?remote=1");
+        Log.i(TAG, "[LAN] HTTP http://" + primaryAddress() + ":" + webPort + "/?remote=1&v=" + BuildConfig.VERSION_NAME);
         Log.i(TAG, "[LAN] local " + localUrl());
     }
 

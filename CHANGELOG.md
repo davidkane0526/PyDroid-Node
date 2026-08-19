@@ -1,3 +1,11 @@
+## 1.4.49 (72) — Phase 7 validation fixes: Remote Web, touch gestures, keyboard, non-blocking build finalization — 2026-08-19
+
+- Build completion no longer waits for large Electron/Python directory deletion. Windows and Android print their directly usable build paths immediately when each platform finishes; final old-output/workspace cleanup is launched in a detached PowerShell worker after outputs are ready.
+- Remote Web startup now validates its packaged renderer/assets before reporting success, serves SPA routes robustly, disables stale shell caching, and version-tags direct/mDNS/UPnP presentation URLs so browsers do not reuse an old hashed-asset index after an app upgrade.
+- Android node-group and workflow-library resources now distinguish movement from stationary hold at an 8 px threshold; stationary menu hold is 520 ms and both resources support double-click/double-tap menu opening without sacrificing drag behavior.
+- On Android main-workspace palette/parameter text editing, the bottom status-bar row collapses while the IME is visible instead of floating upward above the keyboard.
+- Build script revision: `1.4.49-dev-r25-phase7-validation-fixes`.
+
 ## 1.4.48 (71) — Windows PowerShell 5.1 nested-module scope fix — 2026-08-19
 
 - Fixed the real root cause of the Phase 7 Windows GUI build failure: `PyDroid.Build.Packaging.psm1` was force-importing `PyDroid.Build.Paths.psm1` inside another module, which can evict/re-scope the globally imported Paths module under Windows PowerShell 5.1.

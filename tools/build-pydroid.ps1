@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.48-dev-r24-phase7-build-module-scope-fix"
+$script:BuildScriptRevision = "1.4.49-dev-r25-phase7-validation-fixes"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -1828,6 +1828,33 @@ function Build-Android {
     return $apk
 }
 
+$script:DeferredCleanupTargets = New-Object System.Collections.Generic.List[string]
+
+function Queue-DeferredCleanup {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    if (-not $script:DeferredCleanupTargets.Contains($Path)) { $script:DeferredCleanupTargets.Add($Path) }
+}
+
+function Start-DeferredCleanup {
+    if ($script:DeferredCleanupTargets.Count -eq 0) { return }
+    $cleanupScript = Join-Path $ProjectRoot "tools\deferred-cleanup.ps1"
+    if (-not (Test-Path -LiteralPath $cleanupScript -PathType Leaf)) {
+        Write-Warning "未找到延后清理脚本；本次构建不会等待清理：$cleanupScript"
+        return
+    }
+    $manifest = Join-Path $WorkRoot (".pydroid-deferred-cleanup-{0}.json" -f ([guid]::NewGuid().ToString("N")))
+    @($script:DeferredCleanupTargets) | ConvertTo-Json | Set-Content -LiteralPath $manifest -Encoding UTF8
+    try {
+        Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -ArgumentList @(
+            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $cleanupScript), "-ManifestPath", ('"{0}"' -f $manifest)
+        ) | Out-Null
+        Write-Step "旧版本与临时打包文件已转入后台清理；不再阻塞构建完成。"
+    } catch {
+        Write-Warning "无法启动后台清理，构建结果不受影响：$($_.Exception.Message)"
+    }
+}
+
 function Copy-Outputs {
     param(
         [string]$ApkSource,
@@ -1860,9 +1887,10 @@ function Copy-Outputs {
                     try {
                         Move-Item -LiteralPath $oldDir.FullName -Destination (Join-Path $trashRoot $oldDir.Name) -Force -ErrorAction Stop
                     } catch {
-                        # Fallback for unusual filesystems/locks. This remains visible as its own stage.
-                        Write-BuildStage -Percent 92 -Message "清理旧版桌面产物"
-                        Remove-Item -LiteralPath $oldDir.FullName -Recurse -Force -ErrorAction SilentlyContinue
+                        # Never block a successful build on deleting an old Electron tree.
+                        # Queue the locked directory for best-effort background cleanup instead.
+                        Write-Warning "旧桌面产物暂时无法移动，将在后台尝试清理：$($oldDir.FullName)"
+                        Queue-DeferredCleanup -Path $oldDir.FullName
                     }
                 }
             }
@@ -1873,6 +1901,7 @@ function Copy-Outputs {
         Write-BuildStage -Percent 93 -Message "复制 Android APK"
         $apkDest = Join-Path $OutputRoot "$outputBaseName-$version.apk"
         Copy-Item -LiteralPath $ApkSource -Destination $apkDest -Force
+        Write-Host "Android 输出：$apkDest" -ForegroundColor Yellow
     }
 
     if ($HasDesktop) {
@@ -1889,7 +1918,11 @@ function Copy-Outputs {
                 New-Item -ItemType Directory -Force -Path $trashRoot | Out-Null
             }
             try { Move-Item -LiteralPath $desktopDest -Destination (Join-Path $trashRoot (Split-Path $desktopDest -Leaf)) -Force -ErrorAction Stop }
-            catch { Remove-Item -LiteralPath $desktopDest -Recurse -Force -ErrorAction SilentlyContinue }
+            catch {
+                Queue-DeferredCleanup -Path $desktopDest
+                $desktopDest = Join-Path $OutputRoot ("{0}-{1}-Desktop-{2}" -f $outputBaseName, $version, (Get-Date -Format "HHmmss"))
+                Write-Warning "旧版目录被占用；新桌面版将输出到不冲突目录：$desktopDest"
+            }
         }
 
         $sourceRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $unpacked))
@@ -1908,23 +1941,21 @@ function Copy-Outputs {
             $robocopyExitCode = $LASTEXITCODE
             if ($robocopyExitCode -ge 8) { throw "桌面版复制失败，robocopy 退出码 $robocopyExitCode。" }
         }
+        Write-Host "Windows 输出：$desktopDest" -ForegroundColor Yellow
     }
 
     Write-BuildStage -Percent 96 -Message "最终产物已就位"
 
     if ($trashRoot -and (Test-Path -LiteralPath $trashRoot -PathType Container)) {
-        Write-BuildStage -Percent 97 -Message "清理旧版本产物"
-        # cmd rmdir is substantially faster than PowerShell Remove-Item for a large
-        # Electron tree and does not leave a background worker/process behind.
-        & $env:ComSpec /d /s /c ('rmdir /s /q "{0}"' -f $trashRoot) | Out-Null
+        Queue-DeferredCleanup -Path $trashRoot
     }
 
     Write-Host ""
-    Write-Host "==================== 构建完成 ====================" -ForegroundColor Green
+    Write-Host "==================== 构建产物已就绪 ====================" -ForegroundColor Green
     Write-Host "版本：$version"
     if ($HasApk)    { Write-Host "APK：$apkDest" -ForegroundColor Yellow }
     if ($HasDesktop) { Write-Host "桌面版：$desktopDest" -ForegroundColor Yellow }
-    Write-Host "工作区：$workspace（已清理打包产物）"
+    Write-Host "工作区：$workspace（临时打包文件将后台清理）"
     Write-Host "==================================================" -ForegroundColor Green
 }
 
@@ -2074,6 +2105,8 @@ if ($hasApk) {
 
 if ($hasDesktop) {
     Build-Desktop
+    $desktopRaw = Join-Path $workspace "release\win-unpacked"
+    Write-Host "Windows Desktop 已编译完成，可直接运行目录：$desktopRaw" -ForegroundColor Green
 }
 
 if ($hasApk) {
@@ -2083,6 +2116,7 @@ if ($hasApk) {
         throw ("Android 构建函数返回了 {0} 个成功输出项，而不是唯一 APK 路径。输出预览：{1}" -f $apkResult.Count, $preview)
     }
     $apkSource = [string]$apkResult[0]
+    Write-Host "Android APK 已编译完成，可直接安装：$apkSource" -ForegroundColor Green
     if ([string]::IsNullOrWhiteSpace($apkSource) -or -not (Test-Path -LiteralPath $apkSource -PathType Leaf)) {
         throw "Android 构建返回的 APK 路径无效：$apkSource"
     }
@@ -2090,16 +2124,19 @@ if ($hasApk) {
 
 Copy-Outputs -ApkSource $apkSource -HasApk:$hasApk -HasDesktop:$hasDesktop
 
-# 构建后默认仅清理 release/dist 等可再生打包产物。
-# Android Gradle/build 目录默认保留，为下一次增量构建加速。
+# 构建产物一旦就位就视为完成。release/dist 等可再生目录转入独立后台进程清理，
+# 不再让 GUI 等待成千上万个 Electron/Python 小文件被物理删除。
 if (-not $KeepWorkspace) {
-    Write-BuildStage -Percent 97 -Message "清理临时打包产物（保留 Android 增量缓存）"
-    Clear-WorkspaceOutputs
+    foreach ($relative in @("release", "dist", "dist-desktop", "temp")) {
+        $candidate = Join-Path $workspace $relative
+        if (Test-Path -LiteralPath $candidate) { Queue-DeferredCleanup -Path $candidate }
+    }
 } else {
     Write-Host "保留工作区用于排查：$workspace" -ForegroundColor DarkYellow
 }
 
-Write-BuildStage -Percent 100 -Message "构建完成"
+Write-BuildStage -Percent 100 -Message "构建完成（后台清理不阻塞）"
+Start-DeferredCleanup
 Write-Host ""
 Write-Host "提示：如需查看脚本帮助，运行：" -ForegroundColor DarkGray
 Write-Host "  powershell -ExecutionPolicy Bypass -File "$PSCommandPath" -?" -ForegroundColor DarkGray

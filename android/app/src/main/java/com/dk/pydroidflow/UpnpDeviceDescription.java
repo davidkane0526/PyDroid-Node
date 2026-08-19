@@ -3,7 +3,7 @@ package com.dk.pydroidflow;
 final class UpnpDeviceDescription {
     static String build(String ip, int port, LanDeviceIdentity identity) {
         String base = "http://" + ip + ":" + port + "/";
-        String presentation = base + "?remote=1";
+        String presentation = base + "?remote=1&v=" + BuildConfig.VERSION_NAME;
         return "<?xml version=\"1.0\" encoding=\"utf-8\"?>\r\n" +
             "<root xmlns=\"urn:schemas-upnp-org:device-1-0\">\r\n" +
             "  <specVersion><major>1</major><minor>0</minor></specVersion>\r\n" +

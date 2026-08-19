@@ -57,6 +57,7 @@ Node/JDK/Android SDK/Python are reusable machine tools. Electron, electron-build
 - WinForms collection-return values are suppressed, so the launcher never prints `0 1 2 ...`.
 - GUI avoids PowerShell automatic `$args` mutation and uses Windows PowerShell 5.1-compatible process argument quoting.
 - Build output is streamed into the GUI and persisted under `<OutputRoot>\logs`.
+- A platform is considered usable as soon as its actual artifact exists: Desktop prints `release\win-unpacked` immediately after Electron packaging and Android prints `app-debug.apk` immediately after Gradle packaging. Final versioned outputs are then published, while large old Electron trees and `release`/`dist` cleanup are handed to `tools/deferred-cleanup.ps1` in a detached process. Cleanup must never block or retroactively fail an already successful build.
 - Auto/Direct/Manual network modes propagate proxy settings to pnpm, Electron and script downloads; Direct clears inherited proxy environment variables.
 - Persistent pnpm store with `--prefer-offline`, retry, timeout and concurrency controls.
 - Shared npm/Corepack/Electron/electron-builder/Gradle/download caches.

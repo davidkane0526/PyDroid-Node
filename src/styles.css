@@ -3462,3 +3462,13 @@ button.smb-file-row { cursor: pointer; }
 .node-contract-badges i { padding: 2px 5px; border: 1px solid var(--border-soft); border-radius: 5px; color: var(--text-muted); background: color-mix(in srgb, var(--surface-hover) 50%, transparent); font-size: 9.5px; font-style: normal; font-weight: 700; letter-spacing: .02em; }
 .node-contract-badges i.warn { color: #d97706; border-color: color-mix(in srgb, #f59e0b 38%, var(--border-soft)); }
 .node-contract-badges i.state { color: #7c3aed; border-color: color-mix(in srgb, #8b5cf6 34%, var(--border-soft)); }
+
+/* 1.4.49 Android keyboard behavior: on the main workspace, the status bar must not
+   become a floating toolbar above the IME. Collapse it while palette/parameter text
+   editing is active; the workspace receives the freed row and the footer returns on blur. */
+.app-shell.native-platform:has(.node-palette input:focus, .node-palette textarea:focus, .inspector input:focus, .inspector textarea:focus) {
+  grid-template-rows: 46px minmax(0, 1fr) 0;
+}
+.app-shell.native-platform:has(.node-palette input:focus, .node-palette textarea:focus, .inspector input:focus, .inspector textarea:focus) > .app-statusbar {
+  display: none !important;
+}

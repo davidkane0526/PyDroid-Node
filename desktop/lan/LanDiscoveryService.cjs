@@ -5,9 +5,10 @@ const { SsdpService } = require("./ssdp.cjs");
 const { MdnsService } = require("./mdns.cjs");
 
 class LanDiscoveryService {
-  constructor({ userDataRoot, log = () => {} }) {
+  constructor({ userDataRoot, log = () => {}, version = "" }) {
     this.log = log;
     this.identity = loadOrCreateIdentity(userDataRoot);
+    this.version = String(version || "");
     this.ssdp = null;
     this.mdns = null;
     this.interfaces = [];
@@ -18,7 +19,7 @@ class LanDiscoveryService {
     this.status = { ssdp: "stopped", mdns: "stopped" };
   }
 
-  config() { return { ...this.identity, port: this.port }; }
+  config() { return { ...this.identity, port: this.port, version: this.version }; }
 
   start({ port }) {
     this.stop();
@@ -59,8 +60,8 @@ class LanDiscoveryService {
   }
 
   primaryAddress() { return this.interfaces[0]?.address ?? "127.0.0.1"; }
-  presentationUrl(ip = this.primaryAddress()) { return `http://${ip}:${this.port}/?remote=1`; }
-  localUrl() { return `http://${this.identity.hostname}.local:${this.port}/?remote=1`; }
+  presentationUrl(ip = this.primaryAddress()) { const suffix = this.version ? `&v=${encodeURIComponent(this.version)}` : ""; return `http://${ip}:${this.port}/?remote=1${suffix}`; }
+  localUrl() { const suffix = this.version ? `&v=${encodeURIComponent(this.version)}` : ""; return `http://${this.identity.hostname}.local:${this.port}/?remote=1${suffix}`; }
   deviceXml(ip = this.primaryAddress()) { return makeUpnpDeviceXml({ ...this.config(), ip }); }
 
   getStatus() {
