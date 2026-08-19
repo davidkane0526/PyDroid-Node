@@ -3472,3 +3472,7 @@ button.smb-file-row { cursor: pointer; }
 .app-shell.native-platform:has(.node-palette input:focus, .node-palette textarea:focus, .inspector input:focus, .inspector textarea:focus) > .app-statusbar {
   display: none !important;
 }
+
+/* 1.4.50: show all verified Remote Web LAN candidates without stretching the top banner. */
+.remote-server-banner__urls { display: grid; gap: 2px; min-width: 0; }
+.remote-server-banner__urls code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -14,6 +14,8 @@ const environment = {
 
 const rendererSource = path.join(root, "dist-desktop");
 const rendererStage = path.join(root, "desktop", "package-renderer");
+const remoteRendererSource = path.join(root, "dist");
+const remoteRendererStage = path.join(root, "desktop", "package-remote");
 const releaseDir = path.join(root, "release", "win-unpacked");
 const smokeLog = path.join(root, "release", "desktop-package-smoke.log");
 const retryCount = Math.max(1, Number.parseInt(process.env.PYDROID_DESKTOP_PACKAGE_RETRIES || "3", 10) || 3);
@@ -117,6 +119,9 @@ function findPackagedExecutable() {
 }
 
 try {
+  // Build a browser-native bundle for Remote Web and an Electron-specific bundle for
+  // the desktop window. Remote browsers must never receive the Electron adapter bundle.
+  runPnpm(["build"]);
   runPnpm(["desktop:build"]);
 
   // OneDrive workspaces may use junctions for generated output. electron-builder's
@@ -125,6 +130,12 @@ try {
   fs.cpSync(rendererSource, rendererStage, { recursive: true, dereference: true });
   if (!fs.existsSync(path.join(rendererStage, "index.html"))) {
     throw new Error("Desktop renderer staging failed: index.html is missing");
+  }
+
+  fs.rmSync(remoteRendererStage, { recursive: true, force: true });
+  fs.cpSync(remoteRendererSource, remoteRendererStage, { recursive: true, dereference: true });
+  if (!fs.existsSync(path.join(remoteRendererStage, "index.html"))) {
+    throw new Error("Remote Web renderer staging failed: browser index.html is missing");
   }
 
   const packageResult = packageWithRetry();
@@ -154,4 +165,5 @@ try {
   );
 } finally {
   fs.rmSync(rendererStage, { recursive: true, force: true });
+  fs.rmSync(remoteRendererStage, { recursive: true, force: true });
 }

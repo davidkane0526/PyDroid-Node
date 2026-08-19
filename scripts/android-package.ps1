@@ -231,13 +231,16 @@ function Clear-PyDroidGradleDaemonState {
 
 Push-Location $projectRoot
 try {
-    Write-AndroidStage 82 "同步 Web 资源与 Capacitor Android 工程"
-    pnpm android:sync
-    if ($LASTEXITCODE -ne 0) {
-        throw "Capacitor Android sync failed."
+    if (([string]$env:PYDROID_SKIP_ANDROID_SYNC) -eq "1") {
+        Write-AndroidStage 84 "Capacitor 同步已由主构建器完成，启动 Gradle / Chaquopy 构建"
+    } else {
+        Write-AndroidStage 82 "同步 Web 资源与 Capacitor Android 工程"
+        pnpm android:sync
+        if ($LASTEXITCODE -ne 0) {
+            throw "Capacitor Android sync failed."
+        }
+        Write-AndroidStage 84 "Capacitor 同步完成，启动 Gradle / Chaquopy 构建"
     }
-
-    Write-AndroidStage 84 "Capacitor 同步完成，启动 Gradle / Chaquopy 构建"
     Push-Location "android"
     try {
         # --no-watch-fs: with the local-storage junction layout (android/app/build ->
@@ -279,6 +282,7 @@ try {
     $apk = Join-Path $projectRoot "android\app\build\outputs\apk\debug\app-debug.apk"
     if (-not (Test-Path -LiteralPath $apk -PathType Leaf)) { throw "Gradle returned success but Android debug APK was not found: $apk" }
     Write-AndroidStage 87 "Android APK 已生成，准备返回主构建流程"
+    Write-Host ("@@PYDROID_ARTIFACT@@|android|{0}" -f ($apk -replace '[\r\n|]+', ' '))
     Write-Host "Android debug APK: $apk"
 }
 finally {

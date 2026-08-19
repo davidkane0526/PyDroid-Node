@@ -87,3 +87,9 @@ The first test preserves the accumulated Windows compatibility invariants across
 ### Windows PowerShell module-resolution rule
 
 `build-pydroid.ps1` is launched by the WinForms GUI in a fresh child PowerShell process. Phase 7 build modules are therefore imported with global scope, and orchestration calls use explicit module-qualified names such as `PyDroid.Build.Paths\Resolve-AbsolutePath`. Do not revert these calls to unqualified helper names: Windows PowerShell 5.1 scope behavior under GUI child-process launch has been validated to require the explicit boundary.
+
+### Immediate artifact events (1.4.50+)
+
+The core builder emits `@@PYDROID_ARTIFACT@@|windows|<path>` and `@@PYDROID_ARTIFACT@@|android|<path>` as soon as each platform has a runnable output. The WinForms GUI renders these as clickable links immediately; it must not wait for the overall child process to exit. The final versioned destination emits the same event again so the GUI link follows the artifact after finalization.
+
+For GUI builds, Android Web/Capacitor sync is performed through the main builder's configured pnpm/Corepack invocation. `scripts/android-package.ps1` is then invoked directly in a PowerShell script scope with `PYDROID_SKIP_ANDROID_SYNC=1`. This avoids the extra `pnpm -> PowerShell -> Gradle` wrapper which can keep inherited Windows handles alive after the APK already exists and leave the GUI at 87%. Standalone `pnpm android:package` remains supported and performs its own sync.

@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.49-dev-r25-phase7-validation-fixes"
+$script:BuildScriptRevision = "1.4.50-dev-r26-phase7-real-validation-fixes"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -453,6 +453,15 @@ function Write-BuildStage {
     )
     $script:CurrentBuildStagePercent = $Percent
     Write-Host ("@@PYDROID_STAGE@@|{0}|{1}" -f $Percent, ($Message -replace '[\r\n|]+', ' '))
+}
+
+function Write-BuildArtifact {
+    param(
+        [Parameter(Mandatory=$true)][ValidateSet("windows", "android")][string]$Platform,
+        [Parameter(Mandatory=$true)][string]$Path
+    )
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    Write-Host ("@@PYDROID_ARTIFACT@@|{0}|{1}" -f $Platform, ($Path -replace '[\r\n|]+', ' '))
 }
 
 function Test-NativeSuccess {
@@ -1817,8 +1826,25 @@ function Build-Android {
         Write-Step "Gradle daemon 已启用；使用 PyDroid 专属 daemon 状态，启动失败会自动清理并重试。"
     }
 
+    Write-BuildStage -Percent 80 -Message "同步 Web 资源与 Capacitor Android 工程"
+    # Keep pnpm/Corepack discovery centralized in the main build orchestrator. The standalone
+    # android-package.ps1 can still run `pnpm android:sync` itself, but GUI builds perform the
+    # sync here so the Gradle wrapper no longer sits behind pnpm -> PowerShell -> Gradle.
+    Invoke-Pnpm @("android:sync")
+
     Write-BuildStage -Percent 82 -Message "编译 Android APK"
-    Invoke-Pnpm @("android:package")
+    $androidPackageScript = Join-Path $workspace "scripts\android-package.ps1"
+    if (-not (Test-Path -LiteralPath $androidPackageScript -PathType Leaf)) {
+        throw "未找到 Android 打包脚本：$androidPackageScript"
+    }
+    $previousSkipSync = [string]$env:PYDROID_SKIP_ANDROID_SYNC
+    $env:PYDROID_SKIP_ANDROID_SYNC = "1"
+    try {
+        & $androidPackageScript | ForEach-Object { Write-Host ([string]$_) }
+    } finally {
+        if ([string]::IsNullOrEmpty($previousSkipSync)) { Remove-Item Env:PYDROID_SKIP_ANDROID_SYNC -ErrorAction SilentlyContinue }
+        else { $env:PYDROID_SKIP_ANDROID_SYNC = $previousSkipSync }
+    }
     Write-BuildStage -Percent 88 -Message "Android APK 编译完成"
 
     $apk = Join-Path $workspace "android\app\build\outputs\apk\debug\app-debug.apk"
@@ -1901,6 +1927,7 @@ function Copy-Outputs {
         Write-BuildStage -Percent 93 -Message "复制 Android APK"
         $apkDest = Join-Path $OutputRoot "$outputBaseName-$version.apk"
         Copy-Item -LiteralPath $ApkSource -Destination $apkDest -Force
+        Write-BuildArtifact -Platform "android" -Path $apkDest
         Write-Host "Android 输出：$apkDest" -ForegroundColor Yellow
     }
 
@@ -1941,6 +1968,7 @@ function Copy-Outputs {
             $robocopyExitCode = $LASTEXITCODE
             if ($robocopyExitCode -ge 8) { throw "桌面版复制失败，robocopy 退出码 $robocopyExitCode。" }
         }
+        Write-BuildArtifact -Platform "windows" -Path $desktopDest
         Write-Host "Windows 输出：$desktopDest" -ForegroundColor Yellow
     }
 
@@ -2106,6 +2134,7 @@ if ($hasApk) {
 if ($hasDesktop) {
     Build-Desktop
     $desktopRaw = Join-Path $workspace "release\win-unpacked"
+    Write-BuildArtifact -Platform "windows" -Path $desktopRaw
     Write-Host "Windows Desktop 已编译完成，可直接运行目录：$desktopRaw" -ForegroundColor Green
 }
 
@@ -2116,6 +2145,7 @@ if ($hasApk) {
         throw ("Android 构建函数返回了 {0} 个成功输出项，而不是唯一 APK 路径。输出预览：{1}" -f $apkResult.Count, $preview)
     }
     $apkSource = [string]$apkResult[0]
+    Write-BuildArtifact -Platform "android" -Path $apkSource
     Write-Host "Android APK 已编译完成，可直接安装：$apkSource" -ForegroundColor Green
     if ([string]::IsNullOrWhiteSpace($apkSource) -or -not (Test-Path -LiteralPath $apkSource -PathType Leaf)) {
         throw "Android 构建返回的 APK 路径无效：$apkSource"

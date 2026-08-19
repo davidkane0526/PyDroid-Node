@@ -9,13 +9,14 @@ const { projectPaths } = require("./profile-service.cjs");
 function resolveRendererRoot() {
   const candidates = app.isPackaged
     ? [
+        path.join(app.getAppPath(), "desktop", "package-remote"),
+        path.join(process.resourcesPath, "app.asar", "desktop", "package-remote"),
+        // Compatibility fallback for older packages which did not stage a dedicated browser bundle.
         path.dirname(projectPaths(app).renderer),
-        path.join(app.getAppPath(), "desktop", "package-renderer"),
-        path.join(process.resourcesPath, "app.asar", "desktop", "package-renderer"),
       ]
     : [
-        path.resolve(__dirname, "..", "..", "dist-desktop"),
         path.resolve(__dirname, "..", "..", "dist"),
+        path.resolve(__dirname, "..", "..", "dist-desktop"),
       ];
   for (const candidate of candidates) {
     if (!candidate) continue;
@@ -32,6 +33,31 @@ function safeStaticPath(rendererRoot, pathname) {
   const filePath = path.resolve(root, requested);
   if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) return null;
   return filePath;
+}
+
+async function verifyRemoteServerReady(port, host = "127.0.0.1") {
+  const requestText = (pathname) => new Promise((resolve, reject) => {
+    const request = http.get({ host, port, path: pathname, timeout: 2500 }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    request.once("timeout", () => request.destroy(new Error(`Remote Web self-test timeout: ${pathname}`)));
+    request.once("error", reject);
+  });
+
+  const health = await requestText("/health");
+  if (health.status !== 200 || health.body.trim() !== "OK") throw new Error("Remote Web /health self-test failed");
+  const shell = await requestText("/?remote=1&selftest=1");
+  if (shell.status !== 200 || !/<script\b/i.test(shell.body) || !/<div[^>]+id=["']root["']/i.test(shell.body)) {
+    throw new Error("Remote Web browser shell self-test failed");
+  }
+  const assetMatch = shell.body.match(/<script[^>]+src=["']([^"']+)["']/i);
+  if (assetMatch) {
+    const assetPath = new URL(assetMatch[1], `http://${host}/`).pathname;
+    const asset = await requestText(assetPath);
+    if (asset.status !== 200 || asset.body.length < 32) throw new Error(`Remote Web main asset self-test failed: ${assetPath}`);
+  }
 }
 
 function createRemoteServerService({ pythonService, log }) {
@@ -154,8 +180,15 @@ function createRemoteServerService({ pythonService, log }) {
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
 
-    return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", () => {
+    return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", async () => {
       const port = server.address().port;
+      try {
+        await verifyRemoteServerReady(port);
+        log(`[Remote Web] Self-test passed on 127.0.0.1:${port}`);
+      } catch (error) {
+        try { server.close(); } catch {}
+        return reject(error);
+      }
       try {
         lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
         const discovery = lanDiscovery.start({ port });
@@ -166,7 +199,20 @@ function createRemoteServerService({ pythonService, log }) {
         log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
       }
       const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
-      const info = { url: `http://${address}:${port}/?remote=1&v=${encodeURIComponent(app.getVersion())}`, pin: remotePin, requiresPin: Boolean(remotePin), port };
+      try {
+        await verifyRemoteServerReady(port, address);
+        log(`[Remote Web] LAN self-test passed on ${address}:${port}`);
+      } catch (error) {
+        try { lanDiscovery?.stop(); } catch {}
+        lanDiscovery = null;
+        try { server.close(); } catch {}
+        return reject(new Error(`Remote Web LAN address self-test failed (${address}:${port}): ${error.message || error}`));
+      }
+      const suffix = `/?remote=1&v=${encodeURIComponent(app.getVersion())}`;
+      const interfaceUrls = (lanDiscovery?.getStatus?.().interfaces ?? []).map((item) => `http://${item.address}:${port}${suffix}`);
+      const url = `http://${address}:${port}${suffix}`;
+      const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
+      const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port };
       server.__info = info;
       remoteServer = server;
       resolve(info);

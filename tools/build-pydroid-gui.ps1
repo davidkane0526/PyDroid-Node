@@ -405,7 +405,7 @@ $progressPanel = New-Object System.Windows.Forms.TableLayoutPanel
 $progressPanel.Dock = "Top"
 $progressPanel.AutoSize = $true
 $progressPanel.ColumnCount = 1
-$progressPanel.RowCount = 3
+$progressPanel.RowCount = 4
 $progressPanel.Padding = New-Object System.Windows.Forms.Padding(4, 8, 4, 8)
 [void]$main.Controls.Add($progressPanel, 0, 3)
 
@@ -432,6 +432,29 @@ $progressHint.AutoSize = $true
 $progressHint.Dock = "Fill"
 $progressHint.ForeColor = [System.Drawing.SystemColors]::GrayText
 [void]$progressPanel.Controls.Add($progressHint, 0, 2)
+
+$artifactPanel = New-Object System.Windows.Forms.TableLayoutPanel
+$artifactPanel.Dock = "Fill"
+$artifactPanel.AutoSize = $true
+$artifactPanel.ColumnCount = 1
+$artifactPanel.RowCount = 2
+$artifactPanel.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 0)
+$artifactPanel.Visible = $false
+[void]$progressPanel.Controls.Add($artifactPanel, 0, 3)
+
+$windowsArtifactLink = New-Object System.Windows.Forms.LinkLabel
+$windowsArtifactLink.AutoSize = $true
+$windowsArtifactLink.Dock = "Fill"
+$windowsArtifactLink.Visible = $false
+$windowsArtifactLink.LinkColor = [System.Drawing.Color]::FromArgb(40, 110, 190)
+[void]$artifactPanel.Controls.Add($windowsArtifactLink, 0, 0)
+
+$androidArtifactLink = New-Object System.Windows.Forms.LinkLabel
+$androidArtifactLink.AutoSize = $true
+$androidArtifactLink.Dock = "Fill"
+$androidArtifactLink.Visible = $false
+$androidArtifactLink.LinkColor = [System.Drawing.Color]::FromArgb(40, 110, 190)
+[void]$artifactPanel.Controls.Add($androidArtifactLink, 0, 1)
 
 $logBox = New-Object System.Windows.Forms.RichTextBox
 $logBox.Dock = "Fill"
@@ -488,6 +511,40 @@ $script:stderrTask = $null
 $script:currentBuildLog = $null
 $script:lastBuildExitCode = $null
 $script:lastStagePercent = 0
+$script:windowsArtifactPath = $null
+$script:androidArtifactPath = $null
+
+function Open-BuildArtifact([string]$Path, [switch]$SelectFile) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    try {
+        if ($SelectFile) {
+            Start-Process explorer.exe -ArgumentList ('/select,"{0}"' -f $Path) | Out-Null
+        } else {
+            Start-Process explorer.exe -ArgumentList ('"{0}"' -f $Path) | Out-Null
+        }
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("无法打开：$Path", "PyDroid Build", "OK", "Warning") | Out-Null
+    }
+}
+
+$windowsArtifactLink.Add_LinkClicked({ Open-BuildArtifact -Path $script:windowsArtifactPath })
+$androidArtifactLink.Add_LinkClicked({ Open-BuildArtifact -Path $script:androidArtifactPath -SelectFile })
+
+function Show-BuildArtifact([string]$Platform, [string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) { return }
+    $artifactPanel.Visible = $true
+    if ($Platform -eq "windows") {
+        $script:windowsArtifactPath = $Path
+        $windowsArtifactLink.Text = "✓ Windows 已完成，可直接运行：$Path"
+        $windowsArtifactLink.Visible = $true
+        if ($script:lastStagePercent -lt 70) { Set-BuildStage 70 "Windows Desktop 已完成；继续构建其他平台" }
+    } elseif ($Platform -eq "android") {
+        $script:androidArtifactPath = $Path
+        $androidArtifactLink.Text = "✓ Android 已完成，可直接安装：$Path"
+        $androidArtifactLink.Visible = $true
+        if ($script:lastStagePercent -lt 88) { Set-BuildStage 88 "Android APK 已完成；正在快速收尾" }
+    }
+}
 
 function Set-BuildStage([int]$Percent, [string]$Message) {
     $safePercent = [Math]::Max(0, [Math]::Min(100, $Percent))
@@ -509,6 +566,15 @@ function Append-BuildLogLine([string]$Line) {
         if ($script:currentBuildLog) {
             try { Add-Content -LiteralPath $script:currentBuildLog -Value $readable -Encoding UTF8 } catch {}
         }
+        return
+    }
+    if ($Line -match '^@@PYDROID_ARTIFACT@@\|(windows|android)\|(.*)$') {
+        $platform = $matches[1]
+        $artifactPath = $matches[2].Trim()
+        Show-BuildArtifact -Platform $platform -Path $artifactPath
+        $readable = if ($platform -eq "windows") { "[产物] Windows：$artifactPath" } else { "[产物] Android：$artifactPath" }
+        $logBox.AppendText([Environment]::NewLine + $readable + [Environment]::NewLine)
+        if ($script:currentBuildLog) { try { Add-Content -LiteralPath $script:currentBuildLog -Value $readable -Encoding UTF8 } catch {} }
         return
     }
     $logBox.AppendText($Line + [Environment]::NewLine)
@@ -889,6 +955,11 @@ Network concurrency: $networkConcurrency
         $logBox.AppendText("日志：$script:currentBuildLog`r`n")
         $progressBar.Value = 0
         $script:lastStagePercent = 0
+        $script:windowsArtifactPath = $null
+        $script:androidArtifactPath = $null
+        $windowsArtifactLink.Visible = $false
+        $androidArtifactLink.Visible = $false
+        $artifactPanel.Visible = $false
         $stageLabel.Text = "当前步骤：正在启动构建进程"
         $statusLabel.Text = "正在启动构建..."
         $statusLabel.ForeColor = [System.Drawing.SystemColors]::ControlText

@@ -51,6 +51,13 @@ final class LanDiscoveryService {
     }
 
     synchronized String primaryAddress() { return interfaces.isEmpty() ? "127.0.0.1" : interfaces.get(0).address.getHostAddress(); }
+    synchronized java.util.List<String> urls() {
+        java.util.List<String> values = new java.util.ArrayList<>();
+        String suffix = "/?remote=1&v=" + BuildConfig.VERSION_NAME;
+        for (LanNetworkInterfaceManager.Entry entry : interfaces) values.add("http://" + entry.address.getHostAddress() + ":" + webPort + suffix);
+        values.add(localUrl());
+        return values;
+    }
     String localUrl() { return "http://" + identity.hostname + ".local:" + webPort + "/?remote=1&v=" + BuildConfig.VERSION_NAME; }
     String deviceXml(String requestedAddress) {
         String ip = requestedAddress == null || requestedAddress.isBlank() || requestedAddress.contains(":") ? primaryAddress() : requestedAddress;

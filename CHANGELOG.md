@@ -1,3 +1,11 @@
+## 1.4.50 (73) — Phase 7 real validation fixes: immediate GUI artifacts, Remote Web browser bundle, robust Android touch menus — 2026-08-19
+
+- Build GUI now consumes `@@PYDROID_ARTIFACT@@` events and shows clickable Windows/Android output paths immediately when each platform finishes; Android packaging is invoked directly instead of through an extra pnpm/PowerShell wrapper to avoid the observed 87% handle stall.
+- Desktop Remote Web now packages and serves a dedicated browser-native renderer (`desktop/package-remote`) instead of the Electron renderer bundle. Desktop and Android both self-test `/health`, the SPA shell and its main JS asset before reporting that Remote Web is ready. Hosts also expose alternate LAN URLs when multiple interfaces exist.
+- Android palette resource gestures now use a pointer-level double-tap detector (<=360 ms) because WebView does not reliably synthesize `dblclick`. Stationary long-press is 680 ms; movement over 8 px cancels the menu and wins as drag. Workflow and group resources share the same gesture state machine.
+- Preserves the 1.4.49 Android keyboard/status-bar fix.
+- Build script revision: `1.4.50-dev-r26-phase7-real-validation-fixes`.
+
 ## 1.4.49 (72) — Phase 7 validation fixes: Remote Web, touch gestures, keyboard, non-blocking build finalization — 2026-08-19
 
 - Build completion no longer waits for large Electron/Python directory deletion. Windows and Android print their directly usable build paths immediately when each platform finishes; final old-output/workspace cleanup is launched in a detached PowerShell worker after outputs are ready.

@@ -39,3 +39,7 @@ The smoke checks Desktop preload methods/channels, Desktop IPC registration, And
 ## Remote Web presentation stability
 
 Host start success requires the packaged SPA shell to be readable. Desktop verifies `desktop/package-renderer/index.html`; Android verifies the packaged asset root before opening the LAN service. Presentation URLs include `?remote=1&v=<app-version>` (including discovery/UPnP paths) and the SPA shell is served without stale caching so a browser cannot reuse an older index which points at removed hashed assets after an upgrade.
+
+## Remote Web renderer boundary (1.4.50+)
+
+Remote Web is a browser client and must always receive a browser-native renderer bundle. Android serves the Capacitor `public` web assets. Packaged Desktop stages the normal browser Vite output under `desktop/package-remote`; the Electron-only `desktop/package-renderer` bundle remains private to the local Electron window. Both hosts self-test `/health`, the SPA shell and its main JavaScript asset before reporting Remote Web as started. When multiple LAN interfaces exist, the host may expose multiple candidate URLs; the first remains the preferred URL.

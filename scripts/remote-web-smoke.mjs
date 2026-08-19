@@ -10,8 +10,16 @@ const desktopDiscovery = readFileSync(path.join(root, "desktop/lan/LanDiscoveryS
 const desktopUpnp = readFileSync(path.join(root, "desktop/lan/upnp.cjs"), "utf8");
 const androidDiscovery = readFileSync(path.join(root, "android/app/src/main/java/com/dk/pydroidflow/LanDiscoveryService.java"), "utf8");
 const androidUpnp = readFileSync(path.join(root, "android/app/src/main/java/com/dk/pydroidflow/UpnpDeviceDescription.java"), "utf8");
+const desktopPackage = readFileSync(path.join(root, "scripts/desktop-package.mjs"), "utf8");
+const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 
 assert.match(desktop, /function resolveRendererRoot\(/, "Desktop Remote Web must verify the packaged renderer root before reporting success");
+assert.match(desktop, /package-remote/, "Desktop Remote Web must serve the browser-native renderer bundle, not the Electron renderer bundle");
+assert.match(desktopPackage, /remoteRendererStage[\s\S]*package-remote/, "desktop packaging must stage a dedicated Remote Web browser bundle");
+assert.ok(packageJson.build.files.includes("desktop/package-remote/**/*"), "electron-builder must include the staged Remote Web browser bundle");
+assert.match(desktop, /verifyRemoteServerReady/, "Desktop Remote Web must self-test its HTTP shell and main asset before reporting success");
+assert.match(android, /verifyReady\(\)/, "Android Remote Web must self-test its HTTP shell before reporting success");
+assert.match(android, /new JSONArray\(discovery\.urls\(\)\)/, "Android Remote Web should expose alternate LAN URLs when multiple interfaces exist");
 assert.match(desktop, /index\.html[\s\S]*Remote Web renderer not found/, "Desktop Remote Web must fail clearly when its renderer is missing");
 assert.match(desktop, /remote=1&v=\$\{encodeURIComponent\(app\.getVersion\(\)\)\}/, "Desktop Remote Web URL must cache-bust the SPA shell per app version");
 assert.match(desktop, /Cache-Control[\s\S]*no-store/, "Desktop Remote Web index must not be served as a stale cached shell");

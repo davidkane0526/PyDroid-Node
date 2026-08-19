@@ -17,7 +17,9 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.ServerSocket;
+import java.net.URL;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
@@ -75,7 +77,52 @@ final class RemoteWorkflowServer {
         server.acceptThread.setDaemon(true);
         server.acceptThread.start();
         try { server.discovery.start(); } catch (Exception ignored) { /* Discovery must never take down HTTP. */ }
+        try {
+            server.verifyReady();
+            String advertised = server.discovery.primaryAddress();
+            if (!"127.0.0.1".equals(advertised)) server.verifyEndpointAtHost(advertised, "/health", "OK");
+        } catch (IOException exception) {
+            server.stop();
+            throw exception;
+        }
         return server;
+    }
+
+    private void verifyReady() throws IOException {
+        verifyEndpoint("/health", "OK");
+        String shell = verifyEndpoint("/?remote=1&selftest=1", null);
+        if (!shell.contains("id=\"root\"") || !shell.contains("<script")) {
+            throw new IOException("Remote Web browser shell self-test failed");
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("<script[^>]+src=[\"']([^\"']+)[\"']", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(shell);
+        if (matcher.find()) {
+            String asset = matcher.group(1);
+            if (!asset.startsWith("/")) asset = "/" + asset.replaceFirst("^\\./", "");
+            String js = verifyEndpoint(asset, null);
+            if (js.length() < 32) throw new IOException("Remote Web main asset self-test failed: " + asset);
+        }
+    }
+
+    private String verifyEndpoint(String path, String expected) throws IOException {
+        return verifyEndpointAtHost("127.0.0.1", path, expected);
+    }
+
+    private String verifyEndpointAtHost(String host, String path, String expected) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL("http://" + host + ":" + PORT + path).openConnection();
+        connection.setConnectTimeout(2500);
+        connection.setReadTimeout(2500);
+        connection.setUseCaches(false);
+        try {
+            int status = connection.getResponseCode();
+            if (status != 200) throw new IOException("Remote Web self-test returned HTTP " + status + " for " + path);
+            try (InputStream input = connection.getInputStream()) {
+                String body = new String(readAll(input, MAX_BODY_BYTES), StandardCharsets.UTF_8);
+                if (expected != null && !expected.equals(body.trim())) throw new IOException("Remote Web self-test content mismatch for " + path);
+                return body;
+            }
+        } finally {
+            connection.disconnect();
+        }
     }
 
     JSONObject connectionInfo() throws Exception {
@@ -84,6 +131,7 @@ final class RemoteWorkflowServer {
         result.put("requiresPin", requiresPin);
         result.put("pin", requiresPin ? pin : JSONObject.NULL);
         result.put("url", "http://" + discovery.primaryAddress() + ":" + PORT + "/?remote=1&v=" + BuildConfig.VERSION_NAME);
+        result.put("urls", new JSONArray(discovery.urls()));
         return result;
     }
 

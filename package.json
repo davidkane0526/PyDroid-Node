@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.49",
+  "version": "1.4.50",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -81,6 +81,7 @@
     },
     "files": [
       "desktop/package-renderer/**/*",
+      "desktop/package-remote/**/*",
       "desktop/main.cjs",
       "desktop/preload.cjs",
       "desktop/lan/**/*",

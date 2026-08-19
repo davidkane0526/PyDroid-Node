@@ -28,6 +28,16 @@ assert.match(
 );
 assert.match(
   buildToolSources,
+  /@@PYDROID_ARTIFACT@@\|\{0\}\|\{1\}/,
+  "build script should emit machine-readable artifact events as soon as a platform output exists",
+);
+assert.match(
+  buildScript,
+  /\$androidPackageScript[\s\S]*& \$androidPackageScript/,
+  "Android packaging should be invoked directly instead of through an extra pnpm/PowerShell wrapper",
+);
+assert.match(
+  buildToolSources,
   /& robocopy @robocopyArgs \| Out-Null/,
   "source synchronization should suppress robocopy EXTRA-file spam",
 );
@@ -405,6 +415,9 @@ const buildGui = readFileSync(buildGuiPath, "utf8");
 assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");
 assert.match(buildGui, /\$pythonVersionBox\.ReadOnly = \$true/, "Android Python series should be displayed as a fixed project constraint rather than an installer filename field");
 assert.match(buildGui, /\^@@PYDROID_STAGE@@/, "build GUI should consume stage events");
+assert.match(buildGui, /\^@@PYDROID_ARTIFACT@@/, "build GUI should consume immediate platform artifact events");
+assert.match(buildGui, /windowsArtifactLink/, "build GUI should show a clickable Windows output as soon as it exists");
+assert.match(buildGui, /androidArtifactLink/, "build GUI should show a clickable Android output as soon as it exists");
 assert.match(buildGui, /"JDK 目录"/, "build GUI should expose an editable JDK directory field");
 assert.match(buildGui, /@\("-JavaHome", \$jdkHome\)/, "build GUI should pass the selected JDK directory to the core build script");
 assert.match(buildGui, /JdkHome = \$jdkHome/, "build GUI should persist the selected JDK directory");

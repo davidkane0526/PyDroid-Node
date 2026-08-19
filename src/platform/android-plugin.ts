@@ -29,7 +29,7 @@ export type PythonExecutorPlugin = {
   scanSmbShares(options: Omit<SmbConnection, "share">): Promise<{ shares: string[] }>;
   discoverSmbServers(): Promise<{ servers: SmbServer[] }>;
   readSmbCsv(options: SmbConnection & { paths: string[] }): Promise<{ files: Array<{ name: string; base64: string }> }>;
-  startRemoteServer(options: { requirePin: boolean }): Promise<{ url: string; pin: string | null; requiresPin: boolean; port: number }>;
+  startRemoteServer(options: { requirePin: boolean }): Promise<{ url: string; urls?: string[]; pin: string | null; requiresPin: boolean; port: number }>;
   stopRemoteServer(): Promise<{ stopped: boolean }>;
 };
 

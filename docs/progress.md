@@ -1,3 +1,10 @@
+## 2026-08-19 — Phase 7 second real-device validation fixes / 1.4.50 (73)
+
+- GUI now receives platform artifact events directly and presents clickable output paths as soon as Desktop/APK outputs exist.
+- Android packaging no longer goes through an extra pnpm child wrapper, removing the known post-APK 87% process-handle stall path.
+- Remote Web uses a browser-native Desktop bundle and host-side HTTP self-tests before success is reported; alternate interface URLs are surfaced for LAN routing ambiguity.
+- Android group/workflow resource menus use 680 ms stationary hold + explicit 360 ms touch double-tap detection, with drag movement cancelling menu recognition.
+
 ## 2026-08-19 — Phase 7 real-device validation fixes / 1.4.49 (72)
 
 - Windows build finalization redesigned: each platform exposes a directly usable path immediately after compilation; large old-output and release/dist cleanup is detached and no longer blocks the GUI from reaching build completion.

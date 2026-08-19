@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.49 (72)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
+- `dev`: `1.4.50 (73)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
 
 Current working branch: `dev`.
 
@@ -197,7 +197,7 @@ Read `docs/runtime-engine-modularization.md` before changing runtime structure. 
 
 ## Phase 7 — Host modularization and build boundary
 
-**Architecture work is complete on `dev` 1.4.49 (72), pending combined real Windows/Android validation before freezing the phase.** Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
+**Architecture work is complete on `dev` 1.4.50 (73), pending combined real Windows/Android validation before freezing the phase.** Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
 
 Cross-platform transport bindings are now documented in `src/platform/host-contract.json`. `scripts/host-contract-smoke.mjs` checks the stable Desktop preload/IPC and Android Capacitor/Java method surface so PlatformAdapter transport cannot drift silently. Read `docs/host-contract.md` before adding or renaming any native host operation.
 

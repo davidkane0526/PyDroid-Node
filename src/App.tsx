@@ -910,8 +910,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const templateInput = useRef<HTMLInputElement>(null);
   const settingsInput = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<number | null>(null);
-  const flowLongPressTimer = useRef<number | null>(null);
-  const flowLongPressHandled = useRef(false);
   const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
   const touchMarqueeTimer = useRef<number | null>(null);
   const touchMarqueeCandidate = useRef<{
@@ -965,6 +963,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const paletteResourceMenuTimer = useRef<number | null>(null);
   const paletteResourceClickTimer = useRef<number | null>(null);
   const paletteResourceMenuHold = useRef<{ pointerId: number; resource: PaletteResource; startX: number; startY: number; moved: boolean } | null>(null);
+  const paletteTouchTap = useRef<{ key: string; at: number; x: number; y: number } | null>(null);
   const nodeTouchDragSuppressMenuUntil = useRef(0);
   const reconnectSucceeded = useRef(false);
   const paletteDragTimer = useRef<number | null>(null);
@@ -1944,7 +1943,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const startPaletteResourceMenuHold = (event: ReactPointerEvent<HTMLButtonElement>, resource: PaletteResource) => {
-    if (event.pointerType === "mouse" || resource.kind === "flow") return;
+    if (event.pointerType === "mouse") return;
     clearPaletteResourceMenuHold();
     paletteResourceMenuHold.current = { pointerId: event.pointerId, resource, startX: event.clientX, startY: event.clientY, moved: false };
     paletteResourceMenuTimer.current = window.setTimeout(() => {
@@ -1962,7 +1961,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       paletteResourceMenuTimer.current = null;
       paletteResourceMenuHold.current = null;
       navigator.vibrate?.(12);
-    }, 520);
+    }, 680);
   };
 
   const onPaletteResourceContextMenu = (event: ReactMouseEvent<HTMLButtonElement>, resource: PaletteResource) => {
@@ -1989,7 +1988,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     paletteResourceClickTimer.current = window.setTimeout(() => {
       paletteResourceClickTimer.current = null;
       action();
-    }, 230);
+    }, 380);
   };
 
   const clearPaletteDrag = () => {
@@ -2049,7 +2048,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       drag.element.classList.add("is-dragging");
       setPaletteDragPreview({ kind: drag.resource.kind, label: drag.resource.label, x: event.clientX, y: event.clientY, overCanvas: false });
     }
-    if (distance > 8) clearFlowLongPress();
     event.preventDefault();
     const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
     setPaletteDragPreview((current) => current ? { ...current, x: event.clientX, y: event.clientY, overCanvas: Boolean(bounds && event.clientX >= bounds.left && event.clientX <= bounds.right && event.clientY >= bounds.top && event.clientY <= bounds.bottom) } : null);
@@ -2075,7 +2073,25 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       try { if (drag.element.hasPointerCapture(event.pointerId)) drag.element.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
     }
     setPaletteDragPreview(null);
+    if (drag && !drag.armed && !drag.moved && drag.pointerId === event.pointerId && drag.pointerType !== "mouse") {
+      const now = performance.now();
+      const key = `${drag.resource.kind}:${drag.resource.id}`;
+      const previous = paletteTouchTap.current;
+      const isDoubleTap = Boolean(previous && previous.key === key && now - previous.at <= 360 && Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 24);
+      if (isDoubleTap) {
+        paletteTouchTap.current = null;
+        clearPaletteResourceClick();
+        palettePointerDragHandled.current = true;
+        openPaletteMenuFromElement(drag.resource, drag.element);
+        navigator.vibrate?.(12);
+        event.preventDefault();
+        window.setTimeout(() => { palettePointerDragHandled.current = false; }, 420);
+        return;
+      }
+      paletteTouchTap.current = { key, at: now, x: event.clientX, y: event.clientY };
+    }
     if (!drag || !drag.armed || drag.pointerId !== event.pointerId) return;
+    paletteTouchTap.current = null;
     palettePointerDragHandled.current = true;
     event.preventDefault();
     const bounds = document.querySelector<HTMLElement>(".canvas-panel")?.getBoundingClientRect();
@@ -2917,22 +2933,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setFlowMenu({ entryId: entry.id, x, y });
   };
 
-  const clearFlowLongPress = () => {
-    if (flowLongPressTimer.current !== null) window.clearTimeout(flowLongPressTimer.current);
-    flowLongPressTimer.current = null;
-  };
-
-  const startFlowLongPress = (event: ReactPointerEvent<HTMLButtonElement>, entry: FlowLibraryEntry) => {
-    if (event.pointerType === "mouse") return;
-    clearFlowLongPress();
-    flowLongPressHandled.current = false;
-    flowLongPressTimer.current = window.setTimeout(() => {
-      flowLongPressHandled.current = true;
-      openFlowMenu(entry, Math.min(event.clientX, window.innerWidth - 210), Math.min(event.clientY, window.innerHeight - 250));
-      navigator.vibrate?.(12);
-    }, 520);
-  };
-
   const beginRenameFlow = (entry: FlowLibraryEntry) => {
     setFlowMenu(null);
     if (entry.locked) { setMessage("该流程已锁定，请先解除锁定"); return; }
@@ -3666,7 +3666,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         </div>
       </header>
 
-      {remoteServer && <aside className="remote-server-banner" role="status"><strong>局域网计算服务已开启</strong><code>{remoteServer.url}</code><button onClick={() => void copyRemoteUrl()}>复制地址</button><span>{remoteServer.requiresPin ? `网页端输入校验码：${remoteServer.pin}` : "访问设备与本机需在同一局域网；当前无需校验码。"}</span></aside>}
+      {remoteServer && <aside className="remote-server-banner" role="status"><strong>局域网计算服务已开启 · 网页资源自检通过</strong><div className="remote-server-banner__urls">{(remoteServer.urls?.length ? remoteServer.urls : [remoteServer.url]).map((url, index) => <code key={url} title={index === 0 ? "首选地址" : "备用局域网地址"}>{index === 0 ? "首选：" : "备用："}{url}</code>)}</div><button onClick={() => void copyRemoteUrl()}>复制首选地址</button><span>{remoteServer.requiresPin ? `网页端输入校验码：${remoteServer.pin}` : "访问设备与本机需在同一局域网；当前无需校验码。"}</span></aside>}
 
       <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${inspectorDock === "bottom" ? "inspector-bottom" : "inspector-right"} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
         <aside className="node-palette">
@@ -3685,8 +3685,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               </section>
             ))}
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
-            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`按住后拖到画布添加 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); openPaletteMenuFromElement(resource, event.currentTarget); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
-            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => { startFlowLongPress(event, entry); onPalettePointerDown(event, resource); }} onPointerMove={onPalettePointerMove} onPointerUp={(event) => { clearFlowLongPress(); onPalettePointerUp(event); }} onPointerCancel={() => { clearFlowLongPress(); clearPaletteDrag(); }} onPointerLeave={clearFlowLongPress} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); openPaletteMenuFromElement(resource, event.currentTarget); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (flowLongPressHandled.current) { flowLongPressHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
+            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`按住后拖到画布添加 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { if (pointerMode !== "mouse") return; event.preventDefault(); event.stopPropagation(); openPaletteMenuFromElement(resource, event.currentTarget); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { if (pointerMode !== "mouse") return; event.preventDefault(); event.stopPropagation(); openPaletteMenuFromElement(resource, event.currentTarget); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
 
