@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.41 (64)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity.
+- `dev`: `1.4.42 (65)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization.
 
 Current working branch: `dev`.
 
@@ -190,6 +190,6 @@ The suite has already found and fixed real divergences in JSON `indent=0`, CSV t
 
 ## Phase 6 status — Runtime Engine modularization
 
-**In progress on `dev` 1.4.41 (64).** Python `engine.py` and `node_dispatch.py` remain compatibility/routing facades with concrete node families under `engine_parts/nodes/`. JavaScript `engine/nodes.ts` is now likewise routing-only, with six node-domain handlers plus focused support modules under `engine/nodes/`. Architecture limits protect both sides from monolith regression. The next Phase 6 target is JavaScript workflow orchestration in `engine.ts` and remaining runtime-support boundaries.
+**Complete/frozen on `dev` 1.4.42 (65).** Python `engine.py` and `node_dispatch.py` remain compatibility/routing facades with concrete runtime/node responsibilities under `engine_parts/`. JavaScript `engine/nodes.ts` is routing-only and `engine/engine.ts` is now a compatibility facade; node-domain handlers live under `engine/nodes/`, while workflow input/graph/structures/execution/result responsibilities live under `engine/workflow/`. Architecture limits protect all facade and module boundaries from monolith regression. Phase 5 parity remains mandatory for any runtime change.
 
-Read `docs/runtime-engine-modularization.md` before changing runtime structure. Phase 5 parity remains mandatory and Phase 6 must not change workflow-visible behavior merely to make file boundaries cleaner.
+Read `docs/runtime-engine-modularization.md` before changing runtime structure. Phase 6 is frozen; future runtime changes must preserve its facade/module boundaries and keep Phase 5 parity green. The next architecture stage is Phase 7 Host modularization.

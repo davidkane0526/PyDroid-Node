@@ -1,3 +1,12 @@
+## 1.4.42 (65) — Phase 6 JavaScript workflow orchestration modularization — 2026-08-19
+
+- Completed the remaining JavaScript Runtime orchestration split without changing workflow-visible semantics. `src/runtime/javascript/engine/engine.ts` dropped from ~596 lines to a compatibility facade that re-exports stable execution/environment/ordering APIs.
+- Added `engine/workflow/` modules for input decoding/safety limits, graph/upstream/group topology, visual/loop structures, execution orchestration, result/error serialization and shared workflow types.
+- Strengthened `runtime-engine-architecture-smoke.mjs`: JavaScript `engine.ts` is capped as a facade, all workflow modules are required and size-bounded, and orchestration logic may not migrate back into the facade.
+- Phase 5 behavior locks remain green: 66/66 golden workflows pass and all 72 JavaScript-capable NodeContracts remain covered; Python regression remains 106 passed / 1 skipped.
+- Phase 6 Runtime Engine modularization is now complete/frozen. The next architecture stage is Phase 7 Host modularization and build-tool organization.
+- Build script revision: `1.4.42-dev-r18-phase6-workflow-orchestration`.
+
 ## 1.4.41 (64) — Phase 6 JavaScript node-domain handlers — 2026-08-19
 
 - Split the former ~1129-line `src/runtime/javascript/engine/nodes.ts` into a 27-line routing facade plus six domain handlers: `io_generate`, `table_pandas`, `control_state`, `analysis_pulse`, `plots`, and `conversion_ui`.

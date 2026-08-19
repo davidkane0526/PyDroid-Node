@@ -2,7 +2,7 @@
 
 更新时间：2026-08-19
 长期开发分支：`dev`
-稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.34 (57)`
+稳定 `main` 基线：`1.4.27 (50)`；当前 `dev`：`1.4.42 (65)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -483,7 +483,7 @@ Golden fixtures 位于 `tests/runtime-parity/golden/`，按 table / control-stat
 
 ## 9. Phase 6 — Runtime Engine 模块化
 
-状态：**1.4.41 已完成 Python 与 JavaScript 两侧的 node-domain 拆分；Python node dispatch 与 JavaScript `engine/nodes.ts` 都已变成纯路由 façade。Phase 6 下一步继续处理 JavaScript workflow orchestration 与剩余 runtime support 模块边界。**
+状态：**1.4.42 已完成并冻结。Python `engine.py` / `node_dispatch.py` 与 JavaScript `engine.ts` / `engine/nodes.ts` 均已成为小型 façade / routing 层；JS workflow orchestration 已拆入 `engine/workflow/`，所有 Runtime 重构继续受 Phase 5 parity gate 保护。下一阶段进入 Phase 7 Host 模块化。**
 
 Python 建议：
 

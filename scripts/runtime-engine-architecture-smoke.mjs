@@ -28,6 +28,7 @@ const requiredPythonNodeHandlers = [
   "conversion_ui.py",
 ];
 const requiredJsParts = ["engine.ts", "nodes.ts", "table.ts", "plots.ts", "csv.ts", "notebook.ts", "random.ts"];
+const requiredJsWorkflowParts = ["types.ts", "input.ts", "graph.ts", "structures.ts", "result.ts", "execute.ts"];
 const requiredJsNodeHandlers = [
   "io_generate.ts",
   "table_pandas.ts",
@@ -78,6 +79,18 @@ for (const file of requiredJsParts) {
   const target = path.join(root, "src", "runtime", "javascript", "engine", file);
   if (!existsSync(target)) fail(`missing JavaScript engine module: engine/${file}`);
 }
+const jsEngineFacade = path.join(root, "src", "runtime", "javascript", "engine", "engine.ts");
+const jsEngineFacadeText = readFileSync(jsEngineFacade, "utf8");
+const jsEngineFacadeLines = jsEngineFacadeText.split(/\r?\n/).length;
+if (jsEngineFacadeLines > 80) fail(`JavaScript engine/engine.ts must remain a compatibility facade (got ${jsEngineFacadeLines} lines)`);
+if (/\bfor\s*\(|\bwhile\s*\(|case\s+["']/.test(jsEngineFacadeText)) fail("workflow orchestration must live under engine/workflow/, not engine.ts");
+if (!jsEngineFacadeText.includes('./workflow/execute')) fail("engine.ts must delegate execution to engine/workflow/execute.ts");
+for (const file of requiredJsWorkflowParts) {
+  const target = path.join(root, "src", "runtime", "javascript", "engine", "workflow", file);
+  if (!existsSync(target)) fail(`missing JavaScript workflow module: engine/workflow/${file}`);
+  const lines = readFileSync(target, "utf8").split(/\r?\n/).length;
+  if (lines > 240) fail(`JavaScript workflow module ${file} grew beyond 240 lines (${lines}); split orchestration responsibilities again`);
+}
 const jsFacade = path.join(root, "src", "runtime", "javascript", "engine", "nodes.ts");
 const jsFacadeText = readFileSync(jsFacade, "utf8");
 const jsFacadeLines = jsFacadeText.split(/\r?\n/).length;
@@ -96,4 +109,4 @@ for (const file of requiredJsNodeSupport) {
   if (lines > 220) fail(`JavaScript node support module ${file} grew beyond 220 lines (${lines}); split helper responsibilities again`);
 }
 
-console.log(`Runtime engine architecture smoke passed (Python facade ${engineLines} lines; dispatcher ${dispatchLines} lines; ${requiredPythonNodeHandlers.length - 1} Python domain handlers; JS facade ${jsFacadeLines} lines; ${requiredJsNodeHandlers.length} JS domain handlers; ${requiredJsNodeSupport.length} JS support modules).`);
+console.log(`Runtime engine architecture smoke passed (Python facade ${engineLines} lines; dispatcher ${dispatchLines} lines; ${requiredPythonNodeHandlers.length - 1} Python domain handlers; JS workflow facade ${jsEngineFacadeLines} lines; JS node facade ${jsFacadeLines} lines; ${requiredJsWorkflowParts.length} JS workflow modules; ${requiredJsNodeHandlers.length} JS domain handlers; ${requiredJsNodeSupport.length} JS support modules).`);

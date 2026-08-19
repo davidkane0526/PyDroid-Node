@@ -28,11 +28,21 @@ As of 1.4.40, `node_dispatch.py` is no longer a transitional implementation file
 
 As of 1.4.41, JavaScript `engine/nodes.ts` follows the same architectural rule: it is a routing facade only. Concrete JS families live in `engine/nodes/`, while reusable helpers are split under `engine/nodes/support/` (`types`, `common`, `io`, `table_ops`, `control`, `analysis`, `pulse`, `serialization`). This is intentionally not a requirement for file-name symmetry with Python; the invariant is that domain logic is isolated and parity-protected.
 
-The next Phase 6 target is JavaScript `engine/nodes.ts`, which still combines helpers and many node implementations. Split it by domain while preserving the public `executeNode` facade and keeping the Phase 5 parity gate green.
+As of 1.4.42, JavaScript workflow orchestration is also modularized. `engine/engine.ts` is a compatibility facade; concrete workflow responsibilities live under `engine/workflow/`:
+
+```text
+workflow/
+├─ input.ts       # compatible JSON/Python-literal decoding, safety limits, input validation
+├─ graph.ts       # DAG ordering, upstream resolution, loop/group topology
+├─ structures.ts  # visual if/for/while and loop-subflow execution
+├─ execute.ts     # workflow orchestration and node-result accumulation
+├─ result.ts      # semantic values, preview/error/environment serialization
+└─ types.ts       # workflow/execution transport types
+```
 
 ## JavaScript
 
-The JavaScript runtime already has domain-level modules under `src/runtime/javascript/engine/` (`nodes`, `table`, `plots`, `csv`, `notebook`, `random`). Do not force file-by-file symmetry with Python. Behavior symmetry is enforced by NodeContract plus the Phase 5 golden parity gate.
+The JavaScript runtime now has stable facade/routing boundaries for both node dispatch and workflow execution. Do not force file-by-file symmetry with Python. Behavior symmetry is enforced by NodeContract plus the Phase 5 golden parity gate. `engine.ts` and `nodes.ts` must remain small compatibility/routing facades; new workflow responsibilities belong under `engine/workflow/`, and new node algorithms belong under `engine/nodes/`.
 
 ## Non-negotiable behavior locks
 
@@ -45,3 +55,7 @@ Every runtime-engine refactor must keep these passing before delivery:
 - `scripts/runtime-engine-architecture-smoke.mjs`.
 
 Do not combine engine modularization with algorithm rewrites unless a failing test proves an existing defect and the behavior change is documented separately.
+
+## Phase 6 completion
+
+Phase 6 is complete/frozen as of 1.4.42 (65). Python and JavaScript both have protected facade/routing boundaries, focused workflow/node modules and full Phase 5 parity protection. Future changes may extend these modules, but must not collapse them back into monolithic `engine.py`, `engine.ts`, `node_dispatch.py` or `nodes.ts` files. The next architecture stage is Phase 7 Host modularization.
