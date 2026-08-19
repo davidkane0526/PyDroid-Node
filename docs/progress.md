@@ -1,4 +1,10 @@
-﻿## 2026-08-19 — dev Phase 3 Workflow Core / 1.4.29 (52)
+﻿## 2026-08-19 — dev Phase 3 desktop TypeScript build hotfix / 1.4.30 (53)
+
+- Fixed `src/App.tsx` declaration ordering so `remoteBrowser` is defined before the host execution polling effect.
+- Added architecture regression coverage for the declaration-order failure which previously blocked Windows Desktop TypeScript compilation.
+- Version: 1.4.30; Android versionCode 53; build-script revision `1.4.30-dev-r6-phase3-ts-fix`.
+
+## 2026-08-19 — dev Phase 3 Workflow Core / 1.4.29 (52)
 
 - User runtime feedback closed a Phase 2 reliability gap: after Stop, UI no longer declares idle until the host execution slot is truly released. Windows waits for child-process `close`; Android retains the slot until the embedded Python worker exits.
 - Local host UI now observes externally-started Remote Web workflows through `getExecutionStatus` / `/api/execution-status`. The run button becomes “停止远程” and can cancel the browser-started execution.

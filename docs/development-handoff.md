@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.29 (52)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController reliability closure + Phase 3 Workflow Core extraction.
+- `dev`: `1.4.30 (53)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController reliability closure + Phase 3 Workflow Core extraction.
 
 Current working branch: `dev`.
 

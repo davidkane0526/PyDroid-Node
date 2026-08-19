@@ -1,4 +1,10 @@
-﻿## 1.4.29 (52) — Phase 3 Workflow Core + Phase 2 reliability closure — 2026-08-19
+﻿## 1.4.30 (53) — Phase 3 desktop TypeScript build fix — 2026-08-19
+
+- Fixed the Phase 3 host-execution polling regression where `remoteBrowser` was referenced by a React effect before its block-scoped declaration, which caused `TS2448/TS2454` during `desktop:build`.
+- Added a Workflow Core architecture smoke assertion which requires the FlowEditor `remoteBrowser` declaration to precede the host-execution polling hook.
+- Build script revision is `1.4.30-dev-r6-phase3-ts-fix`. No UI or runtime behavior was redesigned in this hotfix.
+
+## 1.4.29 (52) — Phase 3 Workflow Core + Phase 2 reliability closure — 2026-08-19
 
 - Phase 2 cancellation race fixed: renderer cancellation now stays in `cancelling` until host cleanup completes. Windows keeps the execution slot until the Python child actually emits `close`; Android keeps its slot until the Chaquopy worker callable really exits. A user-visible idle state therefore means the host slot is actually reusable instead of allowing an immediate `EXECUTION_BUSY` rerun.
 - Host execution observability added end-to-end. Desktop and Android expose execution status locally and through Remote Web; when a browser starts a remote workflow, the host run control now shows **停止远程** and can cancel that execution instead of continuing to display **运行**.

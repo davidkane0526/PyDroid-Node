@@ -787,6 +787,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const hostExecutionActive = hostExecutionLifecycle.active && hostExecutionLifecycle.executionId !== executionLifecycle.executionId;
   const isRunning = localExecutionActive || hostExecutionLifecycle.active;
   const visibleExecutionId = executionLifecycle.executionId ?? hostExecutionLifecycle.executionId;
+  const remoteBrowser = isRemoteRuntime();
   useEffect(() => subscribeExecutionStatus(setExecutionLifecycle), []);
   useEffect(() => {
     if (remoteBrowser) return;
@@ -949,7 +950,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
-  const remoteBrowser = isRemoteRuntime();
   const selectedSpec = nodeSpecFor(selectedNode ?? undefined);
   const selectedNodeResult = selectedNode ? result?.nodeResults[selectedNode.id] ?? (selectedNode.data.nodeType === "workflow.group" ? result?.nodeResults[selectedNode.data.groupOutputs?.[0]?.internalNodeId ?? ""] : undefined) : undefined;
   const alertInputSourceId = alertDialogNode ? edges.find((edge) => edge.target === alertDialogNode.id && edge.targetHandle === "content")?.source : undefined;

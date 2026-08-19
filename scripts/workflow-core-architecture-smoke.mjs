@@ -9,6 +9,16 @@ const session = readFileSync(fileURLToPath(new URL("../src/workflow-core/session
 const persistence = readFileSync(fileURLToPath(new URL("../src/workflow-core/persistence.ts", import.meta.url)), "utf8");
 const commands = readFileSync(fileURLToPath(new URL("../src/workflow-core/commands.ts", import.meta.url)), "utf8");
 
+
+const remoteBrowserDeclaration = app.indexOf("const remoteBrowser = isRemoteRuntime();");
+const remoteBrowserPollingUse = app.indexOf("if (remoteBrowser) return;");
+assert.ok(remoteBrowserDeclaration >= 0, "FlowEditor should declare remoteBrowser");
+assert.ok(remoteBrowserPollingUse >= 0, "FlowEditor should use remoteBrowser in host execution polling");
+assert.ok(
+  remoteBrowserDeclaration < remoteBrowserPollingUse,
+  "remoteBrowser must be declared before the host execution polling hook uses it",
+);
+
 assert.match(app, /new WorkflowHistory\(50\)/, "App should delegate undo/redo storage to WorkflowHistory");
 assert.match(app, /new WorkspaceSessionStore\(/, "App should delegate per-tab runtime state to WorkspaceSessionStore");
 assert.doesNotMatch(app, /const historyRef\s*=\s*useRef/, "App should not recreate the legacy history-array owner");
