@@ -10,9 +10,10 @@ Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
 - `dev`: `1.4.53 (76)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
-- `fix/phase7-android-service-polish`: `1.4.54 (77)` final Phase 7 visual-acceptance candidate. It only widens/fixes the Android Remote Web status banner and refines the SMB/Remote/History status-bar glyphs; host contracts and service behavior are unchanged.
+- `fix/phase7-android-service-polish`: `1.4.54 (77)` superseded visual candidate.
+- `fix/phase7-final-ui-acceptance`: `1.4.55 (78)` current Phase 7 visual-acceptance candidate. It restores the Phase-1 content-width Remote Web banner as a single aligned row on Desktop/Android, compacts SMB/AI footer actions, and removes the Remote shortcut blue fill while preserving the green running indicator; host contracts and service behavior are unchanged.
 
-Current working branch: `fix/phase7-android-service-polish`.
+Current working branch: `fix/phase7-final-ui-acceptance`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 

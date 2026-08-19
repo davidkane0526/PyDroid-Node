@@ -38,23 +38,11 @@
   }
 }
 
-/* LAN banner: prioritize the address on short landscape screens. */
+/* LAN banner: keep the Phase-1 content-width information strip on one row everywhere. */
 @media (max-height: 640px) and (orientation: landscape), (max-width: 900px) {
-  .remote-server-banner {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto !important;
-  }
-  .remote-server-banner strong { display: none; }
-  .remote-server-banner code {
-    grid-column: 1;
-    min-width: 0;
-    width: 100%;
-  }
-  .remote-server-banner button { grid-column: 2; }
-  .remote-server-banner span {
-    grid-column: 1 / -1;
-    min-width: 0;
-  }
+  .remote-server-banner { display: flex; width: max-content; max-width: calc(100vw - 16px); }
+  .remote-server-banner strong { display: inline-flex; }
+  .remote-server-banner code { min-width: 0; width: auto; }
 }
 
 .smb-browser-toolbar .smb-favorite-button.active {
@@ -245,6 +233,7 @@
   line-height: 1.5;
 }
 .agent-dialog .agent-inline-actions { margin-top: 2px; }
+.agent-dialog .agent-plan > div .button { min-height: 30px; padding: 5px 9px; border-radius: 6px; font-size: 11px; line-height: 1.15; }
 .app-shell[data-theme="light"] .agent-dialog .settings-dialog__body::-webkit-scrollbar-thumb { background: #a6b4c6; background-clip: padding-box; }
 
 /* AI permissions are dense rows, not stretched cards. */
@@ -283,6 +272,7 @@
 }
 @media (max-width: 560px) {
   .agent-dialog label { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .agent-dialog .agent-plan > div .button { min-height: 28px; padding: 4px 8px; font-size: 10.5px; }
   .agent-permissions { grid-template-columns: minmax(0, 1fr); }
   .agent-permissions > h3,
   .agent-permissions > small { grid-column: 1; }

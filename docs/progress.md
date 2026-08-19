@@ -1,3 +1,11 @@
+## 2026-08-20 — Phase 7 final UI acceptance correction / 1.4.55 (78)
+
+- Remote Web banner returns to the Phase-1 compact content-width model and is now forced to one aligned row on Desktop and Android: status + URL + copy + PIN + collapse. Fixed banner width and the mobile multi-row grid were removed.
+- SMB file-manager footer actions and AI Agent plan actions use smaller shared control metrics on Desktop and Android.
+- Bottom-right SMB / Remote / History glyphs use a thinner common stroke. Remote active state no longer paints a blue background; the green indicator alone communicates that the service is running. SMB now uses a compact network-topology glyph.
+- Host/runtime behavior is unchanged; this remains a visual-only acceptance pass before Phase 8.
+- Build script revision: `1.4.55-dev-r31-phase7-final-ui-acceptance`.
+
 ## 2026-08-20 — Phase 7 Android service UI acceptance polish / 1.4.54 (77)
 
 - Android Remote Web banner now explicitly renders `计算服务已开启`, uses a stable wider layout, and keeps the same compact information model as Desktop.

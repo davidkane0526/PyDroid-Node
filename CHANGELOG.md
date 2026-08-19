@@ -1,3 +1,11 @@
+## 1.4.55 (78) — Phase 7 final UI acceptance correction — 2026-08-20
+
+- Restored the Phase-1 content-width Remote Web banner model and kept status, URL, copy, PIN and collapse on one aligned row on both Desktop and Android.
+- Reduced SMB import-footer and AI Agent plan-action button metrics to match the main application control system.
+- Removed the active Remote shortcut blue fill, kept only the green running indicator, thinned all three status-bar glyphs, and replaced the SMB server-stack glyph with a network-topology symbol.
+- Runtime/host behavior is unchanged.
+- Build script revision: `1.4.55-dev-r31-phase7-final-ui-acceptance`.
+
 ## 1.4.54 (77) — Phase 7 Android service UI acceptance polish — 2026-08-20
 
 - Remote Web banner now reserves a stable wider row and explicitly keeps `计算服务已开启` visible on Android, matching the Desktop information hierarchy while retaining the compact canonical URL / copy / PIN / collapse controls.

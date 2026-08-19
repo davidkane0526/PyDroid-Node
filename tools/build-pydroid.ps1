@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.54-dev-r30-phase7-android-service-polish"
+$script:BuildScriptRevision = "1.4.55-dev-r31-phase7-final-ui-acceptance"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

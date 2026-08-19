@@ -90,11 +90,11 @@ button, input, select, textarea { font: inherit; }
 .topbar__actions { display: flex; align-items: center; gap: 8px; overflow-x: auto; }
 .topbar-divider { flex: none; width: 1px; height: 26px; margin: auto 1px; background: var(--border-strong); }
 .airdrop-icon { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.remote-server-banner { position: fixed; z-index: 160; top: 70px; left: 50%; display: flex; width: min(620px, calc(100vw - 24px)); max-width: 760px; align-items: center; gap: 9px; padding: 9px 11px; transform: translateX(-50%); border: 1px solid #0e7490; border-radius: 10px; color: #cffafe; background: #083344f5; box-shadow: 0 12px 32px #0009; font-size: 11px; }
-.remote-server-banner__identity { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 9px; }
+.remote-server-banner { position: fixed; z-index: 160; top: 70px; left: 50%; display: flex; width: max-content; max-width: min(760px, calc(100vw - 24px)); align-items: center; gap: 7px; padding: 7px 9px; transform: translateX(-50%); border: 1px solid #0e7490; border-radius: 10px; color: #cffafe; background: #083344f5; box-shadow: 0 12px 32px #0009; font-size: 11px; white-space: nowrap; }
+.remote-server-banner__identity { display: contents; }
 .remote-server-banner__status { display: inline-flex !important; flex: none; align-items: center; color: #cffafe; white-space: nowrap; }
-.remote-server-banner code { min-width: 0; flex: 1 1 auto; overflow: hidden; color: #a5f3fc; font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
-.remote-server-banner button { flex: none; padding: 5px 8px; border: 1px solid #0891b2; border-radius: 6px; color: #cffafe; background: #155e75; cursor: pointer; font-size: var(--font-xs); }
+.remote-server-banner code { min-width: 0; max-width: min(330px, 44vw); flex: 0 1 auto; overflow: hidden; color: #a5f3fc; font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
+.remote-server-banner button { height: 28px; flex: none; padding: 4px 7px; border: 1px solid #0891b2; border-radius: 6px; color: #cffafe; background: #155e75; cursor: pointer; font-size: var(--font-xs); line-height: 1; }
 .remote-server-banner span { color: #67e8f9; font-size: var(--font-xs); }
 .button { flex: none; border: 0; border-radius: 8px; padding: 7px 11px; cursor: pointer; color: #fff; }
 .button.primary { background: var(--accent); }
@@ -726,9 +726,8 @@ button, input, select, textarea { font: inherit; }
   .button { padding: 8px 10px; }
   .csv-picker { order: 1; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-divider { height: 22px; }
-  .remote-server-banner { top: 63px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px; width: min(620px, calc(100vw - 16px)); }
-  .remote-server-banner__identity { min-width: 0; }
-  .remote-server-banner__pin { grid-column: auto; }
+  .remote-server-banner { top: 63px; display: flex; width: max-content; max-width: calc(100vw - 16px); gap: 6px; padding: 6px 8px; }
+  .remote-server-banner code { max-width: min(310px, 40vw); }
   .workspace { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 46vw)) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--inspector-height, 220px); }
   .workspace.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
   .workspace.inspector-collapsed { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 46vw)) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 0; }
@@ -3167,12 +3166,13 @@ button.smb-file-row { cursor: pointer; }
 .smb-file-empty span { max-width: 320px; font-size: 10px; line-height: 1.45; }
 .smb-loading-spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent-hover); border-radius: 50%; animation: smb-spin .8s linear infinite; }
 @keyframes smb-spin { to { transform: rotate(360deg); } }
-.smb-manager-footer { display: flex !important; min-height: 56px; align-items: center; justify-content: space-between !important; gap: 10px; padding: 9px 12px !important; }
+.smb-manager-footer { display: flex !important; min-height: 50px; align-items: center; justify-content: space-between !important; gap: 9px; padding: 7px 10px !important; }
 .smb-manager-footer > div { display: flex; min-width: 0; align-items: center; gap: 10px; }
 .smb-manager-footer > div:first-child { flex: 1; overflow: hidden; }
 .smb-manager-footer > div:first-child > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .smb-manager-footer > div:last-child { flex: none; }
 .smb-manager-footer .smb-remember { margin: 0; flex: none; }
+.smb-manager-footer .button { min-height: 30px; padding: 5px 9px; border-radius: 6px; font-size: 11px; line-height: 1.15; }
 
 .app-shell[data-theme="light"] .settings-layout::-webkit-scrollbar-thumb { border-color: #fff; background: #a6b4c6; }
 .app-shell[data-theme="light"] .settings-layout .settings-section { border-color: #d8e0ea; background: #f8fafc; }
@@ -3224,10 +3224,10 @@ button.smb-file-row { cursor: pointer; }
   .smb-connection-form__actions { grid-column: 1 / -1; }
   .smb-file-list { margin: 6px 7px 7px; }
   .smb-file-list__header, .smb-file-row { grid-template-columns: minmax(0, 1fr) 92px 66px; gap: 5px; }
-  .smb-manager-footer { min-height: 52px; padding: 7px !important; }
+  .smb-manager-footer { min-height: 46px; padding: 6px 7px !important; }
   .smb-manager-footer > div:first-child .smb-remember { display: none; }
   .smb-manager-footer > div:last-child { gap: 5px; }
-  .smb-manager-footer .button { padding-inline: 8px; font-size: 11px; }
+  .smb-manager-footer .button { min-height: 28px; padding: 4px 8px; font-size: 10.5px; }
 }
 
 @media (max-width: 500px) {
@@ -3244,7 +3244,7 @@ button.smb-file-row { cursor: pointer; }
   .smb-manager-footer > div:first-child { display: none; }
   .smb-manager-footer { justify-content: flex-end !important; }
   .smb-manager-footer > div:last-child { width: 100%; }
-  .smb-manager-footer .button { flex: 1 1 0; min-width: 0; }
+  .smb-manager-footer .button { flex: 0 1 auto; min-width: 0; }
 }
 
 /* Medium-width desktop/tablet windows still benefit from the two-column settings layout. */
@@ -3478,7 +3478,7 @@ button.smb-file-row { cursor: pointer; }
 /* Remote Web keeps the compact Phase-1 information model while reserving enough width
    for the Android host to show the same service-state label as Desktop. */
 .remote-server-banner__pin { flex: none; color: #67e8f9; font-size: var(--font-xs); white-space: nowrap; }
-.app-shell.native-platform .remote-server-banner { width: min(640px, calc(100vw - 20px)); }
+.app-shell.native-platform .remote-server-banner { width: max-content; max-width: calc(100vw - 16px); }
 .app-shell.native-platform .remote-server-banner__status { display: inline-flex !important; visibility: visible; }
 
 /* Android/WebView: ordinary UI text should behave like app chrome, not a selectable webpage. */
@@ -3550,13 +3550,13 @@ button.smb-file-row { cursor: pointer; }
   height: 17px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.45;
+  stroke-width: 1.25;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
 .statusbar-service-button--remote.active {
-  color: #38bdf8;
-  background: color-mix(in srgb, #38bdf8 11%, transparent);
+  color: #8490a3;
+  background: transparent;
 }
 .statusbar-service-button__indicator {
   position: absolute;
@@ -3584,8 +3584,8 @@ button.smb-file-row { cursor: pointer; }
   background: #dbeafe;
 }
 .app-shell[data-theme="light"] .statusbar-service-button--remote.active {
-  color: #0369a1;
-  background: #e0f2fe;
+  color: #64748b;
+  background: transparent;
 }
 .app-shell[data-theme="light"] .statusbar-service-button__indicator {
   border-color: #fff;
@@ -3593,8 +3593,8 @@ button.smb-file-row { cursor: pointer; }
 
 .remote-server-banner__collapse {
   display: grid;
-  width: 28px;
-  height: 26px;
+  width: 26px;
+  height: 28px;
   padding: 0 !important;
   place-items: center;
 }
@@ -3609,30 +3609,22 @@ button.smb-file-row { cursor: pointer; }
 }
 
 @media (max-width: 720px) {
-  .remote-server-banner {
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-  }
-  .statusbar-quick-services {
-    gap: 1px;
-  }
+  .statusbar-quick-services { gap: 1px; }
 }
 
-@media (max-width: 560px) {
-  .remote-server-banner {
-    grid-template-columns: minmax(0, 1fr) auto auto;
-  }
-  .remote-server-banner__identity {
-    display: grid;
-    gap: 3px;
-  }
-  .remote-server-banner__pin {
-    grid-column: 1;
-    grid-row: 2;
-    align-self: end;
-  }
-  .remote-server-banner__copy,
-  .remote-server-banner__collapse {
-    grid-row: 1 / span 2;
-    align-self: center;
-  }
+@media (max-width: 420px) {
+  .remote-server-banner { gap: 4px; padding: 5px 6px; font-size: 10px; }
+  .remote-server-banner code { max-width: 46vw; font-size: 9.5px; }
+  .remote-server-banner button { height: 25px; padding: 3px 5px; font-size: 9.5px; }
+  .remote-server-banner__collapse { width: 24px; height: 25px; }
+  .remote-server-banner .remote-server-banner__pin { font-size: 9.5px; }
+}
+@media (max-width: 380px) {
+  .remote-server-banner { gap: 2.5px; padding: 4px 5px; border-radius: 8px; font-size: 8.5px; }
+  .remote-server-banner__status { font-size: 8.5px; }
+  .remote-server-banner code { max-width: none; flex: 0 0 auto; font-size: 8px; }
+  .remote-server-banner button { height: 22px; padding: 2px 4px; border-radius: 5px; font-size: 8px; }
+  .remote-server-banner__collapse { width: 20px; height: 22px; }
+  .remote-server-banner__collapse svg { width: 12px; height: 12px; }
+  .remote-server-banner .remote-server-banner__pin { font-size: 8px; }
 }
