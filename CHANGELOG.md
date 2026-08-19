@@ -1,3 +1,12 @@
+## 1.4.39 (62) — Phase 6 Python runtime core modularization — 2026-08-19
+
+- Started Phase 6 Runtime Engine modularization without changing workflow-visible semantics. `python/pydroid_flow/engine.py` is reduced from 2361 lines to a small compatibility facade which preserves the existing public/legacy imports.
+- Extracted Python runtime implementation into `python/pydroid_flow/engine_parts/`: workflow orchestration/cancellation, node dispatch, notebook execution, graph traversal, cache, value coercion, portable RNG, CSV readers, custom-function sandbox/signature logic, analysis helpers, pulse helpers and result presentation.
+- JavaScript engine was already split into domain modules (`engine/nodes/table/plots/csv/notebook/random`), so Phase 6 keeps semantic symmetry through NodeContract/parity rather than forcing identical file layouts.
+- Added `test:runtime-engine-architecture` / `scripts/runtime-engine-architecture-smoke.mjs`. The guard keeps `engine.py` a facade and prevents the transitional node dispatcher from growing unchecked.
+- All Python regression tests and the Phase 5 golden parity gate remain behavior locks during the extraction.
+- Build script revision: `1.4.39-dev-r15-phase6-runtime-modules`.
+
 ## 1.4.38 (61) — Phase 5 complete: full dual-runtime golden coverage — 2026-08-19
 
 - Phase 5 Python/JavaScript parity is complete/frozen for the current NodeContract surface. `pnpm test:parity` now executes 66 golden workflows and requires coverage for every JavaScript-capable NodeContract; current coverage is **72/72 node contracts**.

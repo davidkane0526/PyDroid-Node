@@ -1,6 +1,13 @@
+## 2026-08-19 — Phase 6 Python Runtime Core modularization / 1.4.39 (62)
+
+- Phase 6 started from the frozen 1.4.38 Phase 5 baseline. Python `engine.py` dropped from 2361 lines to a compatibility facade; implementation now lives in `engine_parts/` modules for workflow execution, dispatch, graph/cache/value helpers, RNG, I/O, custom functions, analysis/pulse and presentation.
+- Added runtime-engine architecture smoke coverage so future work cannot silently rebuild `engine.py` as a monolith. The current `node_dispatch.py` is explicitly transitional and must be split by node family rather than allowed to grow.
+- Python regression remains 104 passed / 1 skipped and the full 66/66 golden workflows + 72/72 JS-capable NodeContract parity gate still passes after the extraction.
+- Build script revision: `1.4.39-dev-r15-phase6-runtime-modules`. Phase 6 remains in progress; next extraction target is table/pandas/plot/control-state families from `node_dispatch.py`.
+
 ## 2026-08-19 — Phase 5 complete / full NodeContract parity coverage / 1.4.38 (61)
 
-- Phase 5 is complete/frozen for the current runtime surface. Golden parity now covers all 72 JavaScript-capable NodeContracts through 64 workflows.
+- Phase 5 is complete/frozen for the current runtime surface. Golden parity now covers all 72 JavaScript-capable NodeContracts through 66 workflows.
 - Stochastic nodes now have a locked portable seeded algorithm shared by Python and JavaScript; representative values/row selections are pinned in fixtures.
 - Interactive nodes are tested through injected interaction values, visual if/for/while structures execute real contained child nodes in parity fixtures, and legacy group/group-mean compatibility paths are covered.
 - The parity harness now reads compiled NodeContract metadata and fails when any JavaScript-capable contract lacks golden coverage, turning parity coverage into an architecture gate for future nodes.

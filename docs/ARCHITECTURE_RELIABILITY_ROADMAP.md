@@ -483,6 +483,8 @@ Golden fixtures 位于 `tests/runtime-parity/golden/`，按 table / control-stat
 
 ## 9. Phase 6 — Runtime Engine 模块化
 
+状态：**1.4.39 已进入第一阶段：Python engine façade 与 core modules 已拆分，node dispatch 的节点族拆分仍在进行。**
+
 Python 建议：
 
 ```text

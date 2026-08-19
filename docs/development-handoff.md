@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.38 (61)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity.
+- `dev`: `1.4.39 (62)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity.
 
 Current working branch: `dev`.
 
@@ -188,6 +188,8 @@ Scalar/object node previews expose a JSON-safe semantic `value` alongside their 
 The suite has already found and fixed real divergences in JSON `indent=0`, CSV terminal newlines, empty `pandas.describe(include=...)` handling and oscillating-pulse symmetry. Read `docs/runtime-parity.md` before changing a dual-runtime node. Remaining special categories include seeded random/sample policy, UI side-effect boundaries and visual subflow structures; these require explicit policies rather than naive exact double execution.
 
 
-## Next development task — Phase 6 Runtime Engine modularization
+## Phase 6 status — Runtime Engine modularization
 
-Phase 5 is now a regression gate. Start Phase 6 by splitting the large Python engine into domain modules behind the existing execution protocol, while preserving `pnpm test:parity` as a mandatory behavior lock. Prefer extraction by coherent node families (I/O, table/pandas, control/state, plotting/pulse) and do not change workflow-visible semantics during the split.
+**In progress on `dev` 1.4.39 (62).** `python/pydroid_flow/engine.py` is now a compatibility facade; runtime implementation moved to `python/pydroid_flow/engine_parts/`. Workflow orchestration, graph/cache/value helpers, portable RNG, I/O, custom-function execution, analysis/pulse helpers, notebook execution and presentation are separated. `node_dispatch.py` is intentionally transitional and is the next split target (table/pandas, plotting, control/state, conversion/UI families).
+
+Read `docs/runtime-engine-modularization.md` before changing runtime structure. Phase 5 parity remains mandatory and Phase 6 must not change workflow-visible behavior merely to make file boundaries cleaner.
