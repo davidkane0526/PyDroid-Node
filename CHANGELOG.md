@@ -1,3 +1,13 @@
+## 1.4.32 (55) — Phase 3.5 UI polish + Phase 4 node-contract foundation — 2026-08-19
+
+- User real-host acceptance completed for Phase 3.5: Desktop concurrent tabs, Android queueing, and proactive host→web state synchronization all passed.
+- Fixed Android tab execution-badge alignment so the status dot lines up with the workflow title text instead of appearing vertically offset.
+- Tab execution badges now use explicit semantics: running = blue, queued = orange, cancelling = dimmed blue, failed/timeout = red.
+- Removed the topbar **停止其他** action to avoid consuming scarce toolbar width. Per-workspace Run/Stop remains on each tab; cross-client host cancellation moved to the bottom status bar as an auxiliary control.
+- Started Phase 4 with `src/nodeContract.ts`, a unified node-contract metadata layer covering runtime support, execution model, determinism, side effects, cache policy and state scope. JavaScript runtime support now derives from this shared contract rather than a disconnected hard-coded list.
+- This Phase 4 foundation is designed to support future expansion such as constrained function nodes, temporary/global variable nodes and richer runtime-neutral NodeSpec evolution.
+- Build script revision: `1.4.32-dev-r8-phase4`.
+
 ﻿## 1.4.31 (54) — Phase 3 complete + Phase 3.5 multi-workspace execution — 2026-08-19
 
 - Fixed Remote Web host-state refresh on Android/Desktop: once paired, the browser polls `/api/execution-status` every 400 ms, so a workflow started on the host changes the web run controls without requiring a click, tab change or other UI interaction.

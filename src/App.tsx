@@ -804,6 +804,7 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const localExecutionActive = ["queued", "running", "cancelling"].includes(executionLifecycle.phase);
   const currentHostExecution = hostExecutionLifecycle.executions.find((entry) => entry.workspaceId === tabId && entry.clientId === executionClientId) ?? null;
   const otherHostExecutions = hostExecutionLifecycle.executions.filter((entry) => entry.executionId !== currentHostExecution?.executionId);
+  const crossClientHostExecutions = otherHostExecutions.filter((entry) => entry.clientId !== executionClientId);
   const isRunning = localExecutionActive || Boolean(currentHostExecution);
   const visibleExecutionId = executionLifecycle.executionId ?? currentHostExecution?.executionId ?? null;
   const remoteBrowser = isRemoteRuntime();
@@ -3209,7 +3210,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const stopOtherHostExecution = async () => {
-    const target = otherHostExecutions[0];
+    const target = crossClientHostExecutions[0];
     if (!target) return;
     const owner = target.clientId === executionClientId ? "其他工作区" : target.source === "remote" ? "网页远程" : "宿主";
     setMessage(`正在停止${owner}执行…`);
@@ -3579,7 +3580,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <button className="button secondary optional-action topbar-file-action" onClick={requestNewWorkflow}>{ui("新建", "New")}</button>
           <button className="button secondary optional-action topbar-file-action" onClick={() => workflowInput.current?.click()}>{ui("导入", "Import")}</button>
           <button className="button secondary optional-action topbar-file-action" onClick={saveWorkflow}>{ui("保存", "Save")}</button>
-          <button className="button primary topbar-run" title={isRunning ? `停止当前工作区执行${visibleExecutionId ? ` · ${visibleExecutionId}` : ""}` : `运行当前工作区${hostExecutionLifecycle.active ? ` · 宿主另有 ${hostExecutionLifecycle.runningCount} 个运行 / ${hostExecutionLifecycle.queuedCount} 个排队` : ""}`} onClick={() => { if (isRunning) void stopCurrentExecution(); else void runPrototype(); }}>{isRunning ? (executionLifecycle.phase === "cancelling" || currentHostExecution?.phase === "cancelling" ? ui("取消中…", "Cancelling…") : currentHostExecution?.phase === "queued" ? ui("取消排队", "Cancel queued") : ui("停止", "Stop")) : ui("运行", "Run")}</button>{otherHostExecutions.length > 0 && <button className="button secondary topbar-run" title={`宿主共有 ${hostExecutionLifecycle.runningCount} 个运行 / ${hostExecutionLifecycle.queuedCount} 个排队任务；点击停止 ${otherHostExecutions[0].executionId}`} onClick={() => void stopOtherHostExecution()}>{otherHostExecutions[0].clientId === executionClientId ? ui(`停止其他${otherHostExecutions.length > 1 ? ` · ${otherHostExecutions.length}` : ""}`, `Stop other${otherHostExecutions.length > 1 ? ` · ${otherHostExecutions.length}` : ""}`) : otherHostExecutions[0].source === "remote" ? ui(`停止远程${otherHostExecutions.length > 1 ? ` · ${otherHostExecutions.length}` : ""}`, `Stop remote${otherHostExecutions.length > 1 ? ` · ${otherHostExecutions.length}` : ""}`) : ui(`停止宿主${otherHostExecutions.length > 1 ? ` · ${otherHostExecutions.length}` : ""}`, `Stop host${otherHostExecutions.length > 1 ? ` · ${otherHostExecutions.length}` : ""}`)}</button>}
+          <button className="button primary topbar-run" title={isRunning ? `停止当前工作区执行${visibleExecutionId ? ` · ${visibleExecutionId}` : ""}` : `运行当前工作区${hostExecutionLifecycle.active ? ` · 宿主另有 ${hostExecutionLifecycle.runningCount} 个运行 / ${hostExecutionLifecycle.queuedCount} 个排队` : ""}`} onClick={() => { if (isRunning) void stopCurrentExecution(); else void runPrototype(); }}>{isRunning ? (executionLifecycle.phase === "cancelling" || currentHostExecution?.phase === "cancelling" ? ui("取消中…", "Cancelling…") : currentHostExecution?.phase === "queued" ? ui("取消排队", "Cancel queued") : ui("停止", "Stop")) : ui("运行", "Run")}</button>
         </div>
       </header>
 
@@ -3863,6 +3864,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         <span title="每秒刷新一次的应用内存"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="10" height="10" rx="1" /><path d="M9 3v4m3-4v4m3-4v4M9 17v4m3-4v4m3-4v4M3 9h4m-4 3h4m-4 3h4m10-6h4m-4 3h4m-4 3h4" /></svg>内存 {memoryMb === null ? "不可用" : `${memoryMb.toFixed(1)} MB`}</span>
         <span title="最近一次工作流执行耗时"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8" /><path d="M12 13V8m0 5 3 2M9 3h6" /></svg>计算 {lastRunDurationMs === null ? "—" : lastRunDurationMs < 1000 ? `${Math.round(lastRunDurationMs)} ms` : `${(lastRunDurationMs / 1000).toFixed(2)} s`}</span>
         <span><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /><path d="m10 7 4 10" /></svg>节点 {nodes.length}</span><span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="m7.5 7.5 9 9" /></svg>连线 {edges.length}</span>{executionError ? <button className="app-statusbar__error" onClick={() => setErrorDetailOpen(true)} title="点击查看完整错误">⚠ {message}</button> : <span className="app-statusbar__message">{message}</span>}
+        {crossClientHostExecutions.length > 0 && <button className="statusbar-host-action" title={`宿主共有 ${hostExecutionLifecycle.runningCount} 个运行 / ${hostExecutionLifecycle.queuedCount} 个排队任务；点击停止 ${crossClientHostExecutions[0].executionId}`} aria-label={crossClientHostExecutions[0].source === "remote" ? "停止远程任务" : "停止宿主任务"} onClick={() => void stopOtherHostExecution()}>{crossClientHostExecutions[0].source === "remote" ? ui(`停止远程${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`, `Stop remote${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`) : ui(`停止宿主${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`, `Stop host${crossClientHostExecutions.length > 1 ? ` · ${crossClientHostExecutions.length}` : ""}`)}</button>}
         {debugMode && <button className="statusbar-debug" title="调试面板" aria-label="调试面板" onClick={() => setDebugOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9h8v7a4 4 0 0 1-8 0V9Z"/><path d="m9 6-2-2m8 2 2-2M5 11H2m3 4H2m17-4h3m-3 4h3M12 9V5"/></svg></button>}
         <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
       </footer>
@@ -4028,7 +4030,8 @@ function TabBar() {
           const isActive = tab.id === activeId;
           const isEditing = editingId === tab.id;
           const executionPhase = executionPhases[tab.id] ?? "idle";
-          const executionActive = ["queued", "running", "cancelling"].includes(executionPhase);
+          const executionIndicatorPhase = executionPhase === "timeout" ? "failed" : executionPhase;
+          const executionIndicatorVisible = ["queued", "running", "cancelling", "failed", "timeout"].includes(executionPhase);
           return (
             <div
               key={tab.id}
@@ -4076,9 +4079,9 @@ function TabBar() {
               onPointerLeave={clearLongPress}
               onPointerCancel={clearLongPress}
               onDoubleClick={() => { if (pointerMode === "mouse") { setEditingId(tab.id); setEditingName(tab.name); } }}
-              title={`${tab.name}${executionActive ? ` · ${executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : "运行中"}` : ""}${pointerMode === "mouse" ? " · 双击改名，右键菜单" : " · 长按显示关闭"}`}
+              title={`${tab.name}${executionIndicatorVisible ? ` · ${executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : executionPhase === "failed" || executionPhase === "timeout" ? "执行错误" : "运行中"}` : ""}${pointerMode === "mouse" ? " · 双击改名，右键菜单" : " · 长按显示关闭"}`}
             >
-              {executionActive && <span className={`tabbar__execution tabbar__execution--${executionPhase}`} aria-label={executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : "运行中"} />}
+              {executionIndicatorVisible && <span className={`tabbar__execution tabbar__execution--${executionIndicatorPhase}`} aria-label={executionPhase === "queued" ? "排队中" : executionPhase === "cancelling" ? "取消中" : executionPhase === "failed" || executionPhase === "timeout" ? "执行错误" : "运行中"} />}
               {isEditing ? (
                 <input
                   className="tabbar__rename"

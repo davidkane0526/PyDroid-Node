@@ -1,3 +1,11 @@
+## 2026-08-19 — Phase 3.5 accepted / Phase 4 Node Contract foundation / 1.4.32 (55)
+
+- User accepted Phase 3.5 multi-workspace execution on Windows and Android: concurrent Desktop tabs, Android queueing, and proactive host→web state sync all passed.
+- Android tab execution badges are now vertically aligned with tab labels and use explicit colors: running = blue, queued = orange, failed/timeout = red.
+- Removed the extra topbar **停止其他** action to preserve toolbar space. Current tabs are responsible for their own run/stop lifecycle; cross-client host actions (for example stopping a paired remote or host-side task) moved to the bottom status bar.
+- Phase 4 starts with `src/nodeContract.ts`: runtime support, determinism, side-effect, cache and state-scope metadata now come from one shared node-contract layer. This is the foundation for future function nodes, temporary/global variable nodes and richer runtime-neutral NodeSpec evolution.
+- Build script revision: `1.4.32-dev-r8-phase4`.
+
 ﻿## 2026-08-19 — Phase 3 complete / Phase 3.5 Multi-Workspace Execution / 1.4.31 (54)
 
 - User acceptance completed for Phase 2 cancellation, Remote Web host observability, first-run `ui.alert` data and Android 82–87% build progress. Phase 3 Workflow Core is now marked complete/frozen.

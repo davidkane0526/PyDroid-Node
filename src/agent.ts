@@ -1,6 +1,6 @@
 import { NODE_CATALOG, areValueTypesCompatible, getNodeSpec, type NodeSpec } from "./nodeCatalog";
 import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
-import { isJavascriptSupportedNodeType } from "./runtime/javascript/support";
+import { supportsNodeRuntime } from "./nodeContract";
 
 export type AgentPermission = "createNodes" | "groupNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";
 export type AgentProvider = "openai-responses" | "openai-compatible" | "anthropic-messages";
@@ -97,6 +97,10 @@ export const AGENT_SELF_CHALLENGES = [
 
 const planSchema = { type: "object", additionalProperties: false, required: ["summary", "operations"], properties: { summary: { type: "string" }, operations: { type: "array", items: { type: "object", required: ["type"], properties: { type: { type: "string", enum: ["add_node", "set_parameter", "connect", "disconnect", "group_nodes", "arrange", "delete_node", "run_workflow"] }, id: { type: "string" }, label: { type: "string" }, nodeIds: { type: "array", items: { type: "string" } }, direction: { type: "string", enum: ["horizontal", "vertical"] }, nodeType: { type: "string" }, parameters: { type: "object", additionalProperties: { type: ["string", "number", "boolean", "null"] } }, x: { type: "number" }, y: { type: "number" }, nodeId: { type: "string" }, key: { type: "string" }, value: { type: ["string", "number", "boolean", "null"] }, source: { type: "string" }, target: { type: "string" }, sourceHandle: { type: "string" }, targetHandle: { type: "string" } } } } } } as const;
 
+function runtimeSupportForNodeType(nodeType: string): Array<"python" | "javascript"> {
+  return supportsNodeRuntime(nodeType, "javascript") ? ["python", "javascript"] : ["python"];
+}
+
 const plannerInstructions = `You are PyDroid Flow's workflow-planning agent. Always return a complete propose_workflow_plan.
 Treat the supplied node catalog as an executable type system, not as suggestions. Use ONLY listed nodeType values, parameter keys, input ports and output ports. Respect runtimeSupport: when runtimePreference is javascript, every added node must support javascript; prefer python+javascript nodes when portability matters.
 Prefer native nodes. In particular, use generate.random_table for new random data, generate.empty_table for an explicit empty DataFrame, and generate.empty_list for an explicit empty list when those nodes are available.
@@ -155,7 +159,7 @@ function enrichedEntry(entry: AgentCatalogEntry): AgentCatalogEntry & { tags?: s
     })),
     inputPorts: spec.inputPorts.map((port) => ({ id: port.id, valueType: port.valueType, required: port.required })),
     outputPorts: spec.outputPorts.map((port) => ({ id: port.id, valueType: port.valueType })),
-    runtimeSupport: isJavascriptSupportedNodeType(spec.nodeType) ? ["python", "javascript"] : ["python"],
+    runtimeSupport: runtimeSupportForNodeType(spec.nodeType),
   };
 }
 
@@ -203,7 +207,7 @@ export function buildAgentPlanningContext(instruction: string, catalog: AgentCat
       nodeType: spec.nodeType,
       label: spec.label,
       role: spec.inputPorts.length === 0 ? "source" : spec.outputPorts.length === 0 ? "sink" : "transform",
-      runtimeSupport: isJavascriptSupportedNodeType(spec.nodeType) ? ["python", "javascript"] : ["python"],
+      runtimeSupport: runtimeSupportForNodeType(spec.nodeType),
       parameterKeys: spec.parameters.map((parameter) => parameter.key),
       inputs: spec.inputPorts.map((port) => `${port.id}:${port.valueType}${port.required ? "!required" : ""}`),
       outputs: spec.outputPorts.map((port) => `${port.id}:${port.valueType}`),
@@ -262,7 +266,7 @@ export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { 
       if (nodes.has(operation.id)) { errors.push(`${at}: 节点 ID 已存在：${operation.id}`); continue; }
       const baseSpec = getNodeSpec(operation.nodeType);
       if (!baseSpec) { errors.push(`${at}: 未知节点类型 ${operation.nodeType}`); continue; }
-      if (runtimePreference === "javascript" && !isJavascriptSupportedNodeType(operation.nodeType)) {
+      if (runtimePreference === "javascript" && !supportsNodeRuntime(operation.nodeType, "javascript")) {
         errors.push(`${at}: 当前工作流明确使用 JavaScript 后端，但 ${operation.nodeType} 仅支持 Python；请改用标记为 python+javascript 的节点`);
       }
       if (operation.nodeType === "custom.python_function") {

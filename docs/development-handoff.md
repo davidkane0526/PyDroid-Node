@@ -9,7 +9,7 @@ This delivery is a **single local Git repository** based only on the user-provid
 Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
-- `dev`: `1.4.31 (54)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + Phase 3.5 Multi-Workspace Execution.
+- `dev`: `1.4.32 (55)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + Phase 3.5 Multi-Workspace Execution + Phase 4 Node Contract foundation.
 
 Current working branch: `dev`.
 
@@ -135,13 +135,13 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 3.5 status — Multi-Workspace Execution
 
-**Implemented on `dev` 1.4.31 (54), pending user real-host acceptance.**
+**Accepted on `dev` 1.4.32 (55).**
 
 Shared renderer/application behavior:
 
 - `ExecutionManager` owns one `ExecutionController` per `workspaceId`; successful results are stored by workspace so inactive-tab runs survive remount.
 - every host request carries `executionId`, `workspaceId`, `clientId` and `source`; Remote Web and local UI are peers rather than separate special execution slots.
-- the primary Run/Stop button controls only the current workspace; other host/client executions remain observable through a separate stop action.
+- the primary Run/Stop button controls only the current workspace; same-client background workspaces are managed by switching tabs, while cross-client host actions are available from the bottom status bar.
 - paired Remote Web pages poll `/api/execution-status` every 400 ms, fixing the former host→browser stale-button defect.
 
 Desktop host:
@@ -158,8 +158,13 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-After Phase 3.5 Windows/Android acceptance, start **Phase 4 — Unified NodeSpec / Node Contract**. Move runtime support, side-effect, deterministic and cache metadata into one node specification source, then proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
+**Phase 4 — Unified NodeSpec / Node Contract** is now in progress on `dev` 1.4.32 (55). The first step introduces `src/nodeContract.ts`, which centralizes runtime support, execution model, side-effect, determinism, cache and state-scope metadata. Continue by migrating more UI/validation/runtime code to consume this unified contract, then proceed to Phase 5 Python/JavaScript golden-workflow parity tests.
 
 ### Production TypeScript vs test TypeScript
 
 Do not add Node typings to the root browser/Android `tsconfig.json` to make a test compile. Production source must remain browser-compatible and uses `types: ["vite/client"]`. Test/spec files are intentionally excluded from the production config and are checked separately by `tsconfig.test.json` through `pnpm test:types`. Any future AI adding tests under `src/` must preserve this boundary.
+
+
+## Phase 4 status — Unified NodeSpec / Node Contract
+
+**Started on `dev` 1.4.32 (55).** `src/nodeContract.ts` is now the shared metadata layer for runtime support (`python`/`javascript`), execution model (`standard` / `control-flow` / `custom-code` / `ui` / `workflow`), determinism, side effects, cache policy and state scope (`none` / `temporary` / `global`). This prepares the codebase for future function-node, temporary-variable and global-variable families without scattering capability rules across UI, agent and runtime adapters.
