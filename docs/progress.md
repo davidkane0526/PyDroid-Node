@@ -1,3 +1,11 @@
+## 2026-08-20 — Phase 7 Android service UI acceptance polish / 1.4.54 (77)
+
+- Android Remote Web banner now explicitly renders `计算服务已开启`, uses a stable wider layout, and keeps the same compact information model as Desktop.
+- Bottom-right SMB / Remote / History glyphs now share a slightly thinner stroke; SMB uses a cleaner network-drive/server symbol.
+- Host/service behavior is unchanged. This branch is limited to the final visual acceptance pass requested before Phase 8.
+- Added regression assertions for the banner status label/width and the three status-bar icon refinements.
+- Build script revision: `1.4.54-dev-r30-phase7-android-service-polish`.
+
 ## 2026-08-20 — Phase 7 final service-statusbar polish / 1.4.53 (76)
 
 - Added right-aligned SMB and Remote service shortcuts immediately beside History in the bottom status bar.

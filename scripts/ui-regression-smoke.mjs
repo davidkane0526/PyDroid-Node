@@ -29,7 +29,11 @@ assert.match(app, /nodeTouchDragSuppressMenuUntil/, "dragging a canvas node on t
 
 assert.match(app, /remoteBannerVisible/, "Remote Web banner should be independently collapsible without stopping the server");
 assert.match(app, /setRemoteBannerVisible\(false\)/, "Remote Web banner should support collapsing into the status bar");
+assert.match(app, /remote-server-banner__status">计算服务已开启/, "Remote Web banner should explicitly render the same running-state label on Android and Desktop");
+assert.match(css, /app-shell\.native-platform \.remote-server-banner\s*\{[^}]*width:\s*min\(640px,\s*calc\(100vw - 20px\)\)/, "Android Remote Web banner should reserve a wider stable row for status, URL and controls");
 assert.match(app, /statusbar-quick-services[\s\S]*statusbar-service-button--smb[\s\S]*statusbar-service-button--remote[\s\S]*statusbar-history/, "SMB and Remote service shortcuts should sit together immediately beside History");
+assert.match(app, /statusbar-service-button--smb[\s\S]{0,420}<rect x="4" y="5" width="16" height="5\.5"/, "SMB status-bar shortcut should use the compact network-drive glyph rather than the old folder glyph");
+assert.match(css, /statusbar-service-button svg,[\s\S]*statusbar-quick-services \.statusbar-history svg\s*\{[\s\S]*stroke-width:\s*1\.45;/, "SMB, Remote and History status-bar glyphs should share the refined thin stroke weight");
 assert.match(app, /statusbar-service-button--remote \${remoteServer \? "active" : ""}/, "Remote service shortcut should remain visually active while the host service is running");
 assert.match(css, /\.statusbar-service-button--remote\.active[\s\S]*background:/, "active Remote service state should have a persistent visual treatment");
 console.log("UI regression smoke passed.");

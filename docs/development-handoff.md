@@ -1,6 +1,6 @@
 # Development handoff
 
-Updated: 2026-08-19
+Updated: 2026-08-20
 
 ## Current repository state
 
@@ -10,8 +10,9 @@ Long-lived branches in this repository:
 
 - `main`: stable `1.4.27 (50)` LAN automatic-discovery baseline;
 - `dev`: `1.4.53 (76)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
+- `fix/phase7-android-service-polish`: `1.4.54 (77)` final Phase 7 visual-acceptance candidate. It only widens/fixes the Android Remote Web status banner and refines the SMB/Remote/History status-bar glyphs; host contracts and service behavior are unchanged.
 
-Current working branch: `dev`.
+Current working branch: `fix/phase7-android-service-polish`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -197,7 +198,7 @@ Read `docs/runtime-engine-modularization.md` before changing runtime structure. 
 
 ## Phase 7 — Host modularization and build boundary
 
-**Phase 7 is complete and frozen on `dev` 1.4.53 (76) after real Windows/Android host/build validation and final service-statusbar UX polish.** Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
+**Phase 7 architecture is complete and frozen on `dev` 1.4.53 (76) after real Windows/Android host/build validation.** `fix/phase7-android-service-polish` carries only the requested 1.4.54 visual-acceptance pass before Phase 8: Android now shows the same `计算服务已开启` label as Desktop in a wider compact banner, and the right-side SMB/Remote/History glyphs are visually refined. Desktop `main.cjs` is a composition/lifecycle façade with focused services under `desktop/services/` and IPC registration under `desktop/ipc/`. Android `PythonExecutorPlugin.java` is a Capacitor binding façade; `AndroidHostServices` owns host lifetimes and focused Java services implement Python/SMB/SAF/Profile/Secret/Remote capabilities.
 
 Cross-platform transport bindings are now documented in `src/platform/host-contract.json`. `scripts/host-contract-smoke.mjs` checks the stable Desktop preload/IPC and Android Capacitor/Java method surface so PlatformAdapter transport cannot drift silently. Read `docs/host-contract.md` before adding or renaming any native host operation.
 

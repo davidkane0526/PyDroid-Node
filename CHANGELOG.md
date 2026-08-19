@@ -1,3 +1,11 @@
+## 1.4.54 (77) — Phase 7 Android service UI acceptance polish — 2026-08-20
+
+- Remote Web banner now reserves a stable wider row and explicitly keeps `计算服务已开启` visible on Android, matching the Desktop information hierarchy while retaining the compact canonical URL / copy / PIN / collapse controls.
+- Refined the three right-side status-bar shortcut glyphs with a lighter shared stroke weight; replaced the SMB folder-style glyph with a compact two-bay network-drive/server glyph.
+- Added UI regression guards for Android banner status visibility/width, the SMB glyph, and shared status-bar icon stroke weight. No Remote Web, SMB, execution, or host-contract behavior changed.
+- This is the final Phase 7 visual-acceptance candidate before starting Phase 8 after user confirmation.
+- Build script revision: `1.4.54-dev-r30-phase7-android-service-polish`.
+
 ## 1.4.53 (76) — Phase 7 service-statusbar polish and freeze — 2026-08-20
 
 - Remote Web service banner can now collapse into the bottom status bar without stopping the host service. The host Remote button remains visually active while the service is running, and the bottom Remote shortcut restores the compact banner on demand.

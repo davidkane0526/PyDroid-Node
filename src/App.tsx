@@ -3685,11 +3685,13 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       </header>
 
       {remoteServer && remoteBannerVisible && <aside className="remote-server-banner" role="status">
-        <strong>计算服务已开启</strong>
-        <code>{remoteServer.url}</code>
-        <button onClick={() => void copyRemoteUrl()}>复制地址</button>
-        <button className="remote-server-banner__collapse" title="收起到状态栏" aria-label="收起计算服务信息到状态栏" onClick={() => setRemoteBannerVisible(false)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
+        <div className="remote-server-banner__identity">
+          <strong className="remote-server-banner__status">计算服务已开启</strong>
+          <code>{remoteServer.url}</code>
+        </div>
+        <button className="remote-server-banner__copy" onClick={() => void copyRemoteUrl()}>复制地址</button>
         {remoteServer.requiresPin && <span className="remote-server-banner__pin">PIN {remoteServer.pin}</span>}
+        <button className="remote-server-banner__collapse" title="收起到状态栏" aria-label="收起计算服务信息到状态栏" onClick={() => setRemoteBannerVisible(false)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg></button>
       </aside>}
 
       <main style={workspaceStyle} className={`workspace ${paletteCollapsed ? "palette-collapsed" : ""} ${inspectorCollapsed ? "inspector-collapsed" : ""} ${inspectorDock === "bottom" ? "inspector-bottom" : "inspector-right"} ${result && resultDock === "bottom" ? "result-bottom" : ""}`}>
@@ -3997,7 +3999,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         </div>}
         {debugMode && <button className="statusbar-debug" title="调试面板" aria-label="调试面板" onClick={() => setDebugOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9h8v7a4 4 0 0 1-8 0V9Z"/><path d="m9 6-2-2m8 2 2-2M5 11H2m3 4H2m17-4h3m-3 4h3M12 9V5"/></svg></button>}
         <div className="statusbar-quick-services" aria-label="快捷服务">
-          {!remoteBrowser && <button className="statusbar-service-button statusbar-service-button--smb" title="打开局域网 SMB" aria-label="打开局域网 SMB" onClick={openSmbFromStatusbar}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5h6l2 2H20.5v8.5h-17z"/><circle cx="8" cy="14" r="1.2"/><circle cx="16" cy="14" r="1.2"/><path d="M9.2 14h5.6"/></svg></button>}
+          {!remoteBrowser && <button className="statusbar-service-button statusbar-service-button--smb" title="打开局域网 SMB" aria-label="打开局域网 SMB" onClick={openSmbFromStatusbar}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="5.5" rx="1.5"/><rect x="4" y="13.5" width="16" height="5.5" rx="1.5"/><circle cx="7" cy="7.75" r="0.7"/><circle cx="7" cy="16.25" r="0.7"/><path d="M10 7.75h6M10 16.25h6"/></svg></button>}
           {canHostRemoteServer() && <button className={`statusbar-service-button statusbar-service-button--remote ${remoteServer ? "active" : ""}`} title={remoteServer ? `计算服务已开启 · ${remoteServer.url} · 点击显示地址` : "开启计算服务"} aria-label={remoteServer ? "计算服务已开启，显示服务地址" : "开启计算服务"} aria-pressed={Boolean(remoteServer)} onClick={openRemoteFromStatusbar}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6"/></svg><span className="statusbar-service-button__indicator" aria-hidden="true"/></button>}
           <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
         </div>

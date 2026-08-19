@@ -90,9 +90,10 @@ button, input, select, textarea { font: inherit; }
 .topbar__actions { display: flex; align-items: center; gap: 8px; overflow-x: auto; }
 .topbar-divider { flex: none; width: 1px; height: 26px; margin: auto 1px; background: var(--border-strong); }
 .airdrop-icon { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.remote-server-banner { position: fixed; z-index: 160; top: 70px; left: 50%; display: flex; max-width: min(760px, calc(100vw - 24px)); align-items: center; gap: 9px; padding: 9px 11px; transform: translateX(-50%); border: 1px solid #0e7490; border-radius: 10px; color: #cffafe; background: #083344f5; box-shadow: 0 12px 32px #0009; font-size: 11px; }
-.remote-server-banner strong { white-space: nowrap; }
-.remote-server-banner code { min-width: 0; overflow: hidden; color: #a5f3fc; font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
+.remote-server-banner { position: fixed; z-index: 160; top: 70px; left: 50%; display: flex; width: min(620px, calc(100vw - 24px)); max-width: 760px; align-items: center; gap: 9px; padding: 9px 11px; transform: translateX(-50%); border: 1px solid #0e7490; border-radius: 10px; color: #cffafe; background: #083344f5; box-shadow: 0 12px 32px #0009; font-size: 11px; }
+.remote-server-banner__identity { display: flex; min-width: 0; flex: 1 1 auto; align-items: center; gap: 9px; }
+.remote-server-banner__status { display: inline-flex !important; flex: none; align-items: center; color: #cffafe; white-space: nowrap; }
+.remote-server-banner code { min-width: 0; flex: 1 1 auto; overflow: hidden; color: #a5f3fc; font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
 .remote-server-banner button { flex: none; padding: 5px 8px; border: 1px solid #0891b2; border-radius: 6px; color: #cffafe; background: #155e75; cursor: pointer; font-size: var(--font-xs); }
 .remote-server-banner span { color: #67e8f9; font-size: var(--font-xs); }
 .button { flex: none; border: 0; border-radius: 8px; padding: 7px 11px; cursor: pointer; color: #fff; }
@@ -725,8 +726,9 @@ button, input, select, textarea { font: inherit; }
   .button { padding: 8px 10px; }
   .csv-picker { order: 1; max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-divider { height: 22px; }
-  .remote-server-banner { top: 63px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; width: calc(100vw - 16px); }
-  .remote-server-banner span { grid-column: 1 / -1; }
+  .remote-server-banner { top: 63px; display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 6px; width: min(620px, calc(100vw - 16px)); }
+  .remote-server-banner__identity { min-width: 0; }
+  .remote-server-banner__pin { grid-column: auto; }
   .workspace { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 46vw)) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--inspector-height, 220px); }
   .workspace.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
   .workspace.inspector-collapsed { grid-template-columns: minmax(112px, min(var(--palette-width, 160px), 46vw)) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) 0; }
@@ -3473,9 +3475,11 @@ button.smb-file-row { cursor: pointer; }
   display: none !important;
 }
 
-/* 1.4.52: Remote Web banner intentionally returns to the compact Phase-1 layout.
-   One canonical URL is shown; alternate adapter addresses remain an internal host detail. */
+/* Remote Web keeps the compact Phase-1 information model while reserving enough width
+   for the Android host to show the same service-state label as Desktop. */
 .remote-server-banner__pin { flex: none; color: #67e8f9; font-size: var(--font-xs); white-space: nowrap; }
+.app-shell.native-platform .remote-server-banner { width: min(640px, calc(100vw - 20px)); }
+.app-shell.native-platform .remote-server-banner__status { display: inline-flex !important; visibility: visible; }
 
 /* Android/WebView: ordinary UI text should behave like app chrome, not a selectable webpage. */
 .app-shell.native-platform,
@@ -3546,7 +3550,7 @@ button.smb-file-row { cursor: pointer; }
   height: 17px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.7;
+  stroke-width: 1.45;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -3606,9 +3610,29 @@ button.smb-file-row { cursor: pointer; }
 
 @media (max-width: 720px) {
   .remote-server-banner {
-    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
   }
   .statusbar-quick-services {
     gap: 1px;
+  }
+}
+
+@media (max-width: 560px) {
+  .remote-server-banner {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .remote-server-banner__identity {
+    display: grid;
+    gap: 3px;
+  }
+  .remote-server-banner__pin {
+    grid-column: 1;
+    grid-row: 2;
+    align-self: end;
+  }
+  .remote-server-banner__copy,
+  .remote-server-banner__collapse {
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 }
