@@ -14,30 +14,53 @@ class SsdpService {
     this.interfaces = [];
     this.config = null;
     this.pending = new Set();
+    this.ready = false;
+    this.readyError = null;
+    this.readyPromise = Promise.resolve({ joined: 0 });
   }
 
   start(config, interfaces) {
     this.stop(false);
     this.config = config;
     this.interfaces = interfaces;
+    this.ready = false;
+    this.readyError = null;
     if (!interfaces.length) throw new Error("没有可用于 SSDP 的局域网 IPv4 接口");
     const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
     this.socket = socket;
-    socket.on("error", (error) => this.log(`[SSDP] ${error.message}`));
-    socket.on("message", (message, remote) => this.handleMessage(message, remote));
-    socket.bind(SSDP_PORT, "0.0.0.0", () => {
-      if (this.socket !== socket) { try { socket.close(); } catch {} return; }
-      try { socket.setMulticastTTL(2); } catch {}
-      for (const item of interfaces) {
-        try {
-          socket.addMembership(SSDP_ADDRESS, item.address);
-          this.log(`[SSDP] Joined ${SSDP_ADDRESS}:${SSDP_PORT} via ${item.name} / ${item.address}`);
-        } catch (error) { this.log(`[SSDP] Join failed on ${item.address}: ${error.message}`); }
-      }
-      this.announce("ssdp:alive");
-      this.timer = setInterval(() => this.announce("ssdp:alive"), 300_000);
-      this.timer.unref?.();
+    this.readyPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      const failStartup = (error) => {
+        this.readyError = error instanceof Error ? error.message : String(error);
+        if (!settled) { settled = true; reject(error); }
+      };
+      socket.on("error", (error) => {
+        this.log(`[SSDP] ${error.message}`);
+        if (!this.ready) failStartup(error);
+      });
+      socket.on("message", (message, remote) => this.handleMessage(message, remote));
+      socket.bind(SSDP_PORT, "0.0.0.0", () => {
+        if (this.socket !== socket) { try { socket.close(); } catch {} return; }
+        try { socket.setMulticastTTL(2); } catch {}
+        let joined = 0;
+        for (const item of interfaces) {
+          try {
+            socket.addMembership(SSDP_ADDRESS, item.address);
+            joined += 1;
+            this.log(`[SSDP] Joined ${SSDP_ADDRESS}:${SSDP_PORT} via ${item.name} / ${item.address}`);
+          } catch (error) { this.log(`[SSDP] Join failed on ${item.address}: ${error.message}`); }
+        }
+        if (!joined) return failStartup(new Error("SSDP 没有成功加入任何局域网组播接口"));
+        this.ready = true;
+        this.readyError = null;
+        if (!settled) { settled = true; resolve({ joined }); }
+        this.announce("ssdp:alive");
+        this.timer = setInterval(() => this.announce("ssdp:alive"), 300_000);
+        this.timer.unref?.();
+      });
     });
+    this.readyPromise.catch(() => undefined);
+    return this.readyPromise;
   }
 
   location(item) { return `http://${item.address}:${this.config.port}/upnp/device.xml`; }
@@ -59,7 +82,7 @@ class SsdpService {
       ...(alive ? ["CACHE-CONTROL: max-age=1800", `LOCATION: ${this.location(item)}`] : []),
       `NT: ${type.target}`,
       `NTS: ${nts}`,
-      "SERVER: UPnP/1.0 PyDroid-Node/1.0",
+      "SERVER: Windows/10.0 UPnP/1.0 PyDroid-Node/1.0",
       `USN: ${type.usn}`,
       "BOOTID.UPNP.ORG: 1",
       "CONFIGID.UPNP.ORG: 1",
@@ -108,7 +131,7 @@ class SsdpService {
           "CACHE-CONTROL: max-age=1800",
           "EXT:",
           `LOCATION: ${this.location(item)}`,
-          "SERVER: UPnP/1.0 PyDroid-Node/1.0",
+          "SERVER: Windows/10.0 UPnP/1.0 PyDroid-Node/1.0",
           `ST: ${type.target}`,
           `USN: ${type.usn}`,
           "BOOTID.UPNP.ORG: 1",
@@ -136,6 +159,7 @@ class SsdpService {
     }
     const socket = this.socket;
     this.socket = null;
+    this.ready = false;
     if (socket) {
       for (const item of this.interfaces) {
         try { socket.dropMembership(SSDP_ADDRESS, item.address); } catch {}

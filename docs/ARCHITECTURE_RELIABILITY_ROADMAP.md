@@ -625,3 +625,8 @@ Discovery (`SSDP/mDNS/device.xml`) 仍与认证 API 分离。健康检查和发�
 1.4.70 已将 LAN Discovery 生命周期纳入自动化门禁：SSDP `ssdp:all` 多目标响应、CRLF/USN/LOCATION/ST、device.xml 身份字段、UUID persistence、network restart、stop/byebye 以及 mDNS A/PTR/SRV/TXT 均有回归覆盖；后续不重新发明 discovery 协议。
 
 1.4.71 修正真实宿主验收缺口：旧 21 项诊断不再被视为 Remote Web 可用性证明。Desktop/Android 启动必须完成真实 loopback HTTP/SPA/JS readiness，Desktop 兼容打包必须包含 `package-remote`，成品 smoke 必须实际启动 Remote Web；in-app 完整宿主诊断提升到 **22/22** 并检查 LAN interface + SSDP/mDNS 运行状态。1.4.51 被确认是 host-readiness 自动化覆盖退化的边界；Android 功能回归的精确版本仍需真实 1.4.71 成品诊断确认。
+
+
+### 1.4.72 — LAN firewall / real readiness correction
+
+Real 1.4.71 Windows use demonstrated that 22/22 could still pass while LAN Web/discovery was unusable. 1.4.72 restores the proven demo contract: stable TCP 8765, Private+LocalSubnet firewall ownership, default-route interface preference, per-LAN-IP HTTP readiness, and SSDP/mDNS readiness only after real UDP bind plus multicast join. 1.4.51 remains the known validation-regression boundary; 1.4.72 does not attribute the functional root cause to 1.4.68 without evidence.

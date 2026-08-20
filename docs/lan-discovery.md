@@ -39,16 +39,24 @@ The UUID is generated once and reused. Android `.local` hostnames include the pe
 
 Discovery itself exposes only the device identity, IP, port and UPnP metadata. Existing `/api/*` execution and configuration paths remain protected by the current optional PIN plus browser session token. `/upnp/device.xml`, `/health`, static Web assets and `/api/health` remain intentionally reachable before pairing so a browser can discover and start the pairing flow.
 
-## Windows firewall
+## Windows firewall and stable endpoint
 
-The portable build does not silently elevate or install global firewall policy. When Windows first asks whether PyDroid Node may communicate through Defender Firewall, allow **Private networks only**. If the host PC has a centrally managed firewall which blocks inbound TCP or UDP 1900/5353, discovery or Web access can still be blocked by policy.
+Starting with 1.4.72, Desktop uses the same stable Web endpoint as the proven LAN demo: **TCP 8765**. Android already uses 8765. On first LAN enable, Windows checks three named inbound rules and may request one-time UAC elevation to create them:
+
+- TCP 8765 — Remote Web
+- UDP 1900 — SSDP
+- UDP 5353 — mDNS
+
+The rules are restricted to **Private profile + LocalSubnet**. The application does not create Public-profile rules. If the current active profile is Public or the user declines the elevation and the rules remain missing, Desktop does not present LAN Web as successfully enabled. Centrally managed policy may still override local rules.
+
+`desktop/lan/firewall.cjs` owns this boundary. Disabling LAN stops the sockets but does not repeatedly delete/recreate the narrow rules; no installer/uninstaller cleanup hook exists in the current portable distribution.
 
 ## Manual Windows acceptance test
 
 1. Put the PyDroid host and another Windows PC on the same private Wi-Fi/Ethernet LAN.
-2. Start “局域网网页访问”.
-3. Confirm `http://HOST_IP:PORT/` loads from the other PC.
-4. Open `http://HOST_IP:PORT/upnp/device.xml` and verify `friendlyName`, `UDN` and `presentationURL`.
+2. Ensure Windows reports the active LAN as **Private**, then start “局域网网页访问”. Approve the one-time firewall UAC prompt if rules are not yet present.
+3. Confirm `http://HOST_IP:8765/` loads from the other PC.
+4. Open `http://HOST_IP:8765/upnp/device.xml` and verify `friendlyName`, `UDN` and `presentationURL`.
 5. Open File Explorer → Network and locate `PyDroid Node - ...`.
 6. Double-click it and verify the default browser opens the same remote UI.
 7. Resolve/open the published `.local` hostname.
@@ -59,3 +67,10 @@ The portable build does not silently elevate or install global firewall policy. 
 ## Automated lifecycle regression gate
 
 Phase 10 / 1.4.70 adds `pnpm test:lan-discovery`. The gate verifies Desktop packet/lifecycle behavior directly and audits Android parity; with JDK available it also compiles and runs the Android LAN protocol classes against minimal Android stubs. Covered contracts include `ssdp:all`, CRLF/ST/USN/LOCATION, UPnP identity fields, persistent UUID, network restart, SSDP byebye, and mDNS A/PTR/SRV/TXT live/goodbye records.
+
+
+## 1.4.72 readiness semantics
+
+A discovery subsystem is not `running` merely because `socket.bind()` was called. Desktop SSDP and mDNS transition `starting -> running` only after the UDP socket bind callback completes and at least one usable LAN interface successfully joins its multicast group. Remote Web startup also probes `/health` through every advertised LAN IPv4. The primary advertised address prefers the Windows default-route interface. Multiple adapters on the same IPv4 subnet are collapsed to the best/default-route entry, which avoids publishing the same UPnP identity simultaneously at addresses such as a primary `WLAN` and a secondary `WLAN 2`; adapters on different LAN subnets remain publishable in parallel.
+
+The built-in `remote-host-e2e` report exposes these checks under `readiness`. This is still not a substitute for the final physical second-device acceptance test, but a missing firewall rule, Public profile, failed LAN-IP HTTP probe, failed UDP bind or failed multicast membership can no longer produce a passing Desktop host case.

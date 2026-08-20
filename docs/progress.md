@@ -1,3 +1,24 @@
+# Phase 10 progress — 1.4.72 (95)
+
+## 1.4.72 LAN firewall + real readiness repair
+
+The real Windows 1.4.71 report reached **22/22** while the user still could not open the Web UI or discover the device from the LAN. The report completed `remote-host-e2e` in only 185 ms and reported two WLAN addresses. This proved that 1.4.71 still certified internal startup state too early and did not cover the Windows inbound-firewall contract from the previously proven LAN discovery demo.
+
+- Desktop Remote Web now uses the stable **TCP 8765** contract instead of an ephemeral port. Android already used 8765.
+- Added `desktop/lan/firewall.cjs`. On Windows, first LAN enable verifies/creates three **Private-profile + LocalSubnet-only** inbound rules: TCP 8765, UDP 1900 and UDP 5353. Public networks are never opened automatically. Missing rules may request one-time UAC elevation.
+- A UI start is rejected and the service is stopped if Windows has no active Private network, the required firewall rules remain missing, or any advertised LAN IPv4 fails `/health`. Thus the blue LAN state can no longer mean only “loopback server exists”.
+- SSDP/mDNS status is `starting` until UDP bind and at least one real multicast membership succeed. `running` is no longer assigned immediately after `socket.bind()` is requested.
+- Windows interface selection now prefers the IPv4 address owning the default route. Adapters on the same IPv4 subnet are collapsed to the best/default-route entry to avoid publishing one UPnP identity at competing same-subnet addresses; distinct LAN subnets remain supported in parallel.
+- Host readiness now reports per-LAN-IP HTTP probes, multicast readiness and firewall/profile state. The built-in diagnostics remain 22 cases, but `remote-host-e2e` is materially stronger and fails on these conditions.
+- `test:remote-host-e2e` now pins port 8765, real LAN-IP HTTP readiness and real discovery readiness. `test:lan-discovery` also pins the Private/LocalSubnet firewall contract.
+- Build script revision: `1.4.72-dev-r48-phase10-lan-firewall-real-readiness`.
+
+### Corrected root-cause boundary
+
+The user's 1.4.71 result invalidates the earlier idea that adding a 22nd in-app case was sufficient. The **application integration has diverged from the proven LAN demo since the original 1.4.27 integration**: Desktop selected an ephemeral TCP port and never implemented the demo's `LanFirewall` responsibility, while the demo required a stable 8765 endpoint and Private-only firewall handling. **1.4.51 remains the confirmed automated-readiness coverage regression**, because it removed the earlier real host checks. 1.4.72 repairs both the product/network contract and the false-positive readiness semantics; it does not claim that 1.4.68 was the original functional root cause.
+
+---
+
 # Phase 10 progress — 1.4.71 (94)
 
 ## 1.4.71 Remote Web host E2E repair

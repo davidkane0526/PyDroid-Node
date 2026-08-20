@@ -1,3 +1,13 @@
+# Current handoff — 1.4.72 / Phase 10 LAN firewall + real readiness
+
+The 1.4.71 Windows package produced 22/22 diagnostics but still failed real LAN Web access/discovery. Treat that result as a decisive false-positive finding for the old host-E2E acceptance boundary. 1.4.72 restores the already-proven LAN demo contract on Desktop: fixed TCP 8765, Private/LocalSubnet firewall rules for TCP 8765 + UDP 1900 + UDP 5353, default-route interface preference, LAN-address `/health` probes, and SSDP/mDNS `running` only after real bind + multicast membership.
+
+For Windows validation, the first LAN enable may show UAC. Approve it only on a trusted Private network. If the active Windows profile is Public, the app deliberately refuses to present the service as successfully enabled rather than opening Public inbound rules. A full-host 22/22 report must now include `readiness.lanHttp`, `readiness.discoveryReady` and `readiness.firewall`.
+
+Version: **1.4.72**, Android versionCode **95**. Build revision: `1.4.72-dev-r48-phase10-lan-firewall-real-readiness`.
+
+---
+
 # Development handoff
 
 Updated: 2026-08-20

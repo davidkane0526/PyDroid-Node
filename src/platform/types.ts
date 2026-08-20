@@ -14,9 +14,28 @@ export type SmbServer = { address: string; name: string; shares?: string[] };
 export type SmbEntry = { name: string; path: string; directory: boolean; size: number; modifiedAt?: string | null };
 
 export type RemoteDiscoveryStatus = {
-  interfaces: Array<{ name: string; address: string }>;
+  interfaces: Array<{ name: string; address: string; defaultRoute?: boolean }>;
   ssdp: "running" | "failed" | "unavailable" | string;
   mdns: "running" | "failed" | "unavailable" | string;
+};
+export type RemoteFirewallStatus = {
+  applicable: boolean;
+  rulesReady: boolean;
+  privateNetworkActive: boolean;
+  activeProfiles: string[];
+  profiles?: Array<{ interface: string; category: string; ipv4: string }>;
+  rules?: Array<{ name: string; protocol: string; port: number; present: boolean }>;
+  reason?: string | null;
+  error?: string | null;
+  elevationAttempted?: boolean;
+  elevationSucceeded?: boolean;
+};
+export type RemoteServerReadiness = {
+  loopback: boolean;
+  lanHttp: Array<{ address: string; ok: boolean; error?: string }>;
+  allLanHttpReady: boolean;
+  discoveryReady: boolean;
+  firewall: RemoteFirewallStatus;
 };
 export type RemoteServerInfo = {
   url: string;
@@ -25,6 +44,7 @@ export type RemoteServerInfo = {
   requiresPin: boolean;
   port: number;
   discovery?: RemoteDiscoveryStatus;
+  readiness?: RemoteServerReadiness;
 };
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };

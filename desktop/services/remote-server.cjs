@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
+const { LAN_WEB_PORT, ensureWindowsLanFirewall, inspectWindowsLanFirewall } = require("../lan/firewall.cjs");
 const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
 
 const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
@@ -104,7 +105,7 @@ function createRemoteServerService({ pythonService, log }) {
     return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
   }
 
-  function start(requirePin) {
+  async function start(requirePin) {
     if (remoteServer) return Promise.resolve(remoteServer.__info);
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
@@ -211,39 +212,65 @@ function createRemoteServerService({ pythonService, log }) {
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
 
-    return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", async () => {
-      const port = server.address().port;
-      try {
-        await verifyLoopbackReady(port);
-        log(`[Remote Web] Loopback readiness passed on 127.0.0.1:${port}`);
-      } catch (error) {
-        try { server.close(); } catch {}
-        return reject(error);
-      }
-      try {
-        lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
-        const discovery = lanDiscovery.start({ port });
-        log(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
-        log(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
-      } catch (error) {
-        lanDiscovery = null;
-        log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
-      }
-      const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
-      const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
-      const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
-      const url = `http://${address}:${port}/`;
-      const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
-      const discovery = {
-        interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address })),
-        ssdp: discoveryState.ssdp ?? "unavailable",
-        mdns: discoveryState.mdns ?? "unavailable",
+    const firewall = await ensureWindowsLanFirewall({ log });
+    return new Promise((resolve, reject) => {
+      const onError = (error) => {
+        if (error?.code === "EADDRINUSE") return reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用，请关闭占用程序后重试`));
+        reject(error);
       };
-      const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery };
-      server.__info = info;
-      remoteServer = server;
-      resolve(info);
-    }));
+      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", async () => {
+        server.removeListener("error", onError);
+        const port = LAN_WEB_PORT;
+        try {
+          await verifyLoopbackReady(port);
+          log(`[Remote Web] Loopback readiness passed on 127.0.0.1:${port}`);
+        } catch (error) {
+          try { server.close(); } catch {}
+          return reject(error);
+        }
+        try {
+          lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
+          const discovery = lanDiscovery.start({ port });
+          await lanDiscovery.waitUntilReady(2500);
+          log(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
+          log(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
+        } catch (error) {
+          lanDiscovery = null;
+          log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
+        }
+        const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
+        const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
+        const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
+        const url = `http://${address}:${port}/`;
+        const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
+        const lanHealth = [];
+        for (const item of discoveryState.interfaces ?? []) {
+          try {
+            const health = await requestText(port, "/health", item.address);
+            lanHealth.push({ address: item.address, ok: health.status === 200 && health.body.trim() === "OK" });
+          } catch (error) {
+            lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
+          }
+        }
+        const firewallState = process.platform === "win32" ? await inspectWindowsLanFirewall() : firewall;
+        const discovery = {
+          interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
+          ssdp: discoveryState.ssdp ?? "unavailable",
+          mdns: discoveryState.mdns ?? "unavailable",
+        };
+        const readiness = {
+          loopback: true,
+          lanHttp: lanHealth,
+          allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
+          discoveryReady: discovery.ssdp === "running" && discovery.mdns === "running",
+          firewall: firewallState,
+        };
+        const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery, readiness };
+        server.__info = info;
+        remoteServer = server;
+        resolve(info);
+      });
+    });
   }
 
   function stop() {

@@ -103,7 +103,11 @@ function ssdpSearch() {
 
 try {
   const info = await service.start(true);
-  assert.ok(info.port > 0, "Remote Web must bind a TCP port");
+  assert.equal(info.port, 8765, "Remote Web must use the stable LAN port from the proven LAN demo contract");
+  assert.equal(info.readiness?.loopback, true, "loopback readiness must be verified");
+  assert.equal(info.readiness?.allLanHttpReady, true, `every advertised LAN IPv4 must answer /health: ${JSON.stringify(info.readiness?.lanHttp ?? [])}`);
+  assert.equal(info.readiness?.discoveryReady, true, "SSDP and mDNS must finish real bind/join before startup is considered ready");
+  assert.equal(info.readiness?.firewall?.rulesReady, true, "firewall readiness contract must be satisfied in the test environment");
 
   const loopback = `http://127.0.0.1:${info.port}`;
   const health = await request(`${loopback}/health`);

@@ -2884,9 +2884,23 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     setMessage("正在开启计算服务…");
     try {
       const info = await startRemoteServer(remoteRequirePin);
+      const readiness = info.readiness;
+      if (readiness?.firewall?.applicable && !readiness.firewall.privateNetworkActive) {
+        await stopRemoteServer().catch(() => undefined);
+        throw new Error(`Windows 当前活动网络不是“专用网络”（${readiness.firewall.activeProfiles.join(", ") || "Unknown"}），为避免开放 Public 网络，服务已停止`);
+      }
+      if (readiness?.firewall?.applicable && !readiness.firewall.rulesReady) {
+        await stopRemoteServer().catch(() => undefined);
+        throw new Error("Windows Private 防火墙规则未完成（TCP 8765 / UDP 1900 / UDP 5353），服务已停止；请重新开启并允许管理员授权");
+      }
+      if (readiness && !readiness.allLanHttpReady) {
+        await stopRemoteServer().catch(() => undefined);
+        throw new Error(`局域网 HTTP readiness 失败，服务已停止：${JSON.stringify(readiness.lanHttp)}`);
+      }
       setRemoteServer(info);
       setRemoteBannerVisible(true);
-      setMessage("计算服务已开启");
+      if (readiness && !readiness.discoveryReady) setMessage("计算服务已开启，但 SSDP/mDNS 网络发现未完全就绪；可先通过固定地址访问并运行自动诊断");
+      else setMessage("计算服务已开启");
     } catch (error) {
       setRemoteAccessDialog(true);
       setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务启动失败");
@@ -3164,6 +3178,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           const info = remoteServer ?? await startRemoteServer(true);
           try {
             if (!Number.isFinite(info.port) || info.port <= 0) throw new Error("宿主没有返回有效 HTTP 监听端口");
+            if (info.port !== 8765) throw new Error(`宿主没有使用固定 LAN Web 端口 8765：${info.port}`);
             const parsed = new URL(info.url);
             if (parsed.protocol !== "http:") throw new Error(`宿主返回了非 HTTP 地址：${info.url}`);
             if (["127.0.0.1", "localhost", "::1"].includes(parsed.hostname)) throw new Error(`宿主只暴露了回环地址：${info.url}`);
@@ -3173,12 +3188,21 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             if (discovery.ssdp !== "running") throw new Error(`SSDP 未运行：${discovery.ssdp}`);
             if (discovery.mdns !== "running") throw new Error(`mDNS 未运行：${discovery.mdns}`);
             if (!discovery.interfaces.some((item) => item.address === parsed.hostname)) throw new Error(`主访问地址 ${parsed.hostname} 不属于当前发现接口`);
+            if (platform.id === "desktop") {
+              const readiness = info.readiness;
+              if (!readiness) throw new Error("Desktop 宿主没有返回真实 LAN readiness 状态");
+              if (!readiness.allLanHttpReady) throw new Error(`至少一个 LAN IPv4 地址无法访问 /health：${JSON.stringify(readiness.lanHttp)}`);
+              if (!readiness.discoveryReady) throw new Error("SSDP/mDNS socket 尚未完成真实 bind/join");
+              if (readiness.firewall.applicable && !readiness.firewall.privateNetworkActive) throw new Error(`Windows 当前活动网络不是 Private：${readiness.firewall.activeProfiles.join(",") || "Unknown"}`);
+              if (readiness.firewall.applicable && !readiness.firewall.rulesReady) throw new Error("Windows Private 防火墙规则未完成：TCP 8765 / UDP 1900 / UDP 5353");
+            }
             return {
               nativeHttpReadinessVerified: true,
               url: info.url,
               urls: info.urls ?? [],
               port: info.port,
               discovery,
+              readiness: info.readiness,
               serviceWasAlreadyRunning: alreadyRunning,
             };
           } finally {

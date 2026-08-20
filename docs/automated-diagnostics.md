@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.71
+Current behavior: 1.4.72
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -37,7 +37,7 @@ The report records only application/runtime diagnostics and the names/counts of 
 12. AI Agent batch transaction: a valid plan commits once/undoes once and an invalid plan cannot partially mutate the Session.
 13. Workflow requirement ownership: add/update/remove executes through Editor Commands and remains undoable.
 14. Runtime interaction isolation: `ui.input_dialog` and `ui.alert` responses affect only the current execution and do not mutate/dirty the Editor Session.
-15. Remote Web host E2E: a real Desktop/Android host service must start, pass native HTTP `/health` + shell + JS-resource readiness, expose a non-loopback LAN URL, and report live SSDP/mDNS state on at least one IPv4 interface.
+15. Remote Web host E2E: a real Desktop/Android host service must start on the stable LAN port, pass native HTTP `/health` + shell + JS-resource readiness, expose a non-loopback LAN URL, and report live SSDP/mDNS state. Desktop additionally requires every advertised LAN IPv4 to answer `/health`, real SSDP/mDNS bind + multicast membership readiness, an active Windows Private profile and the scoped TCP 8765 / UDP 1900 / UDP 5353 firewall rules.
 16. Remote Web security policy: PIN lock/cooldown, token TTL and normal/expensive API limits match the Phase 10 contract.
 17. Remote Agent proxy boundary: Agent transport can run without a browser-held raw API key.
 18. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
@@ -46,7 +46,7 @@ The report records only application/runtime diagnostics and the names/counts of 
 21. Python workspace variable write -> second-run read when a Python host exists.
 22. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host actually opened a network service. Starting with 1.4.71, Desktop and Android add the host E2E case above; a fully capable local host therefore reports **22/22**. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
+A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host actually opened a network service. Starting with 1.4.71, Desktop and Android add the host E2E case above; a fully capable local host therefore reports **22/22**. **1.4.72 strengthens the meaning of that same case** after a real 1.4.71 package demonstrated that “22/22” could still be a false positive: Desktop now verifies fixed port 8765, per-LAN-IP HTTP readiness, completed multicast bind/join and Windows firewall/profile state before the case may pass. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
 
 Repository gate `scripts/automated-diagnostics-contract-smoke.mjs` pins this 22-case full-host contract so the diagnostic runner and documentation cannot silently drift apart.
 

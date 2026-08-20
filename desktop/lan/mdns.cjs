@@ -97,26 +97,48 @@ class MdnsService {
     this.socket = null;
     this.interfaces = [];
     this.config = null;
+    this.ready = false;
+    this.readyError = null;
+    this.readyPromise = Promise.resolve({ joined: 0 });
   }
 
   start(config, interfaces) {
     this.stop(false);
     this.config = config;
     this.interfaces = interfaces;
+    this.ready = false;
+    this.readyError = null;
     if (!interfaces.length) throw new Error("没有可用于 mDNS 的局域网 IPv4 接口");
     const socket = dgram.createSocket({ type: "udp4", reuseAddr: true });
     this.socket = socket;
-    socket.on("error", (error) => this.log(`[mDNS] ${error.message}`));
-    socket.on("message", (message) => this.handleMessage(message));
-    socket.bind(MDNS_PORT, "0.0.0.0", () => {
-      if (this.socket !== socket) { try { socket.close(); } catch {} return; }
-      for (const item of interfaces) {
-        try { socket.addMembership(MDNS_ADDRESS, item.address); } catch (error) { this.log(`[mDNS] Join failed on ${item.address}: ${error.message}`); }
-      }
-      this.announce(120);
-      const second = setTimeout(() => this.announce(120), 750); second.unref?.();
-      this.log(`[mDNS] ${this.config.hostname}.local published as _http._tcp.local`);
+    this.readyPromise = new Promise((resolve, reject) => {
+      let settled = false;
+      const failStartup = (error) => {
+        this.readyError = error instanceof Error ? error.message : String(error);
+        if (!settled) { settled = true; reject(error); }
+      };
+      socket.on("error", (error) => {
+        this.log(`[mDNS] ${error.message}`);
+        if (!this.ready) failStartup(error);
+      });
+      socket.on("message", (message) => this.handleMessage(message));
+      socket.bind(MDNS_PORT, "0.0.0.0", () => {
+        if (this.socket !== socket) { try { socket.close(); } catch {} return; }
+        let joined = 0;
+        for (const item of interfaces) {
+          try { socket.addMembership(MDNS_ADDRESS, item.address); joined += 1; } catch (error) { this.log(`[mDNS] Join failed on ${item.address}: ${error.message}`); }
+        }
+        if (!joined) return failStartup(new Error("mDNS 没有成功加入任何局域网组播接口"));
+        this.ready = true;
+        this.readyError = null;
+        if (!settled) { settled = true; resolve({ joined }); }
+        this.announce(120);
+        const second = setTimeout(() => this.announce(120), 750); second.unref?.();
+        this.log(`[mDNS] ${this.config.hostname}.local published as _http._tcp.local`);
+      });
     });
+    this.readyPromise.catch(() => undefined);
+    return this.readyPromise;
   }
 
   names() {
@@ -166,6 +188,7 @@ class MdnsService {
     }
     const socket = this.socket;
     this.socket = null;
+    this.ready = false;
     if (socket) {
       for (const item of this.interfaces) {
         try { socket.dropMembership(MDNS_ADDRESS, item.address); } catch {}

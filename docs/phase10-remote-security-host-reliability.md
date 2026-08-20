@@ -137,3 +137,10 @@ Together with the accepted 19 Phase 8/9 cases, a fully capable Desktop/Android h
 ## Next milestone
 
 After the 1.4.71 real-host E2E repair is validated on packaged Windows and Android hosts, continue Phase 10 host observability/recovery without changing accepted UI or protocol semantics.
+
+
+## 1.4.72 correction after real 1.4.71 Windows validation
+
+A packaged 1.4.71 host returned 22/22 while external Web/discovery still failed. The case had verified internal HTTP startup and reported discovery state, but the Desktop discovery services marked themselves running before asynchronous bind/join had completed and the application had no Windows firewall ownership. The Desktop host also used an ephemeral Web port instead of the already-proven demo's 8765 contract.
+
+1.4.72 fixes this by using TCP 8765, adding Private/LocalSubnet firewall rules for 8765/1900/5353, checking the active network profile, probing every advertised LAN IPv4, preferring the default-route interface, and withholding SSDP/mDNS `running` until real multicast membership succeeds. The in-app case count remains 22; its acceptance criteria are stronger.
