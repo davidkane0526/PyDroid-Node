@@ -13,9 +13,10 @@ Long-lived branches in this repository:
 - `fix/phase7-android-service-polish`: `1.4.54 (77)` superseded visual candidate.
 - `fix/phase7-final-ui-acceptance`: `1.4.55 (78)` accepted Phase 7 visual baseline used for this phase.
 - `phase8/workflow-language-state-functions`: `1.4.59 (82)` accepted/frozen Phase 8 implementation with native Android/Desktop diagnostics export and removable automated diagnostics.
-- `phase9/editor-core-workspace-session`: `1.4.60 (83)` current Phase 9 line introducing Editor Workspace Session ownership, Editor Commands and explicit desktop/mobile × target gesture policies.
+- `phase9/editor-core-workspace-session`: `1.4.60 (83)` Phase 9 Session/Gesture foundation.
+- `phase9/editor-core-lifecycle-resources`: `1.4.61 (84)` current Phase 9 line moving structural commands, resources, history and persistence lifecycle into Editor Core.
 
-Current working branch: `phase9/editor-core-workspace-session`.
+Current working branch: `phase9/editor-core-lifecycle-resources`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -33,11 +34,11 @@ Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture w
 
 ## Phase 9 status — Editor Core & Workspace Session
 
-**Started on 1.4.60 (83); not frozen.** `EditorWorkspaceSession` is now the per-tab owner of workflow snapshot, selected input, history/dirty state and session-only editor view state. React consumes it through `useSyncExternalStore`; `App.tsx` no longer keeps a second ReactFlow graph via `useNodesState` / `useEdgesState`. The first Editor Command boundary covers graph deletion/disconnection.
+**Started on 1.4.60 (83), current milestone 1.4.61 (84); not frozen.** `EditorWorkspaceSession` is the per-tab owner of workflow snapshot, selected input, history/dirty state and session-only editor view state. React consumes it through `useSyncExternalStore`; `App.tsx` no longer keeps a second ReactFlow graph via `useNodesState` / `useEdgesState`. In 1.4.61 the Session also owns history capture/undo/redo/restore, while Editor Commands cover deletion/disconnection plus group/function/resource structural transactions. `EditorWorkspaceLifecycleService` owns autosave persistence and whole-snapshot replacement is used for open/import/new flows.
 
 Input semantics are explicitly split by **input profile** (`desktop` vs `mobile`) and **target kind** (`node`, `group`, `canvas`, `resource`, `tab`). Do not merge these policies merely to reduce code. In particular, Android node long-press is a multi-select gesture, Android group long-press retains the accepted multi-select gesture while group double-tap remains subflow entry, desktop node double-click opens node actions, and desktop group double-click enters the subflow. See `docs/phase9-editor-core-workspace-session.md`.
 
-The temporary automated diagnostics now add session-isolation and gesture-contract cases, so a normal Desktop/Android host with both runtimes should report 6/6.
+The temporary automated diagnostics now add Session isolation, Editor Command transaction, lifecycle autosave and gesture-contract cases. Together with the four Phase 8 runtime cases, a normal Desktop/Android host with both runtimes should report **8/8**.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -83,6 +84,18 @@ App.tsx
 The current user-visible UI, Electron preload method names and Android Capacitor plugin method names are intentionally unchanged.
 
 ## Validation completed in the cloud
+
+### Current Phase 9 / 1.4.61 validation
+
+- Python suite: **111 passed, 1 skipped**.
+- Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
+- Build-tool, UI regression, PlatformAdapter, Host Contract (31 operations), Remote Web, Execution, Desktop Host/file export, Android Host, Workflow Core, Editor Core, Runtime Engine and NodeContract architecture smokes: passed.
+- Phase 9 Editor Core strict semantic subset compile: passed.
+- App/source semantic compile with temporary external-library stubs plus syntax parse of all **109 TS/TSX files**: passed.
+- Executed Editor Core runtime harness: group create/undo/redo, group-to-function save, function-call insertion/deletion guard, autosave restore and corrupt-autosave quarantine all passed.
+- `git diff --check` and version sync: passed.
+
+The removable in-app diagnostics now contain eight cases. A real Desktop/Android host with both runtimes should report **8/8**.
 
 Phase 1 production-boundary checks:
 

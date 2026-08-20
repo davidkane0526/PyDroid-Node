@@ -1,6 +1,7 @@
 import { WorkflowHistory } from "../workflow-core/history";
 import { applyEditorGraphCommand, type EditorGraphCommand, type EditorGraphCommandResult } from "./commands";
 import {
+  cloneWorkflowSnapshot,
   createWorkspaceRuntimeState,
   emptyWorkflowSnapshot,
   workflowSnapshotSignature,
@@ -20,6 +21,12 @@ export type EditorWorkspaceSessionState = {
   runtime: WorkspaceRuntimeState;
   view: EditorWorkspaceViewState;
   revision: number;
+};
+
+export type ReplaceSnapshotOptions = {
+  captureHistory?: boolean;
+  resetView?: boolean;
+  markSaved?: boolean;
 };
 
 const EMPTY_VIEW: EditorWorkspaceViewState = {
@@ -72,6 +79,10 @@ export class EditorWorkspaceSession {
     for (const listener of this.listeners) listener();
   }
 
+  private resetView(): void {
+    this.viewState = { ...EMPTY_VIEW };
+  }
+
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -88,10 +99,59 @@ export class EditorWorkspaceSession {
     this.emit();
   }
 
+  replaceSnapshot(snapshot: WorkflowSnapshot, options: ReplaceSnapshotOptions = {}): void {
+    if (options.captureHistory) this.history.push(this.runtimeState.snapshot);
+    const nextSnapshot = cloneWorkflowSnapshot(snapshot);
+    this.runtimeState = {
+      ...this.runtimeState,
+      snapshot: nextSnapshot,
+      ...(options.markSaved ? { savedSignature: workflowSnapshotSignature(nextSnapshot) } : {}),
+    };
+    if (options.resetView) this.resetView();
+    this.emit();
+  }
+
   updateSnapshot(update: (snapshot: WorkflowSnapshot) => WorkflowSnapshot): void {
     const next = update(this.runtimeState.snapshot);
     if (next === this.runtimeState.snapshot) return;
     this.runtimeState = { ...this.runtimeState, snapshot: next };
+    this.emit();
+  }
+
+  captureHistory(): void {
+    this.history.push(this.runtimeState.snapshot);
+    this.emit();
+  }
+
+  undo(): WorkflowSnapshot | null {
+    const previous = this.history.undo(this.runtimeState.snapshot);
+    if (!previous) return null;
+    this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(previous) };
+    this.resetView();
+    this.emit();
+    return this.runtimeState.snapshot;
+  }
+
+  redo(): WorkflowSnapshot | null {
+    const next = this.history.redo(this.runtimeState.snapshot);
+    if (!next) return null;
+    this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(next) };
+    this.resetView();
+    this.emit();
+    return this.runtimeState.snapshot;
+  }
+
+  restoreHistoryAt(index: number): WorkflowSnapshot | null {
+    const restored = this.history.restoreAt(index, this.runtimeState.snapshot);
+    if (!restored) return null;
+    this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(restored) };
+    this.resetView();
+    this.emit();
+    return this.runtimeState.snapshot;
+  }
+
+  clearHistory(): void {
+    this.history.clear();
     this.emit();
   }
 
@@ -101,6 +161,13 @@ export class EditorWorkspaceSession {
     if (!result.changed) return result;
     this.history.push(current);
     this.runtimeState = { ...this.runtimeState, snapshot: result.snapshot };
+    if (result.meta) {
+      const next = { ...this.viewState };
+      if ("primaryNodeId" in result.meta) next.primaryNodeId = result.meta.primaryNodeId ?? null;
+      if (result.meta.selectedNodeIds) next.selectedNodeIds = [...result.meta.selectedNodeIds];
+      if (typeof result.meta.selectionMode === "boolean") next.selectionMode = result.meta.selectionMode;
+      this.viewState = next;
+    }
     this.emit();
     return result;
   }

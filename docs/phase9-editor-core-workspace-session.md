@@ -1,7 +1,7 @@
 # Phase 9 — Editor Core & Workspace Session
 
 Version started: **1.4.60 (83)**  
-Branch: `phase9/editor-core-workspace-session`
+Current branch: `phase9/editor-core-lifecycle-resources`
 
 ## Goal
 
@@ -37,7 +37,9 @@ React subscription and rendering
 
 ## Editor Command boundary
 
-`src/editor-core/commands.ts` starts the command layer with graph deletion and disconnection. New editor mutations should progressively move behind commands instead of embedding Workflow Core rules in pointer/menu handlers. Later Phase 9 revisions should migrate group/function/resource/import/save operations through the same boundary.
+`src/editor-core/commands.ts` now owns graph deletion/disconnection plus structural editor transactions: group creation/dissolution, group-to-function save/update, function call insertion/materialization/deletion and resource insertion. The command result carries selection metadata so the UI does not have to recreate post-transaction state.
+
+`EditorWorkspaceSession.applyGraphCommand()` captures history and applies the new workflow snapshot atomically. Undo/redo/history restore are also Session operations rather than a React-side `WorkflowHistory` mirror.
 
 ## Gesture architecture
 
@@ -55,22 +57,32 @@ The policy currently preserves accepted interaction behavior while making future
 
 ## Diagnostics
 
-The removable automated-diagnostics feature now adds two Phase 9 cases:
+The removable automated-diagnostics feature now adds four Phase 9 cases:
 
 1. per-workspace Editor Session isolation across graph/input/history/dirty/view state;
-2. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
+2. Editor Command transaction ownership, including history/undo/redo for group create/dissolve;
+3. lifecycle autosave read/write/corruption quarantine;
+4. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
 
-Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **6/6**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
+Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **8/8**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
+
+## 1.4.61 milestone — lifecycle and structural resources
+
+- `src/editor-core/workflow-structure.ts` is now the source of truth for dynamic node/group interface derivation and group-interface repair.
+- `src/editor-core/resources.ts` captures/instantiates saved node/group resources without UI-owned graph surgery.
+- `src/editor-core/lifecycle.ts` owns autosave serialization/read/write/corruption quarantine and saved-signature updates.
+- import/open/new paths replace the Session snapshot atomically through `replaceSnapshot()` instead of independently mutating nodes/edges/functions/requirements.
+- `App.tsx` has dropped from the 1.4.60 baseline of 4679 lines to 4520 lines while preserving the accepted UI. The reduction is a consequence of moving semantics out of React, not a line-count target.
 
 ## Phase 9 continuation
 
-1. Move remaining graph/resource/function mutations behind Editor Commands.
-2. Move save/import/new/autosave/restore lifecycle into explicit session services rather than React event handlers.
-3. Give Resources (`node/function/group/flow`) a common resource contract while preserving target-specific interaction policy.
-4. Route Remote Web workspace selection through the same session identity boundary.
+1. Move the remaining parameter/layout/duplicate/add-node graph mutations behind Editor Commands.
+2. Complete lifecycle ownership for close/reopen/autosave restore and external save/open transactions.
+3. Converge node/function/group/flow persistence on a common Resource Contract while preserving target-specific gesture policy.
+4. Route Remote Web workspace selection through the same Session identity boundary.
 5. Continue reducing `App.tsx` by responsibility, not by cosmetic file splitting.
 
-## Non-goals for 1.4.60
+## Non-goals for 1.4.60–1.4.61
 
 - no visual redesign;
 - no forced gesture unification between Desktop and Android;

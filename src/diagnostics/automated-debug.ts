@@ -3,7 +3,9 @@ import type { ExecutionResult, RuntimeId } from "../runtime";
 import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVariableNames } from "../execution-workspace";
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import { createFunctionCallNode } from "../workflow-functions";
-import { EditorSessionStore, resolveGesturePolicy } from "../editor-core";
+import { EditorSessionStore } from "../editor-core/session";
+import { EditorWorkspaceLifecycleService } from "../editor-core/lifecycle";
+import { resolveGesturePolicy } from "../editor-core/gesture-policy";
 import { emptyWorkflowSnapshot } from "../workflow-core";
 
 export const AUTOMATED_DIAGNOSTICS_SCHEMA_VERSION = 1;
@@ -183,6 +185,78 @@ async function editorSessionIsolationCase(): Promise<DiagnosticCase> {
   });
 }
 
+async function editorCommandTransactionCase(): Promise<DiagnosticCase> {
+  return runCase("editor-command-transaction", "Editor Command 组合/函数事务与撤销重做", undefined, async () => {
+    const source = node("source", "generate.random_table", { count: 3 }, "数据");
+    const absolute = node("absolute", "table.absolute", {}, "绝对值");
+    source.position = { x: 40, y: 40 };
+    absolute.position = { x: 280, y: 40 };
+    const store = new EditorSessionStore("command", {
+      nodes: [source, absolute],
+      edges: [{ id: "source-absolute", source: "source", target: "absolute", sourceHandle: "output", targetHandle: "input" }],
+      functions: [],
+      requirements: [],
+    });
+    const session = store.get("command")!;
+    const grouped = session.applyGraphCommand({ type: "create-group", nodeIds: ["source", "absolute"], groupId: "diagnostic-group", label: "诊断组合", canvasId: null });
+    if (!grouped.changed) throw new Error(grouped.meta?.blockedReason ?? "组合命令未执行");
+    if (!session.history.canUndo) throw new Error("组合命令没有原子写入 history");
+    if (session.getViewState().primaryNodeId !== "diagnostic-group") throw new Error("组合命令没有同步 Session selection");
+    const group = session.getRuntimeState().snapshot.nodes.find((item) => item.id === "diagnostic-group");
+    if (!group || group.data.nodeType !== "workflow.group") throw new Error("组合节点未创建");
+    if (!session.undo() || session.getRuntimeState().snapshot.nodes.some((item) => item.id === "diagnostic-group")) throw new Error("Session undo 未恢复组合前状态");
+    if (!session.redo() || !session.getRuntimeState().snapshot.nodes.some((item) => item.id === "diagnostic-group")) throw new Error("Session redo 未恢复组合状态");
+    const savedFunction = session.applyGraphCommand({ type: "save-group-as-function", groupId: "diagnostic-group" });
+    const definition = savedFunction.meta?.functionDefinition;
+    if (!savedFunction.changed || !definition || session.getRuntimeState().snapshot.functions?.[0]?.id !== definition.id) throw new Error("组合保存为函数事务失败");
+    const insertedCall = session.applyGraphCommand({ type: "insert-function-call", definition, position: { x: 560, y: 40 }, canvasId: null });
+    const callId = insertedCall.meta?.createdNodeIds?.[0];
+    const callNode = callId ? session.getRuntimeState().snapshot.nodes.find((item) => item.id === callId) : undefined;
+    if (!insertedCall.changed || !callNode || callNode.data.nodeType !== "function.call") throw new Error("函数调用节点事务失败");
+    const blockedDelete = session.applyGraphCommand({ type: "delete-function", functionId: definition.id });
+    if (blockedDelete.changed || !blockedDelete.meta?.blockedReason) throw new Error("仍有调用节点时函数删除保护失效");
+    if (!session.undo() || session.getRuntimeState().snapshot.nodes.some((item) => item.id === callId)) throw new Error("函数调用事务 undo 失败");
+    const dissolved = session.applyGraphCommand({ type: "dissolve-group", groupId: "diagnostic-group" });
+    if (!dissolved.changed || session.getRuntimeState().snapshot.nodes.some((item) => item.id === "diagnostic-group")) throw new Error("解除组合命令失败");
+    return {
+      historyCanUndo: session.history.canUndo,
+      historyCanRedo: session.history.canRedo,
+      functionId: definition.id,
+      functionVersion: definition.version,
+      functionCallUndoVerified: true,
+      nodeCount: session.getRuntimeState().snapshot.nodes.length,
+      edgeCount: session.getRuntimeState().snapshot.edges.length,
+      view: session.getViewState(),
+    };
+  });
+}
+
+async function editorLifecycleAutosaveCase(): Promise<DiagnosticCase> {
+  return runCase("editor-lifecycle-autosave", "Workspace Lifecycle 自动保存与损坏隔离", undefined, async () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    };
+    const lifecycle = new EditorWorkspaceLifecycleService(storage, "diagnostic.autosave");
+    const snapshot = { nodes: [node("saved", "python.print", { prefix: "phase9" }, "保存测试")], edges: [], functions: [], requirements: ["demo>=1"] };
+    const written = lifecycle.writeAutosave("workspace-a", snapshot);
+    if (written.ok === false) throw new Error(`自动保存写入失败：${written.message}`);
+    const loaded = lifecycle.readAutosave("workspace-a");
+    if (loaded.status !== "ok" || loaded.document.nodes[0]?.id !== "saved" || !loaded.document.requirements?.includes("demo>=1")) throw new Error("自动保存读取结果与写入快照不一致");
+    storage.setItem(lifecycle.autosaveKey("broken"), "{bad-json");
+    const broken = lifecycle.readAutosave("broken");
+    if (broken.status !== "corrupt" || storage.getItem(lifecycle.autosaveKey("broken")) !== null) throw new Error("损坏 autosave 没有被隔离清理");
+    return {
+      autosaveKey: lifecycle.autosaveKey("workspace-a"),
+      restoredNodeCount: loaded.document.nodes.length,
+      requirements: loaded.document.requirements ?? [],
+      corruptEntryRemoved: true,
+    };
+  });
+}
+
 async function gestureContractCase(): Promise<DiagnosticCase> {
   return runCase("editor-gesture-contract", "桌面/移动端 × 节点/组合手势契约", undefined, async () => {
     const desktopNode = resolveGesturePolicy("desktop", "node");
@@ -201,6 +275,8 @@ async function gestureContractCase(): Promise<DiagnosticCase> {
 export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependencies): Promise<AutomatedDiagnosticReport> {
   const cases: DiagnosticCase[] = [];
   cases.push(await editorSessionIsolationCase());
+  cases.push(await editorCommandTransactionCase());
+  cases.push(await editorLifecycleAutosaveCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));
   cases.push(await reusableFunctionCase("javascript", deps));

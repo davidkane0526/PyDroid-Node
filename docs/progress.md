@@ -1,8 +1,22 @@
-# Phase 9 progress — 1.4.60 (83)
+# Phase 9 progress — 1.4.61 (84)
 
-Phase 9 has started on `phase9/editor-core-workspace-session`. The first delivery moves per-tab graph/input/history/view ownership into `EditorWorkspaceSession`, adds an observable React adapter, establishes an Editor Command boundary for graph mutations, and centralizes desktop/mobile plus node/group gesture semantics in `src/editor-core/gesture-policy.ts`. Visible UI is intentionally unchanged.
+Phase 9 continues on `phase9/editor-core-lifecycle-resources`. The 1.4.60 Session/Gesture foundation remains intact; 1.4.61 moves structural workflow mutations and persistence lifecycle farther out of React without changing the accepted Desktop/Android UI or gesture meanings.
 
-Automated diagnostics now include two Phase 9 architectural cases (workspace-session graph/input/history/view isolation and gesture-policy contract) in addition to the four Phase 8 runtime cases. Desktop/Android with both runtimes should report 6/6. Physical touch/mouse delivery remains a host-level acceptance boundary, but the gesture meaning and thresholds are no longer duplicated in `App.tsx`.
+- `EditorWorkspaceSession` now owns history capture, undo, redo and history restore in addition to the workflow/view state introduced in 1.4.60.
+- Editor Commands now cover group create/dissolve, save/update group as reusable function, function call insertion/materialization/deletion, and atomic resource insertion.
+- `workflow-structure.ts` centralizes dynamic NodeSpec/group-interface derivation and repair.
+- `resources.ts` centralizes saved node/group capture and instantiation.
+- `EditorWorkspaceLifecycleService` centralizes autosave serialization/read/write/corruption quarantine and saved-signature transitions. Import/open/new paths replace a whole Session snapshot atomically rather than mutating graph parts independently.
+- Automated diagnostics add Editor Command transaction and lifecycle-autosave cases. A fully capable Desktop/Android host should now report **8/8**.
+- Gesture policies remain intentionally split by Desktop/Mobile and Node/Group/Canvas/Resource/Tab. 1.4.61 does not redefine the accepted touch/mouse behavior.
+- `App.tsx` is 4520 lines, down from the 1.4.60 baseline of 4679 because structural/lifecycle semantics moved into Editor Core.
+
+## 2026-08-20 — Phase 9 Session/Gesture foundation / 1.4.60 (83)
+
+- Introduced per-tab `EditorWorkspaceSession` ownership for graph/input/history/dirty/view state and removed the parallel ReactFlow graph mirror.
+- Added the first Editor Command boundary for deletion/disconnection.
+- Centralized Desktop/Mobile × target-kind gesture policies while preserving existing interactions.
+- Automated diagnostics expanded from 4 to 6 cases with Session isolation and gesture-contract checks.
 
 ## 2026-08-20 — Desktop export/build repair / 1.4.59 (82)
 

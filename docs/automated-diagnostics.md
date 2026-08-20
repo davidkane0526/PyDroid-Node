@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.60
+Current behavior: 1.4.61
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -24,13 +24,15 @@ The report records only application/runtime diagnostics and the names/counts of 
 ## Current automated cases
 
 1. Editor Workspace Session isolation: graph/input/history/view/dirty state from one diagnostic tab must not leak into another.
-2. Gesture-policy contract: desktop/mobile and node/group semantics must remain intentionally distinct, including mobile canvas pan/marquee behavior.
-3. JavaScript workspace variable write -> second-run read.
-4. JavaScript reusable function signature/handles + absolute-value execution.
-5. Python workspace variable write -> second-run read when a Python host exists.
-6. Python reusable function signature/handles + absolute-value execution when a Python host exists.
+2. Editor Command transaction: group creation must atomically update graph, selection and history; undo/redo and group dissolve must restore the correct snapshots.
+3. Editor lifecycle autosave: write/read must preserve workflow state and corrupt autosaves must be quarantined/deleted rather than crashing restore.
+4. Gesture-policy contract: desktop/mobile and node/group semantics must remain intentionally distinct, including mobile canvas pan/marquee behavior.
+5. JavaScript workspace variable write -> second-run read.
+6. JavaScript reusable function signature/handles + absolute-value execution.
+7. Python workspace variable write -> second-run read when a Python host exists.
+8. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its Python cases are reported as skipped. The two Editor Core cases still run because they are host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports 6/6.
+A plain local browser has no Python host, so its Python cases are reported as skipped. The four Editor Core cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **8/8**.
 
 ## Output
 

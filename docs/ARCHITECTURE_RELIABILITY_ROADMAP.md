@@ -2,7 +2,7 @@
 
 更新时间：2026-08-20
 当前架构开发分支：`phase9/editor-core-workspace-session`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.60 (83)`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.61 (84)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -576,7 +576,7 @@ desktop/
 7. Phase 6 Runtime Engine modularization：1.4.42 已完成并冻结。
 8. Phase 7 Host modularization：已完成并通过真实 Windows/Android 验收后冻结。
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
-10. Phase 9 Editor Core & Workspace Session：1.4.60 开始，目标是让每标签页编辑状态、命令与手势解释拥有稳定边界；Desktop/Mobile 与 Node/Group 手势不得被强制统一。
+10. Phase 9 Editor Core & Workspace Session：1.4.60 开始；1.4.61 已继续迁移结构命令、资源、history 与 lifecycle。目标是让每标签页编辑状态、命令与手势解释拥有稳定边界；Desktop/Mobile 与 Node/Group 手势不得被强制统一。
 
 核心原则始终是：
 
@@ -601,8 +601,8 @@ UI 稳定
 
 ## 13. Phase 9 — Editor Core & Workspace Session
 
-状态：**1.4.60 已开始，尚未冻结。**
+状态：**1.4.61 持续开发中，尚未冻结。**
 
-Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并逐步将用户操作收敛为 Editor Commands。React 负责订阅和呈现，不再作为工作流编辑语义的拥有者。
+Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并逐步将用户操作收敛为 Editor Commands。React 负责订阅和呈现，不再作为工作流编辑语义的拥有者。1.4.61 已把组合/函数/资源结构事务、history undo/redo/restore 以及 autosave 生命周期进一步迁入 Editor Core。
 
 手势采用二维策略矩阵：输入 profile（Desktop/Mobile）× 目标 kind（Node/Group/Canvas/Resource/Tab）。这是刻意的架构要求，不允许为了“统一”而让移动端和桌面端、节点和组合共享不适合的长按/双击含义。具体契约见 `docs/phase9-editor-core-workspace-session.md`。

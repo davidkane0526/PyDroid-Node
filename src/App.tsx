@@ -46,7 +46,6 @@ import {
   parseWorkflow,
   serializeWorkflow,
   type WorkflowFunctionDefinition,
-  type WorkflowGroupPort,
   type WorkflowNode,
 } from "./workflow";
 import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
@@ -59,9 +58,9 @@ import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requ
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
-import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, workflowSnapshotSignature, writeStorage, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, gestureTargetForNodeType, resolveGesturePolicy, useEditorWorkspaceSession, type EditorWorkspaceSession } from "./editor-core";
-import { createFunctionCallNode, createFunctionDefinitionFromGroup, functionCallCount, materializeFunctionAsGroup, synchronizeFunctionDefinitionCalls, synchronizeFunctionGraphCalls } from "./workflow-functions";
+import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, type WorkflowSnapshot } from "./workflow-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, captureGroupResource, captureNodeResource, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, useEditorWorkspaceSession, type EditorWorkspaceSession } from "./editor-core";
+import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
 
@@ -440,72 +439,7 @@ function hydrateNodeDefaults(node: WorkflowNode): WorkflowNode {
   };
 }
 
-function nodeSpecFor(node: WorkflowNode | undefined): NodeSpec | undefined {
-  if (!node) return undefined;
-  if (node.data.nodeType === "function.call") return { nodeType: "function.call", nodeVersion: 1, label: node.data.label, category: "自定义", defaults: {}, parameters: [], inputPorts: node.data.functionInputs ?? [], outputPorts: node.data.functionOutputs ?? [], runtimeSupport: ["python", "javascript"], executionModel: "function", functionRole: "call", deterministic: false, cachePolicy: "uncacheable" };
-  if (node.data.nodeType !== "workflow.group") return resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters);
-  return { nodeType: "workflow.group", label: node.data.label, category: "逻辑控制", defaults: { description: "" }, parameters: [{ key: "description", label: "说明", kind: "textarea" }], inputPorts: node.data.groupInputs ?? [], outputPorts: node.data.groupOutputs ?? [] };
-}
-
-function deriveGroupInterface(members: WorkflowNode[], allEdges: Edge[]): { groupInputs: WorkflowGroupPort[]; groupOutputs: WorkflowGroupPort[] } {
-  const memberIds = new Set(members.map((node) => node.id));
-  const internalEdges = allEdges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target));
-  const incomingEdges = allEdges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
-  const outgoingEdges = allEdges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
-  const targeted = new Set(internalEdges.map((edge) => `${edge.target}\u0000${edge.targetHandle ?? "input"}`));
-  const sourced = new Set(internalEdges.map((edge) => `${edge.source}\u0000${edge.sourceHandle ?? "output"}`));
-  const inputCandidates = [
-    ...incomingEdges.map((edge) => ({ nodeId: edge.target, handle: edge.targetHandle ?? "input" })),
-    ...members.flatMap((node) => (nodeSpecFor(node)?.inputPorts ?? []).filter((port) => !targeted.has(`${node.id}\u0000${port.id}`)).map((port) => ({ nodeId: node.id, handle: port.id }))),
-  ];
-  const outputCandidates = [
-    ...outgoingEdges.map((edge) => ({ nodeId: edge.source, handle: edge.sourceHandle ?? "output" })),
-    ...members.flatMap((node) => (nodeSpecFor(node)?.outputPorts ?? []).filter((port) => !sourced.has(`${node.id}\u0000${port.id}`)).map((port) => ({ nodeId: node.id, handle: port.id }))),
-  ];
-  const unique = (items: Array<{ nodeId: string; handle: string }>) => [...new Map(items.map((item) => [`${item.nodeId}\u0000${item.handle}`, item])).values()];
-  const groupInputs = unique(inputCandidates).map(({ nodeId, handle }, index) => {
-    const node = members.find((item) => item.id === nodeId);
-    const port = nodeSpecFor(node)?.inputPorts.find((item) => item.id === handle);
-    return { id: `input-${index + 1}`, label: port?.label || node?.data.label || `输入 ${index + 1}`, valueType: port?.valueType ?? "any", internalNodeId: nodeId, internalHandle: handle };
-  });
-  const groupOutputs = unique(outputCandidates).map(({ nodeId, handle }, index) => {
-    const node = members.find((item) => item.id === nodeId);
-    const port = nodeSpecFor(node)?.outputPorts.find((item) => item.id === handle);
-    return { id: `output-${index + 1}`, label: port?.label || node?.data.label || `输出 ${index + 1}`, valueType: port?.valueType ?? "any", internalNodeId: nodeId, internalHandle: handle };
-  });
-  return { groupInputs, groupOutputs };
-}
-
-function repairWorkflowGroupInterfaces(nodes: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
-  return nodes.map((node) => {
-    if (node.data.nodeType !== "workflow.group") return node;
-    const members = nodes.filter((candidate) => candidate.data.canvasParentId === node.id);
-    if (!members.length || (node.data.groupInputs?.length && node.data.groupOutputs?.length)) return node;
-    const derived = deriveGroupInterface(members, edges);
-    return { ...node, data: { ...node.data, groupInputs: node.data.groupInputs?.length ? node.data.groupInputs : derived.groupInputs, groupOutputs: node.data.groupOutputs?.length ? node.data.groupOutputs : derived.groupOutputs } };
-  });
-}
-
-function loadAutosave(key: string = AUTOSAVE_KEY): WorkflowSnapshot | null {
-  try {
-    const saved = localStorage.getItem(key);
-    if (!saved) return null;
-    const document = parseWorkflow(saved);
-    const nodes: WorkflowNode[] = normalizeNodePositions(document.nodes).map((node) => {
-        const hydrated = hydrateNodeDefaults(node);
-        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
-      });
-    return {
-      nodes: repairWorkflowGroupInterfaces(nodes, document.edges),
-      edges: document.edges,
-      functions: document.functions ?? [],
-      requirements: document.requirements ?? loadPackageRequirements(),
-    };
-  } catch {
-    localStorage.removeItem(key);
-    return null;
-  }
-}
+const nodeSpecFor = nodeSpecForEditor;
 
 function loadPersonalTemplates(): CustomNodeTemplate[] {
   try {
@@ -730,10 +664,9 @@ function isAgentValue(value: unknown): value is string | number | boolean | null
   return value === null || ["string", "number", "boolean"].includes(typeof value);
 }
 
-function FlowEditor({ session, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
+function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
   const tabId = session.id;
   const initialRuntimeState = session.getRuntimeState();
-  const autosaveKey = `${AUTOSAVE_KEY}.${tabId}`;
   const startingSnapshot = initialRuntimeState.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
   const restoredExecutionStatus = getExecutionStatus(tabId);
   const restoredExecutionResult = getWorkspaceExecutionResult(tabId);
@@ -741,7 +674,7 @@ function FlowEditor({ session, tabName = "工作流 1", onAddTab, themeMode, res
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const {
-    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, setFunctions, requirements, setRequirements,
+    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, requirements, setRequirements,
     input, setFileName, setCsvText, setCsvBytes, setCsvFiles,
     primaryNodeId: selectedId, setPrimaryNodeId: setSelectedId,
     selectedNodeIds: selectedIds, setSelectedNodeIds: setSelectedIds,
@@ -991,8 +924,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const palettePointerDragHandled = useRef(false);
   const suppressNextNodeClick = useRef(false);
   const nextNodeNumber = useRef(1);
-  const historyManager = useRef(session.history);
-  const [, setHistoryRevision] = useState(0);
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
@@ -1077,7 +1008,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const nodeIds = [...new Set(initialIds)];
     const result = session.applyGraphCommand({ type: "delete-nodes", nodeIds });
     if (!result.changed) return;
-    setHistoryRevision((value) => value + 1);
     const remaining = new Set(result.snapshot.nodes.map((node) => node.id));
     setSelectedId(null);
     setSelectedIds((current) => current.filter((id) => remaining.has(id)));
@@ -1089,7 +1019,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!ids.length) return;
     const result = session.applyGraphCommand({ type: "disconnect-nodes", nodeIds: ids });
     if (!result.changed) return;
-    setHistoryRevision((value) => value + 1);
     clearExecutionResult();
     setMessage(`已断开 ${ids.length} 个选中节点的连线`);
   }, [session]);
@@ -1098,7 +1027,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!ids.length) return;
     const result = session.applyGraphCommand({ type: "disconnect-edges", edgeIds: ids });
     if (!result.changed) return;
-    setHistoryRevision((value) => value + 1);
     clearExecutionResult();
     setMessage(`已断开 ${result.affectedCount} 条连线`);
   }, [session]);
@@ -1114,61 +1042,57 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     return trail;
   }, [currentCanvasId, nodes]);
 
-  const currentSnapshot = () => cloneWorkflowSnapshot({ nodes, edges, functions, requirements });
-
   const pushHistory = () => {
-    historyManager.current.push(currentSnapshot());
-    setHistoryRevision((value) => value + 1);
-  };
-
-  const restoreSnapshot = (snapshot: WorkflowSnapshot) => {
-    setNodes(snapshot.nodes.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
-    setEdges(snapshot.edges);
-    setFunctions(snapshot.functions ?? []);
-    setRequirements(snapshot.requirements ?? []);
-    setSelectedId(null);
-    setSelectedIds([]);
-    setSelectionMode(false);
-    setCurrentCanvasId(null);
-    clearExecutionResult();
+    session.captureHistory();
   };
 
   const undo = () => {
-    const previous = historyManager.current.undo(currentSnapshot());
-    if (!previous) return;
-    restoreSnapshot(previous);
+    if (!session.undo()) return;
+    clearExecutionResult();
     setMessage("已撤销上一步");
-    setHistoryRevision((value) => value + 1);
   };
 
   const redo = () => {
-    const next = historyManager.current.redo(currentSnapshot());
-    if (!next) return;
-    restoreSnapshot(next);
+    if (!session.redo()) return;
+    clearExecutionResult();
     setMessage("已重做上一步");
-    setHistoryRevision((value) => value + 1);
   };
 
   const restoreHistoryAt = (index: number) => {
-    const snapshot = historyManager.current.restoreAt(index, currentSnapshot());
-    if (!snapshot) return;
-    restoreSnapshot(snapshot);
+    if (!session.restoreHistoryAt(index)) return;
+    clearExecutionResult();
     setHistoryOpen(false);
     setMessage("已恢复所选历史版本；可使用重做返回恢复前状态");
-    setHistoryRevision((value) => value + 1);
   };
 
   const clearHistory = () => {
-    historyManager.current.clear();
-    setHistoryRevision((value) => value + 1);
+    session.clearHistory();
     setMessage("历史记录已清空");
+  };
+
+  const replaceWorkflowContent = (snapshot: WorkflowSnapshot, options: { captureHistory?: boolean; markSaved?: boolean } = {}) => {
+    session.replaceSnapshot(snapshot, { captureHistory: options.captureHistory ?? true, resetView: true, markSaved: options.markSaved ?? false });
+    clearExecutionResult();
+  };
+
+  const prepareImportedWorkflow = (document: WorkflowSnapshot): WorkflowSnapshot => {
+    const repairedNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+      const hydrated = hydrateNodeDefaults(node);
+      return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
+    }), document.edges);
+    return {
+      nodes: compactNodeLayout(repairedNodes, viewportWidth, resolvedLayoutDirection, document.edges),
+      edges: document.edges,
+      functions: document.functions ?? [],
+      requirements: document.requirements ?? [],
+    };
   };
 
   const autosaveErrorRef = useRef<string | null>(null);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const saved = writeStorage(localStorage, autosaveKey, JSON.stringify(serializeWorkflow("自动保存", nodes, edges, requirements, functions)));
-      if (!saved.ok) {
+      const saved = lifecycle.writeAutosave(tabId, session.getRuntimeState().snapshot);
+      if (saved.ok === false) {
         const message = saved.reason === "quota" ? "自动保存空间不足，请导出工作流后清理浏览器存储" : `自动保存失败：${saved.message}`;
         if (autosaveErrorRef.current !== message) { autosaveErrorRef.current = message; setMessage(message); }
       } else {
@@ -1176,7 +1100,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       }
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [autosaveKey, edges, functions, nodes, requirements]);
+  }, [lifecycle, session, tabId, nodes, edges, functions, requirements]);
 
 
   useEffect(() => {
@@ -2255,69 +2179,46 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setMessage(finePointer ? "请在画布空白处拖出选框，或按住 Ctrl 点击，选择至少两个节点" : "已进入多选：点按节点勾选，选择至少两个后再次点击“组合”");
       return;
     }
-    pushHistory();
-    const memberIds = new Set(members.map((node) => node.id));
     const id = `workflow-group-${Date.now()}`;
-    const incoming = edges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
-    const outgoing = edges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
-    const { groupInputs, groupOutputs } = deriveGroupInterface(members, edges);
-    const group: WorkflowNode = {
-      id, type: "workflow", position: {
-        x: Math.min(...members.map((node) => node.position.x)),
-        y: Math.min(...members.map((node) => node.position.y)),
-      },
-      data: {
-        label: `子流程 ${nodes.filter((node) => node.data.nodeType === "workflow.group").length + 1}`,
-        nodeType: "workflow.group", nodeVersion: 1, status: "idle", parameters: { description: "" },
-        canvasParentId: currentCanvasId ?? undefined, groupInputs, groupOutputs,
-      },
-    };
-    setNodes((current) => [...current.map((node) => memberIds.has(node.id) ? { ...node, selected: false, data: { ...node.data, canvasParentId: id } } : node), group]);
-    setEdges((current) => current.map((edge) => {
-      const inputIndex = incoming.findIndex((item) => item.id === edge.id);
-      if (inputIndex >= 0) {
-        const port = groupInputs.find((item) => item.internalNodeId === edge.target && item.internalHandle === (edge.targetHandle ?? "input"));
-        return port ? { ...edge, target: id, targetHandle: port.id } : edge;
-      }
-      const outputIndex = outgoing.findIndex((item) => item.id === edge.id);
-      if (outputIndex >= 0) {
-        const port = groupOutputs.find((item) => item.internalNodeId === edge.source && item.internalHandle === (edge.sourceHandle ?? "output"));
-        return port ? { ...edge, source: id, sourceHandle: port.id } : edge;
-      }
-      return edge;
-    }));
-    setSelectedIds([id]);
-    setSelectedId(id);
-    setSelectionMode(false);
+    const label = `子流程 ${nodes.filter((node) => node.data.nodeType === "workflow.group").length + 1}`;
+    const result = session.applyGraphCommand({
+      type: "create-group",
+      nodeIds: members.map((node) => node.id),
+      groupId: id,
+      label,
+      canvasId: currentCanvasId,
+    });
+    if (!result.changed) {
+      setMessage(result.meta?.blockedReason ?? "无法创建组合");
+      return;
+    }
     clearExecutionResult();
-    setMessage(`已将 ${members.length} 个节点组合为“${group.data.label}”`);
+    window.setTimeout(() => updateNodeInternals(id), 0);
+    setMessage(`已将 ${members.length} 个节点组合为“${label}”`);
   };
 
   const saveSelectedGroupToLibrary = () => {
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") { setMessage("请先选择一个组合"); return; }
-    const groupId = selectedNode.id;
-    const memberIds = new Set(nodes.filter((node) => node.data.canvasParentId === groupId).map((node) => node.id));
-    const entry: GroupLibraryEntry = { id: `group-template-${Date.now()}`, name: selectedNode.data.label, description: String(selectedNode.data.parameters.description ?? ""), nodes: cloneWorkflowSnapshot({ nodes: nodes.filter((node) => node.id === groupId || memberIds.has(node.id)), edges: [] }).nodes, edges: cloneWorkflowSnapshot({ nodes: [], edges: edges.filter((edge) => memberIds.has(edge.source) && memberIds.has(edge.target)) }).edges };
-    setGroupLibrary((current) => [entry, ...current]);
-    setMessage(`已将“${entry.name}”保存到组合资源`);
+    try {
+      const captured = captureGroupResource(selectedNode.id, nodes, edges);
+      const entry: GroupLibraryEntry = { id: `group-template-${Date.now()}`, ...captured };
+      setGroupLibrary((current) => [entry, ...current]);
+      setMessage(`已将“${entry.name}”保存到组合资源`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "保存组合资源失败");
+    }
   };
 
   const saveSelectedGroupAsFunction = () => {
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") { setMessage("请先选择一个组合"); return; }
     try {
-      pushHistory();
-      const previous = selectedNode.data.functionSourceId ? functions.find((definition) => definition.id === selectedNode.data.functionSourceId) : undefined;
-      const definition = createFunctionDefinitionFromGroup(selectedNode.id, nodes, edges, previous);
-      setFunctions((current) => {
-        const base = previous ? current.map((item) => item.id === previous.id ? definition : item) : [definition, ...current];
-        return synchronizeFunctionDefinitionCalls(base, definition);
-      });
-      const markedNodes = nodes.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, functionSourceId: definition.id } } : node);
-      const synchronizedRoot = synchronizeFunctionGraphCalls(markedNodes, edges, definition);
-      setNodes(synchronizedRoot.nodes);
-      setEdges(synchronizedRoot.edges);
+      const result = session.applyGraphCommand({ type: "save-group-as-function", groupId: selectedNode.id });
+      if (!result.changed) { setMessage(result.meta?.blockedReason ?? "保存函数失败"); return; }
+      const definition = result.meta?.functionDefinition;
+      if (!definition) { setMessage("保存函数失败：Editor Core 未返回函数定义"); return; }
       clearExecutionResult();
-      setMessage(previous ? `已更新函数“${definition.name}”至 v${definition.version}，调用节点已同步` : `已创建函数“${definition.name}” v1`);
+      const previousVersion = definition.version - 1;
+      setMessage(previousVersion > 0 ? `已更新函数“${definition.name}”至 v${definition.version}，调用节点已同步` : `已创建函数“${definition.name}” v1`);
       setPaletteTab("functions");
     } catch (error) {
       setMessage(error instanceof Error ? `保存函数失败：${error.message}` : "保存函数失败");
@@ -2325,26 +2226,26 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const insertFunctionCall = (definition: WorkflowFunctionDefinition) => {
-    pushHistory();
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
     const position = resolvedLayoutDirection === "vertical"
       ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
       : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
-    const call = createFunctionCallNode(definition, position, currentCanvasId ?? undefined);
-    setNodes((current) => [...current, call]);
-    setSelectedId(call.id); setSelectedIds([call.id]); clearExecutionResult();
-    window.setTimeout(() => updateNodeInternals(call.id), 0);
+    const result = session.applyGraphCommand({ type: "insert-function-call", definition, position, canvasId: currentCanvasId });
+    if (!result.changed) return;
+    clearExecutionResult();
+    const callId = result.meta?.createdNodeIds?.[0];
+    if (callId) window.setTimeout(() => updateNodeInternals(callId), 0);
     setMessage(`已添加函数调用“${definition.name}” v${definition.version}`);
   };
 
   const insertFunctionEditableGroup = (definition: WorkflowFunctionDefinition) => {
-    pushHistory();
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
     const position = { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 260 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
-    const materialized = materializeFunctionAsGroup(definition, position, currentCanvasId ?? undefined);
-    setNodes((current) => [...current, ...materialized.nodes]);
-    setEdges((current) => [...current, ...materialized.edges]);
-    setSelectedId(materialized.groupId); setSelectedIds([materialized.groupId]); clearExecutionResult();
+    const result = session.applyGraphCommand({ type: "materialize-function", definition, position, canvasId: currentCanvasId });
+    if (!result.changed) return;
+    clearExecutionResult();
+    const groupId = result.meta?.primaryNodeId;
+    if (groupId) window.setTimeout(() => updateNodeInternals(groupId), 0);
     setMessage(`已将“${definition.name}”展开为可编辑组合；修改后可更新函数版本`);
   };
 
@@ -2354,9 +2255,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const nestedCalls = functions.reduce((count, item) => count + functionCallCount(item.nodes, definition.id), 0);
     if (nestedCalls > 0) { setMessage(`“${definition.name}”仍被其他函数调用 ${nestedCalls} 次，无法删除`); return; }
     if (!(await requestConfirm({ title: "删除函数", message: `确定删除函数“${definition.name}” v${definition.version}？`, confirmLabel: "删除", danger: true }))) return;
-    pushHistory();
-    setFunctions((current) => current.filter((item) => item.id !== definition.id));
-    setNodes((current) => current.map((node) => node.data.functionSourceId === definition.id ? { ...node, data: { ...node.data, functionSourceId: undefined } } : node));
+    const result = session.applyGraphCommand({ type: "delete-function", functionId: definition.id });
+    if (!result.changed) { setMessage(result.meta?.blockedReason ?? "无法删除函数"); return; }
+    clearExecutionResult();
     setMessage(`已删除函数“${definition.name}”`);
   };
 
@@ -2368,12 +2269,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const saveSelectedNodeToLibrary = () => {
     if (!selectedNode || selectedNode.data.nodeType === "workflow.group") { setMessage("请先选择一个普通节点"); return; }
-    const cleanNode = cloneWorkflowSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0];
-    cleanNode.data.canvasParentId = undefined;
-    cleanNode.parentId = undefined;
-    cleanNode.extent = undefined;
-    cleanNode.selected = false;
-    const entry: SavedNodeEntry = { id: `saved-node-${Date.now()}`, name: selectedNode.data.label, node: cleanNode, savedAt: new Date().toISOString() };
+    const captured = captureNodeResource(selectedNode);
+    const entry: SavedNodeEntry = { id: `saved-node-${Date.now()}`, name: selectedNode.data.label, node: captured.node, savedAt: new Date().toISOString() };
     setSavedNodeLibrary((current) => [entry, ...current]);
     setMessage(`已将“${entry.name}”保存到我的节点`);
   };
@@ -2390,39 +2287,44 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     });
   };
 
-  const insertSavedNode = (template: SavedNodeEntry) => {    pushHistory();
+  const insertSavedNode = (template: SavedNodeEntry) => {
     const id = `${template.node.data.nodeType.replaceAll(".", "-")}-${Date.now()}-${nextNodeNumber.current++}`;
-    const node = cloneWorkflowSnapshot({ nodes: [template.node], edges: [] }).nodes[0];
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
-    node.id = id;
-    node.position = resolvedLayoutDirection === "vertical"
+    const position = resolvedLayoutDirection === "vertical"
       ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
       : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
-    node.data = { ...node.data, canvasParentId: currentCanvasId ?? undefined, status: "idle" };
-    node.className = "node-entering";
-    setNodes((current) => [...current, node]);
+    const instance = instantiateNodeResource({ node: template.node }, { id, position, canvasId: currentCanvasId });
+    instance.nodes[0].className = "node-entering";
+    const result = session.applyGraphCommand({ type: "insert-resource", ...instance });
+    if (!result.changed) { setMessage(result.meta?.blockedReason ?? "无法添加节点资源"); return; }
     window.setTimeout(() => setNodes((current) => current.map((item) => item.id === id ? { ...item, className: undefined } : item)), 360);
-    setSelectedId(id); setSelectedIds([id]); clearExecutionResult();
+    clearExecutionResult();
     setMessage(`已添加我的节点“${template.name}”`);
   };
 
   const insertGroupTemplate = (template: GroupLibraryEntry, dropPosition?: { x: number; y: number }) => {
-    const repairedTemplate = { ...template, nodes: repairWorkflowGroupInterfaces(template.nodes, template.edges) };
-    const sourceGroup = repairedTemplate.nodes.find((node) => node.data.nodeType === "workflow.group");
-    if (!sourceGroup) { setMessage("该组合资源已损坏"); return; }
-    pushHistory();
-    const mapping = new Map(repairedTemplate.nodes.map((node) => [node.id, `${node.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`]));
-    const targetGroupId = mapping.get(sourceGroup.id)!;
-    const offset = dropPosition
-      ? { x: dropPosition.x - sourceGroup.position.x, y: dropPosition.y - sourceGroup.position.y }
-      : { x: 90 + (nodes.length % 4) * 28, y: 90 + (nodes.length % 3) * 35 };
-    const nextNodes: WorkflowNode[] = repairedTemplate.nodes.map((node) => ({ ...cloneWorkflowSnapshot({ nodes: [node], edges: [] }).nodes[0], id: mapping.get(node.id)!, selected: false, className: node.id === sourceGroup.id ? "node-entering node-entering--group" : undefined, position: { x: node.position.x + offset.x, y: node.position.y + offset.y }, data: { ...node.data, label: node.id === sourceGroup.id ? `${template.name}` : node.data.label, canvasParentId: node.id === sourceGroup.id ? currentCanvasId ?? undefined : targetGroupId, groupInputs: node.data.groupInputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), groupOutputs: node.data.groupOutputs?.map((port) => ({ ...port, internalNodeId: mapping.get(port.internalNodeId) ?? port.internalNodeId })), status: "idle" as const } }));
-    const nextEdges = repairedTemplate.edges.map((edge) => ({ ...edge, id: `${edge.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, source: mapping.get(edge.source)!, target: mapping.get(edge.target)! }));
-    setNodes((current) => [...current, ...nextNodes]);
-    window.setTimeout(() => setNodes((current) => current.map((node) => node.id === targetGroupId ? { ...node, className: undefined } : node)), 420);
-    setEdges((current) => [...current, ...nextEdges]);
-    setSelectedId(targetGroupId); setSelectedIds([targetGroupId]); clearExecutionResult();
-    setMessage(`已添加组合“${template.name}”，双击或右键可进入编辑`);
+    try {
+      const sourceGroup = template.nodes.find((node) => node.data.nodeType === "workflow.group");
+      if (!sourceGroup) { setMessage("该组合资源已损坏"); return; }
+      const position = dropPosition ?? { x: sourceGroup.position.x + 90 + (nodes.length % 4) * 28, y: sourceGroup.position.y + 90 + (nodes.length % 3) * 35 };
+      const stamp = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      let sequence = 0;
+      const instance = instantiateGroupResource(template, {
+        position,
+        canvasId: currentCanvasId,
+        name: template.name,
+        idFactory: (sourceId) => `${sourceId}-${stamp}-${sequence++}`,
+      });
+      const groupNode = instance.nodes.find((node) => node.id === instance.primaryNodeId);
+      if (groupNode) groupNode.className = "node-entering node-entering--group";
+      const result = session.applyGraphCommand({ type: "insert-resource", ...instance });
+      if (!result.changed) { setMessage(result.meta?.blockedReason ?? "无法添加组合资源"); return; }
+      window.setTimeout(() => setNodes((current) => current.map((node) => node.id === instance.primaryNodeId ? { ...node, className: undefined } : node)), 420);
+      clearExecutionResult();
+      setMessage(`已添加组合“${template.name}”，双击或右键可进入编辑`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "无法添加组合资源");
+    }
   };
 
   const openSubflowGroup = (groupId: string) => {
@@ -2446,25 +2348,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const dissolveSelectedGroup = () => {
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") return;
-    pushHistory();
-    const groupId = selectedNode.id;
-    const parentCanvasId = selectedNode.data.canvasParentId;
-    const inputPorts = new Map((selectedNode.data.groupInputs ?? []).map((port) => [port.id, port]));
-    const outputPorts = new Map((selectedNode.data.groupOutputs ?? []).map((port) => [port.id, port]));
-    setEdges((current) => current.flatMap((edge) => {
-      if (edge.target === groupId) {
-        const port = inputPorts.get(edge.targetHandle ?? "");
-        return port ? [{ ...edge, target: port.internalNodeId, targetHandle: port.internalHandle ?? undefined }] : [];
-      }
-      if (edge.source === groupId) {
-        const port = outputPorts.get(edge.sourceHandle ?? "");
-        return port ? [{ ...edge, source: port.internalNodeId, sourceHandle: port.internalHandle ?? undefined }] : [];
-      }
-      return edge;
-    }));
-    setNodes((current) => current.filter((node) => node.id !== groupId).map((node) => node.data.canvasParentId === groupId ? { ...node, data: { ...node.data, canvasParentId: parentCanvasId } } : node));
-    setSelectedId(null);
-    setSelectedIds([]);
+    const result = session.applyGraphCommand({ type: "dissolve-group", groupId: selectedNode.id });
+    if (!result.changed) { setMessage(result.meta?.blockedReason ?? "无法解除组合"); return; }
     clearExecutionResult();
     setMessage("子流程组已解除，内部节点已返回当前画布");
   };
@@ -2476,8 +2361,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setMessage("该节点没有连线");
       return;
     }
-    pushHistory();
-    setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId));
+    const result = session.applyGraphCommand({ type: "disconnect-nodes", nodeIds: [selectedId] });
+    if (!result.changed) return;
     resetExecution();
     setMessage(`已断开 ${connectionCount} 条连线`);
   };
@@ -2794,18 +2679,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const document = source.includes("# %% [node]")
         ? parseWorkflowNotebook(source)
         : notebookCellsToWorkflow("Jupyter 单元格工作流", notebookCells, notebookMetadata);
-      pushHistory();
-      setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
-        const hydrated = hydrateNodeDefaults(node);
-        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
-      }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
-      setEdges(document.edges);
-      setFunctions(document.functions ?? []);
-      setRequirements(document.requirements ?? []);
-      setSelectedId(null);
-      setSelectedIds([]);
-      setCurrentCanvasId(null);
-      clearExecutionResult();
+      replaceWorkflowContent(prepareImportedWorkflow(document));
       setNotebookError(null);
       setMessage(`已从 Notebook 应用 ${document.nodes.length} 个节点和 ${document.edges.length} 条连线；未识别代码以无损单元格节点保留`);
     } catch (error) {
@@ -2871,18 +2745,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         : analyses.some((analysis) => analysis.recognized)
           ? analyzedNotebookToWorkflow(imported.name, imported.cells, analyses, imported.metadata)
           : notebookCellsToWorkflow(imported.name, imported.cells, imported.metadata);
-      pushHistory();
-      setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
-        const hydrated = hydrateNodeDefaults(node);
-        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
-      }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
-      setEdges(document.edges);
-      setFunctions(document.functions ?? []);
-      setRequirements(document.requirements ?? []);
-      setSelectedId(null);
-      setSelectedIds([]);
-      setCurrentCanvasId(null);
-      clearExecutionResult();
+      replaceWorkflowContent(prepareImportedWorkflow(document));
       setNotebookError(null);
       setViewMode("nodes");
       const recognizedCount = analyses.filter((analysis) => analysis.recognized).length;
@@ -2896,19 +2759,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
   };
 
-  const currentWorkflowSnapshot = () => ({ nodes, edges, functions, requirements } satisfies WorkflowSnapshot);
+  const currentWorkflowSnapshot = () => cloneWorkflowSnapshot(session.getRuntimeState().snapshot);
   const hasUnsavedWorkflowChanges = () => session.isDirty();
 
   const clearCurrentWorkflow = () => {
-    pushHistory();
-    setNodes([]);
-    setEdges([]);
-    setFunctions([]);
-    setRequirements([]);
-    setSelectedId(null);
-    setSelectedIds([]);
-    setCurrentCanvasId(null);
-    clearExecutionResult();
+    const blankSnapshot = emptyWorkflowSnapshot();
+    replaceWorkflowContent(blankSnapshot, { captureHistory: true, markSaved: true });
     clearWorkspaceVariableState(tabId);
     setWorkspaceVariableRevision((value) => value + 1);
     setViewMode("nodes");
@@ -2918,9 +2774,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setNotebookError(null);
     setExecutionError(null);
     setErrorDetailOpen(false);
-    const blankSnapshot: WorkflowSnapshot = { nodes: [], edges: [], functions: [], requirements: [] };
-    const savedSignature = workflowSnapshotSignature(blankSnapshot);
-    session.replaceRuntimeState({ snapshot: blankSnapshot, savedSignature, input: { fileName, csvText, csvBytes, csvFiles } });
     setMessage("已在当前标签页新建空白流程");
   };
 
@@ -2981,7 +2834,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const saveWorkflow = () => {
     const snapshot = currentWorkflowSnapshot();
     persistWorkflowSnapshot(snapshot, tabName);
-    session.markSaved(workflowSnapshotSignature(snapshot));
+    lifecycle.markSaved(session);
     setFlowLibrary(loadFlowLibrary());
     setMessage(`工作流“${tabName}”已保存`);
   };
@@ -3000,14 +2853,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const openLibraryFlow = (entry: FlowLibraryEntry) => {
     try {
       const document = parseWorkflow(entry.document);
-      pushHistory();
-      const nextNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => ({ ...hydrateNodeDefaults(node), type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrateNodeDefaults(node).data, status: "idle" as const } })), document.edges);
-      setNodes(nextNodes);
+      const nextNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+        const hydrated = hydrateNodeDefaults(node);
+        return { ...hydrated, type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrated.data, status: "idle" as const } };
+      }), document.edges);
+      replaceWorkflowContent({ nodes: nextNodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [] });
       window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
-      setEdges(document.edges);
-      setFunctions(document.functions ?? []);
-      setRequirements(document.requirements ?? []);
-      setSelectedId(null); setSelectedIds([]); setCurrentCanvasId(null); clearExecutionResult();
       setMessage(`已打开流程“${entry.name}”`);
     } catch { setMessage("流程库条目已损坏，无法打开"); }
   };
@@ -3106,20 +2957,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           : analyses.some((analysis) => analysis.recognized)
             ? analyzedNotebookToWorkflow(imported.name, imported.cells, analyses, imported.metadata)
             : notebookCellsToWorkflow(imported.name, imported.cells, imported.metadata);
-        pushHistory();
         setNotebookCells(imported.cells);
         setNotebookMetadata(imported.metadata);
-        setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
-          const hydrated = hydrateNodeDefaults(node);
-          return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
-        }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
-        setEdges(document.edges);
-        setFunctions(document.functions ?? []);
-        setRequirements(document.requirements ?? []);
-        setSelectedId(null);
-        setSelectedIds([]);
-        setCurrentCanvasId(null);
-        clearExecutionResult();
+        replaceWorkflowContent(prepareImportedWorkflow(document));
         setViewMode("nodes");
         const recognizedCount = analyses.filter((analysis) => analysis.recognized).length;
         setMessage(source.includes("# %% [node]")
@@ -3128,18 +2968,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         return;
       }
       const document = parseWorkflow(text);
-      pushHistory();
-      setNodes(compactNodeLayout(repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
-        const hydrated = hydrateNodeDefaults(node);
-        return { ...hydrated, type: "workflow", data: { ...hydrated.data, status: "idle" as const } };
-      }), document.edges), viewportWidth, resolvedLayoutDirection, document.edges));
-      setEdges(document.edges);
-      setFunctions(document.functions ?? []);
-      setRequirements(document.requirements ?? []);
-      setSelectedId(null);
-      setSelectedIds([]);
-      setCurrentCanvasId(null);
-      clearExecutionResult();
+      replaceWorkflowContent(prepareImportedWorkflow(document));
       setMessage(`已导入流程“${document.name}”`);
     } catch (error) {
       setMessage(error instanceof Error ? `导入失败：${error.message}` : "工作流导入失败");
@@ -3810,10 +3639,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <input ref={notebookInput} className="file-input" type="file" accept=".ipynb,application/x-ipynb+json,application/json" onChange={importNotebook} />
           <input ref={templateInput} className="file-input" type="file" accept=".json,application/json" onChange={importCustomTemplate} />
           <input ref={settingsInput} className="file-input" type="file" accept=".json,application/json" onChange={importSettings} />
-          <button className="button secondary icon-button topbar-tool-action" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={!historyManager.current.canUndo} onClick={undo}>
+          <button className="button secondary icon-button topbar-tool-action" title="撤销（Ctrl+Z）" aria-label="撤销" disabled={!session.history.canUndo} onClick={undo}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5" /><path d="M4 12h9a7 7 0 0 1 7 7" /></svg>
           </button>
-          <button className="button secondary icon-button topbar-tool-action" title="重做（Ctrl+Y）" aria-label="重做" disabled={!historyManager.current.canRedo} onClick={redo}>
+          <button className="button secondary icon-button topbar-tool-action" title="重做（Ctrl+Y）" aria-label="重做" disabled={!session.history.canRedo} onClick={redo}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5" /><path d="M20 12h-9a7 7 0 0 0-7 7" /></svg>
           </button>
           <button className="button secondary icon-button topbar-tool-action" title="AI Agent" aria-label="AI Agent" onClick={() => setAgentPanelOpen(true)}>
@@ -3833,8 +3662,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
               <svg viewBox="0 0 24 24" aria-hidden="true"><g className="mobile-tools-overflow__dots"><circle cx="6" cy="9" r="1.35"/><circle cx="12" cy="9" r="1.35"/><circle cx="18" cy="9" r="1.35"/></g><path className="mobile-tools-overflow__chevron" d="m8.75 15.5 3.25 3.1 3.25-3.1"/></svg>
             </button>
             {mobileToolsOpen && <div className="mobile-tools-menu" role="menu">
-              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={!historyManager.current.canUndo}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>{ui("撤销", "Undo")}</span></button>
-              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={!historyManager.current.canRedo}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>{ui("重做", "Redo")}</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); undo(); }} disabled={!session.history.canUndo}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4 12l5 5"/><path d="M4 12h9a7 7 0 0 1 7 7"/></svg><span>{ui("撤销", "Undo")}</span></button>
+              <button type="button" onClick={() => { setMobileToolsOpen(false); redo(); }} disabled={!session.history.canRedo}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 7 5 5-5 5"/><path d="M20 12h-9a7 7 0 0 0-7 7"/></svg><span>{ui("重做", "Redo")}</span></button>
               <button type="button" onClick={() => { setMobileToolsOpen(false); setAgentPanelOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 1.5 5.3L19 10l-5.5 1.7L12 17l-1.5-5.3L5 10l5.5-1.7L12 3Z"/><path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7L19 15Z"/></svg><span>AI Agent</span></button>
               <button type="button" onClick={() => { setMobileToolsOpen(false); setSettingsOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="11" cy="18" r="1.7"/></svg><span>{ui("设置", "Settings")}</span></button>
               {canHostRemoteServer() && <button type="button" onClick={() => { setMobileToolsOpen(false); void toggleRemoteServer(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6"/></svg><span>{remoteServer ? "关闭局域网" : "开启局域网"}</span></button>}
@@ -4188,7 +4017,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         </div>
       </footer>
       {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements, functions), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
-      {historyOpen && <HistoryDialog entries={historyManager.current.entries} futureCount={historyManager.current.futureCount} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
+      {historyOpen && <HistoryDialog entries={session.history.entries} futureCount={session.history.futureCount} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
       {smbOpen && <SmbDialog open={smbOpen} language={language} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
       {remoteAccessDialog && <RemoteAccessDialog open={remoteAccessDialog} requirePin={remoteRequirePin} onRequirePin={setRemoteRequirePin} onClose={() => setRemoteAccessDialog(false)} onStart={() => void startConfiguredRemoteServer()} />}
       {remoteBrowser && !remotePaired && <RemotePairDialog policy={remoteAccessPolicy} error={remoteAccessError} pinInput={remotePinInput} onPinChange={(value) => { setRemotePinInput(value.replace(/\D/g, "").slice(0, 4)); setRemoteAccessError(null); }} onSubmitPin={() => void submitRemotePin()} />}
@@ -4503,6 +4332,7 @@ function MultiTabWorkspace() {
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
   const [activeId, setActiveId] = useState<string>("default");
   const sessionStoreRef = useRef(new EditorSessionStore("default", emptySnapshot));
+  const lifecycleRef = useRef(new EditorWorkspaceLifecycleService(localStorage, AUTOSAVE_KEY));
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
   const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus("default").phase });
   const [completedIndicators, setCompletedIndicators] = useState<Record<string, boolean>>({});
@@ -4617,7 +4447,7 @@ function MultiTabWorkspace() {
       clearWorkspaceExecutionResult(id);
       clearWorkspaceVariableState(id);
       sessionStoreRef.current.delete(id);
-      localStorage.removeItem(`${AUTOSAVE_KEY}.${id}`);
+      lifecycleRef.current.clearAutosave(id);
       setExecutionPhases((phases) => { const next = { ...phases }; delete next[id]; return next; });
       setCompletedIndicators((markers) => { const next = { ...markers }; delete next[id]; return next; });
       setErrorIndicators((markers) => { const next = { ...markers }; delete next[id]; return next; });
@@ -4646,7 +4476,7 @@ function MultiTabWorkspace() {
     if (!tab || !session) { setPendingCloseTabId(null); return; }
     const state = session.getRuntimeState();
     persistWorkflowSnapshot(state.snapshot, tab.name);
-    session.markSaved(workflowSnapshotSignature(state.snapshot));
+    lifecycleRef.current.markSaved(session);
     const id = pendingCloseTabId;
     setPendingCloseTabId(null);
     performCloseTab(id);
@@ -4682,7 +4512,7 @@ function MultiTabWorkspace() {
     <TabsContext.Provider value={api}>
       <div className="workspace-shell" data-theme={resolvedTheme}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
         <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>

@@ -71,3 +71,15 @@ describe("EditorSessionStore", () => {
   });
 
 });
+
+it("owns undo, redo, history restore and clear instead of delegating transactions to React", () => {
+  const session = new EditorSessionStore("tab", snapshotWithNode("a")).get("tab")!;
+  session.captureHistory();
+  session.updateSnapshot((snapshot) => ({ ...snapshot, nodes: [] }));
+  expect(session.undo()?.nodes.map((node) => node.id)).toEqual(["a"]);
+  expect(session.redo()?.nodes).toEqual([]);
+  session.captureHistory();
+  session.clearHistory();
+  expect(session.history.canUndo).toBe(false);
+  expect(session.history.canRedo).toBe(false);
+});
