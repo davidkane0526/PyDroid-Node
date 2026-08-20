@@ -20,9 +20,9 @@ Long-lived branches in this repository:
 - `phase9/full-build-gate-fix`: `1.4.65 (88)` production TypeScript build-gate repair.
 - `phase9/resource-service-session-lifecycle-audit`: `1.4.66 (89)` Resource Library Service / Session-owned execution identity milestone.
 - `phase9/final-freeze-audit`: `1.4.67 (90)` accepted/frozen Phase 9 boundary after the user-host build and 19/19 diagnostics.
-- `phase10/remote-security-host-reliability`: `1.4.68 (91)` current Phase 10 Remote Access Security / Host Reliability milestone.
+- `phase10/desktop-platform-export-gate-fix`: `1.4.69 (92)` current Phase 10 Desktop production bundle gate repair milestone.
 
-Current working branch: `phase10/remote-security-host-reliability`.
+Current working branch: `phase10/desktop-platform-export-gate-fix`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -51,6 +51,8 @@ The frozen Phase 9 diagnostic boundary contains fifteen Editor Core/session case
 **Started at 1.4.68 (91) from the frozen 1.4.67 Phase 9 boundary.** The first milestone hardens Remote Web without changing UI/gesture/workflow/runtime semantics: Desktop and Android share a 5-failure PIN cooldown policy, fresh client-bound 12-hour tokens, normal/expensive per-client API rate limits and a small unauthenticated pairing-body limit. Android Remote Web receives only `agentProxyAvailable`; when a Keystore-backed Agent secret exists, model requests go through the Android Host Agent Proxy and the raw key never enters the browser. Android wildcard CORS exposure was removed, and the proxy refuses unsupported provider protocols and upstream redirects.
 
 Primary files: `desktop/services/remote-security.cjs`, `RemoteAccessGuard.java`, `src/remote-security-policy.ts`, `scripts/remote-security-smoke.mjs`, and `docs/phase10-remote-security-host-reliability.md`. The next milestone should deepen LAN discovery lifecycle automation rather than redesign SSDP/mDNS.
+
+1.4.69 is a production-bundle repair after the user build exposed Desktop Vite alias export drift. `desktop/renderer/platform.ts` now exports `proxyRemoteAgentRequest`, and `platform-architecture-smoke.mjs` checks all `App.tsx` `./platform` imports against both the shared and Desktop facades. The next discovery milestone moves to 1.4.70.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -97,7 +99,7 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.68 validation
+### Current Phase 10 / 1.4.69 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.

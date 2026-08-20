@@ -1,8 +1,8 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-20
-当前架构开发分支：`phase10/remote-security-host-reliability`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.68 (91)`
+当前架构开发分支：`phase10/desktop-platform-export-gate-fix`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.69 (92)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -612,12 +612,14 @@ Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成�
 
 ## 14. Phase 10 — Remote Access Security & Host Reliability
 
-状态：**1.4.68 (91) 已开始。**
+状态：**1.4.69 (92) 继续。**
 
 Phase 10 不重新设计已工作的 Remote Web/LAN UI，而是把第 11 节长期安全与可靠性项变成可测试契约。1.4.68 首先处理敏感边界：Desktop/Android 使用相同的 PIN 失败窗口与冷却策略、成功配对后签发客户端地址绑定且有 TTL/数量上限的 Session Token，并对普通与重型 Remote API 分级限流。Android 的 Remote Web 配置只返回 `agentProxyAvailable`，原始 Agent API Key 始终留在宿主 Keystore；网页通过 Host Agent Proxy 发起模型请求。代理的 provider/endpoint 由宿主设置决定，不接受网页任意改写，且禁止上游 redirect 后继续携带宿主凭据。
 
 Discovery (`SSDP/mDNS/device.xml`) 仍与认证 API 分离。健康检查和发现元数据保持公开，执行/配置/Agent 等 API 必须在配对 Session 后使用。Android Remote API 不再发布 wildcard CORS，以避免无关网页源通过浏览器驱动宿主 API。
 
 1.4.68 的正式安全回归由 `scripts/remote-security-smoke.mjs`、Desktop `RemoteAccessGuard/RemoteTokenStore`、Android pure-Java `RemoteAccessGuard` 与两项 in-app diagnostics 共同覆盖。完整宿主自动诊断目标从 19/19 提升到 **21/21**。具体策略见 `docs/phase10-remote-security-host-reliability.md`。
+
+1.4.69 修复 Desktop Vite alias 的平台导出漂移：`App.tsx` 使用的 `./platform` 命名导出现在必须同时存在于 shared facade 与 Desktop alias facade；该门禁纳入 platform architecture smoke。安全策略与 21/21 诊断契约不变。
 
 下一里程碑优先补充 LAN Discovery 生命周期自动化：SSDP `ssdp:all` 多目标响应、CRLF/USN/LOCATION/ST、device.xml 身份字段、UUID persistence、network restart、stop/byebye 以及 mDNS A/PTR/SRV/TXT；不重新发明 discovery 协议。

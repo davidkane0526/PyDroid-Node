@@ -122,6 +122,7 @@ export function canHostRemoteServer(): boolean { return getPlatformAdapter().rem
 export function getRemoteAccessPolicy() { return getPlatformAdapter().remote.getAccessPolicy(); }
 export function pairRemoteRuntime(pin = "") { return getPlatformAdapter().remote.pair(pin); }
 export function getRemoteAppConfiguration() { return getPlatformAdapter().remote.getAppConfiguration(); }
+export function proxyRemoteAgentRequest(provider: string, body: unknown) { return getPlatformAdapter().remote.proxyAgentRequest(provider, body); }
 export function startRemoteServer(requirePin = true) { return getPlatformAdapter().remote.startServer(requirePin); }
 export function stopRemoteServer() { return getPlatformAdapter().remote.stopServer(); }
 export function isNativePlatform(): boolean { return getPlatformAdapter().system.isNativePlatform(); }

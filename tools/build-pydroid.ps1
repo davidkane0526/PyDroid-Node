@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.68-dev-r44-phase10-remote-security"
+$script:BuildScriptRevision = "1.4.69-dev-r45-phase10-desktop-platform-export-gate"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

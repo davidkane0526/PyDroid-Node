@@ -1,3 +1,11 @@
+## 1.4.69 (92) — Phase 10 Desktop Platform Export / Production Bundle Gate Repair — 2026-08-20
+
+- Fixed the dependency-backed Desktop Vite/Rolldown build failure where `App.tsx` imported `proxyRemoteAgentRequest` through `./platform` but the Desktop Vite alias facade did not export that symbol.
+- Added the missing Desktop `proxyRemoteAgentRequest(provider, body)` facade wrapper while preserving the existing Desktop remote-session implementation and Android Host Agent Proxy security boundary.
+- Strengthened `platform-architecture-smoke.mjs`: every named symbol imported by `App.tsx` from `./platform` must now exist in both the shared facade and the Desktop aliased facade, catching module-link export drift before production bundling.
+- Remote security/runtime/editor behavior and the 21-case automated diagnostic contract are unchanged.
+- Build script revision: `1.4.69-dev-r45-phase10-desktop-platform-export-gate`.
+
 ## 1.4.68 (91) — Phase 10 Remote Access Security / Host Agent Proxy — 2026-08-20
 
 - Phase 9 is formally frozen at 1.4.67 after the user-host dependency-backed build and **19/19** automated diagnostics passed.

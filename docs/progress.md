@@ -1,4 +1,11 @@
-# Phase 10 progress — 1.4.68 (91)
+# Phase 10 progress — 1.4.69 (92)
+
+
+## 1.4.69 production bundle gate repair
+
+The user dependency-backed Desktop build reached Vite/Rolldown module linking and exposed one host-facade drift: `App.tsx` imported `proxyRemoteAgentRequest` from `./platform`, while Desktop Vite aliases that module to `desktop/renderer/platform.ts`, which did not re-export the symbol. 1.4.69 restores the Desktop facade wrapper and extends the platform architecture smoke so every `App.tsx` named `./platform` import must be exported by both shared and Desktop facades. The Phase 10 security behavior and automated diagnostic target remain **21/21**.
+
+- Build script revision: `1.4.69-dev-r45-phase10-desktop-platform-export-gate`.
 
 Phase 9 is frozen at `1.4.67 (90)` after the user's dependency-backed Desktop build and **19/19** real-host diagnostics passed. Phase 10 starts with Remote Access Security & Host Reliability; no accepted editor UI/gesture or Workflow/Runtime semantics are changed.
 

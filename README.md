@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.68 (91) · Phase 10 Remote Access Security & Host Reliability**。Phase 9 已在 1.4.67 经真实宿主 19/19 自动诊断验收并冻结。Phase 10 首个里程碑为 Remote Web 增加 PIN 失败冷却、客户端绑定/过期 Session Token、分级 API 限流，并在 Android 通过 Host Agent Proxy 保证原始 Agent API Key 不下发给局域网网页；已验收的 Desktop/Mobile × Node/Group 手势和 Workflow/Runtime 语义不变。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
+> **当前开发版本：1.4.69 (92) · Phase 10 Remote Access Security & Host Reliability**。Phase 9 已在 1.4.67 经真实宿主 19/19 自动诊断验收并冻结。Phase 10 首个安全里程碑已在 1.4.68 完成；1.4.69 修复 Desktop Vite 平台导出契约并加入共享/桌面 facade 导出一致性门禁；已验收的 Desktop/Mobile × Node/Group 手势和 Workflow/Runtime 语义不变。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

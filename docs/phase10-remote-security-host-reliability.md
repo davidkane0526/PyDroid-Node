@@ -2,7 +2,7 @@
 
 Started: 2026-08-20
 Foundation: accepted/frozen `1.4.67 (90)` Phase 9
-Current milestone: `1.4.68 (91)`
+Current milestone: `1.4.69 (92)`
 
 ## Goal
 
@@ -26,6 +26,13 @@ Authenticated Remote API
                  │
                  └─ raw API key never crosses to Remote Web
 ```
+
+
+## 1.4.69 Desktop production bundle gate repair
+
+The dependency-backed Windows build exposed a Desktop Vite alias drift that TypeScript alone did not catch: `App.tsx` imports `proxyRemoteAgentRequest` from `./platform`, but Desktop Vite replaces that facade with `desktop/renderer/platform.ts`, which lacked the corresponding named export. 1.4.69 adds the Desktop facade wrapper and strengthens `platform-architecture-smoke.mjs` so every named `./platform` import used by `App.tsx` must exist in both the shared and Desktop facades.
+
+This is a build-contract repair only. The 1.4.68 PIN/token/rate-limit/Agent-secret policy, Workflow/Runtime semantics, UI and gesture contracts remain unchanged; automated diagnostics therefore remain **21/21**.
 
 ## 1.4.68 security policy
 
@@ -95,4 +102,4 @@ Together with the accepted 19 Phase 8/9 cases, a fully capable Desktop/Android h
 
 ## Next milestone
 
-If the real host build and 21/21 diagnostics pass, 1.4.69 should deepen LAN discovery lifecycle automation rather than redesign discovery. Required coverage includes SSDP `ssdp:all`, CRLF/USN/LOCATION/ST, device.xml identity fields, UUID persistence, network restart, stop/byebye, and mDNS A/PTR/SRV/TXT lifecycle behavior.
+After the 1.4.69 production bundle repair is accepted, 1.4.70 should deepen LAN discovery lifecycle automation rather than redesign discovery. Required coverage includes SSDP `ssdp:all`, CRLF/USN/LOCATION/ST, device.xml identity fields, UUID persistence, network restart, stop/byebye, and mDNS A/PTR/SRV/TXT lifecycle behavior.
