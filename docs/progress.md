@@ -1,3 +1,17 @@
+# Phase 10 progress — 1.4.75 (98)
+
+## 1.4.75 Host state reconciliation
+
+The user reported no issue with 1.4.74. The accepted 1.4.73 network behavior and the 1.4.74 lifecycle/recovery work remain frozen; this milestone only closes the remaining state-observability gap between the native host and React UI.
+
+- Added `RemoteHostStatus` and a cross-platform `getHostStatus()` capability. Desktop exposes it through a dedicated read-only IPC channel; Android exposes the equivalent Capacitor method. The query never starts/stops the service and never rotates PIN/session state.
+- Added a focused `useRemoteHostReconciliation` hook. While the local service is already active it polls native state every 3 seconds, updates an existing URL/discovery snapshot after network migration/recovery, and clears a stale running UI if the host has actually stopped. No message, dialog, copy or layout is added.
+- Strengthened the 22nd in-app diagnostic so "already running" comes from native state rather than React cache, post-start state must be `running`, and a diagnostic-owned host must be confirmed `stopped` after cleanup.
+- Desktop lifecycle smoke and the real Android JVM host harness now cover read-only running/stopped status and PIN/port stability. Host Contract grows by one explicit transport operation without changing the user-facing PlatformAdapter semantics.
+- Build script revision: `1.4.75-dev-r51-phase10-host-state-reconciliation`.
+
+---
+
 # Phase 10 progress — 1.4.74 (97)
 
 ## 1.4.74 Host lifecycle recovery

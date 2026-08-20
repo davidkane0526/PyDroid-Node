@@ -121,6 +121,21 @@ final class AndroidRemoteService implements AutoCloseable {
         }
     }
 
+    void status(PluginCall call) {
+        try {
+            final JSObject response = new JSObject();
+            synchronized (this) {
+                final String state = stopFuture != null ? "stopping" : startFuture != null ? "starting" : server != null ? "running" : "stopped";
+                response.put("state", state);
+                response.put("info", "running".equals(state) && server != null ? server.connectionInfo() : org.json.JSONObject.NULL);
+            }
+            call.resolve(response);
+        } catch (Exception exception) {
+            String message = exception.getMessage();
+            call.reject(message == null ? "Unable to start the LAN service" : message, exception);
+        }
+    }
+
     void stop(PluginCall call) {
         final CompletableFuture<Void> completion;
         final CompletableFuture<RemoteWorkflowServer> pending;

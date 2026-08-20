@@ -75,3 +75,8 @@ The built-in `remote-host-e2e` report exposes host-side checks under `readiness`
 ## 1.4.74 transient protocol recovery
 
 1.4.74 keeps the 1.4.73 discovery protocol and UI behavior unchanged. The lifecycle owner now retries a transient failed SSDP or mDNS startup on an unchanged network at most once per 15 seconds, and only the failed protocol is restarted. A healthy sibling protocol is left running. `recoveryAttempts` is included in host discovery status so diagnostics can distinguish an initially clean startup from a recovered one.
+
+
+## 1.4.75 host-state reconciliation
+
+1.4.75 does not change SSDP, UPnP, mDNS, TCP 8765, interface selection or discovery retry behavior. It adds a read-only native host-status contract used by the existing UI while the service is already active. After the 5-second network watcher changes the advertised interface set or a protocol recovers, the current banner/status state can refresh to the new canonical URL/discovery snapshot without calling `start()` again. If the native host has actually stopped, the stale running indicator is cleared. This reconciliation path adds no user-visible text and never starts/stops the host by itself.

@@ -47,6 +47,10 @@ export type RemoteServerInfo = {
   discovery?: RemoteDiscoveryStatus;
   readiness?: RemoteServerReadiness;
 };
+export type RemoteHostStatus = {
+  state: "stopped" | "starting" | "running" | "stopping";
+  info: RemoteServerInfo | null;
+};
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
 export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentProxyAvailable: boolean };
@@ -98,6 +102,7 @@ export interface RemotePlatformCapability {
   getAppConfiguration(): Promise<RemoteAppConfiguration>;
   proxyAgentRequest(provider: string, body: unknown): Promise<unknown>;
   startServer(requirePin?: boolean): Promise<RemoteServerInfo>;
+  getHostStatus(): Promise<RemoteHostStatus>;
   stopServer(): Promise<void>;
   request<T>(path: string, payload?: Record<string, unknown>, options?: RemoteRequestOptions): Promise<T>;
 }

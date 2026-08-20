@@ -100,6 +100,7 @@ export function createAndroidPlatformAdapter(): PlatformAdapter {
         return remoteSession.request("/api/agent-proxy", { provider, body });
       },
       startServer(requirePin = true) { return PythonExecutor.startRemoteServer({ requirePin }); },
+      getHostStatus() { return PythonExecutor.getRemoteHostStatus(); },
       async stopServer() { await PythonExecutor.stopRemoteServer(); },
       request: remoteSession.request,
     },

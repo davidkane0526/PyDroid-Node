@@ -1,5 +1,5 @@
 import { registerPlugin } from "@capacitor/core";
-import type { FilePickMode, RemoteServerInfo, SmbConnection, SmbEntry, SmbServer } from "./types";
+import type { FilePickMode, RemoteHostStatus, RemoteServerInfo, SmbConnection, SmbEntry, SmbServer } from "./types";
 import type { HostExecutionStatus } from "../execution-host";
 
 export type NativeExecutionResponse = { result: string };
@@ -31,6 +31,7 @@ export type PythonExecutorPlugin = {
   discoverSmbServers(): Promise<{ servers: SmbServer[] }>;
   readSmbCsv(options: SmbConnection & { paths: string[] }): Promise<{ files: Array<{ name: string; base64: string }> }>;
   startRemoteServer(options: { requirePin: boolean }): Promise<RemoteServerInfo>;
+  getRemoteHostStatus(): Promise<RemoteHostStatus>;
   stopRemoteServer(): Promise<{ stopped: boolean }>;
 };
 

@@ -72,6 +72,7 @@ try {
   await assert.rejects(pendingStart, /cancelled/i, "stop during startup must cancel the stale start transaction");
   await pendingStop;
   assert.equal(service.lifecycleState(), "stopped", "stop during startup must leave the host lifecycle stopped");
+  assert.deepEqual(service.status(), { state: "stopped", info: null }, "read-only host status must report stopped without restarting the service");
   await assertPortClosed("stop during startup must not leave TCP 8765 listening");
 
   const first = service.start(true);
@@ -80,6 +81,10 @@ try {
   const info = await first;
   assert.equal(info.port, 8765);
   assert.equal(service.lifecycleState(), "running", "successful start must commit one running host");
+  const runningStatus = service.status();
+  assert.equal(runningStatus.state, "running", "read-only host status must observe the committed host");
+  assert.equal(runningStatus.info?.port, 8765, "read-only host status must expose the accepted fixed port");
+  assert.equal(runningStatus.info?.pin, info.pin, "read-only host status must not rotate the active PIN");
   assert.equal((await requestHealth()).body.trim(), "OK");
   const refreshedInfo = await service.start(true);
   assert.notEqual(refreshedInfo, info, "an already-running host must return a refreshed readiness snapshot instead of a stale startup object");
@@ -96,9 +101,10 @@ try {
   await service.stop();
   await service.stop();
   assert.equal(service.lifecycleState(), "stopped", "repeated stop must be idempotent");
+  assert.deepEqual(service.status(), { state: "stopped", info: null }, "final host status must reconcile to stopped");
   await assertPortClosed("final stop must release TCP 8765");
 
-  console.log("Remote host lifecycle smoke passed: start/stop race, restart barrier and idempotent stop are protected.");
+  console.log("Remote host lifecycle smoke passed: start/stop race, restart barrier, read-only status and idempotent stop are protected.");
 } finally {
   try { await service.stop(); } catch {}
   Module._load = originalLoad;

@@ -55,6 +55,7 @@ import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWo
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings, type AgentTransport } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
+import { useRemoteHostReconciliation } from "./ui/useRemoteHostReconciliation";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
 import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
@@ -1172,6 +1173,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     const timer = window.setInterval(refresh, 1000);
     return () => { active = false; window.clearInterval(timer); };
   }, [remoteBrowser]);
+
+  const remoteServerActive = Boolean(remoteServer);
+  useRemoteHostReconciliation({ active: remoteServerActive, remoteBrowser, transitionRef: remoteServerTransitionRef, setRemoteServer, setRemoteBannerVisible });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -3165,9 +3169,12 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         activeNodeCount: nodes.length,
         activeEdgeCount: edges.length,
         testRemoteHost: canHostRemoteServer() ? async () => {
-          const alreadyRunning = Boolean(remoteServer);
+          const beforeStatus = await platform.remote.getHostStatus();
+          const alreadyRunning = beforeStatus.state === "running";
           const info = await startRemoteServer(true);
           try {
+            const hostStatus = await platform.remote.getHostStatus();
+            if (hostStatus.state !== "running" || !hostStatus.info) throw new Error(`宿主启动后生命周期状态异常：${hostStatus.state}`);
             if (!Number.isFinite(info.port) || info.port <= 0) throw new Error("宿主没有返回有效 HTTP 监听端口");
             if (info.port !== 8765) throw new Error(`宿主没有使用固定 LAN Web 端口 8765：${info.port}`);
             const parsed = new URL(info.url);
@@ -3194,9 +3201,14 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
               discovery,
               readiness: info.readiness,
               serviceWasAlreadyRunning: alreadyRunning,
+              hostLifecycleState: hostStatus.state,
             };
           } finally {
-            if (!alreadyRunning) await stopRemoteServer();
+            if (!alreadyRunning) {
+              await stopRemoteServer();
+              const stoppedStatus = await platform.remote.getHostStatus();
+              if (stoppedStatus.state !== "stopped") throw new Error(`宿主诊断清理后仍未停止：${stoppedStatus.state}`);
+            }
           }
         } : undefined,
         executeWithRuntime: (runtimeId, diagnosticNodes, diagnosticEdges, diagnosticCsvText, options) => executeWorkflowWithRuntime(runtimeId, diagnosticNodes, diagnosticEdges, diagnosticCsvText, [], { ...options, clientId: executionClientId }),

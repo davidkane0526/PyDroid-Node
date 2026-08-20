@@ -1,5 +1,6 @@
 import type {
   FilePickMode,
+  RemoteHostStatus,
   RemoteServerInfo,
   RuntimeStats,
   SmbConnection,
@@ -29,6 +30,7 @@ export type DesktopPlatformBridge = {
   saveSmbSecret(value: string): Promise<{ saved: boolean }>;
   loadSmbSecret(): Promise<{ value: string }>;
   startRemoteServer(requirePin: boolean): Promise<RemoteServerInfo>;
+  getRemoteHostStatus(): Promise<RemoteHostStatus>;
   stopRemoteServer(): Promise<void>;
 };
 

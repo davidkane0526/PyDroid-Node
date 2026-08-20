@@ -1,12 +1,12 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-21
-当前架构开发分支：`phase10/host-lifecycle-recovery`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.74 (97)`
+当前架构开发分支：`phase10/host-state-reconciliation`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.75 (98)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
-> **Remote Web/LAN 冻结基线：1.4.73 已由用户实机确认可用。** 后续 Phase 10 工作不得无故改变固定 TCP 8765、现有启动交互/文案、PIN/Token、LAN HTTP readiness 或 SSDP/UPnP/mDNS 协议行为。未经用户明确允许，不新增 UI 说明文字。1.4.74 只处理 Host lifecycle/recovery。
+> **Remote Web/LAN 冻结基线：1.4.73 已由用户实机确认可用。** 后续 Phase 10 工作不得无故改变固定 TCP 8765、现有启动交互/文案、PIN/Token、LAN HTTP readiness 或 SSDP/UPnP/mDNS 协议行为。未经用户明确允许，不新增 UI 说明文字。1.4.74 只处理 Host lifecycle/recovery；1.4.75 只增加 read-only Host status 与 UI state reconciliation。
 
 ## 1. 开发原则
 
@@ -579,7 +579,7 @@ desktop/
 8. Phase 7 Host modularization：已完成并通过真实 Windows/Android 验收后冻结。
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
 10. Phase 9 Editor Core & Workspace Session：1.4.60 开始，1.4.67 经真实宿主依赖构建与 19/19 自动诊断验收后冻结。Desktop/Mobile 与 Node/Group 手势保持独立策略。
-11. Phase 10 Remote Access Security & Host Reliability：1.4.68 开始；首个里程碑增加 PIN 冷却、客户端绑定/过期 Session Token、分级 API rate limit，以及 Android Host Agent Proxy 密钥隔离。后续继续补 LAN discovery 生命周期自动化。
+11. Phase 10 Remote Access Security & Host Reliability：1.4.68 开始；已完成安全策略、LAN discovery 生命周期、真实宿主 E2E、固定 8765、start/stop 生命周期恢复及 read-only Host/UI 状态对齐。1.4.75 后优先真实 Desktop/Android 验证并冻结 Phase 10，不再无目的扩展 Remote Web/LAN 行为。
 
 核心原则始终是：
 
@@ -614,7 +614,7 @@ Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成�
 
 ## 14. Phase 10 — Remote Access Security & Host Reliability
 
-状态：**1.4.71 (94) 继续。**
+状态：**1.4.75 (98) 冻结候选，等待真实 Desktop/Android 验证。**
 
 Phase 10 不重新设计已工作的 Remote Web/LAN UI，而是把第 11 节长期安全与可靠性项变成可测试契约。1.4.68 首先处理敏感边界：Desktop/Android 使用相同的 PIN 失败窗口与冷却策略、成功配对后签发客户端地址绑定且有 TTL/数量上限的 Session Token，并对普通与重型 Remote API 分级限流。Android 的 Remote Web 配置只返回 `agentProxyAvailable`，原始 Agent API Key 始终留在宿主 Keystore；网页通过 Host Agent Proxy 发起模型请求。代理的 provider/endpoint 由宿主设置决定，不接受网页任意改写，且禁止上游 redirect 后继续携带宿主凭据。
 
@@ -637,3 +637,12 @@ Real 1.4.71 Windows use demonstrated that 22/22 could still pass while LAN Web/d
 ### 1.4.73 — Remote startup reliability correction
 
 Real 1.4.72 Desktop/Android results invalidated the foreground firewall/profile gate: Desktop could stop on `NetworkCategory=Unknown` and Android could reject its own `HttpURLConnection` loopback probe under cleartext policy. 1.4.73 moves firewall provisioning out of the normal start/diagnostic transaction, adds Desktop single-flight startup, restores the accepted Remote Access dialog copy, and uses raw-socket Android readiness. The stable 8765 endpoint and real LAN/discovery readiness remain.
+
+
+### 1.4.74 — Host lifecycle recovery
+
+After the accepted 1.4.73 network baseline, 1.4.74 fixes stale start resurrection across stop, adds equivalent Android generation/future ownership, and independently retries a transient failed SSDP or mDNS protocol without restarting the healthy sibling. No UI copy or accepted network semantics change.
+
+### 1.4.75 — Host state reconciliation
+
+1.4.75 adds a read-only cross-platform `getHostStatus()` contract and a focused 3-second UI reconciliation hook that only runs while the local host is already active. It refreshes the existing address/discovery snapshot after network migration or recovery and clears a stale running indicator after native stop. The hook cannot start/stop the host, rotate PINs, or emit user-visible messages. Diagnostics also use native lifecycle state before/after their temporary-host transaction. After packaged Desktop/Android validation, Phase 10 should be frozen rather than extended without a concrete defect.

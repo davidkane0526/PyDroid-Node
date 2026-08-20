@@ -1,3 +1,13 @@
+## 1.4.75 (98) — Phase 10 Host state reconciliation — 2026-08-21
+
+- Keeps the user-accepted 1.4.73 Remote Web/LAN behavior and the 1.4.74 lifecycle/recovery fixes frozen. Fixed TCP 8765, existing UI copy, pairing/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior are unchanged.
+- Added a read-only cross-platform Remote host status contract (`stopped` / `starting` / `running` / `stopping`) through Desktop IPC and Android Capacitor. Querying status never starts, stops or reconfigures the host and does not rotate the active PIN.
+- While the local host is already running, the existing UI reconciles against native status every 3 seconds. A changed LAN address/discovery snapshot refreshes the existing banner/status state, and an unexpectedly stopped host clears the stale running indicator without adding any message, dialog or explanatory UI text.
+- Moved Remote-host reconciliation into a focused UI hook so the frozen Phase 9 `App.tsx` ownership/size guard stays green. UI regression explicitly forbids `setMessage()` in this read-only reconciliation path.
+- In-app host diagnostics now determine whether the service was already running from native host state rather than cached React state, require the post-start lifecycle state to be `running`, and require a diagnostic-owned temporary host to reach `stopped` after cleanup. The diagnostic case count remains 22.
+- Extended Desktop lifecycle and Android JVM host smokes to verify read-only running/stopped status, fixed port 8765, PIN stability and cleanup.
+- Build script revision: `1.4.75-dev-r51-phase10-host-state-reconciliation`.
+
 ## 1.4.74 (97) — Phase 10 Host lifecycle recovery — 2026-08-21
 
 - Keeps the user-validated 1.4.73 Remote Web/LAN behavior frozen: fixed TCP 8765, existing UI copy, LAN HTTP readiness, SSDP/UPnP/mDNS protocol semantics and PIN/token behavior are unchanged.

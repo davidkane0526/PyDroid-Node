@@ -8,6 +8,7 @@ const css = readFileSync(path.join(root, "src/styles.css"), "utf8");
 const uiFixes = readFileSync(path.join(root, "src/ui-fixes.css"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
 const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
+const remoteReconciliation = readFileSync(path.join(root, "src/ui/useRemoteHostReconciliation.ts"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
 assert.match(app, /4500/, "failed\/timeout tab badge should auto-dismiss after a short diagnostic window");
 assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "failed tab badge visibility should be decoupled from persistent execution status");
@@ -54,6 +55,10 @@ assert.match(app, /AutomatedDiagnosticsDialog/, "desktop and Android shared UI m
 assert.match(app, /runInAppAutomatedDiagnostics/, "automated diagnostics must be runnable from the application UI");
 assert.doesNotMatch(dialogs, /Windows 首次启用时可能请求管理员授权|TCP 8765、UDP 1900|防火墙规则/, "Remote Access UI must not gain unapproved firewall/explanatory copy");
 assert.match(app, /const remoteServerTransitionRef = useRef\(false\)/, "Remote Web UI start/stop must have a single-flight transition guard");
+assert.match(app, /useRemoteHostReconciliation\(\{ active: remoteServerActive/, "running Remote UI must delegate native-host state reconciliation to a focused hook");
+assert.match(remoteReconciliation, /getRemoteHostStatus\(\)[\s\S]*status\.state === "running"[\s\S]*status\.state === "stopped"/, "running Remote UI must reconcile against the read-only native host status");
+assert.match(remoteReconciliation, /setInterval\(\(\) => void reconcile\(\), 3000\)/, "Remote host reconciliation should stay lightweight and bounded");
+assert.doesNotMatch(remoteReconciliation, /setMessage\(/, "read-only Remote host reconciliation must not add user-visible copy or notifications");
 assert.doesNotMatch(app, /readiness\?\.firewall|readiness\.firewall/, "Remote Web UI and in-app diagnostics must not block startup on brittle Windows firewall/profile probing");
 
 assert.match(app, /palette-tabs[\s\S]*paletteTab === "nodes"[\s\S]*paletteTab === "functions"[\s\S]*paletteTab === "groups"[\s\S]*paletteTab === "flows"/, "resource tabs must stay ordered Nodes → Functions → Groups → Flows");

@@ -1,10 +1,10 @@
-# Current handoff — 1.4.74 / Phase 10 Host lifecycle recovery
+# Current handoff — 1.4.75 / Phase 10 Host state reconciliation
 
 The user physically validated 1.4.73 Desktop Remote Web/LAN access. Treat **1.4.73 as the frozen accepted network baseline**: fixed TCP 8765, the current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not be changed without a concrete defect and user approval for any UI text change.
 
-1.4.74 stays behind that boundary and hardens lifecycle/recovery only. It fixes a reproduced start/stop race that could resurrect TCP 8765 after stop, gives Android the same generation/future ownership, adds independent rate-limited SSDP/mDNS self-recovery, and makes host diagnostics query a fresh running-host readiness snapshot instead of trusting stale startup/React state.
+1.4.74 hardened start/stop lifecycle ownership and transient discovery recovery without changing the accepted network contract. The user reported no issue with that build. 1.4.75 closes the remaining host/UI observability gap by adding a read-only cross-platform lifecycle/status operation and a focused UI reconciliation hook. It does not call start/stop, rotate PIN/session state, change the network protocol, or add any UI text.
 
-Version: **1.4.74**, Android versionCode **97**. Build revision: `1.4.74-dev-r50-phase10-host-lifecycle-recovery`.
+Version: **1.4.75**, Android versionCode **98**. Build revision: `1.4.75-dev-r51-phase10-host-state-reconciliation`.
 
 # Development handoff
 
@@ -33,9 +33,10 @@ Long-lived branches in this repository:
 - `fix/phase10-remote-web-host-e2e`: `1.4.71 (94)` Remote Web real-host E2E and packaging repair milestone.
 - `fix/phase10-lan-firewall-real-readiness`: `1.4.72 (95)` superseded foreground firewall/profile readiness experiment.
 - `fix/phase10-remote-startup-single-flight`: `1.4.73 (96)` user-accepted Remote Web/LAN baseline.
-- `phase10/host-lifecycle-recovery`: `1.4.74 (97)` current host lifecycle/recovery milestone.
+- `phase10/host-lifecycle-recovery`: `1.4.74 (97)` accepted-without-observed-regression host lifecycle/recovery milestone.
+- `phase10/host-state-reconciliation`: `1.4.75 (98)` current read-only native-host/UI state reconciliation milestone.
 
-Current working branch: `phase10/host-lifecycle-recovery`.
+Current working branch: `phase10/host-state-reconciliation`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -67,7 +68,7 @@ Primary files: `desktop/services/remote-security.cjs`, `RemoteAccessGuard.java`,
 
 1.4.70 added the LAN discovery lifecycle regression gate: Desktop executable SSDP/UPnP/mDNS protocol/lifecycle checks plus Android parity and a pure-JDK protocol harness when `javac` is available. `LanDiscoveryService.checkNetwork()` exposes the existing 5-second poll body for deterministic restart testing; discovery behavior itself is not redesigned.
 
-Real 1.4.69 Windows/Android use showed that the old **21/21** report did not prove Remote Web startup. 1.4.71 restored real host HTTP/resource coverage and packaged `package-remote`; 1.4.72 then added fixed 8765 plus stronger LAN/discovery readiness but incorrectly made synchronous Windows firewall/profile inspection a foreground startup blocker. Real 1.4.72 validation also exposed Android cleartext rejection of its own `127.0.0.1` readiness request. 1.4.73 removes those two regressions while retaining fixed-port/LAN/discovery checks and has now been physically accepted by the user. 1.4.74 does not alter that network contract; it adds start/stop generation barriers, Android lifecycle parity, transient per-protocol discovery recovery and fresh running-host observability. The confirmed validation-regression boundary remains 1.4.51. The Desktop compatibility packaging defect was possible from 1.4.50 onward.
+Real 1.4.69 Windows/Android use showed that the old **21/21** report did not prove Remote Web startup. 1.4.71 restored real host HTTP/resource coverage and packaged `package-remote`; 1.4.72 then added fixed 8765 plus stronger LAN/discovery readiness but incorrectly made synchronous Windows firewall/profile inspection a foreground startup blocker. Real 1.4.72 validation also exposed Android cleartext rejection of its own `127.0.0.1` readiness request. 1.4.73 removes those two regressions while retaining fixed-port/LAN/discovery checks and has now been physically accepted by the user. 1.4.74 does not alter that network contract; it adds start/stop generation barriers, Android lifecycle parity, transient per-protocol discovery recovery and fresh running-host observability. 1.4.75 then adds a read-only `getHostStatus()` transport on both hosts and reconciles the already-running UI against that native state every 3 seconds, so address changes, discovery recovery and unexpected native stop cannot leave a stale running indicator. The confirmed validation-regression boundary remains 1.4.51. The Desktop compatibility packaging defect was possible from 1.4.50 onward.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -114,7 +115,7 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.74 validation
+### Current Phase 10 / 1.4.75 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
@@ -123,8 +124,8 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 - LAN discovery lifecycle smoke: Desktop SSDP/UPnP/mDNS identity, `ssdp:all`, CRLF/ST/USN/LOCATION, network restart, byebye/goodbye; Android parity + JDK protocol harness: passed.
 - Packaged Desktop smoke source now calls `startRemoteServer(true)` and the compatibility package path stages both Electron and Remote Web browser bundles.
 - Full dependency-backed TypeScript/Vite/Electron/Gradle packaging was not rerun in this delivery container because `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x.
-- Desktop start/stop lifecycle smoke covers stale-start cancellation, stop barrier restart, live running-host readiness refresh and idempotent stop. Android JVM host coverage includes queued-start cancellation and concurrent-start ownership.
-- LAN discovery smoke covers transient single-protocol self-recovery without restarting the healthy protocol.
+- Desktop start/stop lifecycle smoke covers stale-start cancellation, stop barrier restart, read-only running/stopped host status, PIN stability and idempotent stop. Android JVM host coverage includes queued-start cancellation, concurrent-start ownership and read-only running/stopped status.
+- LAN discovery smoke covers transient single-protocol self-recovery without restarting the healthy protocol. The UI reconciliation hook is separately guarded to remain read-only, 3-second bounded, and free of `setMessage()`/new user copy.
 - `git diff --check`, syntax checks and version sync must pass before delivery.
 
 The removable in-app diagnostics now contain twenty-two full-host cases. A real Desktop/Android host with both runtimes should report **22/22**. Plain browser/paired Remote Web cannot host another service, so `remote-host-e2e` is skipped there.
@@ -215,7 +216,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Phase 4 — Unified NodeSpec / Node Contract** is complete/frozen on `dev` 1.4.36 (59). NodeSpec owns explicit runtime support and contract overrides; `src/nodeContract.ts` normalizes runtime/state/cache/function metadata. Runtime Auto, JavaScript compatibility diagnostics, Agent planning, inspector metadata, workflow import validation and speculative pre-execution guards consume this contract. The next architecture stage is Phase 5 Python/JavaScript golden-workflow parity testing.
+**Validate/freeze Phase 10 on packaged Desktop and Android.** 1.4.73 is the accepted network-behavior baseline, 1.4.74 closes native lifecycle/recovery races, and 1.4.75 closes stale native-host/UI state. Do not add more Remote Web/LAN behavior merely to extend the phase. First verify 1.4.75 on the real Desktop build and, when available, Android; if both remain clean, freeze Phase 10 before defining the next architecture stage. Any future UI copy change still requires explicit user approval.
 
 ### Production TypeScript vs test TypeScript
 

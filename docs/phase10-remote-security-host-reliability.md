@@ -162,3 +162,14 @@ A new reproducible lifecycle defect was found behind that accepted behavior: on 
 LAN discovery recovery is also made local and non-destructive. If SSDP or mDNS alone fails to start while the network identity remains unchanged, only the failed protocol is retried, no more often than every 15 seconds; the healthy protocol continues running. `recoveryAttempts` is exposed through host status for diagnostics.
 
 Finally, host observability no longer trusts a startup-time object. Desktop re-measures loopback/LAN HTTP readiness and current discovery state when an already-running host is queried, and the in-app host diagnostic always queries the host rather than substituting React's cached `RemoteServerInfo`. The diagnostic case count remains 22.
+
+
+## 1.4.75 Host state reconciliation
+
+1.4.74 made lifecycle ownership reliable but the React host indicator still depended primarily on the object returned when the service was started. A later network-address change, Discovery recovery or unexpected native stop could therefore leave the existing banner/status icon stale until another explicit host operation occurred.
+
+1.4.75 adds `RemoteHostStatus` with four lifecycle states (`stopped`, `starting`, `running`, `stopping`) and one read-only `getHostStatus()` operation on Desktop and Android. Desktop maps it to `pydroid:get-remote-host-status`; Android maps it to `PythonExecutor.getRemoteHostStatus`. A running snapshot is generated from the current LAN discovery state and active PIN without invoking startup readiness, restarting discovery or rotating security state.
+
+The existing local UI uses a focused reconciliation hook only while it already believes the host is active. Every three seconds it reads native status, refreshes the current RemoteServerInfo when the canonical address/discovery snapshot changes, or clears the stale running indicator when native state is stopped. The hook deliberately contains no `setMessage`, dialog or UI-copy path.
+
+The removable host diagnostic now uses native lifecycle state to decide whether a service pre-existed the test, requires `running` after startup, and verifies `stopped` after cleaning up a diagnostic-owned temporary host. The case count remains 22. The accepted 1.4.73 network behavior and 1.4.74 start/stop/recovery semantics remain unchanged.

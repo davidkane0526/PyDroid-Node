@@ -60,6 +60,7 @@ export function createBrowserPlatformAdapter(): PlatformAdapter {
         return remoteSession.request("/api/agent-proxy", { provider, body });
       },
       async startServer() { throw new Error("局域网服务只能在宿主应用内开启"); },
+      async getHostStatus() { return { state: "stopped", info: null }; },
       async stopServer() { /* browser cannot host */ },
       request: remoteSession.request,
     },

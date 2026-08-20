@@ -108,12 +108,26 @@ function createRemoteServerService({ pythonService, log }) {
     return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
   }
 
-  async function currentConnectionInfo(server, port = LAN_WEB_PORT) {
+  function currentConnectionSnapshot(server, port = LAN_WEB_PORT) {
     const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
     const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
     const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
     const url = `http://${address}:${port}/`;
     const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
+    const discovery = {
+      interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
+      ssdp: discoveryState.ssdp ?? "unavailable",
+      mdns: discoveryState.mdns ?? "unavailable",
+      recoveryAttempts: Number(discoveryState.recoveryAttempts ?? 0),
+    };
+    const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery };
+    if (server) server.__info = { ...(server.__info ?? {}), ...info };
+    return info;
+  }
+
+  async function currentConnectionInfo(server, port = LAN_WEB_PORT) {
+    const snapshot = currentConnectionSnapshot(server, port);
+    const discoveryState = snapshot.discovery ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
     let loopback = false;
     try {
       const health = await requestText(port, "/health");
@@ -128,19 +142,13 @@ function createRemoteServerService({ pythonService, log }) {
         lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
       }
     }
-    const discovery = {
-      interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
-      ssdp: discoveryState.ssdp ?? "unavailable",
-      mdns: discoveryState.mdns ?? "unavailable",
-      recoveryAttempts: Number(discoveryState.recoveryAttempts ?? 0),
-    };
     const readiness = {
       loopback,
       lanHttp: lanHealth,
       allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
-      discoveryReady: discovery.ssdp === "running" && discovery.mdns === "running",
+      discoveryReady: discoveryState.ssdp === "running" && discoveryState.mdns === "running",
     };
-    const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery, readiness };
+    const info = { ...snapshot, readiness };
     if (server) server.__info = info;
     return info;
   }
@@ -365,7 +373,12 @@ function createRemoteServerService({ pythonService, log }) {
     return "stopped";
   }
 
-  return { start, stop, lifecycleState };
+  function status() {
+    const state = lifecycleState();
+    return { state, info: state === "running" && remoteServer ? currentConnectionSnapshot(remoteServer) : null };
+  }
+
+  return { start, stop, status, lifecycleState };
 }
 
 module.exports = { createRemoteServerService, normalizeClientAddress, REMOTE_SECURITY_POLICY };
