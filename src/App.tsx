@@ -1,4 +1,4 @@
-import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent as ReactDragEvent, type ErrorInfo, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
+import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type CSSProperties, type DragEvent as ReactDragEvent, type ErrorInfo, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -57,7 +57,7 @@ import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -70,9 +70,6 @@ const PACKAGE_REQUIREMENTS_KEY = "pydroid-flow.package-requirements.v1";
 const LAYOUT_MODE_KEY = "pydroid-flow.layout-mode.v2";
 const MINIMAP_MODE_KEY = "pydroid-flow.minimap-mode.v2";
 const SETTINGS_KEY = "pydroid-flow.settings.v1";
-const FLOW_LIBRARY_KEY = "pydroid-flow.workflow-library.v1";
-const GROUP_LIBRARY_KEY = "pydroid-flow.group-library.v1";
-const SAVED_NODE_LIBRARY_KEY = "pydroid-flow.saved-node-library.v1";
 const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-override.v1";
 const PALETTE_MIN_WIDTH = 216;
 type PaletteResource = EditorResourceRef;
@@ -214,12 +211,6 @@ function loadPackageRequirements(): string[] {
   }
 }
 
-function loadFlowLibrary(): FlowLibraryEntry[] {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(FLOW_LIBRARY_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((item): item is FlowLibraryEntry => Boolean(item && typeof item === "object" && typeof (item as FlowLibraryEntry).id === "string" && typeof (item as FlowLibraryEntry).name === "string" && typeof (item as FlowLibraryEntry).document === "string")) : [];
-  } catch { return []; }
-}
 
 const initialNodes: WorkflowNode[] = [];
 
@@ -287,21 +278,6 @@ function defaultGroupLibrary(): GroupLibraryEntry[] {
   return groups;
 }
 
-function loadGroupLibrary(): GroupLibraryEntry[] {
-  const defaults = defaultGroupLibrary();
-  try {
-    const saved = JSON.parse(localStorage.getItem(GROUP_LIBRARY_KEY) ?? "[]") as unknown;
-    const custom = Array.isArray(saved) ? saved.filter((item): item is GroupLibraryEntry => Boolean(item && typeof item === "object" && typeof (item as GroupLibraryEntry).id === "string" && Array.isArray((item as GroupLibraryEntry).nodes) && Array.isArray((item as GroupLibraryEntry).edges))) : [];
-    return [...defaults, ...custom.filter((item) => !item.builtIn)].map((entry) => ({ ...entry, nodes: repairWorkflowGroupInterfaces(entry.nodes, entry.edges) }));
-  } catch { return defaults; }
-}
-
-function loadSavedNodeLibrary(): SavedNodeEntry[] {
-  try {
-    const saved: unknown = JSON.parse(localStorage.getItem(SAVED_NODE_LIBRARY_KEY) ?? "[]");
-    return Array.isArray(saved) ? saved.filter((item): item is SavedNodeEntry => Boolean(item && typeof item === "object" && typeof (item as SavedNodeEntry).id === "string" && typeof (item as SavedNodeEntry).name === "string" && (item as SavedNodeEntry).node && typeof (item as SavedNodeEntry).node === "object")) : [];
-  } catch { return []; }
-}
 
 function loadRememberedNodeDefaults(nodeType: string): Record<string, string | number | boolean | null> {
   try {
@@ -346,15 +322,9 @@ function safeWorkflowFileName(name: string): string {
   return `${stem}.workflow.json`;
 }
 
-function persistSerializedWorkflow(json: string, name: string): FlowLibraryEntry {
+function persistSerializedWorkflow(resourceLibrary: EditorResourceLibraryService, json: string, name: string): FlowLibraryEntry {
   downloadTextFile(json, safeWorkflowFileName(name), "application/json");
-  const entry: FlowLibraryEntry = { id: `flow-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: name || `流程 ${new Date().toLocaleString()}`, savedAt: new Date().toISOString(), document: json };
-  const library = [entry, ...loadFlowLibrary()].slice(0, 40);
-  localStorage.setItem(FLOW_LIBRARY_KEY, JSON.stringify(library));
-  void saveUserProfileFile(`workflows/${entry.id}.workflow.json`, json);
-  void saveUserProfileFile("workflows/library.json", JSON.stringify(library, null, 2));
-  window.dispatchEvent(new CustomEvent("pydroid-flow-library-changed"));
-  return entry;
+  return resourceLibrary.addFlowDocument(name, json);
 }
 
 function nodesInExecutionOrder(nodes: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
@@ -600,14 +570,14 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
 }
 
 
-function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
+function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; resourceLibrary: EditorResourceLibraryService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
   const tabId = session.id;
-  const executionClientId = getExecutionClientId();
-  const remoteBrowser = isRemoteRuntime();
-  const workspaceIdentity = createWorkspaceSessionIdentity(tabId, executionClientId, remoteBrowser ? "remote" : "local");
+  const workspaceIdentity = session.identity;
+  const executionClientId = workspaceIdentity.clientId;
+  const remoteBrowser = workspaceIdentity.source === "remote";
   const initialRuntimeState = session.getRuntimeState();
   const startingSnapshot = initialRuntimeState.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
-  const restoredExecutionStatus = getExecutionStatus(tabId);
+  const restoredExecutionStatus = getExecutionStatus(workspaceIdentity);
   const restoredExecutionResult = getWorkspaceExecutionResult(workspaceIdentity);
   const restoredCompletedNodes = new Set(restoredExecutionResult?.executionOrder ?? (restoredExecutionResult ? startingSnapshot.nodes.map((node) => node.id) : []));
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
@@ -692,7 +662,7 @@ function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, the
   const otherHostExecutions = hostExecutionLifecycle.executions.filter((entry) => entry.executionId !== currentHostExecution?.executionId);
   const isRunning = localExecutionActive || Boolean(currentHostExecution);
   const visibleExecutionId = executionLifecycle.executionId ?? currentHostExecution?.executionId ?? null;
-  useEffect(() => subscribeExecutionStatus(tabId, setExecutionLifecycle), [tabId]);
+  useEffect(() => subscribeExecutionStatus(workspaceIdentity, setExecutionLifecycle), [workspaceIdentity.key]);
   const [resultDock, setResultDock] = useState<"right" | "bottom">("right");
   const [inspectorWidth, setInspectorWidth] = useState(() => loadAppSettings().inspectorWidth);
   const [inspectorHeight, setInspectorHeight] = useState(() => loadAppSettings().inspectorHeight);
@@ -703,15 +673,11 @@ function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, the
   const [edgeWidth, setEdgeWidth] = useState(() => loadAppSettings().edgeWidth);
   const [nodeSearch, setNodeSearch] = useState("");
   const [paletteTab, setPaletteTab] = useState<"nodes" | "groups" | "functions" | "flows">("nodes");
-  const [groupLibrary, setGroupLibrary] = useState<GroupLibraryEntry[]>(loadGroupLibrary);
-  const [savedNodeLibrary, setSavedNodeLibrary] = useState<SavedNodeEntry[]>(loadSavedNodeLibrary);
-const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(null);
-  const [flowLibrary, setFlowLibrary] = useState<FlowLibraryEntry[]>(loadFlowLibrary);
-  useEffect(() => {
-    const refresh = () => setFlowLibrary(loadFlowLibrary());
-    window.addEventListener("pydroid-flow-library-changed", refresh);
-    return () => window.removeEventListener("pydroid-flow-library-changed", refresh);
-  }, []);
+  const resourceLibraryState = useSyncExternalStore(resourceLibrary.subscribe, resourceLibrary.getState, resourceLibrary.getState);
+  const groupLibrary = resourceLibraryState.groups;
+  const savedNodeLibrary = resourceLibraryState.savedNodes;
+  const flowLibrary = resourceLibraryState.flows;
+  const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileInfo | null>(null);
   const [showNodeInsights, setShowNodeInsights] = useState(() => loadAppSettings().showNodeInsights);
   const [debugMode, setDebugMode] = useState(() => loadAppSettings().debugMode);
@@ -1122,36 +1088,13 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     localStorage.setItem(NODE_GROUPS_KEY, JSON.stringify(customGroups));
   }, [customGroups]);
 
-  useEffect(() => {
-    localStorage.setItem(GROUP_LIBRARY_KEY, JSON.stringify(groupLibrary.filter((item) => !item.builtIn)));
-    void saveUserProfileFile("workflows/groups.json", JSON.stringify(groupLibrary.filter((item) => !item.builtIn), null, 2));
-  }, [groupLibrary]);
-
-  useEffect(() => {
-    localStorage.setItem(SAVED_NODE_LIBRARY_KEY, JSON.stringify(savedNodeLibrary));
-    void saveUserProfileFile("nodes/saved-nodes.json", JSON.stringify(savedNodeLibrary, null, 2));
-  }, [savedNodeLibrary]);
-
-  useEffect(() => {
-    localStorage.setItem(FLOW_LIBRARY_KEY, JSON.stringify(flowLibrary));
-    void saveUserProfileFile("workflows/library.json", JSON.stringify(flowLibrary, null, 2));
-  }, [flowLibrary]);
-
   const refreshExternalWorkflowLibrary = useCallback(async () => {
     try {
       const [profile, entries] = await Promise.all([getUserProfileInfo(), listWorkflowLibrary()]);
       setUserProfile(profile);
-      if (entries.length) setFlowLibrary((current) => {
-        const external = entries.map((entry) => {
-          const id = `external-${entry.uri}`;
-          const previous = current.find((item) => item.id === id);
-          return { id, name: previous?.name ?? entry.name, savedAt: "", document: entry.content, uri: entry.uri, external: true, locked: previous?.locked };
-        });
-        const ids = new Set(external.map((entry) => entry.id));
-        return [...external, ...current.filter((entry) => !ids.has(entry.id))];
-      });
+      resourceLibrary.mergeExternalFlows(entries);
     } catch (error) { setMessage(error instanceof Error ? error.message : "无法读取用户流程文件夹"); }
-  }, []);
+  }, [resourceLibrary]);
 
   useEffect(() => { void refreshExternalWorkflowLibrary(); }, [refreshExternalWorkflowLibrary]);
 
@@ -2062,7 +2005,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       const captured = captureGroupResource(selectedNode.id, nodes, edges);
       const entry: GroupLibraryEntry = { id: `group-template-${Date.now()}`, ...captured };
-      setGroupLibrary((current) => [entry, ...current]);
+      resourceLibrary.saveGroup(entry);
       setMessage(`已将“${entry.name}”保存到组合资源`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "保存组合资源失败");
@@ -2132,20 +2075,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!selectedNode || selectedNode.data.nodeType === "workflow.group") { setMessage("请先选择一个普通节点"); return; }
     const captured = captureNodeResource(selectedNode);
     const entry: SavedNodeEntry = { id: `saved-node-${Date.now()}`, name: selectedNode.data.label, node: captured.node, savedAt: new Date().toISOString() };
-    setSavedNodeLibrary((current) => [entry, ...current]);
+    resourceLibrary.saveNode(entry);
     setMessage(`已将“${entry.name}”保存到我的节点`);
   };
 
   const reorderSavedNodes = (dragId: string, overId: string) => {
-    setSavedNodeLibrary((current) => {
-      const from = current.findIndex((item) => item.id === dragId);
-      const to = current.findIndex((item) => item.id === overId);
-      if (from < 0 || to < 0 || from === to) return current;
-      const next = [...current];
-      const [moved] = next.splice(from, 1);
-      next.splice(to, 0, moved);
-      return next;
-    });
+    resourceLibrary.reorderNodes(dragId, overId);
   };
 
   const insertSavedNode = (template: SavedNodeEntry) => {
@@ -2546,7 +2481,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const runNotebook = async (throughIndex?: number) => {
-    if (notebookRunningCell !== null || ["queued", "running", "cancelling"].includes(getExecutionStatus(tabId).phase)) return;
+    if (notebookRunningCell !== null || ["queued", "running", "cancelling"].includes(getExecutionStatus(workspaceIdentity).phase)) return;
     const lastIndex = throughIndex ?? notebookCells.length - 1;
     const cells = notebookCells.slice(0, lastIndex + 1);
     if (!cells.some((cell) => cell.cellType === "code" && cell.source.trim())) { setNotebookError("没有可运行的代码单元格"); return; }
@@ -2557,7 +2492,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     try {
       const document = notebookCellsToWorkflow("Notebook 交互运行", cells, notebookMetadata);
       const inputFiles = csvFiles.map((file) => ({ name: file.name, text: new TextDecoder("utf-8").decode(file.bytes) }));
-      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, functions });
+      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
       setResult(nextResult);
       setNotebookCellResults((current) => ({ ...current, ...Object.fromEntries(cells.map((cell, index) => [cell.id, nextResult.nodeResults[`notebook-cell-${index + 1}`]]).filter((entry): entry is [string, NodeExecutionPreview] => Boolean(entry[1]))) }));
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
@@ -2687,8 +2622,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const saveWorkflow = () => {
-    lifecycle.saveSession(session, tabName, (json) => persistSerializedWorkflow(json, tabName));
-    setFlowLibrary(loadFlowLibrary());
+    lifecycle.saveSession(session, tabName, (json) => persistSerializedWorkflow(resourceLibrary, json, tabName));
     setMessage(`工作流“${tabName}”已保存`);
   };
 
@@ -2766,7 +2700,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         nextName = renamed.name;
         nextUri = renamed.uri;
       }
-      setFlowLibrary((current) => current.map((entry) => entry.id === renameFlow.id ? { ...entry, name: nextName, uri: nextUri, id: nextUri && entry.external ? `external-${nextUri}` : entry.id } : entry));
+      resourceLibrary.renameFlow(renameFlow.id, nextName, nextUri);
       setRenameFlow(null);
       setMessage(`已重命名流程为“${nextName}”`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "无法重命名流程"); }
@@ -2778,7 +2712,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (!(await requestConfirm({ title: "删除流程", message: `确定删除流程“${entry.name}”？此操作无法恢复。`, confirmLabel: "删除", danger: true }))) return;
     try {
       if (entry.external && entry.uri) await deleteWorkflowFile(entry.uri);
-      setFlowLibrary((current) => current.filter((item) => item.id !== entry.id));
+      resourceLibrary.removeFlow(entry.id);
       setMessage(`已删除流程“${entry.name}”`);
     } catch (error) { setMessage(error instanceof Error ? error.message : "无法删除流程"); }
   };
@@ -2786,7 +2720,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const toggleFlowLock = (entry: FlowLibraryEntry) => {
     setFlowMenu(null);
     if (!describeFlow(entry).capabilities.lock) { setMessage("该流程不支持锁定操作"); return; }
-    setFlowLibrary((current) => current.map((item) => item.id === entry.id ? { ...item, locked: !item.locked } : item));
+    resourceLibrary.toggleFlowLock(entry.id);
     setMessage(entry.locked ? `已解除流程“${entry.name}”的锁定` : `已锁定流程“${entry.name}”，不会允许改名或删除`);
   };
 
@@ -3060,7 +2994,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
     setMessage(`正在准备“${alertNode.data.label}”的当前内容…`);
     const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(slice.nodes);
-    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, functions });
+    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
     return previewResult.nodeResults[contentEdge.source] ?? (previewResult.preview.totalRows || previewResult.preview.totalColumns ? { kind: "table", preview: previewResult.preview } : undefined);
   };
 
@@ -3092,7 +3026,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const stopCurrentExecution = async () => {
     if (localExecutionActive) {
-      if (cancelActiveExecution(tabId)) setMessage("正在取消当前工作区执行并等待宿主释放…");
+      if (cancelActiveExecution(workspaceIdentity)) setMessage("正在取消当前工作区执行并等待宿主释放…");
       return;
     }
     const executionId = currentHostExecution?.executionId;
@@ -3115,7 +3049,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string) {
-    if (["queued", "running", "cancelling"].includes(getExecutionStatus(tabId).phase)) return;
+    if (["queued", "running", "cancelling"].includes(getExecutionStatus(workspaceIdentity).phase)) return;
     const hostStatus = await getHostExecutionStatus().catch(() => emptyHostExecutionStatus(isNativePlatform() ? 1 : 4));
     setHostExecutionLifecycle(hostStatus);
     const fullOrder = nodesInExecutionOrder(workflowNodes, workflowEdges);
@@ -3166,7 +3100,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
     try {
       const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(workflowNodes);
-      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, functions });
+      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
       setResult(nextResult);
       // Workspace variables live outside React state. Refresh their resource view explicitly
       // after every successful execution instead of relying on result identity as an indirect trigger.
@@ -3660,10 +3594,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             const label = descriptor?.label ?? "资源";
             return <div className="context-menu resource-context-menu" style={{ left: Math.min(resourceMenu.x, window.innerWidth - 210), top: Math.min(resourceMenu.y, window.innerHeight - 240) }} role="menu" aria-label="资源操作" onContextMenu={(event) => event.preventDefault()}><strong>{label}</strong>
               <button onClick={() => { if (catalog) addNodeFromCatalog(catalog.nodeType); else if (saved) insertSavedNode(saved); else if (group) insertGroupTemplate(group); setResourceMenu(null); }}>添加到画布</button>
-              {saved && descriptor?.capabilities.rename && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名节点", label: "节点名称", value: saved.name }).then((value) => { const name = value?.trim(); if (name) setSavedNodeLibrary((current) => current.map((item) => item.id === saved.id ? { ...item, name } : item)); }); }}>重命名</button>}
-              {group && descriptor?.capabilities.rename && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名组合", label: "组合名称", value: group.name }).then((value) => { const name = value?.trim(); if (name) setGroupLibrary((current) => current.map((item) => item.id === group.id ? { ...item, name, nodes: item.nodes.map((node) => node.data.nodeType === "workflow.group" ? { ...node, data: { ...node.data, label: name } } : node) } : item)); }); }}>重命名</button>}
-              {saved && descriptor?.capabilities.remove && <button className="danger" onClick={() => { setSavedNodeLibrary((current) => current.filter((item) => item.id !== saved.id)); setResourceMenu(null); }}>删除我的节点</button>}
-              {group && descriptor?.capabilities.remove && <button className="danger" onClick={() => { setGroupLibrary((current) => current.filter((item) => item.id !== group.id)); setResourceMenu(null); }}>删除组合</button>}
+              {saved && descriptor?.capabilities.rename && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名节点", label: "节点名称", value: saved.name }).then((value) => { const name = value?.trim(); if (name) resourceLibrary.renameNode(saved.id, name); }); }}>重命名</button>}
+              {group && descriptor?.capabilities.rename && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名组合", label: "组合名称", value: group.name }).then((value) => { const name = value?.trim(); if (name) resourceLibrary.renameGroup(group.id, name); }); }}>重命名</button>}
+              {saved && descriptor?.capabilities.remove && <button className="danger" onClick={() => { resourceLibrary.removeNode(saved.id); setResourceMenu(null); }}>删除我的节点</button>}
+              {group && descriptor?.capabilities.remove && <button className="danger" onClick={() => { resourceLibrary.removeGroup(group.id); setResourceMenu(null); }}>删除组合</button>}
             </div>;
           })()}
           {flowMenu && (() => {
@@ -4114,13 +4048,15 @@ function MultiTabWorkspace() {
   const emptySnapshot = emptyWorkflowSnapshot();
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
   const [activeId, setActiveId] = useState<string>("default");
-  const sessionStoreRef = useRef(new EditorSessionStore("default", emptySnapshot));
+  const sessionStoreRef = useRef(new EditorSessionStore("default", emptySnapshot, { clientId: workspaceExecutionClientId, source: workspaceSessionSource }));
   const lifecycleRef = useRef(new EditorWorkspaceLifecycleService(localStorage, AUTOSAVE_KEY));
+  const resourceLibraryRef = useRef<EditorResourceLibraryService | null>(null);
+  if (!resourceLibraryRef.current) resourceLibraryRef.current = new EditorResourceLibraryService(localStorage, defaultGroupLibrary(), (path, content) => saveUserProfileFile(path, content));
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
-  const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus("default").phase });
+  const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus(sessionStoreRef.current.ensure("default").identity).phase });
   const [completedIndicators, setCompletedIndicators] = useState<Record<string, boolean>>({});
   const [errorIndicators, setErrorIndicators] = useState<Record<string, boolean>>({});
-  const previousExecutionPhasesRef = useRef<Record<string, string>>({ default: getExecutionStatus("default").phase });
+  const previousExecutionPhasesRef = useRef<Record<string, string>>({ default: getExecutionStatus(sessionStoreRef.current.ensure("default").identity).phase });
   const errorIndicatorTimersRef = useRef(new Map<string, number>());
 
   const clearWorkspaceErrorIndicator = useCallback((workspaceId: string) => {
@@ -4167,7 +4103,7 @@ function MultiTabWorkspace() {
   }, [clearWorkspaceErrorIndicator, showTransientWorkspaceError]);
 
   useEffect(() => {
-    const unsubscribers = tabs.map((tab) => subscribeExecutionStatus(tab.id, (status) => {
+    const unsubscribers = tabs.map((tab) => subscribeExecutionStatus(sessionStoreRef.current.ensure(tab.id).identity, (status) => {
       applyWorkspaceExecutionPhase(tab.id, status.phase, tab.id === activeId);
     }));
     return () => unsubscribers.forEach((unsubscribe) => unsubscribe());
@@ -4175,14 +4111,13 @@ function MultiTabWorkspace() {
 
   useEffect(() => {
     let disposed = false;
-    const clientId = getExecutionClientId();
     const syncHostPhases = async () => {
       const hostStatus = await getHostExecutionStatus().catch(() => null);
       if (disposed || !hostStatus) return;
       for (const tab of tabs) {
-        const identity = createWorkspaceSessionIdentity(tab.id, clientId, workspaceSessionSource);
+        const identity = sessionStoreRef.current.ensure(tab.id).identity;
         const hostEntry = hostStatus.executions.find((entry) => matchesHostExecution(identity, entry));
-        const phase = hostEntry?.phase ?? getExecutionStatus(tab.id).phase;
+        const phase = hostEntry?.phase ?? getExecutionStatus(identity).phase;
         applyWorkspaceExecutionPhase(tab.id, phase, tab.id === activeId);
       }
     };
@@ -4227,8 +4162,9 @@ function MultiTabWorkspace() {
         const neighbor = next[Math.max(0, index - 1)];
         if (neighbor) setActiveId(neighbor.id);
       }
-      cancelActiveExecution(id);
-      const identity = createWorkspaceSessionIdentity(id, workspaceExecutionClientId, workspaceSessionSource);
+      const closingSession = sessionStoreRef.current.get(id);
+      const identity = closingSession?.identity ?? createWorkspaceSessionIdentity(id, workspaceExecutionClientId, workspaceSessionSource);
+      cancelActiveExecution(identity);
       clearWorkspaceExecutionResult(identity);
       clearWorkspaceVariableState(identity);
       sessionStoreRef.current.delete(id);
@@ -4259,7 +4195,7 @@ function MultiTabWorkspace() {
     const tab = tabs.find((item) => item.id === pendingCloseTabId);
     const session = sessionStoreRef.current.get(pendingCloseTabId);
     if (!tab || !session) { setPendingCloseTabId(null); return; }
-    lifecycleRef.current.saveSession(session, tab.name, (json) => persistSerializedWorkflow(json, tab.name));
+    lifecycleRef.current.saveSession(session, tab.name, (json) => persistSerializedWorkflow(resourceLibraryRef.current!, json, tab.name));
     const id = pendingCloseTabId;
     setPendingCloseTabId(null);
     performCloseTab(id);
@@ -4295,7 +4231,7 @@ function MultiTabWorkspace() {
     <TabsContext.Provider value={api}>
       <div className="workspace-shell" data-theme={resolvedTheme}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} resourceLibrary={resourceLibraryRef.current!} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
         <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>

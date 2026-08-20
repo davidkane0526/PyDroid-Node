@@ -1,4 +1,17 @@
-# Phase 9 progress — 1.4.65 (88)
+# Phase 9 progress — 1.4.66 (89)
+
+Phase 9 continues with its freeze-preparation ownership pass. The accepted Desktop/Mobile × Node/Group gesture matrix is unchanged.
+
+- Added `EditorResourceLibraryService` as the observable source of truth for saved nodes, groups and workflow-library entries. Save/rename/delete/reorder/lock mutations and profile mirroring no longer live in `App.tsx`.
+- `EditorWorkspaceSession` now owns a stable `WorkspaceSessionIdentity` for its full tab lifetime. `EditorSessionStore` creates every tab with one client/source identity context.
+- Shared and Desktop execution facades now key local `ExecutionManager` controllers by the full session identity (`source + clientId + workspaceId`) rather than a bare workspace ID. Host metadata still carries the human workspace ID/label/client ID.
+- Tab status subscription, cancellation, result/variable cleanup and Host execution matching consume the Session-owned identity. Two clients may therefore use the same tab ID without sharing local controller state.
+- Added `scripts/phase9-ownership-audit.mjs` and made it part of `test:editor-core`. The audit rejects direct resource-storage ownership, raw tab-ID execution control and legacy AI draft-graph surgery in `App.tsx`.
+- `App.tsx` is now about 4240 lines, down from 4679 at the Phase 9 foundation, through ownership removal rather than cosmetic component splitting.
+- Automated diagnostics add Resource Service persistence and Session/Execution lifecycle isolation; a fully capable Desktop/Android host should now report **17/17**.
+- Build script revision: `1.4.66-dev-r42-phase9-resource-service-session-lifecycle`.
+
+## Previous milestone — 1.4.65 (88)
 
 Phase 9 continues on `phase9/full-build-gate-fix`. This is a build-gate correction on top of the accepted 1.4.64 Resource/Remote/Agent milestone; no accepted Desktop/Mobile gesture semantics or Phase 9 runtime behavior are intentionally changed.
 

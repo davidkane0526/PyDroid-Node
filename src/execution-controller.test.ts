@@ -96,4 +96,27 @@ describe("ExecutionManager", () => {
     releaseA();
     await expect(first).resolves.toBe("A");
   });
+
+  it("keeps identical workspace names isolated when callers use full session keys", async () => {
+    const manager = new ExecutionManager();
+    const localKey = "local:desktop-client:default";
+    const remoteKey = "remote:web-client:default";
+    let releaseLocal!: () => void;
+    let releaseRemote!: () => void;
+    const localGate = new Promise<void>((resolve) => { releaseLocal = resolve; });
+    const remoteGate = new Promise<void>((resolve) => { releaseRemote = resolve; });
+
+    const local = manager.execute(localKey, "javascript", async () => { await localGate; return "local"; }, { executionId: "exec-local" });
+    const remote = manager.execute(remoteKey, "javascript", async () => { await remoteGate; return "remote"; }, { executionId: "exec-remote" });
+
+    expect(manager.isActive(localKey)).toBe(true);
+    expect(manager.isActive(remoteKey)).toBe(true);
+    expect(manager.activeWorkspaceIds().sort()).toEqual([localKey, remoteKey].sort());
+
+    releaseRemote();
+    await expect(remote).resolves.toBe("remote");
+    expect(manager.isActive(localKey)).toBe(true);
+    releaseLocal();
+    await expect(local).resolves.toBe("local");
+  });
 });

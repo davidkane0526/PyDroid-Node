@@ -60,8 +60,8 @@ assert.match(app, /statusbar-task-item/, "host task picker should expose individ
 assert.match(app, /workspaceLabel/, "execution UI should carry human-readable workspace labels into host metadata");
 assert.match(desktopScheduler, /workspaceLabel/, "Desktop scheduler status should preserve workflow labels");
 assert.match(androidController, /workspaceLabel/, "Android scheduler status should preserve workflow labels");
-assert.match(app, /subscribeExecutionStatus\(tabId/, "FlowEditor execution lifecycle must be scoped to its workspace tab");
-assert.match(app, /hostEntry\?\.phase \?\? getExecutionStatus\(tab\.id\)\.phase/, "tab execution badges must prefer real host queued/running phase over renderer-local running state");
+assert.match(app, /subscribeExecutionStatus\(workspaceIdentity/, "FlowEditor execution lifecycle must be scoped to its full workspace session identity");
+assert.match(app, /hostEntry\?\.phase \?\? getExecutionStatus\(identity\)\.phase/, "tab execution badges must prefer real host queued/running phase over session-scoped renderer state");
 assert.match(app, /otherHostExecutions/, "current workspace Run must remain independent from other host/client executions");
 assert.ok(pkg.build.files.includes("desktop/execution/**/*"), "Packaged desktop must include execution lifecycle modules");
 assert.ok(pkg.build.files.includes("desktop/services/**/*"), "Packaged desktop must include modular host services");

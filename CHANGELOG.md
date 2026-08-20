@@ -1,3 +1,20 @@
+## 1.4.66 (89) — Phase 9 Resource Service / Session Execution Lifecycle / Ownership Audit — 2026-08-20
+
+- Added `EditorResourceLibraryService` as the observable persistence owner for saved nodes, group resources and workflow-library entries; `App.tsx` no longer owns their localStorage keys or mutable library copies.
+- `EditorWorkspaceSession` now owns a stable `workspaceId + clientId + source` identity for its entire tab lifetime.
+- Shared and Desktop renderer execution controllers are keyed by the full Session identity, preventing equal tab IDs from different Local/Remote clients from sharing local execution lifecycle state.
+- Tab status subscription, cancellation and workspace result/variable cleanup now consume the Session-owned identity; Host execution matching uses the same identity boundary.
+- Added `scripts/phase9-ownership-audit.mjs` to prevent resource persistence, raw tab-ID execution control or legacy Agent graph surgery from returning to React.
+- Expanded removable automated diagnostics from 15 to **17** cases with Resource Service persistence and Session/Execution lifecycle isolation.
+- Accepted Desktop/Mobile × Node/Group/Canvas/Resource/Tab gesture semantics are unchanged.
+- Build script revision: `1.4.66-dev-r42-phase9-resource-service-session-lifecycle`.
+
+## 1.4.65 (88) — Phase 9 Production TypeScript Build Gate Repair — 2026-08-20
+
+- Restored the optional requested-position parameter for Function resource insertion so drag/drop retains its canvas position while button insertion keeps automatic placement.
+- Added a regression guard for the Function resource-drop helper contract after the user production build exposed the prior arity mismatch.
+- Runtime diagnostics remained 15/15; this release was a compile-gate repair.
+
 ## 1.4.64 (87) — Phase 9 Resource Contract / Remote Session Identity / Atomic AI Graph Surgery — 2026-08-20
 
 - Added a shared Resource Contract for catalog nodes, saved nodes, functions, groups and workflows, including centralized primary-action/drag/rename/remove/lock capabilities and built-in/locked protection.

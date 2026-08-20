@@ -1,8 +1,8 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-20
-当前架构开发分支：`phase9/editor-core-node-mutations-document-lifecycle`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.65 (88)`
+当前架构开发分支：`phase9/resource-service-session-lifecycle-audit`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.66 (89)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -576,7 +576,7 @@ desktop/
 7. Phase 6 Runtime Engine modularization：1.4.42 已完成并冻结。
 8. Phase 7 Host modularization：已完成并通过真实 Windows/Android 验收后冻结。
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
-10. Phase 9 Editor Core & Workspace Session：1.4.60 开始；1.4.64 已进一步统一 Resource Contract、Remote/Local workspace identity，并把 AI 批量 graph surgery 收敛为单一 Session 事务；此前连线/重连、替换、拖动 history、普通节点事务、布局与 save/open/close/autosave restore 生命周期保持在 Editor Core。Desktop/Mobile 与 Node/Group 手势不得被强制统一。
+10. Phase 9 Editor Core & Workspace Session：1.4.60 开始；1.4.66 已进一步统一 Resource Service、Session-owned workspace identity 与本地 ExecutionController 生命周期，并以 ownership audit 防止资源持久化、裸 tabId 执行控制和 AI graph surgery 回流 React；此前 Resource Contract、Remote/Local 隔离、AI 原子批量事务、连线/重连、替换、拖动 history、普通节点事务、布局与 save/open/close/autosave restore 生命周期均保持在 Editor Core。Desktop/Mobile 与 Node/Group 手势不得被强制统一。
 
 核心原则始终是：
 
@@ -601,8 +601,8 @@ UI 稳定
 
 ## 13. Phase 9 — Editor Core & Workspace Session
 
-状态：**1.4.65 持续开发中，尚未冻结。**
+状态：**1.4.66 冻结前收尾中，尚未冻结。**
 
-Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并逐步将用户操作收敛为 Editor Commands。React 负责订阅和呈现，不再作为工作流编辑语义的拥有者。1.4.65 在保留 1.4.64 资源能力契约、Remote/Local workspace session 身份边界和 AI Agent 原子批量事务的基础上，修复 Function 资源拖放 helper 的完整 TypeScript 构建门禁回归；1.4.63 已迁移连线/重连、节点替换、标签/模板编辑和拖动历史事务；`EditorWorkspaceLifecycleService` 继续接管保存、打开、关闭 dirty 判断和显式 autosave restore。正常启动仍保持单个空白工作流，不自动恢复旧画布。
+Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并逐步将用户操作收敛为 Editor Commands。React 负责订阅和呈现，不再作为工作流编辑语义的拥有者。1.4.66 将节点/组合/流程资源持久化收敛到 `EditorResourceLibraryService`，让 Session 持有稳定的 `workspaceId + clientId + source` 身份，并让本地 ExecutionController 使用完整 Session key；资源状态、标签状态、宿主执行展示和取消/清理因此共享同一身份边界。新增 ownership audit 作为冻结门禁，阻止资源存储、裸 tabId 执行控制和 AI draft graph 重新回流到 `App.tsx`。正常启动仍保持单个空白工作流，不自动恢复旧画布。
 
 手势采用二维策略矩阵：输入 profile（Desktop/Mobile）× 目标 kind（Node/Group/Canvas/Resource/Tab）。这是刻意的架构要求，不允许为了“统一”而让移动端和桌面端、节点和组合共享不适合的长按/双击含义。具体契约见 `docs/phase9-editor-core-workspace-session.md`。

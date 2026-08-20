@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.65-dev-r41-phase9-full-build-gate-fix"
+$script:BuildScriptRevision = "1.4.66-dev-r42-phase9-resource-service-session-lifecycle"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

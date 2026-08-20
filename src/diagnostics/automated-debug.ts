@@ -4,13 +4,15 @@ import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVa
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import { createFunctionCallNode } from "../workflow-functions";
 import { EditorSessionStore } from "../editor-core/session";
+import { EditorResourceLibraryService } from "../editor-core/resource-library";
+import { ExecutionManager } from "../execution-controller";
 import { EditorWorkspaceLifecycleService } from "../editor-core/lifecycle";
 import { resolveGesturePolicy } from "../editor-core/gesture-policy";
 import { createWorkspaceSessionIdentity, matchesHostExecution } from "../editor-core/workspace-identity";
 import { applyAgentOperationsToSession } from "../editor-core/agent-operations";
 import { describeFlow, describeFunction, describeGroup, describeSavedNode, resourceContractKey } from "../editor-core/resource-contract";
 import { getNodeSpec } from "../nodeCatalog";
-import { emptyWorkflowSnapshot } from "../workflow-core";
+import { emptyWorkflowSnapshot, type StorageLike } from "../workflow-core";
 
 export const AUTOMATED_DIAGNOSTICS_SCHEMA_VERSION = 1;
 
@@ -477,6 +479,60 @@ async function workspaceSessionIdentityCase(deps: AutomatedDiagnosticsDependenci
   });
 }
 
+
+async function resourceLibraryPersistenceCase(): Promise<DiagnosticCase> {
+  return runCase("editor-resource-persistence", "Resource Service 保存/改名/锁定/删除持久化", undefined, async () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    } as StorageLike;
+    const mirrored = new Map<string, string>();
+    const builtInGroup = node("diagnostic-built-in", "workflow.group", {}, "内置诊断组合");
+    const service = new EditorResourceLibraryService(storage, [{ id: "diagnostic-built-in", name: "内置诊断组合", description: "fixture", nodes: [builtInGroup], edges: [], builtIn: true }], (path, content) => mirrored.set(path, content));
+    service.saveNode({ id: "diagnostic-node-a", name: "A", node: node("saved-a", "table.absolute"), savedAt: "now" });
+    service.saveNode({ id: "diagnostic-node-b", name: "B", node: node("saved-b", "table.absolute"), savedAt: "now" });
+    if (!service.renameNode("diagnostic-node-a", "A2") || !service.reorderNodes("diagnostic-node-a", "diagnostic-node-b")) throw new Error("保存节点资源改名/排序失败");
+    if (service.renameGroup("diagnostic-built-in", "不应成功")) throw new Error("内置组合保护失效");
+    const flow = service.addFlowDocument("诊断流程", "{}", { id: "diagnostic-flow", savedAt: "now" });
+    if (!service.toggleFlowLock(flow.id)?.locked || service.removeFlow(flow.id)) throw new Error("流程锁定没有阻止删除");
+    service.toggleFlowLock(flow.id);
+    if (!service.removeFlow(flow.id)) throw new Error("解锁后的流程无法删除");
+    if (!mirrored.has("nodes/saved-nodes.json") || !mirrored.has("workflows/library.json")) throw new Error("资源镜像没有经过 Resource Service");
+    return {
+      savedNodeCount: service.getState().savedNodes.length,
+      builtInGroupProtected: service.getState().groups.some((entry) => entry.id === "diagnostic-built-in" && entry.builtIn),
+      flowLockProtectedDelete: true,
+      mirroredPaths: [...mirrored.keys()].sort(),
+    };
+  });
+}
+
+async function executionSessionLifecycleCase(): Promise<DiagnosticCase> {
+  return runCase("execution-session-lifecycle", "标签 Session 与本地执行控制器身份隔离", undefined, async () => {
+    const localStore = new EditorSessionStore("shared", emptyWorkflowSnapshot(), { clientId: "diagnostic-local-client", source: "local" });
+    const remoteStore = new EditorSessionStore("shared", emptyWorkflowSnapshot(), { clientId: "diagnostic-remote-client", source: "remote" });
+    const local = localStore.get("shared")!;
+    const remote = remoteStore.get("shared")!;
+    if (local.identity.key === remote.identity.key) throw new Error("Editor Session identity 发生碰撞");
+    const manager = new ExecutionManager();
+    let releaseLocal!: () => void;
+    let releaseRemote!: () => void;
+    const localGate = new Promise<void>((resolve) => { releaseLocal = resolve; });
+    const remoteGate = new Promise<void>((resolve) => { releaseRemote = resolve; });
+    const localRun = manager.execute(local.identity.key, "javascript", async () => { await localGate; return "local"; });
+    const remoteRun = manager.execute(remote.identity.key, "javascript", async () => { await remoteGate; return "remote"; });
+    await Promise.resolve();
+    if (!manager.isActive(local.identity.key) || !manager.isActive(remote.identity.key)) throw new Error("同 workspaceId 的不同 Session 不能并行拥有独立控制器");
+    if (manager.activeWorkspaceIds().length !== 2) throw new Error("执行控制器没有按 Session key 隔离");
+    releaseLocal();
+    releaseRemote();
+    const results = await Promise.all([localRun, remoteRun]);
+    return { localKey: local.identity.key, remoteKey: remote.identity.key, simultaneousControllers: 2, results };
+  });
+}
+
 async function agentEditorBatchCase(): Promise<DiagnosticCase> {
   return runCase("editor-agent-batch", "AI Agent 批量 Graph Surgery 单一 Session 事务", undefined, async () => {
     const session = new EditorSessionStore("agent-batch", emptyWorkflowSnapshot()).get("agent-batch")!;
@@ -537,7 +593,9 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await editorLifecycleAutosaveCase());
   cases.push(await editorDocumentLifecycleCase());
   cases.push(await resourceContractCase());
+  cases.push(await resourceLibraryPersistenceCase());
   cases.push(await workspaceSessionIdentityCase(deps));
+  cases.push(await executionSessionLifecycleCase());
   cases.push(await agentEditorBatchCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));

@@ -57,7 +57,7 @@ The policy currently preserves accepted interaction behavior while making future
 
 ## Diagnostics
 
-The removable automated-diagnostics feature now adds eleven Phase 9 cases:
+The removable automated-diagnostics feature now adds thirteen Phase 9 cases:
 
 1. per-workspace Editor Session isolation across graph/input/history/dirty/view state;
 2. Editor Command transaction ownership, including history/undo/redo for group create/dissolve;
@@ -67,11 +67,13 @@ The removable automated-diagnostics feature now adds eleven Phase 9 cases:
 6. lifecycle autosave read/write/corruption quarantine;
 7. save/open/close/autosave-restore lifecycle;
 8. unified Resource Contract capabilities for node/function/group/flow resources;
-9. Local/Remote workspace-session identity isolation by workspace + client + source;
-10. atomic AI Agent batch graph surgery with one undo baseline and no partial writes;
-11. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
+9. Resource Library Service persistence/mirroring and protected-resource behavior;
+10. Local/Remote workspace-session identity isolation by workspace + client + source;
+11. Session-owned identity isolation in the local ExecutionManager lifecycle;
+12. atomic AI Agent batch graph surgery with one undo baseline and no partial writes;
+13. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
 
-Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **15/15**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
+Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **17/17**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
 
 ## 1.4.61 milestone — lifecycle and structural resources
 
@@ -114,14 +116,24 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 - `EditorWorkspaceSession.applyGraphCommandBatch()` provides an atomic multi-command boundary. AI plans stage/validate in `src/editor-core/agent-operations.ts` and commit once, producing one undo entry; invalid plans are rejected before any partial graph mutation reaches the Session.
 - The gesture matrix remains unchanged and independent. This milestone changes resource/session/agent ownership, not Desktop/Mobile or Node/Group interaction meaning.
 
+## 1.4.66 milestone — Resource Service and Session/Host lifecycle ownership
+
+- `EditorResourceLibraryService` owns saved-node/group/flow persistence, observable resource state and best-effort profile mirroring. React subscribes to this service instead of maintaining three mutable resource-library copies.
+- `EditorWorkspaceSession.identity` is stable for the tab lifetime and is created by `EditorSessionStore` from one browser client/source context.
+- renderer-local execution controllers are addressed by the full Session key (`source:clientId:workspaceId`), while Host metadata keeps the normal workspace ID/label/client ID for scheduling and status presentation.
+- tab status subscription, cancellation and workspace result/variable cleanup therefore share one identity lifecycle with the Editor Session.
+- `scripts/phase9-ownership-audit.mjs` is a freeze gate: resource storage keys/setters, raw tab-ID execution control and legacy Agent draft-graph ownership may not return to `App.tsx`.
+- automated diagnostics add Resource Service persistence and Session/Execution lifecycle isolation, raising a full Desktop/Android run to **17/17**.
+- accepted Desktop/Mobile × Node/Group/Canvas/Resource/Tab gesture semantics are unchanged.
+
 ## Phase 9 continuation
 
-1. Move remaining resource-library persistence mutations behind explicit resource services while preserving the shared capability contract.
-2. Continue converging tab/session lifecycle and host execution presentation on the explicit workspace identity.
-3. Reduce remaining UI-owned selection/import convenience mutations and inspect whether Phase 9 can freeze without changing accepted gestures.
-4. Continue reducing `App.tsx` by responsibility, not by cosmetic file splitting.
+1. Audit the remaining UI-owned selection/import convenience mutations and move only true business ownership out of React.
+2. Run the dependency-backed production TypeScript/Vite/Desktop build on the user host and require the expanded 17/17 diagnostics.
+3. Decide whether the remaining UI code is presentation/interaction adaptation rather than domain ownership; if so, freeze Phase 9 instead of chasing a line-count target.
+4. Preserve the independent Desktop/Mobile and Node/Group gesture policies during freeze.
 
-## Non-goals for 1.4.60–1.4.65
+## Non-goals for 1.4.60–1.4.66
 
 - no visual redesign;
 - no forced gesture unification between Desktop and Android;

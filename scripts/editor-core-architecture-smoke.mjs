@@ -16,6 +16,7 @@ const reactAdapter = readFileSync(path.join(root, "src/editor-core/react.ts"), "
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
 const diagnostics = readFileSync(path.join(root, "src/diagnostics/automated-debug.ts"), "utf8");
 const resourceContract = readFileSync(path.join(root, "src/editor-core/resource-contract.ts"), "utf8");
+const resourceLibrary = readFileSync(path.join(root, "src/editor-core/resource-library.ts"), "utf8");
 const workspaceIdentity = readFileSync(path.join(root, "src/workspace-session-identity.ts"), "utf8");
 const agentOperations = readFileSync(path.join(root, "src/editor-core/agent-operations.ts"), "utf8");
 const executionWorkspace = readFileSync(path.join(root, "src/execution-workspace.ts"), "utf8");
@@ -123,5 +124,18 @@ assert.doesNotMatch(app, /let draftNodes =|let draftEdges =/, "App must not perf
 assert.match(diagnostics, /editor-resource-contract/, "one-click diagnostics should cover Resource Contract semantics");
 assert.match(diagnostics, /workspace-session-identity/, "one-click diagnostics should cover remote/local workspace identity isolation");
 assert.match(diagnostics, /editor-agent-batch/, "one-click diagnostics should cover atomic AI batch graph surgery");
+
+assert.match(resourceLibrary, /class EditorResourceLibraryService/, "resource persistence should have an explicit Editor Core service boundary");
+assert.match(resourceLibrary, /saveGroup\(|saveNode\(|addFlowDocument\(|renameFlow\(|removeFlow\(/, "Resource Service should own persistent resource mutations");
+assert.match(app, /useSyncExternalStore\(resourceLibrary\.subscribe, resourceLibrary\.getState/, "resource UI should render the Resource Service as its source of truth");
+assert.doesNotMatch(app, /pydroid-flow\.(workflow-library|group-library|saved-node-library)\.v1/, "App.tsx must not own resource persistence storage keys");
+assert.doesNotMatch(app, /setGroupLibrary|setSavedNodeLibrary|setFlowLibrary/, "App.tsx must not own mutable resource library mirrors");
+assert.match(session, /readonly identity: WorkspaceSessionIdentity/, "each EditorWorkspaceSession should own one stable workspace identity");
+assert.match(session, /EditorSessionIdentityContext/, "EditorSessionStore should bind all tabs to one client/source identity context");
+assert.match(sharedExecution, /executionManager\.execute\(identity\.key/, "shared local execution controller should be keyed by full session identity");
+assert.match(desktopExecution, /executionManager\.execute\(identity\.key/, "desktop local execution controller should be keyed by full session identity");
+assert.match(app, /subscribeExecutionStatus\(sessionStoreRef\.current\.ensure\(tab\.id\)\.identity/, "tab execution subscriptions should use session identity instead of raw tab ids");
+assert.match(diagnostics, /editor-resource-persistence/, "one-click diagnostics should cover Resource Service persistence semantics");
+assert.match(diagnostics, /execution-session-lifecycle/, "one-click diagnostics should cover Session-keyed local execution lifecycle");
 
 console.log("editor-core architecture smoke passed");

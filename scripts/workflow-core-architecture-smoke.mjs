@@ -11,10 +11,10 @@ const commands = readFileSync(fileURLToPath(new URL("../src/workflow-core/comman
 const editorLifecycle = readFileSync(fileURLToPath(new URL("../src/editor-core/lifecycle.ts", import.meta.url)), "utf8");
 
 
-const remoteBrowserDeclaration = app.indexOf("const remoteBrowser = isRemoteRuntime();");
+const remoteBrowserDeclaration = app.indexOf('const remoteBrowser = workspaceIdentity.source === "remote";');
 const remotePairState = app.indexOf("const [remotePaired, setRemotePaired]");
 const hostPolling = app.indexOf("const refresh = async () =>", remotePairState);
-assert.ok(remoteBrowserDeclaration >= 0, "FlowEditor should declare remoteBrowser");
+assert.ok(remoteBrowserDeclaration >= 0, "FlowEditor should derive remoteBrowser from its stable workspace session identity");
 assert.ok(remotePairState > remoteBrowserDeclaration, "remote pairing state should be declared after runtime detection");
 assert.ok(hostPolling > remotePairState, "host execution polling should run after remote pairing state exists");
 assert.match(app.slice(remotePairState, hostPolling + 900), /remoteBrowser && !remotePaired/, "remote browser should poll host state immediately after pairing instead of waiting for UI interaction");

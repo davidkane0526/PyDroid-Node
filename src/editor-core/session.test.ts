@@ -122,3 +122,13 @@ it("applies command batches atomically with one history baseline", () => {
   expect(session.history.entries).toHaveLength(1);
   expect(session.undo()?.nodes).toHaveLength(0);
 });
+
+it("binds every tab session to one client/source identity for its full lifecycle", () => {
+  const store = new EditorSessionStore("a", emptyWorkflowSnapshot(), { clientId: "client-a", source: "remote" });
+  const a = store.get("a")!;
+  const b = store.ensure("b", emptyWorkflowSnapshot());
+  expect(a.identity.key).toBe("remote:client-a:a");
+  expect(b.identity.key).toBe("remote:client-a:b");
+  expect(b.identity.clientId).toBe(a.identity.clientId);
+  expect(b.identity.source).toBe(a.identity.source);
+});

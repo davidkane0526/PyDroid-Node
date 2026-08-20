@@ -1,4 +1,5 @@
 import { WorkflowHistory } from "../workflow-core/history";
+import { createWorkspaceSessionIdentity, type WorkspaceSessionIdentity, type WorkspaceSessionSource } from "../workspace-session-identity";
 import { applyEditorGraphCommand, type EditorGraphCommand, type EditorGraphCommandResult } from "./commands";
 import {
   cloneWorkflowSnapshot,
@@ -67,6 +68,7 @@ export class EditorWorkspaceSession {
     initialRuntimeState?: WorkspaceRuntimeState,
     initialViewState: Partial<EditorWorkspaceViewState> = {},
     history = new WorkflowHistory(50),
+    readonly identity: WorkspaceSessionIdentity = createWorkspaceSessionIdentity(id, "client-unknown", "local"),
   ) {
     this.runtimeState = initialRuntimeState ?? createWorkspaceRuntimeState(initialSnapshot);
     this.viewState = { ...EMPTY_VIEW, ...initialViewState, selectedNodeIds: [...(initialViewState.selectedNodeIds ?? [])] };
@@ -293,11 +295,33 @@ export class EditorWorkspaceSession {
   }
 }
 
+export type EditorSessionIdentityContext = {
+  clientId: string;
+  source: WorkspaceSessionSource;
+};
+
 export class EditorSessionStore {
   private readonly sessions = new Map<string, EditorWorkspaceSession>();
+  private readonly identityContext: EditorSessionIdentityContext;
 
-  constructor(initialId = "default", initialSnapshot: WorkflowSnapshot = emptyWorkflowSnapshot()) {
-    this.sessions.set(initialId, new EditorWorkspaceSession(initialId, initialSnapshot));
+  constructor(
+    initialId = "default",
+    initialSnapshot: WorkflowSnapshot = emptyWorkflowSnapshot(),
+    identityContext: EditorSessionIdentityContext = { clientId: "client-unknown", source: "local" },
+  ) {
+    this.identityContext = identityContext;
+    this.sessions.set(initialId, this.createSession(initialId, initialSnapshot));
+  }
+
+  private createSession(id: string, initialSnapshot: WorkflowSnapshot): EditorWorkspaceSession {
+    return new EditorWorkspaceSession(
+      id,
+      initialSnapshot,
+      undefined,
+      {},
+      new WorkflowHistory(50),
+      createWorkspaceSessionIdentity(id, this.identityContext.clientId, this.identityContext.source),
+    );
   }
 
   get(id: string): EditorWorkspaceSession | undefined {
@@ -307,7 +331,7 @@ export class EditorSessionStore {
   ensure(id: string, initialSnapshot: WorkflowSnapshot = emptyWorkflowSnapshot()): EditorWorkspaceSession {
     const existing = this.sessions.get(id);
     if (existing) return existing;
-    const created = new EditorWorkspaceSession(id, initialSnapshot);
+    const created = this.createSession(id, initialSnapshot);
     this.sessions.set(id, created);
     return created;
   }
