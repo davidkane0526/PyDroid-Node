@@ -29,6 +29,13 @@ export type ReplaceSnapshotOptions = {
   markSaved?: boolean;
 };
 
+export type ApplyGraphCommandOptions = {
+  captureHistory?: boolean;
+  historyGroup?: string;
+  historyWindowMs?: number;
+  timestampMs?: number;
+};
+
 const EMPTY_VIEW: EditorWorkspaceViewState = {
   primaryNodeId: null,
   selectedNodeIds: [],
@@ -49,6 +56,7 @@ export class EditorWorkspaceSession {
   private runtimeState: WorkspaceRuntimeState;
   private viewState: EditorWorkspaceViewState;
   private revision = 0;
+  private lastHistoryCapture: { group: string; at: number } | null = null;
   private readonly listeners = new Set<() => void>();
   private stateSnapshot: EditorWorkspaceSessionState;
 
@@ -101,6 +109,7 @@ export class EditorWorkspaceSession {
 
   replaceSnapshot(snapshot: WorkflowSnapshot, options: ReplaceSnapshotOptions = {}): void {
     if (options.captureHistory) this.history.push(this.runtimeState.snapshot);
+    this.lastHistoryCapture = null;
     const nextSnapshot = cloneWorkflowSnapshot(snapshot);
     this.runtimeState = {
       ...this.runtimeState,
@@ -120,6 +129,7 @@ export class EditorWorkspaceSession {
 
   captureHistory(): void {
     this.history.push(this.runtimeState.snapshot);
+    this.lastHistoryCapture = null;
     this.emit();
   }
 
@@ -127,6 +137,7 @@ export class EditorWorkspaceSession {
     const previous = this.history.undo(this.runtimeState.snapshot);
     if (!previous) return null;
     this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(previous) };
+    this.lastHistoryCapture = null;
     this.resetView();
     this.emit();
     return this.runtimeState.snapshot;
@@ -136,6 +147,7 @@ export class EditorWorkspaceSession {
     const next = this.history.redo(this.runtimeState.snapshot);
     if (!next) return null;
     this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(next) };
+    this.lastHistoryCapture = null;
     this.resetView();
     this.emit();
     return this.runtimeState.snapshot;
@@ -145,6 +157,7 @@ export class EditorWorkspaceSession {
     const restored = this.history.restoreAt(index, this.runtimeState.snapshot);
     if (!restored) return null;
     this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(restored) };
+    this.lastHistoryCapture = null;
     this.resetView();
     this.emit();
     return this.runtimeState.snapshot;
@@ -152,14 +165,25 @@ export class EditorWorkspaceSession {
 
   clearHistory(): void {
     this.history.clear();
+    this.lastHistoryCapture = null;
     this.emit();
   }
 
-  applyGraphCommand(command: EditorGraphCommand): EditorGraphCommandResult {
+  applyGraphCommand(command: EditorGraphCommand, options: ApplyGraphCommandOptions = {}): EditorGraphCommandResult {
     const current = this.runtimeState.snapshot;
     const result = applyEditorGraphCommand(current, command);
     if (!result.changed) return result;
-    this.history.push(current);
+    if (options.captureHistory !== false) {
+      const now = options.timestampMs ?? Date.now();
+      const windowMs = options.historyWindowMs ?? 800;
+      const lastHistoryCapture = this.lastHistoryCapture;
+      const grouped = options.historyGroup !== undefined
+        && lastHistoryCapture !== null
+        && lastHistoryCapture.group === options.historyGroup
+        && now - lastHistoryCapture.at <= windowMs;
+      if (!grouped) this.history.push(current);
+      this.lastHistoryCapture = options.historyGroup ? { group: options.historyGroup, at: now } : null;
+    }
     this.runtimeState = { ...this.runtimeState, snapshot: result.snapshot };
     if (result.meta) {
       const next = { ...this.viewState };

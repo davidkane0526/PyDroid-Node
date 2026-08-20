@@ -13,6 +13,35 @@ const snapshot: WorkflowSnapshot = {
 };
 
 describe("editor graph commands", () => {
+  it("inserts, duplicates and mutates nodes through explicit command types", () => {
+    const inserted = applyEditorGraphCommand(snapshot, {
+      type: "insert-node",
+      node: { id: "c", position: { x: 2, y: 2 }, data: { label: "c", nodeType: "python.print", nodeVersion: 1, parameters: { prefix: "" }, status: "idle" } },
+    });
+    expect(inserted.changed).toBe(true);
+    expect(inserted.meta?.primaryNodeId).toBe("c");
+
+    const duplicated = applyEditorGraphCommand(inserted.snapshot, { type: "duplicate-node", sourceNodeId: "c", duplicateId: "c-copy" });
+    expect(duplicated.snapshot.nodes.find((node) => node.id === "c-copy")?.data.label).toBe("c 副本");
+
+    const updated = applyEditorGraphCommand(duplicated.snapshot, { type: "update-node-parameters", nodeId: "c-copy", patch: { prefix: "phase9" } });
+    expect(updated.changed).toBe(true);
+    expect(updated.snapshot.nodes.find((node) => node.id === "c-copy")?.data.parameters.prefix).toBe("phase9");
+  });
+
+  it("arranges a canvas without moving nodes on another canvas", () => {
+    const nested: WorkflowSnapshot = {
+      ...snapshot,
+      nodes: [
+        ...snapshot.nodes,
+        { id: "nested", position: { x: 77, y: 88 }, data: { label: "nested", nodeType: "python.print", nodeVersion: 1, parameters: {}, status: "idle", canvasParentId: "group-a" } },
+      ],
+    };
+    const result = applyEditorGraphCommand(nested, { type: "arrange-canvas", canvasId: null, viewportWidth: 1200, direction: "horizontal" });
+    expect(result.changed).toBe(true);
+    expect(result.snapshot.nodes.find((node) => node.id === "nested")?.position).toEqual({ x: 77, y: 88 });
+  });
+
   it("applies deletion through one command boundary", () => {
     const result = applyEditorGraphCommand(snapshot, { type: "delete-nodes", nodeIds: ["a"] });
     expect(result.changed).toBe(true);

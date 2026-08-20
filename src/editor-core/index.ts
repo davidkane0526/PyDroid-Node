@@ -1,6 +1,7 @@
 export * from "./commands";
 export * from "./gesture-policy";
 export * from "./lifecycle";
+export * from "./layout";
 export * from "./resources";
 export * from "./session";
 export * from "./workflow-structure";

@@ -58,8 +58,8 @@ import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requ
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
-import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, EditorWorkspaceLifecycleService, captureGroupResource, captureNodeResource, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, useEditorWorkspaceSession, type EditorWorkspaceSession } from "./editor-core";
+import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, arrangeStructureChildren, captureGroupResource, captureNodeResource, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, useEditorWorkspaceSession, type EditorWorkspaceSession } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -351,9 +351,7 @@ function safeWorkflowFileName(name: string): string {
   return `${stem}.workflow.json`;
 }
 
-function persistWorkflowSnapshot(snapshot: WorkflowSnapshot, name: string): FlowLibraryEntry {
-  const persistent = workflowSnapshotForPersistence(snapshot);
-  const json = JSON.stringify(serializeWorkflow(name || "PyDroid Flow 工作流", persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? []), null, 2);
+function persistSerializedWorkflow(json: string, name: string): FlowLibraryEntry {
   downloadTextFile(json, safeWorkflowFileName(name), "application/json");
   const entry: FlowLibraryEntry = { id: `flow-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, name: name || `流程 ${new Date().toLocaleString()}`, savedAt: new Date().toISOString(), document: json };
   const library = [entry, ...loadFlowLibrary()].slice(0, 40);
@@ -388,40 +386,6 @@ function nodesInExecutionOrder(nodes: WorkflowNode[], edges: Edge[]): WorkflowNo
     }
   }
   return [...ordered, ...nodes.filter((node) => !visited.has(node.id))];
-}
-
-function arrangeStructureChildren(nodes: WorkflowNode[], direction: "horizontal" | "vertical"): WorkflowNode[] {
-  const structures = new Map(nodes.filter((node) => ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType)).map((node) => [node.id, node]));
-  const totals = new Map<string, number>();
-  for (const node of nodes) if (node.parentId && structures.has(node.parentId)) {
-    const parent = structures.get(node.parentId)!;
-    const branch = parent.data.nodeType === "logic.if_subflow" ? (node.data.branch ?? "true") : "body";
-    const key = `${parent.id}:${branch}`;
-    totals.set(key, (totals.get(key) ?? 0) + 1);
-  }
-  const counters = new Map<string, number>();
-  return nodes.map((node) => {
-    if (structures.has(node.id)) {
-      const branchCount = node.data.nodeType === "logic.if_subflow"
-        ? Math.max(totals.get(`${node.id}:true`) ?? 0, totals.get(`${node.id}:false`) ?? 0)
-        : totals.get(`${node.id}:body`) ?? 0;
-      const rows = node.data.nodeType === "logic.if_subflow" || direction === "vertical" ? branchCount : Math.ceil(branchCount / 2);
-      const height = Math.max(300, 126 + rows * 116);
-      return { ...node, style: { ...node.style, width: Number(node.style?.width ?? 520), height } };
-    }
-    if (!node.parentId || !structures.has(node.parentId)) return node;
-    const parent = structures.get(node.parentId)!;
-    const branch = parent.data.nodeType === "logic.if_subflow" ? (node.data.branch ?? "true") : "body";
-    const key = `${parent.id}:${branch}`;
-    const index = counters.get(key) ?? 0;
-    counters.set(key, index + 1);
-    const position = parent.data.nodeType === "logic.if_subflow"
-      ? { x: branch === "false" ? 285 : 35, y: 108 + index * 112 }
-      : direction === "horizontal"
-        ? { x: 42 + (index % 2) * 238, y: 108 + Math.floor(index / 2) * 116 }
-        : { x: 168, y: 108 + index * 116 };
-    return { ...node, position, extent: "parent" as const, expandParent: true };
-  });
 }
 
 function hydrateNodeDefaults(node: WorkflowNode): WorkflowNode {
@@ -909,7 +873,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     };
   }, []);
   const livePreviewTimer = useRef<number | null>(null);
-  const parameterEditSession = useRef<{ key: string; time: number } | null>(null);
   const applyingRemoteConfiguration = useRef(false);
   const touchPaletteDrag = useRef<{ resource: PaletteResource; pointerId: number; startX: number; startY: number; element: HTMLButtonElement; armed: boolean; moved: boolean; pointerType: string } | null>(null);
   const paletteResourceMenuTimer = useRef<number | null>(null);
@@ -1170,13 +1133,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   useEffect(() => {
     if (layoutMode !== "auto" || previousAutoDirection.current === resolvedLayoutDirection) return;
     previousAutoDirection.current = resolvedLayoutDirection;
-    setNodes((current) => {
-      const layer = current.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId);
-      const arranged = new Map(compactNodeLayout(layer, viewportWidth, resolvedLayoutDirection, edges).map((node) => [node.id, node]));
-      return current.map((node) => arranged.get(node.id) ?? node);
-    });
+    session.applyGraphCommand(
+      { type: "arrange-canvas", canvasId: currentCanvasId, viewportWidth, direction: resolvedLayoutDirection },
+      { captureHistory: false },
+    );
     setMessage(`画布已自动切换为${resolvedLayoutDirection === "vertical" ? "纵向" : "横向"}布局`);
-  }, [currentCanvasId, edges, layoutMode, resolvedLayoutDirection, setNodes, viewportWidth]);
+  }, [currentCanvasId, layoutMode, resolvedLayoutDirection, session, viewportWidth]);
 
   useEffect(() => {
     localStorage.setItem(PERSONAL_TEMPLATES_KEY, JSON.stringify(personalTemplates));
@@ -1238,10 +1200,10 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     // vertical default. fitView subsequently chooses a readable zoom for the screen.
     const timer = window.setTimeout(() => {
       initialLayoutPending.current = false;
-      setNodes((current) => compactNodeLayout(current, viewportWidth, "vertical", edges));
+      session.applyGraphCommand({ type: "arrange-canvas", canvasId: currentCanvasId, viewportWidth, direction: "vertical" }, { captureHistory: false });
     }, 80);
     return () => window.clearTimeout(timer);
-  }, [edges, setNodes, viewportWidth]);
+  }, [currentCanvasId, session, viewportWidth]);
 
   useEffect(() => () => {
     if (livePreviewTimer.current !== null) window.clearTimeout(livePreviewTimer.current);
@@ -1823,7 +1785,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, []);
 
   const addNodeFromCatalog = (nodeType: string, position?: { x: number; y: number }) => {
-    pushHistory();
     const number = nextNodeNumber.current++;
     const id = `${nodeType.replaceAll(".", "-")}-${Date.now()}-${number}`;
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
@@ -1852,9 +1813,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         node.data.branch = container.data.nodeType === "logic.if_subflow" && relative.x >= Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "false" : container.data.nodeType === "logic.if_subflow" ? "true" : "body";
       }
     }
-    setNodes((current) => [...current, node]);
+    const inserted = session.applyGraphCommand({ type: "insert-node", node });
+    if (!inserted.changed) {
+      setMessage(inserted.meta?.blockedReason ?? "节点添加失败");
+      return;
+    }
     window.setTimeout(() => setNodes((current) => current.map((item) => item.id === id ? { ...item, className: undefined } : item)), 360);
-    setSelectedId(id);
     clearExecutionResult();
     setMessage(`已添加“${node.data.label}”节点`);
   };
@@ -2156,17 +2120,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const duplicateSelectedNode = () => {
     if (!selectedNode) return;
-    pushHistory();
     const id = `${selectedNode.data.nodeType.replaceAll(".", "-")}-${Date.now()}-copy`;
-    const copy: WorkflowNode = {
-      ...cloneWorkflowSnapshot({ nodes: [selectedNode], edges: [] }).nodes[0],
-      id,
-      selected: false,
-      position: { x: selectedNode.position.x + 40, y: selectedNode.position.y + 40 },
-      data: { ...selectedNode.data, status: "idle", label: `${selectedNode.data.label} 副本` },
-    };
-    setNodes((current) => [...current, copy]);
-    setSelectedId(id);
+    const duplicated = session.applyGraphCommand({ type: "duplicate-node", sourceNodeId: selectedNode.id, duplicateId: id });
+    if (!duplicated.changed) { setMessage(duplicated.meta?.blockedReason ?? "节点复制失败"); return; }
     clearExecutionResult();
     setMessage("节点已复制；连线不会自动复制");
   };
@@ -2369,31 +2325,21 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const updateParameter = (key: string, value: string | number | boolean | null) => {
     if (!selectedId) return;
-    const now = Date.now();
-    if (!parameterEditSession.current || parameterEditSession.current.key !== key || now - parameterEditSession.current.time > 800) pushHistory();
-    parameterEditSession.current = { key, time: now };
-    setNodes((current) => {
-      const next = current.map((node) => node.id === selectedId ? {
-        ...node,
-        data: { ...node.data, status: "idle" as const, parameters: { ...node.data.parameters, [key]: value } },
-      } : node);
-      if (livePreview && (csvText || csvBytes)) {
-        if (livePreviewTimer.current !== null) window.clearTimeout(livePreviewTimer.current);
-        livePreviewTimer.current = window.setTimeout(() => void runPrototype(next), 450);
-      }
-      return next;
-    });
+    const updated = session.applyGraphCommand(
+      { type: "update-node-parameters", nodeId: selectedId, patch: { [key]: value } },
+      { historyGroup: `parameter:${selectedId}:${key}`, historyWindowMs: 800 },
+    );
+    if (!updated.changed) return;
+    if (livePreview && (csvText || csvBytes)) {
+      if (livePreviewTimer.current !== null) window.clearTimeout(livePreviewTimer.current);
+      livePreviewTimer.current = window.setTimeout(() => void runPrototype(updated.snapshot.nodes), 450);
+    }
     clearExecutionResult();
     setMessage("参数已修改，等待运行");
   };
 
   const applyNodeLayout = (direction: "horizontal" | "vertical", announce = true) => {
-    pushHistory();
-    setNodes((current) => {
-      const layer = current.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId);
-      const arranged = new Map(compactNodeLayout(layer, viewportWidth, direction, edges).map((node) => [node.id, node]));
-      return arrangeStructureChildren(current.map((node) => arranged.get(node.id) ?? node), direction);
-    });
+    session.applyGraphCommand({ type: "arrange-canvas", canvasId: currentCanvasId, viewportWidth, direction });
     refreshVisibleNodeGeometry();
     window.setTimeout(() => {
       const ids = nodes.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId).map((node) => ({ id: node.id }));
@@ -2759,12 +2705,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
   };
 
-  const currentWorkflowSnapshot = () => cloneWorkflowSnapshot(session.getRuntimeState().snapshot);
   const hasUnsavedWorkflowChanges = () => session.isDirty();
 
   const clearCurrentWorkflow = () => {
-    const blankSnapshot = emptyWorkflowSnapshot();
-    replaceWorkflowContent(blankSnapshot, { captureHistory: true, markSaved: true });
+    lifecycle.resetWorkspace(session, true);
+    clearExecutionResult();
     clearWorkspaceVariableState(tabId);
     setWorkspaceVariableRevision((value) => value + 1);
     setViewMode("nodes");
@@ -2832,9 +2777,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const saveWorkflow = () => {
-    const snapshot = currentWorkflowSnapshot();
-    persistWorkflowSnapshot(snapshot, tabName);
-    lifecycle.markSaved(session);
+    lifecycle.saveSession(session, tabName, (json) => persistSerializedWorkflow(json, tabName));
     setFlowLibrary(loadFlowLibrary());
     setMessage(`工作流“${tabName}”已保存`);
   };
@@ -2852,12 +2795,14 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const openLibraryFlow = (entry: FlowLibraryEntry) => {
     try {
-      const document = parseWorkflow(entry.document);
-      const nextNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
-        const hydrated = hydrateNodeDefaults(node);
-        return { ...hydrated, type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrated.data, status: "idle" as const } };
-      }), document.edges);
-      replaceWorkflowContent({ nodes: nextNodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [] });
+      lifecycle.openSerialized(session, entry.document, (document) => {
+        const nextNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+          const hydrated = hydrateNodeDefaults(node);
+          return { ...hydrated, type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrated.data, status: "idle" as const } };
+        }), document.edges);
+        return { nodes: nextNodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [] };
+      });
+      clearExecutionResult();
       window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
       setMessage(`已打开流程“${entry.name}”`);
     } catch { setMessage("流程库条目已损坏，无法打开"); }
@@ -2967,8 +2912,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           : `已转换 ${imported.cells.length} 个单元格：识别 ${recognizedCount} 个功能节点，其余无损保留`);
         return;
       }
-      const document = parseWorkflow(text);
-      replaceWorkflowContent(prepareImportedWorkflow(document));
+      const opened = lifecycle.openSerialized(session, text, prepareImportedWorkflow);
+      clearExecutionResult();
+      const document = opened.document;
       setMessage(`已导入流程“${document.name}”`);
     } catch (error) {
       setMessage(error instanceof Error ? `导入失败：${error.message}` : "工作流导入失败");
@@ -4462,7 +4408,7 @@ function MultiTabWorkspace() {
   const closeTab = useCallback((id: string) => {
     if (tabs.length <= 1) return;
     const session = sessionStoreRef.current.get(id);
-    if (!session || !session.isDirty()) {
+    if (!session || !lifecycleRef.current.needsSaveBeforeClose(session)) {
       performCloseTab(id);
       return;
     }
@@ -4474,9 +4420,7 @@ function MultiTabWorkspace() {
     const tab = tabs.find((item) => item.id === pendingCloseTabId);
     const session = sessionStoreRef.current.get(pendingCloseTabId);
     if (!tab || !session) { setPendingCloseTabId(null); return; }
-    const state = session.getRuntimeState();
-    persistWorkflowSnapshot(state.snapshot, tab.name);
-    lifecycleRef.current.markSaved(session);
+    lifecycleRef.current.saveSession(session, tab.name, (json) => persistSerializedWorkflow(json, tab.name));
     const id = pendingCloseTabId;
     setPendingCloseTabId(null);
     performCloseTab(id);

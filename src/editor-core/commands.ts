@@ -9,9 +9,14 @@ import {
   synchronizeFunctionDefinitionCalls,
   synchronizeFunctionGraphCalls,
 } from "../workflow-functions";
+import { arrangeCanvasSnapshot, type EditorLayoutDirection } from "./layout";
 import { deriveGroupInterface } from "./workflow-structure";
 
 export type EditorGraphCommand =
+  | { type: "insert-node"; node: WorkflowNode }
+  | { type: "duplicate-node"; sourceNodeId: string; duplicateId: string; offset?: { x: number; y: number }; labelSuffix?: string }
+  | { type: "update-node-parameters"; nodeId: string; patch: Record<string, string | number | boolean | null> }
+  | { type: "arrange-canvas"; canvasId: string | null; viewportWidth: number; direction: EditorLayoutDirection }
   | { type: "delete-nodes"; nodeIds: string[] }
   | { type: "disconnect-nodes"; nodeIds: string[] }
   | { type: "disconnect-edges"; edgeIds: string[] }
@@ -45,6 +50,49 @@ function unchanged(snapshot: WorkflowSnapshot, blockedReason?: string): EditorGr
     changed: false,
     affectedCount: 0,
     ...(blockedReason ? { meta: { blockedReason } } : {}),
+  };
+}
+
+function insertNode(snapshot: WorkflowSnapshot, node: WorkflowNode): EditorGraphCommandResult {
+  if (snapshot.nodes.some((item) => item.id === node.id)) return unchanged(snapshot, `节点 ID 已存在：${node.id}`);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes: [...snapshot.nodes, node] },
+    changed: true,
+    affectedCount: 1,
+    meta: { primaryNodeId: node.id, selectedNodeIds: [node.id], createdNodeIds: [node.id] },
+  };
+}
+
+function duplicateNode(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "duplicate-node" }>): EditorGraphCommandResult {
+  const source = snapshot.nodes.find((node) => node.id === command.sourceNodeId);
+  if (!source) return unchanged(snapshot, "待复制节点不存在");
+  if (snapshot.nodes.some((node) => node.id === command.duplicateId)) return unchanged(snapshot, `节点 ID 已存在：${command.duplicateId}`);
+  const [copy] = cloneWorkflowSnapshot({ nodes: [source], edges: [], functions: [], requirements: [] }).nodes;
+  const offset = command.offset ?? { x: 40, y: 40 };
+  const duplicate: WorkflowNode = {
+    ...copy,
+    id: command.duplicateId,
+    selected: false,
+    position: { x: source.position.x + offset.x, y: source.position.y + offset.y },
+    data: { ...copy.data, status: "idle", label: `${source.data.label}${command.labelSuffix ?? " 副本"}` },
+  };
+  return insertNode(snapshot, duplicate);
+}
+
+function updateNodeParameters(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "update-node-parameters" }>): EditorGraphCommandResult {
+  const source = snapshot.nodes.find((node) => node.id === command.nodeId);
+  if (!source) return unchanged(snapshot, "待更新节点不存在");
+  const nextParameters = { ...source.data.parameters, ...command.patch };
+  const changed = Object.entries(command.patch).some(([key, value]) => source.data.parameters[key] !== value);
+  if (!changed) return unchanged(snapshot);
+  const nodes = snapshot.nodes.map((node) => node.id === command.nodeId
+    ? { ...node, data: { ...node.data, status: "idle" as const, parameters: nextParameters } }
+    : node);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes },
+    changed: true,
+    affectedCount: 1,
+    meta: { primaryNodeId: command.nodeId },
   };
 }
 
@@ -207,6 +255,13 @@ function deleteFunction(snapshot: WorkflowSnapshot, functionId: string): EditorG
 }
 
 export function applyEditorGraphCommand(snapshot: WorkflowSnapshot, command: EditorGraphCommand): EditorGraphCommandResult {
+  if (command.type === "insert-node") return insertNode(snapshot, command.node);
+  if (command.type === "duplicate-node") return duplicateNode(snapshot, command);
+  if (command.type === "update-node-parameters") return updateNodeParameters(snapshot, command);
+  if (command.type === "arrange-canvas") {
+    const arranged = arrangeCanvasSnapshot(snapshot, command.canvasId, command.viewportWidth, command.direction);
+    return { snapshot: cloneWorkflowSnapshot(arranged), changed: true, affectedCount: arranged.nodes.filter((node) => (node.data.canvasParentId ?? null) === command.canvasId).length };
+  }
   if (command.type === "delete-nodes") {
     const next = deleteNodesFromGraph(snapshot.nodes, snapshot.edges, command.nodeIds);
     return {

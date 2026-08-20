@@ -54,4 +54,41 @@ describe("EditorWorkspaceLifecycleService", () => {
     expect(session.isDirty()).toBe(false);
     expect(session.getRuntimeState().input?.fileName).toBe("a.csv");
   });
+
+  it("owns save/open/close decisions and only marks saved after persistence succeeds", () => {
+    const { storage } = memoryStorage();
+    const lifecycle = new EditorWorkspaceLifecycleService(storage);
+    const session = new EditorSessionStore("tab", snapshotWithRequirements("before")).get("tab")!;
+    session.updateSnapshot((snapshot) => ({ ...snapshot, requirements: ["after"] }));
+    expect(lifecycle.needsSaveBeforeClose(session)).toBe(true);
+
+    let serialized = "";
+    lifecycle.saveSession(session, "Lifecycle", (text) => { serialized = text; });
+    expect(serialized).toContain('"name": "Lifecycle"');
+    expect(lifecycle.needsSaveBeforeClose(session)).toBe(false);
+
+    session.updateSnapshot((snapshot) => ({ ...snapshot, requirements: ["dirty"] }));
+    expect(() => lifecycle.saveSession(session, "Lifecycle", () => { throw new Error("disk full"); })).toThrow("disk full");
+    expect(session.isDirty()).toBe(true);
+
+    const opened = new EditorSessionStore("opened").get("opened")!;
+    lifecycle.openSerialized(opened, serialized);
+    expect(opened.getRuntimeState().snapshot.requirements).toEqual(["after"]);
+    expect(opened.isDirty()).toBe(false);
+  });
+
+  it("restores autosave into a dirty recoverable session without changing startup policy", () => {
+    const { storage } = memoryStorage();
+    const lifecycle = new EditorWorkspaceLifecycleService(storage, "test.autosave");
+    const session = new EditorSessionStore("recover").get("recover")!;
+    lifecycle.writeAutosave("recover", snapshotWithRequirements("recovered"));
+    const restored = lifecycle.restoreAutosave(session);
+    expect(restored.status).toBe("ok");
+    expect(session.getRuntimeState().snapshot.requirements).toEqual(["recovered"]);
+    expect(session.isDirty()).toBe(true);
+  });
 });
+
+function snapshotWithRequirements(requirement: string) {
+  return { nodes: [], edges: [], functions: [], requirements: [requirement] };
+}

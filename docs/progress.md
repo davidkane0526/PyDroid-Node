@@ -1,15 +1,24 @@
-# Phase 9 progress — 1.4.61 (84)
+# Phase 9 progress — 1.4.62 (85)
 
-Phase 9 continues on `phase9/editor-core-lifecycle-resources`. The 1.4.60 Session/Gesture foundation remains intact; 1.4.61 moves structural workflow mutations and persistence lifecycle farther out of React without changing the accepted Desktop/Android UI or gesture meanings.
+Phase 9 continues on `phase9/editor-core-node-mutations-document-lifecycle`. The accepted Desktop/Android interaction model remains unchanged; this milestone moves ordinary node mutations and document lifecycle decisions behind Editor Core boundaries.
 
-- `EditorWorkspaceSession` now owns history capture, undo, redo and history restore in addition to the workflow/view state introduced in 1.4.60.
-- Editor Commands now cover group create/dissolve, save/update group as reusable function, function call insertion/materialization/deletion, and atomic resource insertion.
-- `workflow-structure.ts` centralizes dynamic NodeSpec/group-interface derivation and repair.
-- `resources.ts` centralizes saved node/group capture and instantiation.
-- `EditorWorkspaceLifecycleService` centralizes autosave serialization/read/write/corruption quarantine and saved-signature transitions. Import/open/new paths replace a whole Session snapshot atomically rather than mutating graph parts independently.
-- Automated diagnostics add Editor Command transaction and lifecycle-autosave cases. A fully capable Desktop/Android host should now report **8/8**.
-- Gesture policies remain intentionally split by Desktop/Mobile and Node/Group/Canvas/Resource/Tab. 1.4.61 does not redefine the accepted touch/mouse behavior.
-- `App.tsx` is 4520 lines, down from the 1.4.60 baseline of 4679 because structural/lifecycle semantics moved into Editor Core.
+- Editor Commands now additionally own catalog-node insertion, node duplication, parameter mutation and canvas layout.
+- `EditorWorkspaceSession` owns continuous-edit history coalescing, so rapid slider/parameter changes form one undo transaction instead of React manually timing `pushHistory()` calls.
+- `layout.ts` owns canvas/structure layout semantics; `App.tsx` no longer owns `arrangeStructureChildren()`.
+- `EditorWorkspaceLifecycleService` now owns save serialization, open/apply, close dirty decisions, reset and explicit autosave restore in addition to autosave read/write/quarantine.
+- Current-tab save, JSON open/import, save-before-close and close dirty checks now delegate to the Lifecycle service.
+- Autosave restore is intentionally explicit and does **not** change the accepted startup rule: the app still starts with one empty workflow rather than silently reopening a previous canvas.
+- Automated diagnostics add node-mutation/history/layout and full document-lifecycle cases. A fully capable Desktop/Android host should now report **10/10**.
+- Gesture policies remain intentionally split by Desktop/Mobile and Node/Group/Canvas/Resource/Tab. 1.4.62 does not redefine accepted touch/mouse behavior.
+- `App.tsx` is now 4464 lines, down from 4520 in 1.4.61 and 4679 in the 1.4.60 foundation; reduction remains a consequence of moving semantics, not a line-count target.
+- Build script revision: `1.4.62-dev-r38-phase9-editor-core-node-document-lifecycle`.
+
+## 2026-08-20 — Phase 9 lifecycle/resources / 1.4.61 (84)
+
+- Moved group/function/resource structure transactions behind Editor Commands.
+- Moved history capture/undo/redo/restore into `EditorWorkspaceSession`.
+- Added `workflow-structure.ts`, `resources.ts` and the first `EditorWorkspaceLifecycleService` autosave boundary.
+- Automated diagnostics expanded from 6 to 8 cases.
 
 ## 2026-08-20 — Phase 9 Session/Gesture foundation / 1.4.60 (83)
 

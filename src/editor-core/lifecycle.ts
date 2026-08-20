@@ -1,5 +1,6 @@
 import { parseWorkflow, serializeWorkflow, type WorkflowDocument } from "../workflow";
 import {
+  emptyWorkflowSnapshot,
   workflowSnapshotForPersistence,
   type StorageLike,
   type StorageWriteResult,
@@ -14,6 +15,17 @@ export type WorkspaceAutosaveReadResult =
   | { status: "missing" }
   | { status: "ok"; document: WorkflowDocument }
   | { status: "corrupt"; message: string };
+
+export type WorkspaceDocumentApplyOptions = {
+  captureHistory?: boolean;
+  markSaved?: boolean;
+  resetView?: boolean;
+};
+
+export type WorkspaceDocumentOpenResult = {
+  document: WorkflowDocument;
+  snapshot: WorkflowSnapshot;
+};
 
 export class EditorWorkspaceLifecycleService {
   constructor(
@@ -63,5 +75,59 @@ export class EditorWorkspaceLifecycleService {
 
   markSaved(session: EditorWorkspaceSession): void {
     session.markSaved();
+  }
+
+  applyDocument(
+    session: EditorWorkspaceSession,
+    document: WorkflowDocument,
+    prepare: (document: WorkflowDocument) => WorkflowSnapshot = (value) => ({
+      nodes: value.nodes,
+      edges: value.edges,
+      functions: value.functions ?? [],
+      requirements: value.requirements ?? [],
+    }),
+    options: WorkspaceDocumentApplyOptions = {},
+  ): WorkspaceDocumentOpenResult {
+    const snapshot = prepare(document);
+    session.replaceSnapshot(snapshot, {
+      captureHistory: options.captureHistory ?? true,
+      resetView: options.resetView ?? true,
+      markSaved: options.markSaved ?? true,
+    });
+    return { document, snapshot };
+  }
+
+  openSerialized(
+    session: EditorWorkspaceSession,
+    serialized: string,
+    prepare?: (document: WorkflowDocument) => WorkflowSnapshot,
+    options: WorkspaceDocumentApplyOptions = {},
+  ): WorkspaceDocumentOpenResult {
+    return this.applyDocument(session, parseWorkflow(serialized), prepare, options);
+  }
+
+  restoreAutosave(
+    session: EditorWorkspaceSession,
+    prepare?: (document: WorkflowDocument) => WorkflowSnapshot,
+  ): WorkspaceAutosaveReadResult {
+    const restored = this.readAutosave(session.id);
+    if (restored.status === "ok") this.applyDocument(session, restored.document, prepare, { captureHistory: false, markSaved: false, resetView: true });
+    return restored;
+  }
+
+  resetWorkspace(session: EditorWorkspaceSession, captureHistory = true): void {
+    session.replaceSnapshot(emptyWorkflowSnapshot(), { captureHistory, resetView: true, markSaved: true });
+    this.clearAutosave(session.id);
+  }
+
+  saveSession<T>(session: EditorWorkspaceSession, name: string, writer: (serialized: string) => T): T {
+    const serialized = this.serializeSnapshotPretty(session.getRuntimeState().snapshot, name);
+    const result = writer(serialized);
+    session.markSaved();
+    return result;
+  }
+
+  needsSaveBeforeClose(session: EditorWorkspaceSession): boolean {
+    return session.isDirty();
   }
 }

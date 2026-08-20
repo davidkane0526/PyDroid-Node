@@ -231,6 +231,45 @@ async function editorCommandTransactionCase(): Promise<DiagnosticCase> {
   });
 }
 
+async function editorNodeMutationCase(): Promise<DiagnosticCase> {
+  return runCase("editor-node-mutations", "Editor Core 节点新增/复制/参数/布局事务", undefined, async () => {
+    const source = node("source", "python.print", { prefix: "" }, "源节点");
+    source.position = { x: 40, y: 60 };
+    const session = new EditorSessionStore("node-mutations", { nodes: [source], edges: [], functions: [], requirements: [] }).get("node-mutations")!;
+
+    const insertedNode = node("inserted", "python.print", { prefix: "inserted" }, "新增节点");
+    insertedNode.position = { x: 320, y: 60 };
+    const inserted = session.applyGraphCommand({ type: "insert-node", node: insertedNode });
+    if (!inserted.changed || session.getViewState().primaryNodeId !== "inserted") throw new Error("insert-node 没有原子更新图与选择状态");
+
+    const duplicated = session.applyGraphCommand({ type: "duplicate-node", sourceNodeId: "inserted", duplicateId: "inserted-copy" });
+    if (!duplicated.changed || !session.getRuntimeState().snapshot.nodes.some((item) => item.id === "inserted-copy")) throw new Error("duplicate-node 事务失败");
+
+    const historyBeforeParameter = session.history.entries.length;
+    session.applyGraphCommand(
+      { type: "update-node-parameters", nodeId: "inserted-copy", patch: { prefix: "phase9-a" } },
+      { historyGroup: "parameter:inserted-copy:prefix", historyWindowMs: 800, timestampMs: 1000 },
+    );
+    session.applyGraphCommand(
+      { type: "update-node-parameters", nodeId: "inserted-copy", patch: { prefix: "phase9-ab" } },
+      { historyGroup: "parameter:inserted-copy:prefix", historyWindowMs: 800, timestampMs: 1300 },
+    );
+    if (session.history.entries.length !== historyBeforeParameter + 1) throw new Error("连续参数编辑没有合并为一个 undo 事务");
+    if (session.getRuntimeState().snapshot.nodes.find((item) => item.id === "inserted-copy")?.data.parameters.prefix !== "phase9-ab") throw new Error("参数事务最终值异常");
+
+    const arranged = session.applyGraphCommand({ type: "arrange-canvas", canvasId: null, viewportWidth: 1000, direction: "horizontal" });
+    if (!arranged.changed || arranged.affectedCount !== 3) throw new Error("画布布局事务没有覆盖当前画布节点");
+
+    return {
+      nodeCount: session.getRuntimeState().snapshot.nodes.length,
+      historyEntries: session.history.entries.length,
+      parameterHistoryCoalesced: true,
+      selectedNodeId: session.getViewState().primaryNodeId,
+      arrangedNodeCount: arranged.affectedCount,
+    };
+  });
+}
+
 async function editorLifecycleAutosaveCase(): Promise<DiagnosticCase> {
   return runCase("editor-lifecycle-autosave", "Workspace Lifecycle 自动保存与损坏隔离", undefined, async () => {
     const values = new Map<string, string>();
@@ -257,6 +296,45 @@ async function editorLifecycleAutosaveCase(): Promise<DiagnosticCase> {
   });
 }
 
+async function editorDocumentLifecycleCase(): Promise<DiagnosticCase> {
+  return runCase("editor-document-lifecycle", "Workspace save/open/close/autosave restore 生命周期", undefined, async () => {
+    const values = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => { values.set(key, value); },
+      removeItem: (key: string) => { values.delete(key); },
+    };
+    const lifecycle = new EditorWorkspaceLifecycleService(storage, "diagnostic.documents");
+    const source = new EditorSessionStore("document", emptyWorkflowSnapshot()).get("document")!;
+    source.updateSnapshot((snapshot) => ({ ...snapshot, nodes: [node("saved", "python.print", { prefix: "phase9" }, "保存节点")], requirements: ["demo>=1"] }));
+    if (!lifecycle.needsSaveBeforeClose(source)) throw new Error("dirty workspace 没有触发关闭前保存判定");
+
+    let serialized = "";
+    lifecycle.saveSession(source, "诊断工作流", (text) => { serialized = text; });
+    if (!serialized.includes("诊断工作流") || source.isDirty()) throw new Error("saveSession 没有在持久化成功后标记 saved");
+
+    const opened = new EditorSessionStore("opened", emptyWorkflowSnapshot()).get("opened")!;
+    const openedResult = lifecycle.openSerialized(opened, serialized);
+    if (openedResult.document.name !== "诊断工作流" || opened.isDirty() || opened.getRuntimeState().snapshot.nodes[0]?.id !== "saved") throw new Error("openSerialized 没有原子恢复并建立 saved baseline");
+    const openedInitiallyClean = !opened.isDirty();
+
+    opened.updateSnapshot((snapshot) => ({ ...snapshot, requirements: ["recovered>=2"] }));
+    const written = lifecycle.writeAutosave(opened.id, opened.getRuntimeState().snapshot, "恢复测试");
+    if (written.ok === false) throw new Error(`autosave 写入失败：${written.message}`);
+    const recovered = new EditorSessionStore("opened", emptyWorkflowSnapshot()).get("opened")!;
+    const restore = lifecycle.restoreAutosave(recovered);
+    if (restore.status !== "ok" || !recovered.isDirty() || recovered.getRuntimeState().snapshot.requirements?.[0] !== "recovered>=2") throw new Error("autosave restore 没有恢复为可继续编辑的 dirty session");
+
+    return {
+      saveMarkedClean: !source.isDirty(),
+      openedMarkedClean: openedInitiallyClean,
+      closeRequiresSaveAfterEdit: lifecycle.needsSaveBeforeClose(opened),
+      autosaveRestoredDirty: recovered.isDirty(),
+      restoredNodeCount: recovered.getRuntimeState().snapshot.nodes.length,
+    };
+  });
+}
+
 async function gestureContractCase(): Promise<DiagnosticCase> {
   return runCase("editor-gesture-contract", "桌面/移动端 × 节点/组合手势契约", undefined, async () => {
     const desktopNode = resolveGesturePolicy("desktop", "node");
@@ -276,7 +354,9 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   const cases: DiagnosticCase[] = [];
   cases.push(await editorSessionIsolationCase());
   cases.push(await editorCommandTransactionCase());
+  cases.push(await editorNodeMutationCase());
   cases.push(await editorLifecycleAutosaveCase());
+  cases.push(await editorDocumentLifecycleCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));
   cases.push(await reusableFunctionCase("javascript", deps));

@@ -56,6 +56,20 @@ describe("EditorSessionStore", () => {
     expect(restored?.nodes.map((node) => node.id)).toEqual(["a"]);
   });
 
+  it("coalesces rapid parameter edits into one undo transaction", () => {
+    const session = new EditorSessionStore("tab", snapshotWithNode("a")).get("tab")!;
+    session.applyGraphCommand(
+      { type: "update-node-parameters", nodeId: "a", patch: { prefix: "a" } },
+      { historyGroup: "parameter:a:prefix", historyWindowMs: 800, timestampMs: 1000 },
+    );
+    session.applyGraphCommand(
+      { type: "update-node-parameters", nodeId: "a", patch: { prefix: "ab" } },
+      { historyGroup: "parameter:a:prefix", historyWindowMs: 800, timestampMs: 1400 },
+    );
+    expect(session.history.entries).toHaveLength(1);
+    expect(session.undo()?.nodes[0]?.data.parameters.prefix).toBeUndefined();
+  });
+
   it("notifies observable subscribers when runtime or view state changes", () => {
     const session = new EditorSessionStore("tab", emptyWorkflowSnapshot()).get("tab")!;
     let notifications = 0;
