@@ -5,6 +5,7 @@ import type { WorkflowNode } from "./workflow";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { APP_VERSION } from "./app-version";
+import type { AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 
 export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };
@@ -628,7 +629,26 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
 type ThemeMode = "system" | "dark" | "light";
 type CanvasSettings = { nodeScale: number; endpointScale: number; edgeWidth: number; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; miniMapMode: "auto" | "show" | "hide"; showNodeInsights: boolean };
 
-export function SettingsDialog({ open, themeMode, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, hotReloadEnabled, profilePath, workspaceUri, onClose, onThemeModeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onConfigureFolder, onExportSettings, onImportSettings }: {
+
+export function AutomatedDiagnosticsDialog({ open, running, report, onClose, onRun, onCopy, onExport }: {
+  open: boolean;
+  running: boolean;
+  report: AutomatedDiagnosticReport | null;
+  onClose: () => void;
+  onRun: () => void;
+  onCopy: () => void;
+  onExport: () => void;
+}) {
+  if (!open) return null;
+  return <div className="settings-backdrop diagnostics-backdrop" role="dialog" aria-modal="true" aria-label="自动诊断"><section className="debug-dialog diagnostics-dialog">
+    <header><div><strong>自动诊断</strong><span>隔离运行，不修改当前画布与工作区变量</span></div><button onClick={onClose}>×</button></header>
+    <div className="debug-summary"><span>{running ? "正在运行…" : report ? `通过 ${report.summary.passed}/${report.summary.total}` : "尚未运行"}</span>{report && <><span>失败 {report.summary.failed}</span><span>跳过 {report.summary.skipped}</span><span>{report.platform.id}</span></>}</div>
+    {report ? <ol>{report.cases.map((item) => <li className={item.status === "fail" ? "diagnostic-fail" : item.status === "pass" ? "diagnostic-pass" : ""} key={item.id}><b>{item.status === "pass" ? "✓" : item.status === "fail" ? "×" : "–"}</b><label><code>{item.runtime ?? "host"}</code><small>{item.label}</small></label><span>{item.durationMs.toFixed(2)} ms</span>{item.error ? <strong>{item.error}</strong> : <small>{item.status === "skip" ? String(item.details.reason ?? "已跳过") : "通过"}</small>}</li>)}</ol> : <p className="muted">点击“运行全部诊断”。它会自动测试 Phase 8 工作区变量跨运行持久化、函数签名端口、可复用函数在 JavaScript/Python 运行时的执行，并记录平台与当前标签页摘要。</p>}
+    <footer><button className="button primary" disabled={running} onClick={onRun}>{running ? "诊断中…" : report ? "重新运行" : "运行全部诊断"}</button><button disabled={!report || running} onClick={onCopy}>复制完整结果</button><button disabled={!report || running} onClick={onExport}>导出 JSON</button></footer>
+  </section></div>;
+}
+
+export function SettingsDialog({ open, themeMode, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, automatedDiagnosticsEnabled, hotReloadEnabled, profilePath, workspaceUri, onClose, onThemeModeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onAutomatedDiagnosticsEnabledChange, onOpenDiagnostics, onConfigureFolder, onExportSettings, onImportSettings }: {
   open: boolean;
   themeMode: ThemeMode;
   language: string;
@@ -641,6 +661,7 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, runti
   smbUsername: string;
   smbDisabled: boolean;
   debugMode: boolean;
+  automatedDiagnosticsEnabled: boolean;
   hotReloadEnabled: boolean;
   profilePath: string | null;
   workspaceUri: string | null;
@@ -652,6 +673,8 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, runti
   onOpenSmb: () => void;
   onOpenAgent: () => void;
   onDebugModeChange: (checked: boolean) => void;
+  onAutomatedDiagnosticsEnabledChange: (checked: boolean) => void;
+  onOpenDiagnostics: () => void;
   onConfigureFolder: () => void;
   onExportSettings: () => void;
   onImportSettings: () => void;
@@ -674,7 +697,7 @@ export function SettingsDialog({ open, themeMode, language, resolvedTheme, runti
 
         <section className="settings-section settings-agent-summary">{sectionHeading("AI Agent", L("模型、密钥与操作权限", "Model, key and permissions"))}<p>{L("模型只能通过受限计划接口修改画布，每次变更都需要预览确认。", "The model can change the canvas only through the constrained planning interface, and every change requires preview and confirmation.")}</p><button onClick={onOpenAgent}>{L("AI 模型与密钥", "AI model & key")}</button></section>
 
-        <section className="settings-section settings-debug-section">{sectionHeading(L("调试与热更新", "Debug & hot reload"), L("开发与诊断工具", "Development and diagnostics"))}<label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />{L("启用调试模式", "Enable debug mode")}</label><p>记录执行顺序、节点耗时、部分结果和运行时堆栈。前端 HMR：{hotReloadEnabled ? "已连接" : "构建版未启用"}。</p><div className="settings-inline-actions"><button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div></section>
+        <section className="settings-section settings-debug-section">{sectionHeading(L("调试与热更新", "Debug & hot reload"), L("开发与诊断工具", "Development and diagnostics"))}<label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />{L("启用调试模式", "Enable debug mode")}</label><label className="settings-check"><input type="checkbox" checked={automatedDiagnosticsEnabled} onChange={(event) => onAutomatedDiagnosticsEnabledChange(event.target.checked)} />{L("启用临时自动诊断工具", "Enable temporary automated diagnostics")}</label><p>记录执行顺序、节点耗时、部分结果和运行时堆栈。自动诊断使用隔离工作区，可随时关闭；删除 diagnostics 模块及此入口即可永久移除，不影响工作流格式。前端 HMR：{hotReloadEnabled ? "已连接" : "构建版未启用"}。</p><div className="settings-inline-actions">{automatedDiagnosticsEnabled && <button className="button primary" onClick={onOpenDiagnostics}>{L("运行自动诊断", "Run diagnostics")}</button>}<button onClick={() => void navigator.clipboard.writeText("pnpm desktop:dev")}>桌面 HMR</button><button onClick={() => void navigator.clipboard.writeText("pnpm android:live:lan")}>Android LAN HMR</button></div></section>
 
         <section className="settings-section settings-profile-section">{sectionHeading(L("配置文件", "Profile"), L("本机设置、流程与用户模板", "Local settings, workflows and templates"))}<dl><dt>应用配置目录</dt><dd>{profilePath ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={onConfigureFolder}>选择 / 跳转文件夹</button><button onClick={onExportSettings}>{L("导出设置", "Export settings")}</button><button onClick={onImportSettings}>{L("导入设置", "Import settings")}</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
       </div>

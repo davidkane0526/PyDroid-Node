@@ -20,9 +20,9 @@ import {
   type TablePreview,
   type WorkflowInputFile,
 } from "../../src/runtime";
-import { flattenWorkflowGroups, serializeWorkflow, type WorkflowNode } from "../../src/workflow";
+import { collectReachableFunctionNodes, flattenWorkflowGroups, serializeWorkflow, type WorkflowFunctionDefinition, type WorkflowNode } from "../../src/workflow";
 import { emptyHostExecutionStatus, normalizeHostExecutionStatus, type HostExecutionStatus } from "../../src/execution-host";
-import { getExecutionClientId, setWorkspaceExecutionResult } from "../../src/execution-workspace";
+import { getExecutionClientId, getWorkspaceVariableState, setWorkspaceExecutionResult, setWorkspaceVariableState } from "../../src/execution-workspace";
 
 export { WorkflowExecutionError } from "../../src/runtime";
 export { ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError } from "../../src/execution-controller";
@@ -108,9 +108,11 @@ async function executePythonWorkflow(
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
   control?: ExecutionControl,
+  workspaceState: Record<string, unknown> = {},
+  functions: WorkflowFunctionDefinition[] = [],
 ): Promise<ExecutionResult> {
   const executable = flattenWorkflowGroups(nodes, edges);
-  const workflow = JSON.stringify(serializeWorkflow("Windows 桌面流程", executable.nodes, executable.edges));
+  const workflow = JSON.stringify({ ...serializeWorkflow("Windows 桌面流程", executable.nodes, executable.edges, [], functions), workspaceState });
   if (isRemoteRuntime()) {
     const platform = getPlatformAdapter();
     const executionId = control?.executionId ?? `remote-${Date.now().toString(36)}`;
@@ -167,35 +169,38 @@ async function executePythonWorkflow(
 const pythonRuntime = createPythonRuntime({
   warmUp: warmUpPythonExecutor,
   getEnvironment: getPythonEnvironment,
-  execute: ({ nodes, edges, csvText, inputFiles = [], control }) => executePythonWorkflow(nodes, edges, csvText, inputFiles, control),
+  execute: ({ nodes, edges, csvText, inputFiles = [], control, workspaceState = {}, functions = [] }) => executePythonWorkflow(nodes, edges, csvText, inputFiles, control, workspaceState, functions),
 });
 registerRuntime(pythonRuntime);
 registerRuntime(javascriptRuntime);
 
 let currentRuntimePreference: RuntimePreference = "auto";
-function resolveHostRuntime(preference: RuntimePreference, nodes: WorkflowNode[]) {
-  return resolveRuntime(isRemoteRuntime() && preference === "auto" ? "python" : preference, nodes);
+function resolveHostRuntime(preference: RuntimePreference, nodes: WorkflowNode[], functions: WorkflowFunctionDefinition[] = []) {
+  const capabilityNodes = collectReachableFunctionNodes(nodes, functions);
+  return resolveRuntime(isRemoteRuntime() && preference === "auto" ? "python" : preference, capabilityNodes);
 }
 
 export function setExecutionRuntimePreference(preference: RuntimePreference): void { currentRuntimePreference = preference; }
 export function getExecutionRuntimePreference(): RuntimePreference { return currentRuntimePreference; }
 export function getExecutionRuntimeDescriptors(): RuntimeDescriptor[] { return listRuntimes().map((runtime) => runtime.descriptor); }
-export function resolveExecutionRuntime(preference: RuntimePreference, nodes: WorkflowNode[]): RuntimeDescriptor { return resolveHostRuntime(preference, nodes).descriptor; }
-export async function warmUpExecutionRuntime(preference: RuntimePreference = currentRuntimePreference, nodes: WorkflowNode[] = []): Promise<RuntimeDescriptor> { const runtime = resolveHostRuntime(preference, nodes); await runtime.warmUp(); return runtime.descriptor; }
-export async function getExecutionEnvironment(preference: RuntimePreference = currentRuntimePreference, nodes: WorkflowNode[] = []): Promise<RuntimeEnvironment> { return resolveHostRuntime(preference, nodes).getEnvironment(); }
+export function resolveExecutionRuntime(preference: RuntimePreference, nodes: WorkflowNode[], functions: WorkflowFunctionDefinition[] = []): RuntimeDescriptor { return resolveHostRuntime(preference, nodes, functions).descriptor; }
+export async function warmUpExecutionRuntime(preference: RuntimePreference = currentRuntimePreference, nodes: WorkflowNode[] = [], functions: WorkflowFunctionDefinition[] = []): Promise<RuntimeDescriptor> { const runtime = resolveHostRuntime(preference, nodes, functions); await runtime.warmUp(); return runtime.descriptor; }
+export async function getExecutionEnvironment(preference: RuntimePreference = currentRuntimePreference, nodes: WorkflowNode[] = [], functions: WorkflowFunctionDefinition[] = []): Promise<RuntimeEnvironment> { return resolveHostRuntime(preference, nodes, functions).getEnvironment(); }
 export async function executeWorkflow(
   nodes: WorkflowNode[],
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
   preference: RuntimePreference = currentRuntimePreference,
-  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; workspaceLabel?: string; clientId?: string } = {},
+  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; workspaceLabel?: string; clientId?: string; functions?: WorkflowFunctionDefinition[] } = {},
 ): Promise<ExecutionResult> {
-  const runtime = resolveHostRuntime(preference, nodes);
+  const runtime = resolveHostRuntime(preference, nodes, options.functions ?? []);
   const workspaceId = options.workspaceId?.trim() || "default";
   const workspaceLabel = options.workspaceLabel?.trim() || "工作流";
   const clientId = options.clientId?.trim() || getExecutionClientId();
-  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  const workspaceState = getWorkspaceVariableState(workspaceId);
+  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, workspaceState, functions: options.functions ?? [], control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  if (result.workspaceState) setWorkspaceVariableState(workspaceId, result.workspaceState);
   setWorkspaceExecutionResult(workspaceId, result);
   return result;
 }
@@ -206,13 +211,15 @@ export async function executeWorkflowWithRuntime(
   edges: Edge[],
   csvText: string,
   inputFiles: WorkflowInputFile[] = [],
-  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; workspaceLabel?: string; clientId?: string } = {},
+  options: { timeoutMs?: number; executionId?: string; workspaceId?: string; workspaceLabel?: string; clientId?: string; functions?: WorkflowFunctionDefinition[] } = {},
 ): Promise<ExecutionResult> {
   const runtime = getRuntime(runtimeId);
   const workspaceId = options.workspaceId?.trim() || "default";
   const workspaceLabel = options.workspaceLabel?.trim() || "工作流";
   const clientId = options.clientId?.trim() || getExecutionClientId();
-  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  const workspaceState = getWorkspaceVariableState(workspaceId);
+  const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, workspaceState, functions: options.functions ?? [], control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
+  if (result.workspaceState) setWorkspaceVariableState(workspaceId, result.workspaceState);
   setWorkspaceExecutionResult(workspaceId, result);
   return result;
 }

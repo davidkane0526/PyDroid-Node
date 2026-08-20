@@ -16,6 +16,7 @@ const smb = read("desktop/services/smb-service.cjs");
 const secrets = read("desktop/services/secret-service.cjs");
 const profile = read("desktop/services/profile-service.cjs");
 const windowHost = read("desktop/window/create-window.cjs");
+const desktopRendererExecution = read("desktop/renderer/execution.ts");
 const ipc = [ipcRegister, runtimeIpc, remoteIpc, smbIpc, fileIpc].join("\n");
 
 assert.ok(lines("desktop/main.cjs") <= 90, `desktop/main.cjs must remain a composition root (currently ${lines("desktop/main.cjs")} lines)`);
@@ -52,5 +53,11 @@ assert.match(windowHost, /new BrowserWindow/, "Window host must own BrowserWindo
 assert.ok(pkg.build.files.includes("desktop/services/**/*"), "Packaged desktop must include desktop service modules");
 assert.ok(pkg.build.files.includes("desktop/ipc/**/*"), "Packaged desktop must include desktop IPC modules");
 assert.ok(pkg.build.files.includes("desktop/window/**/*"), "Packaged desktop must include desktop window modules");
+
+
+assert.match(desktopRendererExecution, /getWorkspaceVariableState/, "desktop renderer must preserve Phase 8 workspace state between runs");
+assert.match(desktopRendererExecution, /setWorkspaceVariableState/, "desktop renderer must persist returned Phase 8 workspace state");
+assert.match(desktopRendererExecution, /collectReachableFunctionNodes/, "desktop auto runtime selection must inspect reusable function bodies");
+assert.match(desktopRendererExecution, /serializeWorkflow\("Windows 桌面流程"[\s\S]*functions/, "desktop Python bridge must serialize reusable function definitions");
 
 console.log("Desktop host architecture smoke test passed");

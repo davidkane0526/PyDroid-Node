@@ -3638,3 +3638,21 @@ button.smb-file-row { cursor: pointer; }
 .workflow-function-card .flow-library-actions button { min-width: 0; padding-inline: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .function-call-settings > strong, .function-call-settings > small { display: block; }
 .app-shell[data-theme="light"] .workflow-variable-list code { border-color: #cbd5e1; color: #1e3a5f; background: #f8fafc; }
+
+/* Temporary automated diagnostics: isolated from workflow semantics so the feature can be removed cleanly. */
+.diagnostics-dialog { width: min(820px, 100%); }
+.diagnostics-dialog > p.muted { margin: 0; padding: 14px 16px 18px; }
+.diagnostics-dialog li.diagnostic-pass > b { color: #86efac; }
+.diagnostics-dialog li.diagnostic-fail > b,
+.diagnostics-dialog li.diagnostic-fail > strong { color: #fca5a5; }
+.diagnostics-dialog li > strong { overflow: hidden; max-width: 280px; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-xs); }
+.app-shell[data-theme="light"] .diagnostics-dialog li.diagnostic-pass > b { color: #15803d; }
+.app-shell[data-theme="light"] .diagnostics-dialog li.diagnostic-fail > b,
+.app-shell[data-theme="light"] .diagnostics-dialog li.diagnostic-fail > strong { color: #b91c1c; }
+@media (max-width: 700px) {
+  .diagnostics-dialog { width: 100%; max-height: 92vh; border-radius: 8px; }
+  .diagnostics-dialog li { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .diagnostics-dialog li > strong,
+  .diagnostics-dialog li > small { grid-column: 2 / -1; max-width: none; white-space: normal; }
+  .diagnostics-dialog > footer { flex-wrap: wrap; }
+}

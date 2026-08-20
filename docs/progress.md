@@ -1,3 +1,13 @@
+## 2026-08-20 — Phase 8 acceptance corrections + automated diagnostics / 1.4.57 (80)
+
+- Corrected the Windows renderer execution adapter, which had remained on the pre-Phase-8 execution contract and therefore lost workspace variables/functions across runs on Desktop.
+- `function.call` cards now render their dynamic signature ports, fixing the missing connection handles reported for the reusable absolute-value function.
+- Successful runs explicitly invalidate the Functions-resource workspace-variable view, so newly written variables are visible immediately.
+- Added an isolated temporary automated-diagnostics module shared by Desktop and Android settings. It uses disposable diagnostic workspaces and tests cross-run workspace state plus reusable-function ports/execution for JavaScript and Python when available.
+- Diagnostic results can be copied/exported as JSON; the last report is also persisted through the existing user-profile file interface. The module has no workflow-schema/runtime-protocol dependency and has a documented clean-removal path.
+- Manual Phase 8 acceptance fixtures remain for developer regression, but user acceptance is now primarily one-click automated diagnostics plus a minimal visual port check.
+- Build script revision: `1.4.57-dev-r33-phase8-diagnostics-fix`.
+
 ## 2026-08-20 — Phase 8 Workflow Language / State & Function System / 1.4.56 (79)
 
 - Started from the user-provided clean `PyDroid Node 1.4.55.zip` only; no GitHub baseline was used.

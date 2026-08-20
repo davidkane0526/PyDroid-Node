@@ -43,4 +43,10 @@ assert.match(css, /\.statusbar-service-button--remote\.active\s*\{[^}]*backgroun
 assert.match(css, /\.statusbar-service-button--remote\.active \.statusbar-service-button__indicator\s*\{[^}]*display:\s*block\s*!important;/, "green status dot should remain the only persistent running-state indicator");
 assert.match(css, /\.smb-manager-footer \.button\s*\{[^}]*min-height:\s*30px;[^}]*padding:\s*5px 9px;/, "SMB footer actions should use compact shared button metrics");
 assert.match(uiFixes, /\.agent-dialog \.agent-plan > div \.button\s*\{[^}]*min-height:\s*30px;[^}]*padding:\s*5px 9px;/, "AI Agent plan actions should use compact shared button metrics");
+
+assert.match(app, /data\.nodeType === "function\.call"[\s\S]*functionInputs[\s\S]*functionOutputs/, "function.call cards must render dynamic signature handles");
+assert.match(app, /setWorkspaceVariableRevision\(\(value\) => value \+ 1\)/, "workspace variable resource list must refresh explicitly after execution");
+assert.match(app, /AutomatedDiagnosticsDialog/, "desktop and Android shared UI must expose the removable automated diagnostics dialog");
+assert.match(app, /runInAppAutomatedDiagnostics/, "automated diagnostics must be runnable from the application UI");
+
 console.log("UI regression smoke passed.");

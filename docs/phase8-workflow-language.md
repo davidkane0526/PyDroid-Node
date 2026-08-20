@@ -1,6 +1,6 @@
 # Phase 8 — Workflow Language / State & Function System
 
-Version: 1.4.56 (79)
+Version: 1.4.57 (80)
 Branch: `phase8/workflow-language-state-functions`
 
 ## Goals
@@ -72,3 +72,10 @@ Cloud/offline validation completed:
 - Chromium CSS rendering at the default 176 px palette width in dark/light themes: no horizontal overflow in the four resource tabs, workspace-variable chips or function action buttons after width tuning.
 
 The cloud environment cannot reach npm/Gradle distribution servers and does not contain the project's dependency tree or Android SDK, so a dependency-backed Vite/Electron/Android package build is not claimed here. The repository contains `tests/manual/phase8/` so the remaining validation is limited to real Windows/Android packaging and real-device/client interaction.
+
+
+## 1.4.57 corrective update
+
+User acceptance exposed two integration gaps in 1.4.56. First, the Windows desktop renderer had a separate execution adapter that had not yet adopted workspace-state transport, reusable-function serialization, or reachable-function runtime selection. Second, the canvas card renderer did not consume `functionInputs` / `functionOutputs` even though the persisted function-call node contained them. Both are corrected in 1.4.57.
+
+The Functions resource view now refreshes explicitly after a successful run. A removable in-app automated diagnostics module was also added so future Desktop/Android acceptance can be reported as one JSON result rather than a multi-file manual procedure. See `docs/automated-diagnostics.md`.

@@ -1,3 +1,12 @@
+## 1.4.57 (80) — Phase 8 acceptance fixes + automated diagnostics — 2026-08-20
+
+- Fixed Windows Desktop workspace-session variables by bringing the renderer execution adapter onto the same Phase 8 state/function contract as the shared Android/Web execution path.
+- Fixed reusable `function.call` canvas cards so persisted dynamic input/output signatures render real connectable handles.
+- Explicitly refreshes the Functions resource page after a successful execution so workspace variables such as `phase8_rows` appear immediately.
+- Added a temporary, isolated automated-diagnostics module in Settings for Desktop and Android. One click checks cross-run workspace state, reusable-function dynamic ports/absolute-value execution, and both JavaScript/Python hosts when available, then copies/exports a JSON report.
+- The diagnostics feature uses disposable diagnostic workspace IDs, does not mutate the active canvas/workspace state, and can be removed without changing workflow schema or runtime protocols.
+- Build script revision: `1.4.57-dev-r33-phase8-diagnostics-fix`.
+
 ## 1.4.56 (79) — Phase 8 Workflow Language / State & Function System — 2026-08-20
 
 - Added per-workspace session variables alongside execution-local variables, with explicit JSON-safe runtime state transport and tab isolation.

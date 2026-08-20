@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.56-dev-r32-phase8-workflow-language"
+$script:BuildScriptRevision = "1.4.57-dev-r33-phase8-diagnostics-fix"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
