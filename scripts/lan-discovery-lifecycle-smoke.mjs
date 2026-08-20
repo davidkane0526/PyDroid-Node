@@ -278,6 +278,8 @@ if (!javacProbe.error && javacProbe.status === 0) {
       writeJava("android/content/SharedPreferences.java", `package android.content; public interface SharedPreferences { String getString(String key,String fallback); Editor edit(); interface Editor { Editor putString(String key,String value); void apply(); } }`),
       writeJava("android/content/Context.java", `package android.content; public class Context { public static final int MODE_PRIVATE=0; public static final String WIFI_SERVICE="wifi"; public Context getApplicationContext(){return this;} public SharedPreferences getSharedPreferences(String n,int m){return null;} public Object getSystemService(String n){return null;} }`),
       writeJava("android/net/wifi/WifiManager.java", `package android.net.wifi; public class WifiManager { public MulticastLock createMulticastLock(String n){return new MulticastLock();} public static class MulticastLock { public void setReferenceCounted(boolean v){} public void acquire(){} public void release(){} } }`),
+      writeJava("org/json/JSONObject.java", `package org.json; import java.util.*; public class JSONObject { private final Map<String,Object> values=new LinkedHashMap<>(); public JSONObject put(String k,Object v){values.put(k,v);return this;} }`),
+      writeJava("org/json/JSONArray.java", `package org.json; import java.util.*; public class JSONArray { private final List<Object> values=new ArrayList<>(); public JSONArray put(Object v){values.add(v);return this;} }`),
     ];
     const harness = writeJava("com/dk/pydroidflow/LanDiscoveryProtocolHarness.java", `package com.dk.pydroidflow;
 import android.content.*; import java.net.*; import java.lang.reflect.*; import java.util.*;

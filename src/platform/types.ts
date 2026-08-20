@@ -13,7 +13,19 @@ export type SmbConnection = {
 export type SmbServer = { address: string; name: string; shares?: string[] };
 export type SmbEntry = { name: string; path: string; directory: boolean; size: number; modifiedAt?: string | null };
 
-export type RemoteServerInfo = { url: string; urls?: string[]; pin: string | null; requiresPin: boolean; port: number };
+export type RemoteDiscoveryStatus = {
+  interfaces: Array<{ name: string; address: string }>;
+  ssdp: "running" | "failed" | "unavailable" | string;
+  mdns: "running" | "failed" | "unavailable" | string;
+};
+export type RemoteServerInfo = {
+  url: string;
+  urls?: string[];
+  pin: string | null;
+  requiresPin: boolean;
+  port: number;
+  discovery?: RemoteDiscoveryStatus;
+};
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
 export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentProxyAvailable: boolean };

@@ -4,6 +4,9 @@ import android.content.Context;
 import android.net.wifi.WifiManager;
 import android.util.Log;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -56,6 +59,21 @@ final class LanDiscoveryService {
         for (LanNetworkInterfaceManager.Entry entry : interfaces) values.add("http://" + entry.address.getHostAddress() + ":" + webPort + "/");
         values.add(localUrl());
         return values;
+    }
+    synchronized JSONObject status() {
+        JSONObject result = new JSONObject();
+        JSONArray values = new JSONArray();
+        for (LanNetworkInterfaceManager.Entry entry : interfaces) {
+            JSONObject item = new JSONObject();
+            try { item.put("name", entry.networkInterface.getName()); item.put("address", entry.address.getHostAddress()); } catch (Exception ignored) { }
+            values.put(item);
+        }
+        try {
+            result.put("interfaces", values);
+            result.put("ssdp", interfaces.isEmpty() ? "unavailable" : ssdp != null ? "running" : "failed");
+            result.put("mdns", interfaces.isEmpty() ? "unavailable" : mdns != null ? "running" : "failed");
+        } catch (Exception ignored) { }
+        return result;
     }
     String localUrl() { return "http://" + identity.hostname + ".local:" + webPort + "/"; }
     String deviceXml(String requestedAddress) {

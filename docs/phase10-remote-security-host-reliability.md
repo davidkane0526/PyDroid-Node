@@ -2,7 +2,7 @@
 
 Started: 2026-08-20
 Foundation: accepted/frozen `1.4.67 (90)` Phase 9
-Current milestone: `1.4.70 (93)`
+Current milestone: `1.4.71 (94)`
 
 ## Goal
 
@@ -28,6 +28,24 @@ Authenticated Remote API
 ```
 
 
+## 1.4.71 real-host startup and packaging E2E
+
+The real 1.4.69 Windows/Android result exposed a test-scope error: the former **21/21** in-app diagnostics verified Editor/Runtime/Security contracts but did not actually start a packaged Remote Web host. Therefore those results remain meaningful for their individual contracts, but they are not proof of network-service availability.
+
+1.4.71 closes that gap at three layers:
+
+- **Service readiness:** Desktop and Android bind the real server, then verify `/health`, the SPA shell and its main JS resource over loopback before startup resolves. A selected LAN address is not used as a production startup blocker because LAN hairpin routing is not universally reliable.
+- **Packaging readiness:** the Windows compatibility fallback now builds/stages both the Electron renderer and the dedicated browser-native `desktop/package-remote` bundle. Packaged Desktop smoke actually starts/stops Remote Web.
+- **Device diagnostics:** host connection info returns LAN interfaces plus SSDP/mDNS state. The removable diagnostics add `remote-host-e2e`; a full Desktop/Android host target is now **22/22**, and the new case rejects loopback-only advertisement, missing usable IPv4 interfaces, or non-running SSDP/mDNS.
+
+Repository `test:remote-host-e2e` additionally starts the real Desktop service, fetches health/shell/UPnP, performs PIN pairing and an authenticated API request, and sends a live SSDP M-SEARCH UDP packet which must receive a valid response. When JDK is available, the same gate also compiles the actual Android `RemoteWorkflowServer` against minimal platform stubs, starts it on a real JVM socket, and verifies health/shell/main-JS plus reported discovery status.
+
+### Version boundary
+
+- 1.4.50 introduced the dedicated browser-native Remote Web bundle. The normal packager staged it, but the older Windows compatibility fallback did not; compatibility builds from 1.4.50 through 1.4.70 could therefore omit the bundle while the old Desktop smoke remained green.
+- 1.4.51 explicitly removed the real Desktop/Android HTTP/resource readiness checks introduced in 1.4.50. This is the confirmed validation-regression boundary.
+- 1.4.68 is the strongest common functional-regression candidate because both hosts' Remote security paths changed there, but repository history alone does not prove it caused the Android failure. Do not label 1.4.68 as the proven Android root cause without packaged-host evidence.
+
 ## 1.4.70 LAN discovery lifecycle automation
 
 1.4.70 does not redesign SSDP/mDNS. It freezes the existing LAN discovery behavior behind an executable regression gate. `pnpm test:lan-discovery` now covers the required lifecycle surface:
@@ -41,7 +59,7 @@ Authenticated Remote API
 - mDNS A/PTR/SRV/TXT publication, query response and TTL=0 goodbye;
 - Android source parity plus a pure-JDK compile/runtime protocol harness when `javac` is available.
 
-Desktop `LanDiscoveryService` exposes the existing network poll body as `checkNetwork()` so the restart boundary can be exercised deterministically by the smoke test; the production timer remains 5 seconds. The accepted UI, Remote security policy, Editor/Workflow contracts and Python/JavaScript runtime semantics are unchanged. The removable in-app diagnostics remain **21/21** because this milestone is a host transport regression gate.
+Desktop `LanDiscoveryService` exposes the existing network poll body as `checkNetwork()` so the restart boundary can be exercised deterministically by the smoke test; the production timer remains 5 seconds. The accepted UI, Remote security policy, Editor/Workflow contracts and Python/JavaScript runtime semantics were unchanged in 1.4.70. At that point the removable in-app diagnostics still contained **21** cases; 1.4.71 supersedes that host-certification scope with the 22nd real-host case.
 
 
 ## 1.4.69 Desktop production bundle gate repair
@@ -118,4 +136,4 @@ Together with the accepted 19 Phase 8/9 cases, a fully capable Desktop/Android h
 
 ## Next milestone
 
-After the 1.4.70 LAN discovery lifecycle gate is accepted, the next Phase 10 milestone should harden host observability/recovery around Remote Web and discovery failures without changing the accepted UI or protocol semantics.
+After the 1.4.71 real-host E2E repair is validated on packaged Windows and Android hosts, continue Phase 10 host observability/recovery without changing accepted UI or protocol semantics.

@@ -2,7 +2,7 @@
 
 更新时间：2026-08-20
 当前架构开发分支：`phase10/desktop-platform-export-gate-fix`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.70 (93)`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.71 (94)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -612,7 +612,7 @@ Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成�
 
 ## 14. Phase 10 — Remote Access Security & Host Reliability
 
-状态：**1.4.70 (93) 继续。**
+状态：**1.4.71 (94) 继续。**
 
 Phase 10 不重新设计已工作的 Remote Web/LAN UI，而是把第 11 节长期安全与可靠性项变成可测试契约。1.4.68 首先处理敏感边界：Desktop/Android 使用相同的 PIN 失败窗口与冷却策略、成功配对后签发客户端地址绑定且有 TTL/数量上限的 Session Token，并对普通与重型 Remote API 分级限流。Android 的 Remote Web 配置只返回 `agentProxyAvailable`，原始 Agent API Key 始终留在宿主 Keystore；网页通过 Host Agent Proxy 发起模型请求。代理的 provider/endpoint 由宿主设置决定，不接受网页任意改写，且禁止上游 redirect 后继续携带宿主凭据。
 
@@ -623,3 +623,5 @@ Discovery (`SSDP/mDNS/device.xml`) 仍与认证 API 分离。健康检查和发�
 1.4.69 修复 Desktop Vite alias 的平台导出漂移：`App.tsx` 使用的 `./platform` 命名导出现在必须同时存在于 shared facade 与 Desktop alias facade；该门禁纳入 platform architecture smoke。安全策略与 21/21 诊断契约不变。
 
 1.4.70 已将 LAN Discovery 生命周期纳入自动化门禁：SSDP `ssdp:all` 多目标响应、CRLF/USN/LOCATION/ST、device.xml 身份字段、UUID persistence、network restart、stop/byebye 以及 mDNS A/PTR/SRV/TXT 均有回归覆盖；后续不重新发明 discovery 协议。
+
+1.4.71 修正真实宿主验收缺口：旧 21 项诊断不再被视为 Remote Web 可用性证明。Desktop/Android 启动必须完成真实 loopback HTTP/SPA/JS readiness，Desktop 兼容打包必须包含 `package-remote`，成品 smoke 必须实际启动 Remote Web；in-app 完整宿主诊断提升到 **22/22** 并检查 LAN interface + SSDP/mDNS 运行状态。1.4.51 被确认是 host-readiness 自动化覆盖退化的边界；Android 功能回归的精确版本仍需真实 1.4.71 成品诊断确认。

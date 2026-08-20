@@ -3159,6 +3159,32 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         activeFunctions: functions,
         activeNodeCount: nodes.length,
         activeEdgeCount: edges.length,
+        testRemoteHost: canHostRemoteServer() ? async () => {
+          const alreadyRunning = Boolean(remoteServer);
+          const info = remoteServer ?? await startRemoteServer(true);
+          try {
+            if (!Number.isFinite(info.port) || info.port <= 0) throw new Error("宿主没有返回有效 HTTP 监听端口");
+            const parsed = new URL(info.url);
+            if (parsed.protocol !== "http:") throw new Error(`宿主返回了非 HTTP 地址：${info.url}`);
+            if (["127.0.0.1", "localhost", "::1"].includes(parsed.hostname)) throw new Error(`宿主只暴露了回环地址：${info.url}`);
+            const discovery = info.discovery;
+            if (!discovery) throw new Error("宿主没有返回 LAN Discovery 运行状态");
+            if (!discovery.interfaces.length) throw new Error("没有发现可用于局域网服务的 IPv4 网络接口");
+            if (discovery.ssdp !== "running") throw new Error(`SSDP 未运行：${discovery.ssdp}`);
+            if (discovery.mdns !== "running") throw new Error(`mDNS 未运行：${discovery.mdns}`);
+            if (!discovery.interfaces.some((item) => item.address === parsed.hostname)) throw new Error(`主访问地址 ${parsed.hostname} 不属于当前发现接口`);
+            return {
+              nativeHttpReadinessVerified: true,
+              url: info.url,
+              urls: info.urls ?? [],
+              port: info.port,
+              discovery,
+              serviceWasAlreadyRunning: alreadyRunning,
+            };
+          } finally {
+            if (!alreadyRunning) await stopRemoteServer();
+          }
+        } : undefined,
         executeWithRuntime: (runtimeId, diagnosticNodes, diagnosticEdges, diagnosticCsvText, options) => executeWorkflowWithRuntime(runtimeId, diagnosticNodes, diagnosticEdges, diagnosticCsvText, [], { ...options, clientId: executionClientId }),
       });
       setAutomatedDiagnosticsReport(report);

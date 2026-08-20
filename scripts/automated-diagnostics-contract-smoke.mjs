@@ -21,6 +21,7 @@ const expectedCases = [
   "agentEditorBatchCase",
   "editorRequirementOwnershipCase",
   "runtimeInteractionIsolationCase",
+  "remoteHostE2ECase",
   "remoteSecurityPolicyCase",
   "remoteAgentProxyBoundaryCase",
   "gestureContractCase",
@@ -36,8 +37,8 @@ assert.match(runner, /reusableFunctionCase\("javascript", deps\)/, "JavaScript r
 assert.match(runner, /workspacePersistenceCase\("python", deps\)/, "Python workspace persistence diagnostic must remain enabled for capable hosts");
 assert.match(runner, /reusableFunctionCase\("python", deps\)/, "Python reusable-function diagnostic must remain enabled for capable hosts");
 assert.match(runner, /platformId === "browser" && !deps\.remote/, "plain-browser Python diagnostics must remain explicitly skippable");
-assert.match(docs, /21\s*\/\s*21|21\s*项/, "diagnostics documentation must describe the 21-case Phase 10 contract");
+assert.match(docs, /22\s*\/\s*22|22\s*项/, "diagnostics documentation must describe the 22-case Phase 10 host contract");
 
 const fullHostTotal = expectedCases.length + 4;
-assert.equal(fullHostTotal, 21, "Phase 10 full-host automated diagnostic contract must contain 21 cases");
+assert.equal(fullHostTotal, 22, "Phase 10 full-host automated diagnostic contract must contain 22 cases");
 console.log(`Automated diagnostics contract smoke passed (${fullHostTotal} full-host cases).`);

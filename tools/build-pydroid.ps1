@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.70-dev-r46-phase10-lan-discovery-lifecycle"
+$script:BuildScriptRevision = "1.4.71-dev-r47-phase10-remote-host-e2e"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -1479,18 +1479,29 @@ function Ensure-PythonRuntimeForDesktop {
 
 function Invoke-DesktopCompatibilityPackage {
     Write-Warning "常规 desktop:package 失败，尝试兼容打包。"
+    Invoke-Pnpm @("build")
     Invoke-Pnpm @("desktop:build")
 
     $rendererSource = Join-Path $workspace "dist-desktop"
     $rendererStage = Join-Path $workspace "desktop\package-renderer"
+    $remoteRendererSource = Join-Path $workspace "dist"
+    $remoteRendererStage = Join-Path $workspace "desktop\package-remote"
     if (-not (Test-Path -LiteralPath (Join-Path $rendererSource "index.html"))) {
         throw "兼容打包失败：dist-desktop\index.html 不存在。"
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $remoteRendererSource "index.html"))) {
+        throw "兼容打包失败：dist\index.html 不存在，无法封装 Remote Web 浏览器资源。"
     }
     if (Test-Path -LiteralPath $rendererStage) {
         Remove-Item -LiteralPath $rendererStage -Recurse -Force
     }
     New-Item -ItemType Directory -Force -Path $rendererStage | Out-Null
     Copy-Item -Path (Join-Path $rendererSource "*") -Destination $rendererStage -Recurse -Force
+    if (Test-Path -LiteralPath $remoteRendererStage) {
+        Remove-Item -LiteralPath $remoteRendererStage -Recurse -Force
+    }
+    New-Item -ItemType Directory -Force -Path $remoteRendererStage | Out-Null
+    Copy-Item -Path (Join-Path $remoteRendererSource "*") -Destination $remoteRendererStage -Recurse -Force
 
     try {
         $partialRelease = Join-Path $workspace "release\win-unpacked"
@@ -1549,6 +1560,7 @@ function Invoke-DesktopCompatibilityPackage {
         }
     } finally {
         Remove-Item -LiteralPath $rendererStage -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $remoteRendererStage -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 function Build-Desktop {

@@ -74,7 +74,45 @@ final class RemoteWorkflowServer {
         server.acceptThread.setDaemon(true);
         server.acceptThread.start();
         try { server.discovery.start(); } catch (Exception ignored) { /* Discovery must never take down HTTP. */ }
+        try {
+            server.verifyLoopbackReady();
+        } catch (IOException exception) {
+            server.stop();
+            throw exception;
+        }
         return server;
+    }
+
+    private void verifyLoopbackReady() throws IOException {
+        String health = verifyEndpoint("/health");
+        if (!"OK".equals(health.trim())) throw new IOException("Remote Web /health readiness check failed");
+        String shell = verifyEndpoint("/");
+        if (!shell.contains("id=\"root\"") || !shell.toLowerCase(java.util.Locale.ROOT).contains("<script")) {
+            throw new IOException("Remote Web browser shell readiness check failed");
+        }
+        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("<script[^>]+src=[\"']([^\"']+)[\"']", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(shell);
+        if (matcher.find()) {
+            String asset = matcher.group(1);
+            if (!asset.startsWith("/")) asset = "/" + asset.replaceFirst("^\\./", "");
+            String javascript = verifyEndpoint(asset);
+            if (javascript.length() < 32) throw new IOException("Remote Web main asset readiness check failed: " + asset);
+        }
+    }
+
+    private String verifyEndpoint(String path) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL("http://127.0.0.1:" + PORT + path).openConnection();
+        connection.setConnectTimeout(2500);
+        connection.setReadTimeout(2500);
+        connection.setUseCaches(false);
+        try {
+            int status = connection.getResponseCode();
+            if (status != 200) throw new IOException("Remote Web readiness returned HTTP " + status + " for " + path);
+            try (InputStream input = connection.getInputStream()) {
+                return new String(readAll(input, MAX_BODY_BYTES), StandardCharsets.UTF_8);
+            }
+        } finally {
+            connection.disconnect();
+        }
     }
 
     JSONObject connectionInfo() throws Exception {
@@ -84,6 +122,7 @@ final class RemoteWorkflowServer {
         result.put("pin", requiresPin ? pin : JSONObject.NULL);
         result.put("url", "http://" + discovery.primaryAddress() + ":" + PORT + "/");
         result.put("urls", new JSONArray(discovery.urls()));
+        result.put("discovery", discovery.status());
         return result;
     }
 

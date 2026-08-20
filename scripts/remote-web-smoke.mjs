@@ -21,8 +21,14 @@ assert.match(desktop, /function resolveRendererRoot\(/, "Desktop Remote Web must
 assert.match(desktop, /package-remote/, "Desktop Remote Web must serve the browser-native renderer bundle");
 assert.match(desktopPackage, /remoteRendererStage[\s\S]*package-remote/, "desktop packaging must stage the Remote Web browser bundle");
 assert.ok(packageJson.build.files.includes("desktop/package-remote/**/*"), "electron-builder must include the staged Remote Web browser bundle");
-assert.doesNotMatch(desktop, /verifyRemoteServerReady|self-test/i, "Desktop service startup must not block on defensive Remote Web self-tests");
-assert.doesNotMatch(android, /verifyReady\(|verifyEndpointAtHost|self-test/i, "Android service startup must not block on defensive Remote Web self-tests");
+const buildScript = readFileSync(path.join(root, "tools/build-pydroid.ps1"), "utf8");
+const packagedSmoke = readFileSync(path.join(root, "desktop/window/create-window.cjs"), "utf8");
+assert.match(buildScript, /Invoke-DesktopCompatibilityPackage[\s\S]*remoteRendererSource[\s\S]*package-remote/, "Desktop compatibility packaging must stage the browser-native Remote Web bundle");
+assert.match(packagedSmoke, /startRemoteServer\(true\)/, "Packaged desktop smoke must actually start Remote Web");
+assert.match(desktop, /verifyLoopbackReady/, "Desktop Remote Web must verify a real loopback HTTP response before reporting startup success");
+assert.match(android, /verifyLoopbackReady\(\)/, "Android Remote Web must verify a real loopback HTTP response before reporting startup success");
+assert.doesNotMatch(desktop, /verifyEndpointAtHost|LAN self-test/i, "Desktop startup readiness must not depend on hairpin access through the selected LAN address");
+assert.doesNotMatch(android, /verifyEndpointAtHost|LAN self-test/i, "Android startup readiness must not depend on hairpin access through the selected LAN address");
 assert.match(androidService, /remoteRequests\.execute\(\(\) ->/, "Android Remote Web startup must run off the Capacitor/UI call path");
 assert.match(android, /new JSONArray\(discovery\.urls\(\)\)/, "Android Remote Web should expose alternate LAN URLs when multiple interfaces exist");
 assert.match(desktop, /index\.html[\s\S]*Remote Web renderer not found/, "Desktop Remote Web must fail clearly when its renderer is missing");

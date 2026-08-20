@@ -70,6 +70,7 @@ export type AutomatedDiagnosticsDependencies = {
     csvText: string,
     options: { workspaceId: string; workspaceLabel: string; functions?: WorkflowFunctionDefinition[] },
   ) => Promise<ExecutionResult>;
+  testRemoteHost?: () => Promise<Record<string, unknown>>;
 };
 
 const node = (id: string, nodeType: string, parameters: Record<string, string | number | boolean | null> = {}, label = nodeType): WorkflowNode => ({
@@ -604,6 +605,13 @@ async function runtimeInteractionIsolationCase(): Promise<DiagnosticCase> {
   });
 }
 
+async function remoteHostE2ECase(deps: AutomatedDiagnosticsDependencies): Promise<DiagnosticCase> {
+  return runCase("remote-host-e2e", "Remote Web 宿主真实启动/HTTP/局域网发现", undefined, async () => {
+    if (!deps.testRemoteHost) throw new Error("当前运行环境不能启动局域网宿主服务");
+    return deps.testRemoteHost();
+  });
+}
+
 async function remoteSecurityPolicyCase(): Promise<DiagnosticCase> {
   return runCase("remote-security-policy", "Remote Web 配对/Token/API 限流安全策略", undefined, async () => {
     const policy = describeRemoteSecurityPolicy();
@@ -660,6 +668,11 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await agentEditorBatchCase());
   cases.push(await editorRequirementOwnershipCase());
   cases.push(await runtimeInteractionIsolationCase());
+  if (deps.testRemoteHost) {
+    cases.push(await remoteHostE2ECase(deps));
+  } else {
+    cases.push({ id: "remote-host-e2e", label: "Remote Web 宿主真实启动/HTTP/局域网发现", status: "skip", durationMs: 0, details: { reason: "当前环境不是可启动局域网服务的宿主" } });
+  }
   cases.push(await remoteSecurityPolicyCase());
   cases.push(await remoteAgentProxyBoundaryCase());
   cases.push(await gestureContractCase());

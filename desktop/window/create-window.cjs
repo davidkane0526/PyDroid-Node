@@ -109,6 +109,13 @@ function createDesktopWindow({ log }) {
           || !exportNames.has("desktop-a.csv")
           || !exportNames.has("desktop-b.csv")
         ) throw new Error(`Unexpected smoke-test result: ${raw}`);
+
+        const remoteInfo = await window.webContents.executeJavaScript("window.pyDroidDesktop.startRemoteServer(true)");
+        if (!remoteInfo || !Number.isFinite(remoteInfo.port) || remoteInfo.port <= 0 || !/^http:\/\//.test(remoteInfo.url || "")) {
+          throw new Error(`Packaged Remote Web failed to start: ${JSON.stringify(remoteInfo)}`);
+        }
+        await window.webContents.executeJavaScript("window.pyDroidDesktop.stopRemoteServer()");
+        console.log(`Desktop packaged Remote Web readiness passed on port ${remoteInfo.port}`);
         console.log("Desktop Electron/IPC/Python multi-file smoke test passed");
         if (process.env.PYDROID_DESKTOP_SMOKE_LOG) fs.writeFileSync(process.env.PYDROID_DESKTOP_SMOKE_LOG, "passed\n", "utf8");
         app.exit(0);

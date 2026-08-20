@@ -21,9 +21,10 @@ Long-lived branches in this repository:
 - `phase9/resource-service-session-lifecycle-audit`: `1.4.66 (89)` Resource Library Service / Session-owned execution identity milestone.
 - `phase9/final-freeze-audit`: `1.4.67 (90)` accepted/frozen Phase 9 boundary after the user-host build and 19/19 diagnostics.
 - `phase10/desktop-platform-export-gate-fix`: `1.4.69 (92)` accepted Phase 10 Desktop production bundle gate repair milestone.
-- `phase10/lan-discovery-lifecycle-automation`: `1.4.70 (93)` current Phase 10 LAN discovery lifecycle automation milestone.
+- `phase10/lan-discovery-lifecycle-automation`: `1.4.70 (93)` LAN discovery lifecycle automation milestone.
+- `fix/phase10-remote-web-host-e2e`: `1.4.71 (94)` current Remote Web real-host E2E and packaging repair milestone.
 
-Current working branch: `phase10/lan-discovery-lifecycle-automation`.
+Current working branch: `fix/phase10-remote-web-host-e2e`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -45,15 +46,17 @@ Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture w
 
 Input semantics are explicitly split by **input profile** (`desktop` vs `mobile`) and **target kind** (`node`, `group`, `canvas`, `resource`, `tab`). Do not merge these policies merely to reduce code. In particular, Android node long-press is a multi-select gesture, Android group long-press retains the accepted multi-select gesture while group double-tap remains subflow entry, desktop node double-click opens node actions, and desktop group double-click enters the subflow. See `docs/phase9-editor-core-workspace-session.md`.
 
-The frozen Phase 9 diagnostic boundary contains fifteen Editor Core/session cases plus the four Phase 8 runtime cases and was accepted at **19/19**. Phase 10 1.4.68 adds two Remote security/Agent-proxy cases, so a normal Desktop/Android host with both runtimes should now report **21/21**.
+The frozen Phase 9 diagnostic boundary contains fifteen Editor Core/session cases plus the four Phase 8 runtime cases and was accepted at **19/19**. Phase 10 1.4.68 added two Remote security/Agent-proxy cases, producing the former **21/21** contract. Those two cases remain valid security/transport-contract checks, but the 21-case runner did not start a real Remote Web host and therefore must not be used as evidence that HTTP/discovery is operational. 1.4.71 adds a real host case; Desktop/Android full-host target is now **22/22**.
 
 ## Phase 10 status — Remote Access Security & Host Reliability
 
 **Started at 1.4.68 (91) from the frozen 1.4.67 Phase 9 boundary.** The first milestone hardens Remote Web without changing UI/gesture/workflow/runtime semantics: Desktop and Android share a 5-failure PIN cooldown policy, fresh client-bound 12-hour tokens, normal/expensive per-client API rate limits and a small unauthenticated pairing-body limit. Android Remote Web receives only `agentProxyAvailable`; when a Keystore-backed Agent secret exists, model requests go through the Android Host Agent Proxy and the raw key never enters the browser. Android wildcard CORS exposure was removed, and the proxy refuses unsupported provider protocols and upstream redirects.
 
-Primary files: `desktop/services/remote-security.cjs`, `RemoteAccessGuard.java`, `src/remote-security-policy.ts`, `scripts/remote-security-smoke.mjs`, and `docs/phase10-remote-security-host-reliability.md`. The next milestone should deepen LAN discovery lifecycle automation rather than redesign SSDP/mDNS.
+Primary files: `desktop/services/remote-security.cjs`, `RemoteAccessGuard.java`, `src/remote-security-policy.ts`, `scripts/remote-security-smoke.mjs`, and `docs/phase10-remote-security-host-reliability.md`.
 
-1.4.69 is accepted after the user-host automated diagnostics passed 21/21. 1.4.70 adds the LAN discovery lifecycle regression gate: Desktop executable SSDP/UPnP/mDNS protocol/lifecycle checks plus Android parity and a pure-JDK protocol harness when `javac` is available. `LanDiscoveryService.checkNetwork()` exposes the existing 5-second poll body for deterministic restart testing; discovery behavior itself is not redesigned.
+1.4.70 added the LAN discovery lifecycle regression gate: Desktop executable SSDP/UPnP/mDNS protocol/lifecycle checks plus Android parity and a pure-JDK protocol harness when `javac` is available. `LanDiscoveryService.checkNetwork()` exposes the existing 5-second poll body for deterministic restart testing; discovery behavior itself is not redesigned.
+
+Real 1.4.69 Windows/Android use later showed that the old **21/21** report did not prove Remote Web startup. 1.4.71 therefore restores real loopback HTTP/resource readiness, fixes the Desktop compatibility fallback so it stages `package-remote`, makes the packaged Desktop smoke actually start the server, returns discovery runtime status from both hosts, adds source-level live HTTP/pair/API/SSDP E2E, and adds the 22nd in-app `remote-host-e2e` case. The confirmed validation-regression boundary is 1.4.51, which removed the 1.4.50 real host readiness checks. The Desktop compatibility packaging defect is possible from 1.4.50 onward. Do not claim an exact Android functional-regression version until actual 1.4.71 packaged-host diagnostics resolve it.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -100,18 +103,18 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.70 validation
+### Current Phase 10 / 1.4.71 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
-- Build-tool, UI regression, PlatformAdapter, Host Contract (31 operations), Remote Web, Execution, Desktop Host/file export, Android Host, Workflow Core, Editor Core, Runtime Engine and NodeContract architecture smokes: passed.
-- LAN discovery lifecycle smoke: Desktop SSDP/UPnP/mDNS identity, `ssdp:all`, CRLF/ST/USN/LOCATION, network restart, byebye/goodbye; Android parity + JDK protocol harness: passed in the delivery environment.
-- Phase 9 Editor Core strict semantic subset compile: previously passed on the 1.4.69 baseline.
-- Full dependency-backed TypeScript/Vite/Electron build was not rerun for 1.4.70 in this delivery container because `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x. The 1.4.70 source change is confined to Desktop LAN lifecycle factoring, a built-in Node/JDK smoke gate, documentation and version metadata; changed CJS/MJS syntax checks passed.
-- Phase 9 1.4.67 is frozen after the user-host build and 19/19 diagnostics passed. Phase 10 1.4.68 adds PIN abuse protection, expiring client-bound tokens, API rate limits, Android Host Agent Proxy secret isolation and Remote security regression gates.
-- `git diff --check` and version sync: passed.
+- Build-tool, UI regression, PlatformAdapter, Host Contract, Remote security, Execution, Desktop Host/file export, Android Host, Workflow Core, Editor Core, Runtime Engine and NodeContract architecture smokes: passed.
+- Real Desktop source-host E2E: HTTP bind, `/health`, SPA shell, main JS asset, UPnP XML, PIN pairing, authenticated API and live UDP SSDP M-SEARCH response: passed. Android actual-server JVM E2E: compile, socket startup, health/shell/JS and discovery status: passed.
+- LAN discovery lifecycle smoke: Desktop SSDP/UPnP/mDNS identity, `ssdp:all`, CRLF/ST/USN/LOCATION, network restart, byebye/goodbye; Android parity + JDK protocol harness: passed.
+- Packaged Desktop smoke source now calls `startRemoteServer(true)` and the compatibility package path stages both Electron and Remote Web browser bundles.
+- Full dependency-backed TypeScript/Vite/Electron/Gradle packaging was not rerun in this delivery container because `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x.
+- `git diff --check`, syntax checks and version sync must pass before delivery.
 
-The removable in-app diagnostics now contain twenty-one cases. A real Desktop/Android host with both runtimes should report **21/21**.
+The removable in-app diagnostics now contain twenty-two full-host cases. A real Desktop/Android host with both runtimes should report **22/22**. Plain browser/paired Remote Web cannot host another service, so `remote-host-e2e` is skipped there.
 
 Phase 1 production-boundary checks:
 

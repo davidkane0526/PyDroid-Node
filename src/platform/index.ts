@@ -10,6 +10,7 @@ export type {
   PickedCsvFile,
   PlatformAdapter,
   RemoteAccessPolicy,
+  RemoteDiscoveryStatus,
   RemoteAppConfiguration,
   RemoteServerInfo,
   RuntimeStats,

@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.70 (93) · Phase 10 Remote Access Security & Host Reliability**。1.4.69 已经用户宿主 21/21 自动诊断验收；1.4.70 将现有 SSDP/UPnP + mDNS 的身份、报文与网络切换/停止生命周期纳入跨平台自动化门禁，不改变已验收 UI、手势、Workflow/Runtime 与 Remote 安全语义。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
+> **当前开发版本：1.4.71 (94) · Phase 10 Remote Access Security & Host Reliability**。真实 Windows/Android 验证证明 1.4.69 的 21/21 诊断没有覆盖实际宿主启动，因此 1.4.71 将 HTTP 监听/页面资源、Desktop 成品打包和 SSDP/mDNS 运行状态纳入真实 Host E2E 门禁；完整 Desktop/Android 宿主诊断目标提升为 22/22。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

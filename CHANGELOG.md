@@ -1,3 +1,13 @@
+## 1.4.71 (94) — Phase 10 Remote Web host E2E repair — 2026-08-20
+
+- Corrected a validation gap exposed by the real 1.4.69 Windows/Android builds: the previous 21/21 in-app diagnostics verified editor/runtime/security contracts but did not prove that a packaged host actually bound HTTP, served the browser bundle, or started SSDP/mDNS.
+- Desktop and Android Remote Web now perform a non-blocking loopback readiness check for `/health`, the SPA shell and its main JavaScript asset before startup is reported as successful. LAN-address hairpin access is intentionally not a production startup blocker.
+- Fixed the Windows compatibility-packaging fallback introduced after the dedicated Remote Web browser bundle appeared in 1.4.50: it now builds and stages both `desktop/package-renderer` and `desktop/package-remote`. The packaged Desktop smoke actually starts and stops Remote Web, so a missing browser bundle can no longer ship behind a green desktop smoke.
+- Host connection info now reports usable LAN interfaces and live SSDP/mDNS status. Built-in diagnostics add `remote-host-e2e`; a capable Desktop/Android host must now report **22/22** and fails when only loopback is exposed or discovery is not running.
+- Added `test:remote-host-e2e`: Desktop starts the real HTTP service, fetches health/shell/UPnP, pairs with a PIN, calls an authenticated API and sends a live SSDP M-SEARCH datagram; a pure-JVM Android harness compiles and starts the actual `RemoteWorkflowServer`, then verifies health/shell/JS and discovery status.
+- Reinstated strong readiness coverage removed in 1.4.51, without reinstating the former LAN hairpin startup dependency.
+- Build script revision: `1.4.71-dev-r47-phase10-remote-host-e2e`.
+
 ## 1.4.70 (93) — Phase 10 LAN Discovery Lifecycle Automation — 2026-08-20
 
 - Promoted the existing SSDP/UPnP + mDNS implementation to a guarded Phase 10 lifecycle contract instead of redesigning discovery behavior.

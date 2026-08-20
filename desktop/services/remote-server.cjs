@@ -4,7 +4,6 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
-const { projectPaths } = require("./profile-service.cjs");
 const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
 
 const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
@@ -15,8 +14,6 @@ function resolveRendererRoot() {
     ? [
         path.join(app.getAppPath(), "desktop", "package-remote"),
         path.join(process.resourcesPath, "app.asar", "desktop", "package-remote"),
-        // Compatibility fallback for older packages which did not stage a dedicated browser bundle.
-        path.dirname(projectPaths(app).renderer),
       ]
     : [
         path.resolve(__dirname, "..", "..", "dist"),
@@ -37,6 +34,34 @@ function safeStaticPath(rendererRoot, pathname) {
   const filePath = path.resolve(root, requested);
   if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) return null;
   return filePath;
+}
+
+
+function requestText(port, pathname, host = "127.0.0.1") {
+  return new Promise((resolve, reject) => {
+    const request = http.get({ host, port, path: pathname, timeout: 2500 }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+    });
+    request.once("timeout", () => request.destroy(new Error(`Remote Web readiness timeout: ${pathname}`)));
+    request.once("error", reject);
+  });
+}
+
+async function verifyLoopbackReady(port) {
+  const health = await requestText(port, "/health");
+  if (health.status !== 200 || health.body.trim() !== "OK") throw new Error("Remote Web /health readiness check failed");
+  const shell = await requestText(port, "/");
+  if (shell.status !== 200 || !/<script\b/i.test(shell.body) || !/<div[^>]+id=["']root["']/i.test(shell.body)) {
+    throw new Error("Remote Web browser shell readiness check failed");
+  }
+  const assetMatch = shell.body.match(/<script[^>]+src=["']([^"']+)["']/i);
+  if (assetMatch) {
+    const assetPath = new URL(assetMatch[1], `http://127.0.0.1:${port}/`).pathname;
+    const asset = await requestText(port, assetPath);
+    if (asset.status !== 200 || asset.body.length < 32) throw new Error(`Remote Web main asset readiness check failed: ${assetPath}`);
+  }
 }
 
 function normalizeClientAddress(request) {
@@ -186,8 +211,15 @@ function createRemoteServerService({ pythonService, log }) {
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
 
-    return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", () => {
+    return new Promise((resolve, reject) => server.once("error", reject).listen(0, "0.0.0.0", async () => {
       const port = server.address().port;
+      try {
+        await verifyLoopbackReady(port);
+        log(`[Remote Web] Loopback readiness passed on 127.0.0.1:${port}`);
+      } catch (error) {
+        try { server.close(); } catch {}
+        return reject(error);
+      }
       try {
         lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
         const discovery = lanDiscovery.start({ port });
@@ -197,11 +229,17 @@ function createRemoteServerService({ pythonService, log }) {
         lanDiscovery = null;
         log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
       }
+      const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
       const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
-      const interfaceUrls = (lanDiscovery?.getStatus?.().interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
+      const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
       const url = `http://${address}:${port}/`;
       const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
-      const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port };
+      const discovery = {
+        interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address })),
+        ssdp: discoveryState.ssdp ?? "unavailable",
+        mdns: discoveryState.mdns ?? "unavailable",
+      };
+      const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery };
       server.__info = info;
       remoteServer = server;
       resolve(info);

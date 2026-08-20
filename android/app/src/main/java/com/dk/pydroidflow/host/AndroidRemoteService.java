@@ -30,7 +30,7 @@ final class AndroidRemoteService implements AutoCloseable {
                     active = server;
                 }
                 org.json.JSONObject info = active.connectionInfo();
-                JSObject response = new JSObject(); response.put("url", info.getString("url")); response.put("urls", info.getJSONArray("urls")); response.put("requiresPin", info.getBoolean("requiresPin")); response.put("pin", info.isNull("pin") ? null : info.getString("pin")); response.put("port", info.getInt("port")); call.resolve(response);
+                JSObject response = new JSObject(); response.put("url", info.getString("url")); response.put("urls", info.getJSONArray("urls")); response.put("requiresPin", info.getBoolean("requiresPin")); response.put("pin", info.isNull("pin") ? null : info.getString("pin")); response.put("port", info.getInt("port")); response.put("discovery", info.getJSONObject("discovery")); call.resolve(response);
             } catch (Exception exception) { String message = exception.getMessage(); call.reject(message == null ? "Unable to start the LAN service" : message, exception); }
         });
     }
