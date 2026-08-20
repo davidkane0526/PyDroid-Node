@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.75 (98) · Phase 10 Host State Reconciliation**。1.4.73 已由用户实机确认桌面 Remote Web/LAN 服务可用并作为冻结网络基线，1.4.74 也未发现实机回归；1.4.75 只增加宿主只读状态契约与 UI 状态对齐，使地址变化、异常停止和 Discovery 恢复能够被现有横幅/状态栏正确反映，不改变 TCP 8765、LAN Discovery、PIN/Token、启动交互或任何 UI 文案。完整 Desktop/Android 宿主诊断目标保持 22/22。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
+> **当前开发版本：1.4.76 (99) · Phase 10 Host State TypeScript Build Hotfix**。1.4.73 仍是用户实机确认的桌面 Remote Web/LAN 冻结网络基线；1.4.74/1.4.75 的生命周期与只读状态对齐行为保持不变。1.4.76 仅修复真实 Windows 构建暴露的 `useRemoteHostReconciliation.ts` 严格空值类型错误，不改变 TCP 8765、LAN Discovery、PIN/Token、启动交互、布局或任何 UI 文案。完整 Desktop/Android 宿主诊断目标保持 22/22。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

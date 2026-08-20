@@ -1,3 +1,16 @@
+# Phase 10 progress — 1.4.76 (99)
+
+## 1.4.76 Host state TypeScript build hotfix
+
+The real Windows dependency-backed build of 1.4.75 stopped at `tsc --noEmit -p tsconfig.json` with `TS18047` in `useRemoteHostReconciliation.ts`. The runtime design was valid, but TypeScript correctly did not preserve `status.info` property narrowing inside the later React updater callback.
+
+- Capture `status.info` into a local non-null `info` constant before entering the state-updater callback. No non-null assertion is used.
+- Audited the 1.4.75 reconciliation code for the same callback-narrowing pattern; no second occurrence was found.
+- No Remote Web/LAN protocol, lifecycle, address, UI copy or layout behavior changes.
+- Build script revision: `1.4.76-dev-r52-phase10-host-state-typecheck`.
+
+---
+
 # Phase 10 progress — 1.4.75 (98)
 
 ## 1.4.75 Host state reconciliation

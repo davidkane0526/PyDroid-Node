@@ -1,12 +1,12 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-21
-当前架构开发分支：`phase10/host-state-reconciliation`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.75 (98)`
+当前架构开发分支：`fix/phase10-host-state-typecheck`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.76 (99)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
-> **Remote Web/LAN 冻结基线：1.4.73 已由用户实机确认可用。** 后续 Phase 10 工作不得无故改变固定 TCP 8765、现有启动交互/文案、PIN/Token、LAN HTTP readiness 或 SSDP/UPnP/mDNS 协议行为。未经用户明确允许，不新增 UI 说明文字。1.4.74 只处理 Host lifecycle/recovery；1.4.75 只增加 read-only Host status 与 UI state reconciliation。
+> **Remote Web/LAN 冻结基线：1.4.73 已由用户实机确认可用。** 后续 Phase 10 工作不得无故改变固定 TCP 8765、现有启动交互/文案、PIN/Token、LAN HTTP readiness 或 SSDP/UPnP/mDNS 协议行为。未经用户明确允许，不新增 UI 说明文字。1.4.74 只处理 Host lifecycle/recovery；1.4.75 只增加 read-only Host status 与 UI state reconciliation；1.4.76 仅修复该 reconciliation hook 在真实 TypeScript production build 中暴露的 TS18047，不改变行为。
 
 ## 1. 开发原则
 
@@ -614,7 +614,7 @@ Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成�
 
 ## 14. Phase 10 — Remote Access Security & Host Reliability
 
-状态：**1.4.75 (98) 冻结候选，等待真实 Desktop/Android 验证。**
+状态：**1.4.76 (99) 冻结候选。1.4.75 的真实 Windows 构建暴露 TS18047；1.4.76 仅修复该 TypeScript build gate，等待真实 Desktop/Android 编译/验证。**
 
 Phase 10 不重新设计已工作的 Remote Web/LAN UI，而是把第 11 节长期安全与可靠性项变成可测试契约。1.4.68 首先处理敏感边界：Desktop/Android 使用相同的 PIN 失败窗口与冷却策略、成功配对后签发客户端地址绑定且有 TTL/数量上限的 Session Token，并对普通与重型 Remote API 分级限流。Android 的 Remote Web 配置只返回 `agentProxyAvailable`，原始 Agent API Key 始终留在宿主 Keystore；网页通过 Host Agent Proxy 发起模型请求。代理的 provider/endpoint 由宿主设置决定，不接受网页任意改写，且禁止上游 redirect 后继续携带宿主凭据。
 

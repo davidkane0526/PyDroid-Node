@@ -1,10 +1,10 @@
-# Current handoff — 1.4.75 / Phase 10 Host state reconciliation
+# Current handoff — 1.4.76 / Phase 10 Host state TypeScript build hotfix
 
 The user physically validated 1.4.73 Desktop Remote Web/LAN access. Treat **1.4.73 as the frozen accepted network baseline**: fixed TCP 8765, the current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not be changed without a concrete defect and user approval for any UI text change.
 
-1.4.74 hardened start/stop lifecycle ownership and transient discovery recovery without changing the accepted network contract. The user reported no issue with that build. 1.4.75 closes the remaining host/UI observability gap by adding a read-only cross-platform lifecycle/status operation and a focused UI reconciliation hook. It does not call start/stop, rotate PIN/session state, change the network protocol, or add any UI text.
+1.4.74 hardened start/stop lifecycle ownership and transient discovery recovery without changing the accepted network contract. The user reported no issue with that build. 1.4.75 added read-only cross-platform lifecycle/status reconciliation, but the real Windows build exposed a strict-null TypeScript error in that new hook. 1.4.76 is a build-only hotfix: it preserves the narrowed host info in a local constant before the React updater callback. It does not call start/stop, rotate PIN/session state, change the network protocol, layout, or UI text.
 
-Version: **1.4.75**, Android versionCode **98**. Build revision: `1.4.75-dev-r51-phase10-host-state-reconciliation`.
+Version: **1.4.76**, Android versionCode **99**. Build revision: `1.4.76-dev-r52-phase10-host-state-typecheck`.
 
 # Development handoff
 
@@ -34,9 +34,10 @@ Long-lived branches in this repository:
 - `fix/phase10-lan-firewall-real-readiness`: `1.4.72 (95)` superseded foreground firewall/profile readiness experiment.
 - `fix/phase10-remote-startup-single-flight`: `1.4.73 (96)` user-accepted Remote Web/LAN baseline.
 - `phase10/host-lifecycle-recovery`: `1.4.74 (97)` accepted-without-observed-regression host lifecycle/recovery milestone.
-- `phase10/host-state-reconciliation`: `1.4.75 (98)` current read-only native-host/UI state reconciliation milestone.
+- `phase10/host-state-reconciliation`: `1.4.75 (98)` read-only native-host/UI state reconciliation milestone (real Windows build later exposed TS18047).
+- `fix/phase10-host-state-typecheck`: `1.4.76 (99)` current TypeScript production-build hotfix; behavior unchanged.
 
-Current working branch: `phase10/host-state-reconciliation`.
+Current working branch: `fix/phase10-host-state-typecheck`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -115,7 +116,7 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.75 validation
+### Current Phase 10 / 1.4.76 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
@@ -123,7 +124,8 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 - Real Desktop source-host E2E: HTTP bind, `/health`, SPA shell, main JS asset, UPnP XML, PIN pairing, authenticated API and live UDP SSDP M-SEARCH response: passed. Android actual-server JVM E2E: compile, socket startup, health/shell/JS and discovery status: passed.
 - LAN discovery lifecycle smoke: Desktop SSDP/UPnP/mDNS identity, `ssdp:all`, CRLF/ST/USN/LOCATION, network restart, byebye/goodbye; Android parity + JDK protocol harness: passed.
 - Packaged Desktop smoke source now calls `startRemoteServer(true)` and the compatibility package path stages both Electron and Remote Web browser bundles.
-- Full dependency-backed TypeScript/Vite/Electron/Gradle packaging was not rerun in this delivery container because `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x.
+- The real user-host 1.4.75 dependency-backed build exposed `TS18047` in `useRemoteHostReconciliation.ts`. 1.4.76 fixes that exact strict-null narrowing defect by capturing `status.info` before the React updater callback, and the no-dependency UI regression smoke now guards against re-reading nullable `status.info` inside that callback.
+- Full dependency-backed TypeScript 7.0.2/Vite/Electron/Gradle packaging still cannot be rerun in this delivery container because project `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x. Therefore this delivery does **not** claim a full production build pass until the user-host build completes.
 - Desktop start/stop lifecycle smoke covers stale-start cancellation, stop barrier restart, read-only running/stopped host status, PIN stability and idempotent stop. Android JVM host coverage includes queued-start cancellation, concurrent-start ownership and read-only running/stopped status.
 - LAN discovery smoke covers transient single-protocol self-recovery without restarting the healthy protocol. The UI reconciliation hook is separately guarded to remain read-only, 3-second bounded, and free of `setMessage()`/new user copy.
 - `git diff --check`, syntax checks and version sync must pass before delivery.

@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.75-dev-r51-phase10-host-state-reconciliation"
+$script:BuildScriptRevision = "1.4.76-dev-r52-phase10-host-state-typecheck"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

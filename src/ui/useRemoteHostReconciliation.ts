@@ -21,9 +21,10 @@ export function useRemoteHostReconciliation({ active, remoteBrowser, transitionR
         const status = await getRemoteHostStatus();
         if (!mounted) return;
         if (status.state === "running" && status.info) {
+          const info = status.info;
           setRemoteServer((current) => {
             if (!current) return current;
-            const next = { ...current, ...status.info, readiness: status.info.readiness ?? current.readiness };
+            const next = { ...current, ...info, readiness: info.readiness ?? current.readiness };
             return JSON.stringify(next) === JSON.stringify(current) ? current : next;
           });
         } else if (status.state === "stopped") {

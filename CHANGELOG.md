@@ -1,3 +1,11 @@
+## 1.4.76 (99) — Phase 10 Host state TypeScript build hotfix — 2026-08-21
+
+- Fixes the dependency-backed production TypeScript failure in `src/ui/useRemoteHostReconciliation.ts` reported by the real Windows build: `TS18047: status.info is possibly null`.
+- Captures the already-narrowed `status.info` into a local `info` constant before entering the React state-updater callback, preserving strict-null type safety without a non-null assertion or behavioral change.
+- Audited the new host-state reconciliation path for the same property-narrowing-across-callback pattern; no additional occurrence was found.
+- Remote Web/LAN behavior remains frozen to the user-accepted 1.4.73 baseline; 1.4.74 lifecycle behavior and 1.4.75 read-only reconciliation behavior are unchanged. No UI copy/layout change is introduced.
+- Build script revision: `1.4.76-dev-r52-phase10-host-state-typecheck`.
+
 ## 1.4.75 (98) — Phase 10 Host state reconciliation — 2026-08-21
 
 - Keeps the user-accepted 1.4.73 Remote Web/LAN behavior and the 1.4.74 lifecycle/recovery fixes frozen. Fixed TCP 8765, existing UI copy, pairing/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior are unchanged.

@@ -57,6 +57,8 @@ assert.doesNotMatch(dialogs, /Windows 首次启用时可能请求管理员授权
 assert.match(app, /const remoteServerTransitionRef = useRef\(false\)/, "Remote Web UI start/stop must have a single-flight transition guard");
 assert.match(app, /useRemoteHostReconciliation\(\{ active: remoteServerActive/, "running Remote UI must delegate native-host state reconciliation to a focused hook");
 assert.match(remoteReconciliation, /getRemoteHostStatus\(\)[\s\S]*status\.state === "running"[\s\S]*status\.state === "stopped"/, "running Remote UI must reconcile against the read-only native host status");
+assert.match(remoteReconciliation, /status\.state === "running" && status\.info\) \{\s*const info = status\.info;/, "Remote host reconciliation must capture narrowed host info before entering the React updater callback");
+assert.doesNotMatch(remoteReconciliation, /setRemoteServer\(\(current\) => \{[\s\S]{0,500}status\.info/, "React updater callbacks must not re-read nullable status.info after TypeScript narrowing is lost");
 assert.match(remoteReconciliation, /setInterval\(\(\) => void reconcile\(\), 3000\)/, "Remote host reconciliation should stay lightweight and bounded");
 assert.doesNotMatch(remoteReconciliation, /setMessage\(/, "read-only Remote host reconciliation must not add user-visible copy or notifications");
 assert.doesNotMatch(app, /readiness\?\.firewall|readiness\.firewall/, "Remote Web UI and in-app diagnostics must not block startup on brittle Windows firewall/profile probing");

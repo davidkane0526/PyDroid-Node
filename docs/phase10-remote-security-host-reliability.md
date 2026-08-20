@@ -164,6 +164,10 @@ LAN discovery recovery is also made local and non-destructive. If SSDP or mDNS a
 Finally, host observability no longer trusts a startup-time object. Desktop re-measures loopback/LAN HTTP readiness and current discovery state when an already-running host is queried, and the in-app host diagnostic always queries the host rather than substituting React's cached `RemoteServerInfo`. The diagnostic case count remains 22.
 
 
+## 1.4.76 Host state TypeScript build hotfix
+
+The real Windows dependency-backed 1.4.75 build stopped at `tsc --noEmit -p tsconfig.json` with `TS18047` because TypeScript does not preserve the `status.info` property narrowing once execution enters the later React state-updater callback. 1.4.76 captures the narrowed object into a local `info` constant before the callback and then uses only that stable local value inside the updater. This is a strict-type/build fix only: host lifecycle, TCP 8765, LAN HTTP readiness, SSDP/UPnP/mDNS, PIN/token behavior and all existing UI copy/layout remain unchanged. The no-dependency UI regression smoke also guards against reintroducing direct nullable `status.info` access inside the updater.
+
 ## 1.4.75 Host state reconciliation
 
 1.4.74 made lifecycle ownership reliable but the React host indicator still depended primarily on the object returned when the service was started. A later network-address change, Discovery recovery or unexpected native stop could therefore leave the existing banner/status icon stale until another explicit host operation occurred.
