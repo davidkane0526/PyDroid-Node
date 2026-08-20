@@ -37,7 +37,7 @@ for (const channel of [
   "pydroid:get-environment", "pydroid:analyze-notebook", "pydroid:analyze-signature",
   "pydroid:start-remote-server", "pydroid:stop-remote-server",
   "pydroid:discover-smb-servers", "pydroid:scan-smb-shares", "pydroid:list-smb", "pydroid:read-smb",
-  "pydroid:save-smb-secret", "pydroid:load-smb-secret", "pydroid:pick-csv",
+  "pydroid:save-smb-secret", "pydroid:load-smb-secret", "pydroid:pick-csv", "pydroid:export-text-file",
 ]) assert.ok(ipc.includes(channel), `desktop IPC registry must preserve ${channel}`);
 
 assert.match(python, /PythonProcessController/, "Python host service must own process lifecycle");

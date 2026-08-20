@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld("pyDroidDesktop", {
     },
   },
   pickCsvFiles: (mode) => ipcRenderer.invoke("pydroid:pick-csv", mode),
+  exportTextFile: (name, content, mimeType) => ipcRenderer.invoke("pydroid:export-text-file", { name, content, mimeType }),
   discoverSmbServers: () => ipcRenderer.invoke("pydroid:discover-smb-servers"),
   scanSmbShares: (connection) => ipcRenderer.invoke("pydroid:scan-smb-shares", connection),
   listSmb: (connection, path) => ipcRenderer.invoke("pydroid:list-smb", connection, path),

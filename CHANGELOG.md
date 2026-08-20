@@ -1,3 +1,11 @@
+## 1.4.59 (82) — Desktop export/build repair — 2026-08-20
+
+- Fixed the 1.4.58 Windows Desktop TypeScript build break: the Desktop `files` PlatformAdapter now implements the required `exportTextFile` capability.
+- Added a native Electron save-file IPC path for diagnostics/text export (`showSaveDialog` + UTF-8 write), so Desktop export no longer depends on a browser download fallback.
+- Fixed Desktop PlatformAdapter initialization so TypeScript no longer returns a nullable adapter after construction.
+- Added `files.exportTextFile` to the renderer-to-host contract and Desktop architecture smoke coverage to prevent Android/Desktop file-capability drift.
+- Build script revision: `1.4.59-dev-r35-phase8-desktop-export-build-fix`.
+
 ## 1.4.58 (81) — Android diagnostics export + Resources layout — 2026-08-20
 
 - Android automated-diagnostics JSON export now uses the system Storage Access Framework (`ACTION_CREATE_DOCUMENT`) instead of a WebView download anchor, so tapping **导出 JSON** opens the native file-save picker and reports saved/cancelled/failed status inside the diagnostics dialog.

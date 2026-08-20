@@ -21,6 +21,7 @@ export type DesktopRuntimeBridge = {
 
 export type DesktopPlatformBridge = {
   pickCsvFiles(mode: FilePickMode): Promise<Array<{ name: string; base64: string }>>;
+  exportTextFile(name: string, content: string, mimeType: string): Promise<{ saved: boolean; destination?: string | null }>;
   discoverSmbServers(): Promise<SmbServer[]>;
   scanSmbShares(connection: SmbConnection): Promise<string[]>;
   listSmb(connection: SmbConnection, path: string): Promise<SmbEntry[]>;

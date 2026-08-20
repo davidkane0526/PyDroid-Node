@@ -1,3 +1,11 @@
+## 2026-08-20 — Desktop export/build repair / 1.4.59 (82)
+
+- Fixed the 1.4.58 Desktop renderer build failure caused by the new `FilePlatformCapability.exportTextFile` contract not being implemented by `desktop/renderer/platform.ts`.
+- Desktop diagnostics export now uses an Electron native save dialog and IPC-backed UTF-8 file write.
+- Removed the nullable adapter return path that triggered the second Desktop TypeScript error.
+- Extended `src/platform/host-contract.json` and Desktop host smoke tests so future platform file-capability additions must remain synchronized.
+- Build script revision: `1.4.59-dev-r35-phase8-desktop-export-build-fix`.
+
 ## 2026-08-20 — Phase 8 diagnostics export + Resources layout / 1.4.58 (81)
 
 - Desktop 1.4.57 diagnostics report from user acceptance passed 4/4: JavaScript/Python workspace persistence and reusable-function execution are healthy.

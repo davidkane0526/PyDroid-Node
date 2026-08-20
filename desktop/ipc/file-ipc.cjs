@@ -22,6 +22,18 @@ function registerFileIpc() {
       : result.filePaths;
     return paths.map((filePath) => ({ name: path.basename(filePath), base64: fs.readFileSync(filePath).toString("base64") }));
   });
+
+  ipcMain.handle("pydroid:export-text-file", async (_event, payload = {}) => {
+    const name = path.basename(String(payload.name || "pydroid-export.txt"));
+    const content = String(payload.content ?? "");
+    const result = await dialog.showSaveDialog({
+      title: "导出文件",
+      defaultPath: name,
+    });
+    if (result.canceled || !result.filePath) return { saved: false, destination: null };
+    await fs.promises.writeFile(result.filePath, content, "utf8");
+    return { saved: true, destination: result.filePath };
+  });
 }
 
 module.exports = { registerFileIpc };

@@ -1,6 +1,6 @@
 # Phase 8 — Workflow Language / State & Function System
 
-Version: 1.4.58 (81)
+Version: 1.4.59 (82)
 Branch: `phase8/workflow-language-state-functions`
 
 ## Goals
@@ -79,6 +79,10 @@ The cloud environment cannot reach npm/Gradle distribution servers and does not 
 User acceptance exposed two integration gaps in 1.4.56. First, the Windows desktop renderer had a separate execution adapter that had not yet adopted workspace-state transport, reusable-function serialization, or reachable-function runtime selection. Second, the canvas card renderer did not consume `functionInputs` / `functionOutputs` even though the persisted function-call node contained them. Both are corrected in 1.4.57.
 
 The Functions resource view now refreshes explicitly after a successful run. A removable in-app automated diagnostics module was also added so future Desktop/Android acceptance can be reported as one JSON result rather than a multi-file manual procedure. See `docs/automated-diagnostics.md`.
+## 1.4.59 build repair
+
+The 1.4.58 Android-native diagnostics export expanded `FilePlatformCapability` with `exportTextFile`, but the Desktop renderer adapter was not updated at the same time. 1.4.59 restores platform parity by adding the Desktop capability, Electron save-file IPC, and a host-contract regression guard. No Phase 8 workflow/runtime semantics changed in this repair.
+
 ## 1.4.58 acceptance update
 
 The user-provided 1.4.57 Desktop diagnostics report passed all four automated cases, confirming workspace persistence and reusable-function execution in both JavaScript and Python. Android export UX was then corrected: diagnostics JSON now uses the native Storage Access Framework create-document flow, making the destination explicit instead of depending on WebView download handling. The Resources navigation order is now **节点 → 函数 → 组合 → 流程**, and the palette minimum/default width is 216 px so the four Chinese labels are not compressed.

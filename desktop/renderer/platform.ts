@@ -29,7 +29,7 @@ let adapter: PlatformAdapter | null = null;
 
 export function getPlatformAdapter(): PlatformAdapter {
   if (adapter) return adapter;
-  adapter = {
+  const created: PlatformAdapter = {
     id: "desktop",
     files: {
       async pickCsvFiles(mode) {
@@ -37,6 +37,11 @@ export function getPlatformAdapter(): PlatformAdapter {
         if (!bridge?.pickCsvFiles) return null;
         const files = await bridge.pickCsvFiles(mode);
         return files.map((file) => ({ name: file.name, bytes: decodeBase64Bytes(file.base64) }));
+      },
+      async exportTextFile(name, content, mimeType) {
+        const bridge = getDesktopBridge();
+        if (!bridge?.exportTextFile) throw new Error("桌面文件导出服务不可用");
+        return bridge.exportTextFile(name, content, mimeType);
       },
     },
     smb: {
@@ -104,7 +109,8 @@ export function getPlatformAdapter(): PlatformAdapter {
       },
     },
   };
-  return adapter;
+  adapter = created;
+  return created;
 }
 
 export function isRemoteRuntime(): boolean { return getPlatformAdapter().remote.isRemoteRuntime(); }
@@ -137,3 +143,4 @@ export function scanSmbShares(connection: SmbConnection) { return getPlatformAda
 export function listSmbDirectory(connection: SmbConnection, path: string) { return getPlatformAdapter().smb.listDirectory(connection, path); }
 export function readSmbCsvFiles(connection: SmbConnection, paths: string[]) { return getPlatformAdapter().smb.readCsvFiles(connection, paths); }
 export function pickCsvFiles(mode: FilePickMode) { return getPlatformAdapter().files.pickCsvFiles(mode); }
+export function exportTextFile(name: string, content: string, mimeType: string) { return getPlatformAdapter().files.exportTextFile(name, content, mimeType); }

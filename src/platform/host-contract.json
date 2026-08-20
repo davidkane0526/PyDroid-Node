@@ -11,6 +11,7 @@
     { "capability": "runtime", "operation": "analyzeSignature", "desktop": { "bridge": "analyzeSignature", "channel": "pydroid:analyze-signature" }, "android": { "plugin": "PythonExecutor", "method": "analyzeSignature" } },
 
     { "capability": "files", "operation": "pickCsvFiles", "desktop": { "bridge": "pickCsvFiles", "channel": "pydroid:pick-csv" }, "android": { "plugin": "PythonExecutor", "method": "pickCsv" } },
+    { "capability": "files", "operation": "exportTextFile", "desktop": { "bridge": "exportTextFile", "channel": "pydroid:export-text-file" }, "android": { "plugin": "PythonExecutor", "method": "exportTextFile" } },
 
     { "capability": "smb", "operation": "discoverServers", "desktop": { "bridge": "discoverSmbServers", "channel": "pydroid:discover-smb-servers" }, "android": { "plugin": "PythonExecutor", "method": "discoverSmbServers" } },
     { "capability": "smb", "operation": "scanShares", "desktop": { "bridge": "scanSmbShares", "channel": "pydroid:scan-smb-shares" }, "android": { "plugin": "PythonExecutor", "method": "scanSmbShares" } },
