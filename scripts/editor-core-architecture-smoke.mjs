@@ -11,6 +11,7 @@ const lifecycle = readFileSync(path.join(root, "src/editor-core/lifecycle.ts"), 
 const layout = readFileSync(path.join(root, "src/editor-core/layout.ts"), "utf8");
 const resources = readFileSync(path.join(root, "src/editor-core/resources.ts"), "utf8");
 const structure = readFileSync(path.join(root, "src/editor-core/workflow-structure.ts"), "utf8");
+const connection = readFileSync(path.join(root, "src/editor-core/connection.ts"), "utf8");
 const reactAdapter = readFileSync(path.join(root, "src/editor-core/react.ts"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
 const diagnostics = readFileSync(path.join(root, "src/diagnostics/automated-debug.ts"), "utf8");
@@ -42,6 +43,14 @@ assert.match(commands, /type: "insert-node"/, "node creation should cross Editor
 assert.match(commands, /type: "duplicate-node"/, "node duplication should cross Editor Command");
 assert.match(commands, /type: "update-node-parameters"/, "parameter edits should cross Editor Command");
 assert.match(commands, /type: "arrange-canvas"/, "layout operations should cross Editor Command");
+assert.match(commands, /type: "replace-node"/, "node replacement should cross Editor Command");
+assert.match(commands, /type: "connect-edge"/, "edge creation should cross Editor Command");
+assert.match(commands, /type: "reconnect-edge"/, "edge reconnection should cross Editor Command");
+assert.match(commands, /type: "commit-node-drag"/, "node drag completion should cross Editor Command");
+assert.match(commands, /type: "update-node-tags"/, "node tags should cross Editor Command");
+assert.match(commands, /type: "update-group-port-label"/, "group port labels should cross Editor Command");
+assert.match(commands, /type: "apply-code-template"/, "custom template application should cross Editor Command");
+
 assert.match(app, /session\.applyGraphCommand\(\{\s*type: "create-group"/, "group creation in App must route through session command");
 assert.match(app, /session\.applyGraphCommand\(\{ type: "save-group-as-function"/, "function save/update in App must route through session command");
 assert.match(app, /session\.applyGraphCommand\(\{ type: "insert-resource"/, "resource insertion in App must route through session command");
@@ -51,6 +60,15 @@ assert.match(app, /type: "update-node-parameters"/, "parameter edits in App must
 assert.match(app, /type: "arrange-canvas"/, "canvas layout in App must route through session command");
 assert.match(session, /historyGroup\?: string/, "EditorWorkspaceSession should own history coalescing keys for continuous edits");
 assert.match(session, /historyWindowMs\?: number/, "EditorWorkspaceSession should own continuous-edit history windows");
+assert.match(session, /beginHistoryTransaction\(key: string\)/, "EditorWorkspaceSession should capture drag baselines before live pointer updates");
+assert.match(session, /commitHistoryTransaction\(key: string\)/, "EditorWorkspaceSession should commit one history entry per drag transaction");
+assert.match(connection, /validateEditorConnection/, "connection validation should live in Editor Core instead of App.tsx");
+assert.doesNotMatch(app, /function createsCycle\(/, "App.tsx must not own connection-cycle semantics");
+assert.match(app, /type: "connect-edge"/, "UI connection creation should delegate to Editor Command");
+assert.match(app, /type: "reconnect-edge"/, "UI connection reconnection should delegate to Editor Command");
+assert.match(app, /beginHistoryTransaction\(`node-drag:/, "UI drag start should delegate history baseline capture to Session");
+assert.match(app, /commitHistoryTransaction\(transactionKey\)/, "UI drag stop should commit one Session history transaction");
+
 assert.match(layout, /arrangeCanvasSnapshot/, "layout semantics should live outside App.tsx");
 assert.doesNotMatch(app, /function arrangeStructureChildren\(/, "App.tsx must not own structure-child layout semantics");
 assert.match(lifecycle, /class EditorWorkspaceLifecycleService/, "autosave/save lifecycle should have an explicit service boundary");
@@ -76,6 +94,9 @@ assert.match(app, /resolveGesturePolicy\("mobile", targetKind\)/, "mobile node/g
 assert.match(diagnostics, /editor-session-isolation/, "one-click diagnostics should cover editor-session isolation");
 assert.match(diagnostics, /editor-command-transaction/, "one-click diagnostics should cover Editor Command transactions");
 assert.match(diagnostics, /editor-node-mutations/, "one-click diagnostics should cover node mutation and layout transactions");
+assert.match(diagnostics, /editor-connection-metadata/, "one-click diagnostics should cover connection/replacement/metadata/template transactions");
+assert.match(diagnostics, /editor-drag-history/, "one-click diagnostics should cover drag history and structure containment");
+
 assert.match(diagnostics, /editor-lifecycle-autosave/, "one-click diagnostics should cover Workspace Lifecycle autosave");
 assert.match(diagnostics, /editor-document-lifecycle/, "one-click diagnostics should cover save/open/close/autosave restore lifecycle");
 assert.match(diagnostics, /editor-gesture-contract/, "one-click diagnostics should report the gesture policy contract");

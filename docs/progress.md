@@ -1,17 +1,23 @@
-# Phase 9 progress — 1.4.62 (85)
+# Phase 9 progress — 1.4.63 (86)
 
-Phase 9 continues on `phase9/editor-core-node-mutations-document-lifecycle`. The accepted Desktop/Android interaction model remains unchanged; this milestone moves ordinary node mutations and document lifecycle decisions behind Editor Core boundaries.
+Phase 9 continues on `phase9/editor-core-connections-drag-transactions`. The accepted Desktop/Android gesture meanings remain unchanged; this milestone moves connection, replacement, metadata/template and drag-history semantics behind Editor Core boundaries.
 
-- Editor Commands now additionally own catalog-node insertion, node duplication, parameter mutation and canvas layout.
-- `EditorWorkspaceSession` owns continuous-edit history coalescing, so rapid slider/parameter changes form one undo transaction instead of React manually timing `pushHistory()` calls.
-- `layout.ts` owns canvas/structure layout semantics; `App.tsx` no longer owns `arrangeStructureChildren()`.
-- `EditorWorkspaceLifecycleService` now owns save serialization, open/apply, close dirty decisions, reset and explicit autosave restore in addition to autosave read/write/quarantine.
-- Current-tab save, JSON open/import, save-before-close and close dirty checks now delegate to the Lifecycle service.
-- Autosave restore is intentionally explicit and does **not** change the accepted startup rule: the app still starts with one empty workflow rather than silently reopening a previous canvas.
-- Automated diagnostics add node-mutation/history/layout and full document-lifecycle cases. A fully capable Desktop/Android host should now report **10/10**.
-- Gesture policies remain intentionally split by Desktop/Mobile and Node/Group/Canvas/Resource/Tab. 1.4.62 does not redefine accepted touch/mouse behavior.
-- `App.tsx` is now 4464 lines, down from 4520 in 1.4.61 and 4679 in the 1.4.60 foundation; reduction remains a consequence of moving semantics, not a line-count target.
-- Build script revision: `1.4.62-dev-r38-phase9-editor-core-node-document-lifecycle`.
+- `connect-edge` / `reconnect-edge` are Editor Commands backed by shared `validateEditorConnection()` semantics. `App.tsx` no longer owns cycle/type/port validation.
+- Node replacement is now a Core transaction that remaps compatible ports, removes missing/type-incompatible incident edges, and safely releases children when a structure node becomes a normal node.
+- Group name, group public-port labels, node tags and custom-code template application now execute through Editor Commands with Session-owned history coalescing where appropriate.
+- `EditorWorkspaceSession` now supports explicit begin/commit/cancel history transactions. React Flow can stream pointer-move positions without creating dozens of undo entries; one completed drag produces one undo baseline.
+- Drag completion and structure-container/branch assignment are handled by `commit-node-drag`, while Desktop/Mobile and Node/Group Gesture Policies remain independent and unchanged.
+- Reconnect now enforces the same target-input exclusivity as normal connection creation, preventing duplicate single-input edges after endpoint moves.
+- Automated diagnostics add connection/replacement/metadata/template and drag/history cases. A fully capable Desktop/Android host should now report **12/12**.
+- `App.tsx` is now 4369 lines, down from 4464 in 1.4.62 and 4679 at the 1.4.60 foundation; the reduction comes from moving connection/replacement/drag semantics into Editor Core.
+- Build script revision: `1.4.63-dev-r39-phase9-editor-core-connections-drag`.
+
+## 2026-08-20 — Phase 9 node/document lifecycle / 1.4.62 (85)
+
+- Moved node insertion/duplication, parameter mutation and canvas arrangement behind Editor Commands.
+- Session-owned history coalescing now collapses continuous parameter edits into one undo transaction.
+- Extended `EditorWorkspaceLifecycleService` across save/open/close and explicit autosave restore while preserving one-empty-workflow startup.
+- Automated diagnostics expanded from 8 to 10 cases.
 
 ## 2026-08-20 — Phase 9 lifecycle/resources / 1.4.61 (84)
 

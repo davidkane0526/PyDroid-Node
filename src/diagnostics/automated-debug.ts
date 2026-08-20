@@ -270,6 +270,102 @@ async function editorNodeMutationCase(): Promise<DiagnosticCase> {
   });
 }
 
+
+async function editorConnectionAndMetadataCase(): Promise<DiagnosticCase> {
+  return runCase("editor-connection-metadata", "Editor Core 连线/替换/标签/模板事务", undefined, async () => {
+    const source = node("source", "generate.random_table", { count: 3, distribution: "uniform", min: -1, max: 1, mean: 0, std: 1, seed: 8, indexColumn: "index", valueColumn: "value" }, "数据源");
+    source.position = { x: 40, y: 60 };
+    const absolute = node("absolute", "table.absolute", {}, "绝对值");
+    absolute.position = { x: 300, y: 60 };
+    const printer = node("printer", "python.print", {}, "打印");
+    printer.position = { x: 560, y: 60 };
+    const custom = node("custom", "custom.python_function", { code: "def old_value(x):\n    return x" }, "自定义函数");
+    custom.position = { x: 820, y: 60 };
+    const group: WorkflowNode = {
+      id: "group",
+      type: "workflow",
+      position: { x: 40, y: 300 },
+      data: {
+        label: "诊断组合",
+        nodeType: "workflow.group",
+        nodeVersion: 1,
+        parameters: {},
+        status: "idle",
+        groupInputs: [{ id: "input-1", label: "旧输入", valueType: "table", internalNodeId: "absolute", internalHandle: "input" }],
+        groupOutputs: [],
+      },
+    };
+    const session = new EditorSessionStore("connection-metadata", { nodes: [source, absolute, printer, custom, group], edges: [], functions: [], requirements: [] }).get("connection-metadata")!;
+
+    const connected = session.applyGraphCommand({ type: "connect-edge", connection: { source: "source", target: "absolute", sourceHandle: "output", targetHandle: "input" } });
+    if (!connected.changed || session.getRuntimeState().snapshot.edges.length !== 1) throw new Error("connect-edge 事务失败");
+    const edgeId = session.getRuntimeState().snapshot.edges[0]!.id;
+    const reconnected = session.applyGraphCommand({ type: "reconnect-edge", edgeId, connection: { source: "source", target: "printer", sourceHandle: "output", targetHandle: "input" } });
+    if (!reconnected.changed || session.getRuntimeState().snapshot.edges[0]?.target !== "printer") throw new Error("reconnect-edge 事务失败");
+
+    session.applyGraphCommand({ type: "update-node-tags", nodeId: "absolute", tags: ["诊断", "关键"] });
+    session.applyGraphCommand({ type: "update-node-label", nodeId: "group", label: "已重命名组合" });
+    session.applyGraphCommand({ type: "update-group-port-label", groupId: "group", direction: "input", portId: "input-1", label: "表格输入" });
+    const updatedGroup = session.getRuntimeState().snapshot.nodes.find((item) => item.id === "group");
+    if (updatedGroup?.data.label !== "已重命名组合" || updatedGroup.data.groupInputs?.[0]?.label !== "表格输入") throw new Error("组合标签/端口事务失败");
+
+    const replaced = session.applyGraphCommand({ type: "replace-node", nodeId: "printer", nextNodeType: "generate.random_table" });
+    if (!replaced.changed || replaced.meta?.removedEdgeCount !== 1 || session.getRuntimeState().snapshot.edges.length !== 0) throw new Error("节点替换没有清理失效输入连线");
+
+    session.applyGraphCommand({ type: "connect-edge", connection: { source: "source", target: "custom", sourceHandle: "output", targetHandle: "input" } });
+    const templated = session.applyGraphCommand({ type: "apply-code-template", nodeId: "custom", code: "def next_value(x):\n    return x" });
+    if (!templated.changed || session.getRuntimeState().snapshot.edges.some((edge) => edge.source === "custom" || edge.target === "custom")) throw new Error("模板事务没有断开旧签名连线");
+
+    return {
+      connectionCreated: true,
+      reconnectionVerified: true,
+      replacementRemovedEdges: replaced.meta?.removedEdgeCount ?? 0,
+      tags: session.getRuntimeState().snapshot.nodes.find((item) => item.id === "absolute")?.data.tags ?? [],
+      groupLabel: updatedGroup.data.label,
+      groupInputLabel: updatedGroup.data.groupInputs?.[0]?.label,
+      templateDisconnectedOldSignature: true,
+      historyEntries: session.history.entries.length,
+    };
+  });
+}
+
+async function editorDragHistoryCase(): Promise<DiagnosticCase> {
+  return runCase("editor-drag-history", "Editor Session 节点拖动/容器归属历史事务", undefined, async () => {
+    const structure = node("structure", "logic.if_subflow", {}, "条件结构");
+    structure.position = { x: 100, y: 100 };
+    structure.style = { width: 520, height: 300 };
+    const moved = node("moved", "python.print", {}, "待拖动节点");
+    moved.position = { x: 20, y: 20 };
+    const session = new EditorSessionStore("drag-history", { nodes: [structure, moved], edges: [], functions: [], requirements: [] }).get("drag-history")!;
+
+    session.beginHistoryTransaction("node-drag:moved");
+    session.updateSnapshot((snapshot) => ({
+      ...snapshot,
+      nodes: snapshot.nodes.map((item) => item.id === "moved" ? { ...item, position: { x: 200, y: 180 } } : item),
+    }));
+    session.updateSnapshot((snapshot) => ({
+      ...snapshot,
+      nodes: snapshot.nodes.map((item) => item.id === "moved" ? { ...item, position: { x: 240, y: 210 } } : item),
+    }));
+    const committed = session.applyGraphCommand({ type: "commit-node-drag", nodeId: "moved", position: { x: 240, y: 210 } }, { captureHistory: false });
+    const historyCommitted = session.commitHistoryTransaction("node-drag:moved");
+    const inside = session.getRuntimeState().snapshot.nodes.find((item) => item.id === "moved");
+    if (!committed.changed || !historyCommitted || inside?.parentId !== "structure" || inside.data.branch !== "true") throw new Error("拖动结束没有作为一个事务写入结构容器归属");
+    if (session.history.entries.length !== 1) throw new Error("一次拖动产生了多条 history");
+    const restored = session.undo()?.nodes.find((item) => item.id === "moved");
+    if (!restored || restored.parentId || restored.position.x !== 20 || restored.position.y !== 20) throw new Error("拖动 undo 没有恢复拖动前位置/归属");
+
+    return {
+      historyEntriesPerDrag: 1,
+      enteredStructure: true,
+      branch: inside.data.branch,
+      relativePosition: inside.position,
+      undoRestoredPosition: restored.position,
+      undoRestoredParentId: restored.parentId ?? null,
+    };
+  });
+}
+
 async function editorLifecycleAutosaveCase(): Promise<DiagnosticCase> {
   return runCase("editor-lifecycle-autosave", "Workspace Lifecycle 自动保存与损坏隔离", undefined, async () => {
     const values = new Map<string, string>();
@@ -355,6 +451,8 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await editorSessionIsolationCase());
   cases.push(await editorCommandTransactionCase());
   cases.push(await editorNodeMutationCase());
+  cases.push(await editorConnectionAndMetadataCase());
+  cases.push(await editorDragHistoryCase());
   cases.push(await editorLifecycleAutosaveCase());
   cases.push(await editorDocumentLifecycleCase());
   cases.push(await gestureContractCase());

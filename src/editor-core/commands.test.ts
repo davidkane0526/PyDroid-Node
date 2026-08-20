@@ -98,3 +98,91 @@ it("saves a group as a function, inserts a call, and protects referenced definit
   expect(blocked.changed).toBe(false);
   expect(blocked.meta?.blockedReason).toMatch(/调用节点/);
 });
+
+it("owns connection creation, reconnection, replacement and metadata edits", () => {
+  const graph: WorkflowSnapshot = {
+    nodes: [
+      { id: "source", position: { x: 0, y: 0 }, data: { label: "Source", nodeType: "generate.random_table", nodeVersion: 1, parameters: { count: 3, distribution: "uniform", min: -1, max: 1, mean: 0, std: 1, seed: 1, indexColumn: "index", valueColumn: "value" }, status: "idle" } },
+      { id: "abs", position: { x: 200, y: 0 }, data: { label: "Absolute", nodeType: "table.absolute", nodeVersion: 1, parameters: {}, status: "idle" } },
+      { id: "print", position: { x: 400, y: 0 }, data: { label: "Print", nodeType: "python.print", nodeVersion: 1, parameters: {}, status: "idle" } },
+    ],
+    edges: [],
+    functions: [],
+    requirements: [],
+  };
+
+  const connected = applyEditorGraphCommand(graph, {
+    type: "connect-edge",
+    connection: { source: "source", target: "abs", sourceHandle: "output", targetHandle: "input" },
+  });
+  expect(connected.changed).toBe(true);
+  expect(connected.snapshot.edges).toHaveLength(1);
+
+  const firstEdge = connected.snapshot.edges[0]!;
+  const reconnected = applyEditorGraphCommand(connected.snapshot, {
+    type: "reconnect-edge",
+    edgeId: firstEdge.id,
+    connection: { source: "source", target: "print", sourceHandle: "output", targetHandle: "input" },
+  });
+  expect(reconnected.changed).toBe(true);
+  expect(reconnected.snapshot.edges[0]?.target).toBe("print");
+
+  const tagged = applyEditorGraphCommand(reconnected.snapshot, { type: "update-node-tags", nodeId: "abs", tags: ["clean", "important"] });
+  expect(tagged.snapshot.nodes.find((node) => node.id === "abs")?.data.tags).toEqual(["clean", "important"]);
+
+  const replaced = applyEditorGraphCommand(tagged.snapshot, { type: "replace-node", nodeId: "print", nextNodeType: "generate.random_table" });
+  expect(replaced.changed).toBe(true);
+  expect(replaced.snapshot.nodes.find((node) => node.id === "print")?.data.nodeType).toBe("generate.random_table");
+  expect(replaced.meta?.removedEdgeCount).toBe(1);
+  expect(replaced.snapshot.edges).toHaveLength(0);
+});
+
+it("updates group labels/ports and applies code templates as graph transactions", () => {
+  const graph: WorkflowSnapshot = {
+    nodes: [
+      { id: "custom", position: { x: 0, y: 0 }, data: { label: "Custom", nodeType: "custom.python_function", nodeVersion: 1, parameters: { code: "def old(x):\n    return x" }, status: "idle" } },
+      { id: "print", position: { x: 200, y: 0 }, data: { label: "Print", nodeType: "python.print", nodeVersion: 1, parameters: {}, status: "idle" } },
+      { id: "group", position: { x: 400, y: 0 }, data: { label: "Group", nodeType: "workflow.group", nodeVersion: 1, parameters: {}, status: "idle", groupInputs: [{ id: "in", label: "Old input", valueType: "table", internalNodeId: "custom", internalHandle: "input" }], groupOutputs: [] } },
+    ],
+    edges: [{ id: "custom-print", source: "custom", target: "print", sourceHandle: "output", targetHandle: "input" }],
+    functions: [],
+    requirements: [],
+  };
+
+  const renamed = applyEditorGraphCommand(graph, { type: "update-node-label", nodeId: "group", label: "Renamed" });
+  const port = applyEditorGraphCommand(renamed.snapshot, { type: "update-group-port-label", groupId: "group", direction: "input", portId: "in", label: "Input table" });
+  expect(port.snapshot.nodes.find((node) => node.id === "group")?.data.groupInputs?.[0]?.label).toBe("Input table");
+
+  const templated = applyEditorGraphCommand(port.snapshot, { type: "apply-code-template", nodeId: "custom", code: "def next_value(x):\n    return x" });
+  expect(templated.changed).toBe(true);
+  expect(templated.snapshot.edges).toHaveLength(0);
+  expect(templated.meta?.removedEdgeCount).toBe(1);
+  expect(templated.snapshot.nodes.find((node) => node.id === "custom")?.data.parameters.code).toContain("next_value");
+});
+
+it("reconnects with the same single-input exclusivity as a fresh connection", () => {
+  const graph: WorkflowSnapshot = {
+    nodes: [
+      { id: "source-a", position: { x: 0, y: 0 }, data: { label: "A", nodeType: "generate.random_table", nodeVersion: 1, parameters: { count: 3, distribution: "uniform", min: 0, max: 1, mean: 0, std: 1, seed: 1, indexColumn: "index", valueColumn: "value" }, status: "idle" } },
+      { id: "source-b", position: { x: 0, y: 120 }, data: { label: "B", nodeType: "generate.random_table", nodeVersion: 1, parameters: { count: 3, distribution: "uniform", min: 0, max: 1, mean: 0, std: 1, seed: 2, indexColumn: "index", valueColumn: "value" }, status: "idle" } },
+      { id: "abs", position: { x: 200, y: 0 }, data: { label: "Absolute", nodeType: "table.absolute", nodeVersion: 1, parameters: {}, status: "idle" } },
+      { id: "print", position: { x: 400, y: 0 }, data: { label: "Print", nodeType: "python.print", nodeVersion: 1, parameters: {}, status: "idle" } },
+    ],
+    edges: [
+      { id: "moving", source: "source-a", target: "abs", sourceHandle: "output", targetHandle: "input" },
+      { id: "occupied", source: "source-b", target: "print", sourceHandle: "output", targetHandle: "input" },
+    ],
+    functions: [],
+    requirements: [],
+  };
+
+  const result = applyEditorGraphCommand(graph, {
+    type: "reconnect-edge",
+    edgeId: "moving",
+    connection: { source: "source-a", target: "print", sourceHandle: "output", targetHandle: "input" },
+  });
+  expect(result.changed).toBe(true);
+  expect(result.meta?.removedEdgeCount).toBe(1);
+  expect(result.snapshot.edges).toHaveLength(1);
+  expect(result.snapshot.edges[0]).toMatchObject({ id: "moving", source: "source-a", target: "print", targetHandle: "input" });
+});

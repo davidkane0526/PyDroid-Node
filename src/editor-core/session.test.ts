@@ -97,3 +97,14 @@ it("owns undo, redo, history restore and clear instead of delegating transaction
   expect(session.history.canUndo).toBe(false);
   expect(session.history.canRedo).toBe(false);
 });
+
+it("captures a live drag as one history transaction instead of one entry per pointer move", () => {
+  const session = new EditorSessionStore("drag", snapshotWithNode("a")).get("drag")!;
+  session.beginHistoryTransaction("node-drag:a");
+  session.updateSnapshot((snapshot) => ({ ...snapshot, nodes: snapshot.nodes.map((node) => node.id === "a" ? { ...node, position: { x: 50, y: 10 } } : node) }));
+  session.updateSnapshot((snapshot) => ({ ...snapshot, nodes: snapshot.nodes.map((node) => node.id === "a" ? { ...node, position: { x: 120, y: 30 } } : node) }));
+  expect(session.history.entries).toHaveLength(0);
+  expect(session.commitHistoryTransaction("node-drag:a")).toBe(true);
+  expect(session.history.entries).toHaveLength(1);
+  expect(session.undo()?.nodes.find((node) => node.id === "a")?.position).toEqual({ x: 0, y: 0 });
+});

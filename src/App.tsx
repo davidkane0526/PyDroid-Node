@@ -13,7 +13,6 @@ import {
   ReactFlow,
   ReactFlowProvider,
   getBezierPath,
-  reconnectEdge,
   useReactFlow,
   useUpdateNodeInternals,
   type Connection,
@@ -59,7 +58,7 @@ import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, EditorWorkspaceLifecycleService, arrangeStructureChildren, captureGroupResource, captureNodeResource, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, useEditorWorkspaceSession, type EditorWorkspaceSession } from "./editor-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, arrangeStructureChildren, captureGroupResource, captureNodeResource, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, useEditorWorkspaceSession, validateEditorConnection, type EditorWorkspaceSession } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -590,26 +589,6 @@ function ParameterField({
   );
 }
 
-function createsCycle(connection: Connection | Edge, edges: Edge[]): boolean {
-  if (!connection.source || !connection.target) return true;
-  if (connection.source === connection.target) return true;
-  const downstream = new Map<string, string[]>();
-  for (const edge of edges) {
-    const targets = downstream.get(edge.source) ?? [];
-    targets.push(edge.target);
-    downstream.set(edge.source, targets);
-  }
-  const pending = [connection.target];
-  const visited = new Set<string>();
-  while (pending.length) {
-    const nodeId = pending.pop()!;
-    if (nodeId === connection.source) return true;
-    if (visited.has(nodeId)) continue;
-    visited.add(nodeId);
-    pending.push(...(downstream.get(nodeId) ?? []));
-  }
-  return false;
-}
 
 function agentPermissionFor(operation: AgentOperation): AgentPermission {
   switch (operation.type) {
@@ -1358,90 +1337,48 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, [setNodes]);
 
   const isValidConnection = useCallback((connection: Connection | Edge) => {
-    // React Flow calls this continuously while a handle is being dragged, including
-    // transient/incomplete connections. Never let malformed restored node metadata
-    // escape this callback: an exception here unmounts the editor to a blank canvas.
     try {
-      if (!connection.source || !connection.target || connection.source === connection.target) return false;
-      const sourceNode = nodes.find((node) => node.id === connection.source);
-      const targetNode = nodes.find((node) => node.id === connection.target);
-      if (!sourceNode || !targetNode) return false;
-      const isStructuredLoopBack = ["logic.for_each_subflow", "logic.while_subflow"].includes(targetNode.data.nodeType) && connection.targetHandle === "continue";
-      if (createsCycle(connection, edges) && !isStructuredLoopBack) return false;
-      const sourceSpec = nodeSpecFor(sourceNode);
-      const targetSpec = nodeSpecFor(targetNode);
-      const output = sourceSpec?.outputPorts.find((port) => port.id === (connection.sourceHandle ?? "output"));
-      const input = targetSpec?.inputPorts.find((port) => port.id === (connection.targetHandle ?? "input"));
-      return Boolean(output && input && areValueTypesCompatible(output.valueType, input.valueType));
+      return validateEditorConnection(nodes, edges, connection).valid;
     } catch {
       return false;
     }
   }, [edges, nodes]);
 
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      if (!connection.source || !connection.target) return;
-      const normalized: Connection = {
-        source: connection.source,
-        target: connection.target,
-        sourceHandle: connection.sourceHandle ?? "output",
-        targetHandle: connection.targetHandle ?? "input",
-      };
-      if (!isValidConnection(normalized)) {
-        const sourceNode = nodes.find((node) => node.id === normalized.source);
-        const targetNode = nodes.find((node) => node.id === normalized.target);
-        const output = nodeSpecFor(sourceNode)?.outputPorts.find((port) => port.id === normalized.sourceHandle);
-        const input = nodeSpecFor(targetNode)?.inputPorts.find((port) => port.id === normalized.targetHandle);
-        if (!output || !input) {
-          setMessage("无法连线：端口不存在，请重新选择节点后再试");
-        } else if (!areValueTypesCompatible(output.valueType, input.valueType)) {
-          setMessage(`无法连线：类型不兼容（${output.valueType} 不能连到 ${input.valueType}）`);
-        } else {
-          setMessage("无法连线：该连线会形成环");
-        }
+  const onConnect = useCallback((connection: Connection) => {
+    try {
+      const validation = validateEditorConnection(nodes, edges, connection);
+      if (!validation.valid || !validation.normalized) {
+        setMessage(`无法连线：${validation.message ?? "节点端口信息无效"}`);
         return;
       }
-      try {
-        pushHistory();
-        const targetNode = nodes.find((node) => node.id === normalized.target);
-        const targetSpec = nodeSpecFor(targetNode);
-        const isMultiInput = (targetSpec?.inputPorts.length ?? 1) > 1;
-        setEdges((current) => addEdge(normalized, current.filter((edge) => {
-          if (edge.target !== normalized.target) return true;
-          return isMultiInput ? edge.targetHandle !== normalized.targetHandle : false;
-        })));
-        resetExecution();
-      } catch {
-        setMessage("连线失败：节点端口信息无效，请重新选择节点后再试");
+      const result = session.applyGraphCommand({ type: "connect-edge", connection: validation.normalized });
+      if (!result.changed) {
+        setMessage(`无法连线：${result.meta?.blockedReason ?? "连接没有生效"}`);
+        return;
       }
-    },
-    [edges, isValidConnection, nodes, resetExecution, setEdges],
-  );
+      resetExecution();
+    } catch {
+      setMessage("连线失败：节点端口信息无效，请重新选择节点后再试");
+    }
+  }, [edges, nodes, resetExecution, session]);
 
   const onReconnect = useCallback((oldEdge: Edge, connection: Connection) => {
     try {
-      if (!connection.source || !connection.target) return;
-      const candidateEdges = edges.filter((edge) => edge.id !== oldEdge.id);
-      const sourceNode = nodes.find((node) => node.id === connection.source);
-      const targetNode = nodes.find((node) => node.id === connection.target);
-      const sourceSpec = nodeSpecFor(sourceNode);
-      const targetSpec = nodeSpecFor(targetNode);
-      const output = sourceSpec?.outputPorts.find((port) => port.id === (connection.sourceHandle ?? "output"));
-      const input = targetSpec?.inputPorts.find((port) => port.id === (connection.targetHandle ?? "input"));
-      const loopBack = targetNode && ["logic.for_each_subflow", "logic.while_subflow"].includes(targetNode.data.nodeType) && connection.targetHandle === "continue";
-      if (!sourceNode || !targetNode || !output || !input || !areValueTypesCompatible(output.valueType, input.valueType) || createsCycle(connection, candidateEdges) && !loopBack) {
-        if (!output || !input) setMessage("无法移动连线端点：端口不存在");
-        else if (!areValueTypesCompatible(output.valueType, input.valueType)) setMessage(`无法移动连线端点：类型不兼容（${output.valueType} 不能连到 ${input.valueType}）`);
-        else setMessage("无法移动连线端点：该连线会形成环");
+      const validation = validateEditorConnection(nodes, edges, connection, { excludeEdgeId: oldEdge.id });
+      if (!validation.valid || !validation.normalized) {
+        setMessage(`无法移动连线端点：${validation.message ?? "节点端口信息无效"}`);
+        return;
+      }
+      const result = session.applyGraphCommand({ type: "reconnect-edge", edgeId: oldEdge.id, connection: validation.normalized });
+      if (!result.changed) {
+        setMessage(`无法移动连线端点：${result.meta?.blockedReason ?? "连接没有生效"}`);
         return;
       }
       reconnectSucceeded.current = true;
-      pushHistory();
-      setEdges((current) => reconnectEdge(oldEdge, connection, current));
       resetExecution();
       setMessage("已移动连线端点；拖到画布空白处可断开");
     } catch (error) { setMessage(readableError(error, "移动连线端点失败")); }
-  }, [edges, nodes, resetExecution, setEdges]);
+  }, [edges, nodes, resetExecution, session]);
 
   const openNodeMenu = useCallback((nodeId: string, x: number, y: number) => {
     const menuHeight = 300;
@@ -2032,27 +1969,28 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     dropPaletteResource(resource, event.clientX, event.clientY);
   };
 
+  const onNodeDragStart = (_event: MouseEvent | TouchEvent, movedNode: WorkflowNode) => {
+    session.beginHistoryTransaction(`node-drag:${movedNode.id}`);
+    if (pointerMode === "touch") {
+      const targetKind = gestureTargetForNodeType(movedNode.data.nodeType);
+      nodeTouchDragSuppressMenuUntil.current = Date.now() + resolveGesturePolicy("mobile", targetKind).suppressContextAfterDragMs;
+    }
+    clearLongPress();
+    setContextMenu(null);
+    setSelectionMenu(null);
+    setFlowMenu(null);
+    setResourceMenu(null);
+  };
+
   const onNodeDragStop = (_event: MouseEvent | TouchEvent, movedNode: WorkflowNode) => {
-    if (["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(movedNode.data.nodeType)) return;
-    setNodes((current) => {
-      const absolute = movedNode.parentId
-        ? { x: movedNode.position.x + (current.find((node) => node.id === movedNode.parentId)?.position.x ?? 0), y: movedNode.position.y + (current.find((node) => node.id === movedNode.parentId)?.position.y ?? 0) }
-        : movedNode.position;
-      const container = current.find((candidate) => {
-        if (candidate.id === movedNode.id || !["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(candidate.data.nodeType)) return false;
-        const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
-        const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
-        return absolute.x > candidate.position.x + 12 && absolute.x < candidate.position.x + width - 100 && absolute.y > candidate.position.y + 58 && absolute.y < candidate.position.y + height - 28;
-      });
-      const next = current.map((node) => {
-        if (node.id !== movedNode.id) return node;
-        if (!container) return { ...node, parentId: undefined, extent: undefined, expandParent: undefined, position: absolute, data: { ...node.data, branch: undefined } };
-        const relative = { x: Math.max(26, absolute.x - container.position.x), y: Math.max(104, absolute.y - container.position.y) };
-        const branch: WorkflowNode["data"]["branch"] = container.data.nodeType === "logic.if_subflow" ? (relative.x < Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "true" : "false") : "body";
-        return { ...node, parentId: container.id, extent: "parent" as const, expandParent: true, position: relative, data: { ...node.data, branch } };
-      });
-      return [...next].sort((left, right) => Number(Boolean(left.parentId)) - Number(Boolean(right.parentId)));
-    });
+    const transactionKey = `node-drag:${movedNode.id}`;
+    session.applyGraphCommand({
+      type: "commit-node-drag",
+      nodeId: movedNode.id,
+      position: { ...movedNode.position },
+      parentId: movedNode.parentId,
+    }, { captureHistory: false });
+    session.commitHistoryTransaction(transactionKey);
   };
 
   const replacementCandidates = useMemo(() => {
@@ -2073,44 +2011,15 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const oldSpec = resolveNodeSpec(getNodeSpec(selectedNode.data.nodeType), selectedNode.data.parameters);
     const nextSpec = getNodeSpec(nextType);
     if (!nextSpec) return;
-    pushHistory();
-    const nextParameters = { ...nextSpec.defaults };
-    for (const parameter of nextSpec.parameters) {
-      if (parameter.key in selectedNode.data.parameters) nextParameters[parameter.key] = selectedNode.data.parameters[parameter.key];
+    const result = session.applyGraphCommand({ type: "replace-node", nodeId: selectedNode.id, nextNodeType: nextType });
+    if (!result.changed) {
+      setMessage(result.meta?.blockedReason ?? "节点替换失败");
+      return;
     }
-    const inputMap = new Map((oldSpec?.inputPorts ?? []).map((port, index) => [port.id, nextSpec.inputPorts[index]?.id]));
-    const outputMap = new Map((oldSpec?.outputPorts ?? []).map((port, index) => [port.id, nextSpec.outputPorts[index]?.id]));
-    const keptEdges = edges.flatMap((edge) => {
-      if (edge.target === selectedNode.id) {
-        const mapped = inputMap.get(edge.targetHandle ?? oldSpec?.inputPorts[0]?.id ?? "input");
-        return mapped ? [{ ...edge, targetHandle: mapped }] : [];
-      }
-      if (edge.source === selectedNode.id) {
-        const mapped = outputMap.get(edge.sourceHandle ?? oldSpec?.outputPorts[0]?.id ?? "output");
-        return mapped ? [{ ...edge, sourceHandle: mapped }] : [];
-      }
-      return [edge];
-    });
-    const removed = edges.length - keptEdges.length;
-    const nextIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nextType);
-    const oldIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(selectedNode.data.nodeType);
-    setNodes((current) => current.map((node) => {
-      if (node.id === selectedNode.id) return {
-        ...node,
-        style: nextIsStructure ? { width: 520, height: 300 } : undefined,
-        data: { ...node.data, nodeType: nextType, label: nextSpec.label, parameters: nextParameters, status: "idle", branch: node.data.branch },
-      };
-      if (oldIsStructure && !nextIsStructure && node.parentId === selectedNode.id) return {
-        ...node, parentId: undefined, extent: undefined,
-        position: { x: selectedNode.position.x + node.position.x, y: selectedNode.position.y + node.position.y },
-        data: { ...node.data, branch: undefined },
-      };
-      return node;
-    }));
-    setEdges(keptEdges);
     setReplacementOpen(false);
     setContextMenu(null);
     clearExecutionResult();
+    const removed = result.meta?.removedEdgeCount ?? 0;
     setMessage(`已将“${oldSpec?.label ?? selectedNode.data.label}”替换为“${nextSpec.label}”${removed ? `，移除 ${removed} 条不兼容连线` : "，兼容连线已保留"}`);
   };
 
@@ -2420,21 +2329,27 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const updateSelectedGroupLabel = (label: string) => {
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") return;
-    setNodes((current) => current.map((node) => node.id === selectedNode.id ? { ...node, data: { ...node.data, label } } : node));
+    session.applyGraphCommand(
+      { type: "update-node-label", nodeId: selectedNode.id, label },
+      { historyGroup: `group-label:${selectedNode.id}`, historyWindowMs: 800 },
+    );
   };
 
   const updateSelectedGroupPort = (direction: "input" | "output", id: string, label: string) => {
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") return;
-    const key = direction === "input" ? "groupInputs" : "groupOutputs";
-    setNodes((current) => current.map((node) => node.id === selectedNode.id ? {
-      ...node, data: { ...node.data, [key]: (node.data[key] ?? []).map((port) => port.id === id ? { ...port, label } : port) },
-    } : node));
+    session.applyGraphCommand(
+      { type: "update-group-port-label", groupId: selectedNode.id, direction, portId: id, label },
+      { historyGroup: `group-port:${selectedNode.id}:${direction}:${id}`, historyWindowMs: 800 },
+    );
   };
 
   const updateSelectedTags = (raw: string) => {
     if (!selectedId) return;
     const tags = raw.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean).slice(0, 6);
-    setNodes((current) => current.map((node) => node.id === selectedId ? { ...node, data: { ...node.data, tags } } : node));
+    session.applyGraphCommand(
+      { type: "update-node-tags", nodeId: selectedId, tags },
+      { historyGroup: `node-tags:${selectedId}`, historyWindowMs: 800 },
+    );
   };
 
   const addSelectedToGroup = () => {
@@ -2477,12 +2392,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const applyCustomTemplate = (code: string, label: string) => {
     if (!selectedId) return;
-    pushHistory();
-    setNodes((current) => current.map((node) => node.id === selectedId ? {
-      ...node,
-      data: { ...node.data, status: "idle", parameters: { code } },
-    } : node));
-    setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId));
+    const result = session.applyGraphCommand({ type: "apply-code-template", nodeId: selectedId, code });
+    if (!result.changed) {
+      setMessage(result.meta?.blockedReason ?? "模板没有产生修改");
+      return;
+    }
     clearExecutionResult();
     setMessage(`已应用“${label}”模板；原连线已断开，请按新签名重新连接`);
   };
@@ -3464,11 +3378,9 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           const target = draftNodes.find((node) => node.id === operation.target);
           if (!source || !target) throw new Error(`连线节点不存在：${operation.source} → ${operation.target}`);
           const connection: Connection = { source: operation.source, target: operation.target, sourceHandle: operation.sourceHandle ?? "output", targetHandle: operation.targetHandle ?? "input" };
-          const sourcePort = nodeSpecFor(source)?.outputPorts.find((port) => port.id === connection.sourceHandle);
           const targetSpec = nodeSpecFor(target);
-          const targetPort = targetSpec?.inputPorts.find((port) => port.id === connection.targetHandle);
-          const loopBack = ["logic.for_each_subflow", "logic.while_subflow"].includes(target.data.nodeType) && connection.targetHandle === "continue";
-          if (!sourcePort || !targetPort || !areValueTypesCompatible(sourcePort.valueType, targetPort.valueType) || (createsCycle(connection, draftEdges) && !loopBack)) throw new Error(`不兼容或循环连线：${operation.source} → ${operation.target}`);
+          const validation = validateEditorConnection(draftNodes, draftEdges, connection);
+          if (!validation.valid) throw new Error(`${validation.message ?? "不兼容或循环连线"}：${operation.source} → ${operation.target}`);
           const multiInput = (targetSpec?.inputPorts.length ?? 1) > 1;
           draftEdges = addEdge(connection, draftEdges.filter((edge) => edge.target !== operation.target || (multiInput && edge.targetHandle !== connection.targetHandle)));
         } else if (operation.type === "disconnect") {
@@ -3693,14 +3605,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             defaultEdgeOptions={{ type: "default" }}
             isValidConnection={isValidConnection}
             onError={(code, detail) => setMessage(`画布连线提示 ${code}：${detail}`)}
-            onNodeDragStart={(_event, node) => {
-              if (pointerMode === "touch") {
-                const targetKind = gestureTargetForNodeType(node.data.nodeType);
-                nodeTouchDragSuppressMenuUntil.current = Date.now() + resolveGesturePolicy("mobile", targetKind).suppressContextAfterDragMs;
-              }
-              clearLongPress();
-              setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); pushHistory();
-            }}
+            onNodeDragStart={onNodeDragStart}
             onNodeDragStop={onNodeDragStop}
             onNodeClick={(_, node) => {
               if (suppressNextNodeClick.current) { suppressNextNodeClick.current = false; return; }

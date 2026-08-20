@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.62
+Current behavior: 1.4.63
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -24,17 +24,19 @@ The report records only application/runtime diagnostics and the names/counts of 
 ## Current automated cases
 
 1. Editor Workspace Session isolation: graph/input/history/view/dirty state from one diagnostic tab must not leak into another.
-2. Editor Command transaction: group creation must atomically update graph, selection and history; undo/redo and group dissolve must restore the correct snapshots.
-3. Editor lifecycle autosave: write/read must preserve workflow state and corrupt autosaves must be quarantined/deleted rather than crashing restore.
-4. Editor node mutations: node insertion/duplication, parameter updates, continuous-edit history coalescing and canvas layout must execute through Session transactions.
-5. Workspace document lifecycle: save/open/close dirty decisions and explicit autosave restore must preserve the saved baseline correctly.
-6. Gesture-policy contract: desktop/mobile and node/group semantics must remain intentionally distinct, including mobile canvas pan/marquee behavior.
-7. JavaScript workspace variable write -> second-run read.
-8. JavaScript reusable function signature/handles + absolute-value execution.
-9. Python workspace variable write -> second-run read when a Python host exists.
-10. Python reusable function signature/handles + absolute-value execution when a Python host exists.
+2. Editor Command transaction: group/function structural changes must atomically update graph, selection and history.
+3. Editor node mutations: insertion/duplication, parameter history coalescing and layout execute through Session transactions.
+4. Editor connection/metadata transaction: connect/reconnect, node replacement, tags, group labels/ports and code-template application execute through Editor Core.
+5. Editor drag history: live pointer movement must collapse to one history transaction, including structure-container/branch assignment and undo restoration.
+6. Editor lifecycle autosave: write/read preserves workflow state and corrupt autosaves are quarantined/deleted.
+7. Workspace document lifecycle: save/open/close dirty decisions and explicit autosave restore preserve the saved baseline.
+8. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
+9. JavaScript workspace variable write -> second-run read.
+10. JavaScript reusable function signature/handles + absolute-value execution.
+11. Python workspace variable write -> second-run read when a Python host exists.
+12. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its Python cases are reported as skipped. The six Editor Core cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **10/10**.
+A plain local browser has no Python host, so its two Python cases are reported as skipped. The eight Editor Core cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **12/12**.
 
 ## Output
 

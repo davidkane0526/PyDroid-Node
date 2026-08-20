@@ -1,5 +1,8 @@
+import { addEdge, reconnectEdge, type Connection } from "@xyflow/react";
 import { deleteNodesFromGraph, disconnectEdgesFromGraph, disconnectNodesFromGraph } from "../workflow-core/commands";
 import { cloneWorkflowSnapshot, type WorkflowSnapshot } from "../workflow-core/model";
+import { getNodeSpec } from "../nodeCatalog";
+import { resolveNodeSpec } from "../customNode";
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import {
   createFunctionCallNode,
@@ -10,12 +13,21 @@ import {
   synchronizeFunctionGraphCalls,
 } from "../workflow-functions";
 import { arrangeCanvasSnapshot, type EditorLayoutDirection } from "./layout";
-import { deriveGroupInterface } from "./workflow-structure";
+import { validateEditorConnection } from "./connection";
+import { deriveGroupInterface, nodeSpecForEditor } from "./workflow-structure";
 
 export type EditorGraphCommand =
   | { type: "insert-node"; node: WorkflowNode }
   | { type: "duplicate-node"; sourceNodeId: string; duplicateId: string; offset?: { x: number; y: number }; labelSuffix?: string }
   | { type: "update-node-parameters"; nodeId: string; patch: Record<string, string | number | boolean | null> }
+  | { type: "update-node-label"; nodeId: string; label: string }
+  | { type: "update-node-tags"; nodeId: string; tags: string[] }
+  | { type: "update-group-port-label"; groupId: string; direction: "input" | "output"; portId: string; label: string }
+  | { type: "apply-code-template"; nodeId: string; code: string }
+  | { type: "replace-node"; nodeId: string; nextNodeType: string }
+  | { type: "connect-edge"; connection: Connection }
+  | { type: "reconnect-edge"; edgeId: string; connection: Connection }
+  | { type: "commit-node-drag"; nodeId: string; position: { x: number; y: number }; parentId?: string | null }
   | { type: "arrange-canvas"; canvasId: string | null; viewportWidth: number; direction: EditorLayoutDirection }
   | { type: "delete-nodes"; nodeIds: string[] }
   | { type: "disconnect-nodes"; nodeIds: string[] }
@@ -35,6 +47,7 @@ export type EditorGraphCommandMeta = {
   functionDefinition?: WorkflowFunctionDefinition;
   blockedReason?: string;
   selectionMode?: boolean;
+  removedEdgeCount?: number;
 };
 
 export type EditorGraphCommandResult = {
@@ -93,6 +106,221 @@ function updateNodeParameters(snapshot: WorkflowSnapshot, command: Extract<Edito
     changed: true,
     affectedCount: 1,
     meta: { primaryNodeId: command.nodeId },
+  };
+}
+
+
+function updateNodeLabel(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "update-node-label" }>): EditorGraphCommandResult {
+  const node = snapshot.nodes.find((item) => item.id === command.nodeId);
+  if (!node) return unchanged(snapshot, "待更新节点不存在");
+  if (node.data.label === command.label) return unchanged(snapshot);
+  return {
+    snapshot: {
+      ...cloneWorkflowSnapshot(snapshot),
+      nodes: snapshot.nodes.map((item) => item.id === command.nodeId ? { ...item, data: { ...item.data, label: command.label } } : item),
+    },
+    changed: true,
+    affectedCount: 1,
+    meta: { primaryNodeId: command.nodeId },
+  };
+}
+
+function updateNodeTags(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "update-node-tags" }>): EditorGraphCommandResult {
+  const node = snapshot.nodes.find((item) => item.id === command.nodeId);
+  if (!node) return unchanged(snapshot, "待更新节点不存在");
+  const nextTags = [...new Set(command.tags.map((tag) => tag.trim()).filter(Boolean))].slice(0, 6);
+  const currentTags = node.data.tags ?? [];
+  if (currentTags.length === nextTags.length && currentTags.every((tag, index) => tag === nextTags[index])) return unchanged(snapshot);
+  return {
+    snapshot: {
+      ...cloneWorkflowSnapshot(snapshot),
+      nodes: snapshot.nodes.map((item) => item.id === command.nodeId ? { ...item, data: { ...item.data, tags: nextTags } } : item),
+    },
+    changed: true,
+    affectedCount: 1,
+    meta: { primaryNodeId: command.nodeId },
+  };
+}
+
+function updateGroupPortLabel(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "update-group-port-label" }>): EditorGraphCommandResult {
+  const group = snapshot.nodes.find((item) => item.id === command.groupId && item.data.nodeType === "workflow.group");
+  if (!group) return unchanged(snapshot, "组合不存在");
+  const key = command.direction === "input" ? "groupInputs" : "groupOutputs";
+  const ports = group.data[key] ?? [];
+  if (!ports.some((port) => port.id === command.portId)) return unchanged(snapshot, "组合端口不存在");
+  if (ports.find((port) => port.id === command.portId)?.label === command.label) return unchanged(snapshot);
+  return {
+    snapshot: {
+      ...cloneWorkflowSnapshot(snapshot),
+      nodes: snapshot.nodes.map((item) => item.id === command.groupId ? {
+        ...item,
+        data: { ...item.data, [key]: ports.map((port) => port.id === command.portId ? { ...port, label: command.label } : port) },
+      } : item),
+    },
+    changed: true,
+    affectedCount: 1,
+    meta: { primaryNodeId: command.groupId },
+  };
+}
+
+function applyCodeTemplate(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "apply-code-template" }>): EditorGraphCommandResult {
+  const node = snapshot.nodes.find((item) => item.id === command.nodeId);
+  if (!node) return unchanged(snapshot, "待应用模板的节点不存在");
+  const incidentEdgeCount = snapshot.edges.filter((edge) => edge.source === command.nodeId || edge.target === command.nodeId).length;
+  const nodes = snapshot.nodes.map((item) => item.id === command.nodeId ? {
+    ...item,
+    data: { ...item.data, status: "idle" as const, parameters: { code: command.code } },
+  } : item);
+  const edges = snapshot.edges.filter((edge) => edge.source !== command.nodeId && edge.target !== command.nodeId);
+  const changed = node.data.parameters.code !== command.code || incidentEdgeCount > 0;
+  if (!changed) return unchanged(snapshot);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes, edges },
+    changed: true,
+    affectedCount: 1 + incidentEdgeCount,
+    meta: { primaryNodeId: command.nodeId, removedEdgeCount: incidentEdgeCount },
+  };
+}
+
+function replaceNode(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "replace-node" }>): EditorGraphCommandResult {
+  const source = snapshot.nodes.find((node) => node.id === command.nodeId);
+  if (!source) return unchanged(snapshot, "待替换节点不存在");
+  if (source.data.nodeType === "workflow.group") return unchanged(snapshot, "组合不能通过普通节点替换功能修改");
+  const nextSpec = getNodeSpec(command.nextNodeType);
+  if (!nextSpec) return unchanged(snapshot, `未知节点类型：${command.nextNodeType}`);
+  const oldSpec = resolveNodeSpec(getNodeSpec(source.data.nodeType), source.data.parameters);
+  const nextParameters = { ...nextSpec.defaults };
+  for (const parameter of nextSpec.parameters) {
+    if (parameter.key in source.data.parameters) nextParameters[parameter.key] = source.data.parameters[parameter.key];
+  }
+  const inputMap = new Map((oldSpec?.inputPorts ?? []).map((port, index) => [port.id, nextSpec.inputPorts[index]?.id]));
+  const outputMap = new Map((oldSpec?.outputPorts ?? []).map((port, index) => [port.id, nextSpec.outputPorts[index]?.id]));
+  const mappedEdges = snapshot.edges.flatMap((edge) => {
+    if (edge.target === source.id) {
+      const mapped = inputMap.get(edge.targetHandle ?? oldSpec?.inputPorts[0]?.id ?? "input");
+      return mapped ? [{ ...edge, targetHandle: mapped }] : [];
+    }
+    if (edge.source === source.id) {
+      const mapped = outputMap.get(edge.sourceHandle ?? oldSpec?.outputPorts[0]?.id ?? "output");
+      return mapped ? [{ ...edge, sourceHandle: mapped }] : [];
+    }
+    return [edge];
+  });
+  const nextIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(command.nextNodeType);
+  const oldIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(source.data.nodeType);
+  const nodes = snapshot.nodes.map((node) => {
+    if (node.id === source.id) return {
+      ...node,
+      style: nextIsStructure ? { width: 520, height: 300 } : undefined,
+      data: { ...node.data, nodeType: command.nextNodeType, label: nextSpec.label, parameters: nextParameters, status: "idle" as const, branch: node.data.branch },
+    };
+    if (oldIsStructure && !nextIsStructure && node.parentId === source.id) return {
+      ...node,
+      parentId: undefined,
+      extent: undefined,
+      position: { x: source.position.x + node.position.x, y: source.position.y + node.position.y },
+      data: { ...node.data, branch: undefined },
+    };
+    return node;
+  });
+  const edges = mappedEdges.filter((edge) => {
+    if (edge.source !== source.id && edge.target !== source.id) return true;
+    return validateEditorConnection(nodes, mappedEdges, edge, { excludeEdgeId: edge.id }).valid;
+  });
+  const removedEdgeCount = snapshot.edges.length - edges.length;
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes, edges },
+    changed: source.data.nodeType !== command.nextNodeType || removedEdgeCount > 0,
+    affectedCount: 1 + removedEdgeCount,
+    meta: { primaryNodeId: source.id, selectedNodeIds: [source.id], removedEdgeCount },
+  };
+}
+
+function connectEdge(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "connect-edge" }>): EditorGraphCommandResult {
+  const validation = validateEditorConnection(snapshot.nodes, snapshot.edges, command.connection);
+  if (!validation.valid || !validation.normalized) return unchanged(snapshot, validation.message ?? "无法连线");
+  const target = snapshot.nodes.find((node) => node.id === validation.normalized!.target);
+  const inputCount = nodeSpecForEditor(target)?.inputPorts.length ?? 1;
+  const filtered = snapshot.edges.filter((edge) => {
+    if (edge.target !== validation.normalized!.target) return true;
+    return inputCount > 1 ? edge.targetHandle !== validation.normalized!.targetHandle : false;
+  });
+  const edges = addEdge(validation.normalized, filtered);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), edges },
+    changed: true,
+    affectedCount: 1 + (snapshot.edges.length - filtered.length),
+    meta: { removedEdgeCount: snapshot.edges.length - filtered.length },
+  };
+}
+
+function reconnectEditorEdge(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "reconnect-edge" }>): EditorGraphCommandResult {
+  const oldEdge = snapshot.edges.find((edge) => edge.id === command.edgeId);
+  if (!oldEdge) return unchanged(snapshot, "待移动的连线不存在");
+  const validation = validateEditorConnection(snapshot.nodes, snapshot.edges, command.connection, { excludeEdgeId: command.edgeId });
+  if (!validation.valid || !validation.normalized) return unchanged(snapshot, validation.message ?? "无法移动连线端点");
+  const target = snapshot.nodes.find((node) => node.id === validation.normalized!.target);
+  const inputCount = nodeSpecForEditor(target)?.inputPorts.length ?? 1;
+  const baseEdges = snapshot.edges.filter((edge) => {
+    if (edge.id === oldEdge.id || edge.target !== validation.normalized!.target) return true;
+    return inputCount > 1 ? edge.targetHandle !== validation.normalized!.targetHandle : false;
+  });
+  const removedEdgeCount = snapshot.edges.length - baseEdges.length;
+  const edges = reconnectEdge(oldEdge, validation.normalized, baseEdges);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), edges },
+    changed: true,
+    affectedCount: 1 + removedEdgeCount,
+    meta: { removedEdgeCount },
+  };
+}
+
+const STRUCTURE_NODE_TYPES = new Set(["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"]);
+
+function commitNodeDrag(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "commit-node-drag" }>): EditorGraphCommandResult {
+  const moved = snapshot.nodes.find((node) => node.id === command.nodeId);
+  if (!moved) return unchanged(snapshot, "拖动节点不存在");
+  if (STRUCTURE_NODE_TYPES.has(moved.data.nodeType)) return unchanged(snapshot);
+  const previousParent = command.parentId === undefined ? moved.parentId : (command.parentId ?? undefined);
+  const parent = previousParent ? snapshot.nodes.find((node) => node.id === previousParent) : undefined;
+  const absolute = previousParent
+    ? { x: command.position.x + (parent?.position.x ?? 0), y: command.position.y + (parent?.position.y ?? 0) }
+    : command.position;
+  const canvasId = moved.data.canvasParentId ?? null;
+  const container = snapshot.nodes.find((candidate) => {
+    if (candidate.id === moved.id || !STRUCTURE_NODE_TYPES.has(candidate.data.nodeType)) return false;
+    if ((candidate.data.canvasParentId ?? null) !== canvasId) return false;
+    const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
+    const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
+    return absolute.x > candidate.position.x + 12 && absolute.x < candidate.position.x + width - 100
+      && absolute.y > candidate.position.y + 58 && absolute.y < candidate.position.y + height - 28;
+  });
+  const nodes = snapshot.nodes.map((node) => {
+    if (node.id !== moved.id) return node;
+    if (!container) return {
+      ...node,
+      parentId: undefined,
+      extent: undefined,
+      expandParent: undefined,
+      position: absolute,
+      data: { ...node.data, branch: undefined },
+    };
+    const relative = { x: Math.max(26, absolute.x - container.position.x), y: Math.max(104, absolute.y - container.position.y) };
+    const branch: WorkflowNode["data"]["branch"] = container.data.nodeType === "logic.if_subflow"
+      ? (relative.x < Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "true" : "false")
+      : "body";
+    return { ...node, parentId: container.id, extent: "parent" as const, expandParent: true, position: relative, data: { ...node.data, branch } };
+  }).sort((left, right) => Number(Boolean(left.parentId)) - Number(Boolean(right.parentId)));
+  const nextMoved = nodes.find((node) => node.id === moved.id)!;
+  const changed = nextMoved.parentId !== moved.parentId
+    || nextMoved.position.x !== moved.position.x
+    || nextMoved.position.y !== moved.position.y
+    || nextMoved.data.branch !== moved.data.branch;
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes },
+    changed,
+    affectedCount: changed ? 1 : 0,
+    meta: { primaryNodeId: moved.id },
   };
 }
 
@@ -258,6 +486,14 @@ export function applyEditorGraphCommand(snapshot: WorkflowSnapshot, command: Edi
   if (command.type === "insert-node") return insertNode(snapshot, command.node);
   if (command.type === "duplicate-node") return duplicateNode(snapshot, command);
   if (command.type === "update-node-parameters") return updateNodeParameters(snapshot, command);
+  if (command.type === "update-node-label") return updateNodeLabel(snapshot, command);
+  if (command.type === "update-node-tags") return updateNodeTags(snapshot, command);
+  if (command.type === "update-group-port-label") return updateGroupPortLabel(snapshot, command);
+  if (command.type === "apply-code-template") return applyCodeTemplate(snapshot, command);
+  if (command.type === "replace-node") return replaceNode(snapshot, command);
+  if (command.type === "connect-edge") return connectEdge(snapshot, command);
+  if (command.type === "reconnect-edge") return reconnectEditorEdge(snapshot, command);
+  if (command.type === "commit-node-drag") return commitNodeDrag(snapshot, command);
   if (command.type === "arrange-canvas") {
     const arranged = arrangeCanvasSnapshot(snapshot, command.canvasId, command.viewportWidth, command.direction);
     return { snapshot: cloneWorkflowSnapshot(arranged), changed: true, affectedCount: arranged.nodes.filter((node) => (node.data.canvasParentId ?? null) === command.canvasId).length };

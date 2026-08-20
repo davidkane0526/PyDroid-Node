@@ -57,6 +57,7 @@ export class EditorWorkspaceSession {
   private viewState: EditorWorkspaceViewState;
   private revision = 0;
   private lastHistoryCapture: { group: string; at: number } | null = null;
+  private pendingHistoryTransaction: { key: string; baseline: WorkflowSnapshot } | null = null;
   private readonly listeners = new Set<() => void>();
   private stateSnapshot: EditorWorkspaceSessionState;
 
@@ -110,6 +111,7 @@ export class EditorWorkspaceSession {
   replaceSnapshot(snapshot: WorkflowSnapshot, options: ReplaceSnapshotOptions = {}): void {
     if (options.captureHistory) this.history.push(this.runtimeState.snapshot);
     this.lastHistoryCapture = null;
+    this.pendingHistoryTransaction = null;
     const nextSnapshot = cloneWorkflowSnapshot(snapshot);
     this.runtimeState = {
       ...this.runtimeState,
@@ -127,6 +129,26 @@ export class EditorWorkspaceSession {
     this.emit();
   }
 
+  beginHistoryTransaction(key: string): void {
+    if (this.pendingHistoryTransaction?.key === key) return;
+    this.pendingHistoryTransaction = { key, baseline: cloneWorkflowSnapshot(this.runtimeState.snapshot) };
+  }
+
+  commitHistoryTransaction(key: string): boolean {
+    const pending = this.pendingHistoryTransaction;
+    if (!pending || pending.key !== key) return false;
+    this.pendingHistoryTransaction = null;
+    if (workflowSnapshotSignature(pending.baseline) === workflowSnapshotSignature(this.runtimeState.snapshot)) return false;
+    this.history.push(pending.baseline);
+    this.lastHistoryCapture = null;
+    this.emit();
+    return true;
+  }
+
+  cancelHistoryTransaction(key: string): void {
+    if (this.pendingHistoryTransaction?.key === key) this.pendingHistoryTransaction = null;
+  }
+
   captureHistory(): void {
     this.history.push(this.runtimeState.snapshot);
     this.lastHistoryCapture = null;
@@ -138,6 +160,7 @@ export class EditorWorkspaceSession {
     if (!previous) return null;
     this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(previous) };
     this.lastHistoryCapture = null;
+    this.pendingHistoryTransaction = null;
     this.resetView();
     this.emit();
     return this.runtimeState.snapshot;
@@ -148,6 +171,7 @@ export class EditorWorkspaceSession {
     if (!next) return null;
     this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(next) };
     this.lastHistoryCapture = null;
+    this.pendingHistoryTransaction = null;
     this.resetView();
     this.emit();
     return this.runtimeState.snapshot;
@@ -158,6 +182,7 @@ export class EditorWorkspaceSession {
     if (!restored) return null;
     this.runtimeState = { ...this.runtimeState, snapshot: cloneWorkflowSnapshot(restored) };
     this.lastHistoryCapture = null;
+    this.pendingHistoryTransaction = null;
     this.resetView();
     this.emit();
     return this.runtimeState.snapshot;
@@ -166,6 +191,7 @@ export class EditorWorkspaceSession {
   clearHistory(): void {
     this.history.clear();
     this.lastHistoryCapture = null;
+    this.pendingHistoryTransaction = null;
     this.emit();
   }
 

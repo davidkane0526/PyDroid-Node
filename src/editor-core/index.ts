@@ -1,4 +1,5 @@
 export * from "./commands";
+export * from "./connection";
 export * from "./gesture-policy";
 export * from "./lifecycle";
 export * from "./layout";

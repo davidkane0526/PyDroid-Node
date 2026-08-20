@@ -1,7 +1,7 @@
 # Phase 9 — Editor Core & Workspace Session
 
 Version started: **1.4.60 (83)**  
-Current branch: `phase9/editor-core-node-mutations-document-lifecycle`
+Current branch: `phase9/editor-core-connections-drag-transactions`
 
 ## Goal
 
@@ -57,16 +57,18 @@ The policy currently preserves accepted interaction behavior while making future
 
 ## Diagnostics
 
-The removable automated-diagnostics feature now adds six Phase 9 cases:
+The removable automated-diagnostics feature now adds eight Phase 9 cases:
 
 1. per-workspace Editor Session isolation across graph/input/history/dirty/view state;
 2. Editor Command transaction ownership, including history/undo/redo for group create/dissolve;
-3. lifecycle autosave read/write/corruption quarantine;
-4. node insertion/duplication/parameter history coalescing/layout transactions;
-5. save/open/close/autosave-restore lifecycle;
-6. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
+3. node insertion/duplication/parameter history coalescing/layout transactions;
+4. connection/reconnect, node replacement and metadata/template transactions;
+5. one-history-entry drag transactions including structure containment;
+6. lifecycle autosave read/write/corruption quarantine;
+7. save/open/close/autosave-restore lifecycle;
+8. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
 
-Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **10/10**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
+Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **12/12**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
 
 ## 1.4.61 milestone — lifecycle and structural resources
 
@@ -86,14 +88,22 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 - explicit autosave restore is available to recovery flows and diagnostics, while normal application startup deliberately remains one empty workflow.
 - `App.tsx` is 4464 lines in this milestone, down from 4520 in 1.4.61 and 4679 at the 1.4.60 foundation.
 
+## 1.4.63 milestone — connections, replacement and drag history
+
+- `src/editor-core/connection.ts` centralizes port existence, value-type compatibility, structured loop-back and cycle validation.
+- `connect-edge` and `reconnect-edge` now own graph connection mutations; reconnect applies the same one-input/one-handle exclusivity as normal connect.
+- `replace-node`, `update-node-label`, `update-node-tags`, `update-group-port-label` and `apply-code-template` move the remaining inspector/replacement graph mutations out of React.
+- `beginHistoryTransaction()` / `commitHistoryTransaction()` let React Flow stream live drag positions without polluting history. `commit-node-drag` owns final structure-container and branch assignment.
+- Gesture behavior remains profile/target specific and unchanged; this milestone changes ownership, not accepted Desktop/Android interaction meaning.
+
 ## Phase 9 continuation
 
-1. Move node replacement, tag/template edits, connection creation/reconnect and drag-position history behind Editor Commands/transactions.
-2. Converge node/function/group/flow persistence on a common Resource Contract while preserving target-specific gesture policy.
-3. Route Remote Web workspace selection through the same Session identity boundary.
+1. Converge node/function/group/flow persistence on a common Resource Contract while preserving target-specific gesture policy.
+2. Route Remote Web workspace selection through the same Session identity boundary.
+3. Move the remaining AI-plan batch graph surgery behind Editor Core transaction services.
 4. Continue reducing `App.tsx` by responsibility, not by cosmetic file splitting.
 
-## Non-goals for 1.4.60–1.4.62
+## Non-goals for 1.4.60–1.4.63
 
 - no visual redesign;
 - no forced gesture unification between Desktop and Android;
