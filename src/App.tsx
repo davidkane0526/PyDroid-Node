@@ -1,6 +1,5 @@
 import { Component, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type DragEvent as ReactDragEvent, type ErrorInfo, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from "react";
 import {
-  addEdge,
   Background,
   BackgroundVariant,
   BaseEdge,
@@ -58,7 +57,7 @@ import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, EditorWorkspaceLifecycleService, arrangeStructureChildren, captureGroupResource, captureNodeResource, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, useEditorWorkspaceSession, validateEditorConnection, type EditorWorkspaceSession } from "./editor-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -76,7 +75,7 @@ const GROUP_LIBRARY_KEY = "pydroid-flow.group-library.v1";
 const SAVED_NODE_LIBRARY_KEY = "pydroid-flow.saved-node-library.v1";
 const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-override.v1";
 const PALETTE_MIN_WIDTH = 216;
-type PaletteResource = { kind: "node" | "saved-node" | "group" | "flow"; id: string; label: string };
+type PaletteResource = EditorResourceRef;
 
 type ThemeMode = "system" | "dark" | "light";
 const notebookCellRows = (source: string) => Math.max(3, source.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil(Array.from(line).length / 96)), 0));
@@ -176,9 +175,6 @@ function loadAppSettings(): AppSettings {
   } catch { return defaults; }
 }
 
-type FlowLibraryEntry = { id: string; name: string; savedAt: string; document: string; uri?: string; external?: boolean; locked?: boolean };
-type GroupLibraryEntry = { id: string; name: string; description: string; nodes: WorkflowNode[]; edges: Edge[]; builtIn?: boolean; locked?: boolean };
-type SavedNodeEntry = { id: string; name: string; node: WorkflowNode; savedAt: string; locked?: boolean };
 type ContextMenuState = { x: number; y: number; nodeId: string };
 type SelectionMenuState = { x: number; y: number };
 type FlowMenuState = { x: number; y: number; entryId: string };
@@ -603,16 +599,16 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
   }
 }
 
-function isAgentValue(value: unknown): value is string | number | boolean | null {
-  return value === null || ["string", "number", "boolean"].includes(typeof value);
-}
 
 function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
   const tabId = session.id;
+  const executionClientId = getExecutionClientId();
+  const remoteBrowser = isRemoteRuntime();
+  const workspaceIdentity = createWorkspaceSessionIdentity(tabId, executionClientId, remoteBrowser ? "remote" : "local");
   const initialRuntimeState = session.getRuntimeState();
   const startingSnapshot = initialRuntimeState.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
   const restoredExecutionStatus = getExecutionStatus(tabId);
-  const restoredExecutionResult = getWorkspaceExecutionResult(tabId);
+  const restoredExecutionResult = getWorkspaceExecutionResult(workspaceIdentity);
   const restoredCompletedNodes = new Set(restoredExecutionResult?.executionOrder ?? (restoredExecutionResult ? startingSnapshot.nodes.map((node) => node.id) : []));
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
@@ -629,7 +625,7 @@ function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, the
   const [paletteDragPreview, setPaletteDragPreview] = useState<{ kind: PaletteResource["kind"]; label: string; x: number; y: number; overCanvas: boolean } | null>(null);
   const [message, setMessage] = useState(() => ["queued", "running", "cancelling"].includes(restoredExecutionStatus.phase) ? "当前工作区正在后台执行" : restoredExecutionResult ? `执行完成 · ${restoredExecutionResult.runtimeId === "javascript" ? "JS" : "Python"}：${restoredExecutionResult.preview.totalRows} 行 × ${restoredExecutionResult.preview.totalColumns} 列` : "尚未执行");
   const [result, setResult] = useState<ExecutionResult | null>(restoredExecutionResult);
-  const clearExecutionResult = () => { setResult(null); clearWorkspaceExecutionResult(tabId); };
+  const clearExecutionResult = () => { setResult(null); clearWorkspaceExecutionResult(workspaceIdentity); };
   const restoredStatusApplied = useRef(false);
   useEffect(() => {
     if (restoredStatusApplied.current) return;
@@ -689,15 +685,13 @@ function FlowEditor({ session, lifecycle, tabName = "工作流 1", onAddTab, the
   const [plotExpandedPreview, setPlotExpandedPreview] = useState<Extract<NodeExecutionPreview, { kind: "plot" }> | null>(null);
   const [plotZoom, setPlotZoom] = useState(1);
   const [livePreview, setLivePreview] = useState(false);
-  const executionClientId = getExecutionClientId();
   const [executionLifecycle, setExecutionLifecycle] = useState(() => restoredExecutionStatus);
   const [hostExecutionLifecycle, setHostExecutionLifecycle] = useState<HostExecutionStatus>(() => emptyHostExecutionStatus(isNativePlatform() ? 1 : 4));
   const localExecutionActive = ["queued", "running", "cancelling"].includes(executionLifecycle.phase);
-  const currentHostExecution = hostExecutionLifecycle.executions.find((entry) => entry.workspaceId === tabId && entry.clientId === executionClientId) ?? null;
+  const currentHostExecution = hostExecutionLifecycle.executions.find((entry) => matchesHostExecution(workspaceIdentity, entry)) ?? null;
   const otherHostExecutions = hostExecutionLifecycle.executions.filter((entry) => entry.executionId !== currentHostExecution?.executionId);
   const isRunning = localExecutionActive || Boolean(currentHostExecution);
   const visibleExecutionId = executionLifecycle.executionId ?? currentHostExecution?.executionId ?? null;
-  const remoteBrowser = isRemoteRuntime();
   useEffect(() => subscribeExecutionStatus(tabId, setExecutionLifecycle), [tabId]);
   const [resultDock, setResultDock] = useState<"right" | "bottom">("right");
   const [inspectorWidth, setInspectorWidth] = useState(() => loadAppSettings().inspectorWidth);
@@ -874,7 +868,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     : selectedNode?.data.nodeType === "workflow.group" && selectedNode.data.functionSourceId
       ? functions.find((definition) => definition.id === selectedNode.data.functionSourceId) ?? null
       : null;
-  const workspaceVariableNames = useMemo(() => listWorkspaceVariableNames(tabId), [tabId, workspaceVariableRevision, result]);
+  const workspaceVariableNames = useMemo(() => listWorkspaceVariableNames(workspaceIdentity), [tabId, workspaceVariableRevision, result]);
   const selectedSpec = nodeSpecFor(selectedNode ?? undefined);
   const selectedContract = selectedNode ? getNodeContract(selectedNode.data.nodeType) : undefined;
   const selectedNodeResult = selectedNode ? result?.nodeResults[selectedNode.id] ?? (selectedNode.data.nodeType === "workflow.group" ? result?.nodeResults[selectedNode.data.groupOutputs?.[0]?.internalNodeId ?? ""] : undefined) : undefined;
@@ -1789,6 +1783,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const openPaletteResourceMenu = (resource: PaletteResource, x: number, y: number) => {
+    if (resource.kind === "function") return;
     if (resource.kind === "flow") {
       const flow = flowLibrary.find((entry) => entry.id === resource.id);
       if (flow) openFlowMenu(flow, Math.max(8, Math.min(x, window.innerWidth - 210)), Math.max(8, Math.min(y, window.innerHeight - 250)));
@@ -2127,7 +2122,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const clearWorkspaceVariables = () => {
-    clearWorkspaceVariableState(tabId);
+    clearWorkspaceVariableState(workspaceIdentity);
     setWorkspaceVariableRevision((value) => value + 1);
     setMessage("已清空当前标签页的工作区变量；其他标签页不受影响");
   };
@@ -2624,7 +2619,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const clearCurrentWorkflow = () => {
     lifecycle.resetWorkspace(session, true);
     clearExecutionResult();
-    clearWorkspaceVariableState(tabId);
+    clearWorkspaceVariableState(workspaceIdentity);
     setWorkspaceVariableRevision((value) => value + 1);
     setViewMode("nodes");
     setNotebookCells([]);
@@ -2737,6 +2732,11 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       if (template) insertGroupTemplate(template, reactFlow.screenToFlowPosition({ x: clientX, y: clientY }));
       return;
     }
+    if (resource.kind === "function") {
+      const definition = functions.find((entry) => entry.id === resource.id);
+      if (definition) insertFunctionCall(definition, reactFlow.screenToFlowPosition({ x: clientX, y: clientY }));
+      return;
+    }
     const flow = flowLibrary.find((entry) => entry.id === resource.id);
     if (flow) openLibraryFlow(flow);
   };
@@ -2747,7 +2747,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const beginRenameFlow = (entry: FlowLibraryEntry) => {
     setFlowMenu(null);
-    if (entry.locked) { setMessage("该流程已锁定，请先解除锁定"); return; }
+    if (!describeFlow(entry).capabilities.rename) { setMessage("该流程已锁定，请先解除锁定"); return; }
     setRenameFlow(entry);
     setRenameFlowValue(entry.name.replace(/\.workflow\.json$/i, "").replace(/\.json$/i, ""));
   };
@@ -2773,7 +2773,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const deleteFlow = async (entry: FlowLibraryEntry) => {
     setFlowMenu(null);
-    if (entry.locked) { setMessage("该流程已锁定，请先解除锁定"); return; }
+    if (!describeFlow(entry).capabilities.remove) { setMessage("该流程已锁定，请先解除锁定"); return; }
     if (!(await requestConfirm({ title: "删除流程", message: `确定删除流程“${entry.name}”？此操作无法恢复。`, confirmLabel: "删除", danger: true }))) return;
     try {
       if (entry.external && entry.uri) await deleteWorkflowFile(entry.uri);
@@ -2784,6 +2784,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
 
   const toggleFlowLock = (entry: FlowLibraryEntry) => {
     setFlowMenu(null);
+    if (!describeFlow(entry).capabilities.lock) { setMessage("该流程不支持锁定操作"); return; }
     setFlowLibrary((current) => current.map((item) => item.id === entry.id ? { ...item, locked: !item.locked } : item));
     setMessage(entry.locked ? `已解除流程“${entry.name}”的锁定` : `已锁定流程“${entry.name}”，不会允许改名或删除`);
   };
@@ -3225,7 +3226,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         native: isNativePlatform(),
         remote: isRemoteRuntime(),
         activeWorkspaceId: tabId,
-        activeVariableNames: listWorkspaceVariableNames(tabId),
+        executionClientId,
+        activeVariableNames: listWorkspaceVariableNames(workspaceIdentity),
         activeFunctions: functions,
         activeNodeCount: nodes.length,
         activeEdgeCount: edges.length,
@@ -3344,92 +3346,17 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const applyAgentPlan = async () => {
     if (!agentPlan) return;
     try {
-      let draftNodes = nodes.map((node) => ({ ...node, data: { ...node.data, parameters: { ...node.data.parameters } } }));
-      let draftEdges = edges.map((edge) => ({ ...edge }));
-      let runRequested = false;
-      let requestedDirection: "horizontal" | "vertical" | null = null;
-      for (const operation of agentPlan.operations) {
-        const permission = agentPermissionFor(operation);
-        if (!agentSettings.permissions[permission]) throw new Error(`未授权 AI 执行：${permission}`);
-        if (operation.type === "add_node") {
-          if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(operation.id)) throw new Error(`节点 ID 不安全：${operation.id}`);
-          if (draftNodes.some((node) => node.id === operation.id)) throw new Error(`节点 ID 已存在：${operation.id}`);
-          const spec = getNodeSpec(operation.nodeType);
-          if (!spec) throw new Error(`未知节点类型：${operation.nodeType}`);
-          const parameters = operation.parameters ?? {};
-          for (const [key, value] of Object.entries(parameters)) {
-            if (!spec.parameters.some((parameter) => parameter.key === key) || !isAgentValue(value)) throw new Error(`节点 ${operation.id} 的参数无效：${key}`);
-          }
-          const x = Number.isFinite(operation.x) ? Math.max(-10000, Math.min(10000, Number(operation.x))) : 80 + (draftNodes.length % 5) * 210;
-          const y = Number.isFinite(operation.y) ? Math.max(-10000, Math.min(10000, Number(operation.y))) : 80 + Math.floor(draftNodes.length / 5) * 140;
-          const node = createNode(operation.id, operation.nodeType, x, y, parameters);
-          if (operation.label?.trim()) node.data.label = operation.label.trim().slice(0, 80);
-          node.data.canvasParentId = currentCanvasId ?? undefined;
-          draftNodes.push(node);
-        } else if (operation.type === "set_parameter") {
-          if (!isAgentValue(operation.value)) throw new Error(`参数值无效：${operation.key}`);
-          const nodeIndex = draftNodes.findIndex((node) => node.id === operation.nodeId);
-          if (nodeIndex < 0) throw new Error(`找不到节点：${operation.nodeId}`);
-          const spec = nodeSpecFor(draftNodes[nodeIndex]);
-          if (!spec?.parameters.some((parameter) => parameter.key === operation.key)) throw new Error(`节点 ${operation.nodeId} 不支持参数：${operation.key}`);
-          draftNodes[nodeIndex] = { ...draftNodes[nodeIndex], data: { ...draftNodes[nodeIndex].data, parameters: { ...draftNodes[nodeIndex].data.parameters, [operation.key]: operation.value } } };
-        } else if (operation.type === "connect") {
-          const source = draftNodes.find((node) => node.id === operation.source);
-          const target = draftNodes.find((node) => node.id === operation.target);
-          if (!source || !target) throw new Error(`连线节点不存在：${operation.source} → ${operation.target}`);
-          const connection: Connection = { source: operation.source, target: operation.target, sourceHandle: operation.sourceHandle ?? "output", targetHandle: operation.targetHandle ?? "input" };
-          const targetSpec = nodeSpecFor(target);
-          const validation = validateEditorConnection(draftNodes, draftEdges, connection);
-          if (!validation.valid) throw new Error(`${validation.message ?? "不兼容或循环连线"}：${operation.source} → ${operation.target}`);
-          const multiInput = (targetSpec?.inputPorts.length ?? 1) > 1;
-          draftEdges = addEdge(connection, draftEdges.filter((edge) => edge.target !== operation.target || (multiInput && edge.targetHandle !== connection.targetHandle)));
-        } else if (operation.type === "disconnect") {
-          const before = draftEdges.length;
-          draftEdges = draftEdges.filter((edge) => operation.nodeId ? edge.source !== operation.nodeId && edge.target !== operation.nodeId : !((!operation.source || edge.source === operation.source) && (!operation.target || edge.target === operation.target)));
-          if (draftEdges.length === before) throw new Error("没有找到 AI 要断开的连线");
-        } else if (operation.type === "group_nodes") {
-          if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(operation.id) || draftNodes.some((node) => node.id === operation.id)) throw new Error(`组合 ID 无效或已存在：${operation.id}`);
-          const memberIds = new Set(operation.nodeIds);
-          const members = draftNodes.filter((node) => memberIds.has(node.id));
-          if (members.length < 2 || members.length !== memberIds.size) throw new Error("组合至少需要两个存在的节点");
-          const parentIds = new Set(members.map((node) => node.data.canvasParentId ?? null));
-          if (parentIds.size !== 1) throw new Error("组合成员必须位于同一画布层级");
-          const incoming = draftEdges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
-          const outgoing = draftEdges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
-          const groupInputs = incoming.map((edge, index) => { const target = draftNodes.find((node) => node.id === edge.target); const port = nodeSpecFor(target)?.inputPorts.find((item) => item.id === (edge.targetHandle ?? "input")); return { id: `input-${index + 1}`, label: port?.label || `输入 ${index + 1}`, valueType: port?.valueType ?? "any" as const, internalNodeId: edge.target, internalHandle: edge.targetHandle }; });
-          const groupOutputs = outgoing.map((edge, index) => { const source = draftNodes.find((node) => node.id === edge.source); const port = nodeSpecFor(source)?.outputPorts.find((item) => item.id === (edge.sourceHandle ?? "output")); return { id: `output-${index + 1}`, label: port?.label || `输出 ${index + 1}`, valueType: port?.valueType ?? "any" as const, internalNodeId: edge.source, internalHandle: edge.sourceHandle }; });
-          draftNodes = [...draftNodes.map((node) => memberIds.has(node.id) ? { ...node, selected: false, data: { ...node.data, canvasParentId: operation.id } } : node), { id: operation.id, type: "workflow", position: { x: Math.min(...members.map((node) => node.position.x)), y: Math.min(...members.map((node) => node.position.y)) }, data: { label: operation.label.trim() || "AI 组合", nodeType: "workflow.group", nodeVersion: 1, status: "idle", parameters: { description: "由 AI 使用基础节点组成" }, canvasParentId: members[0].data.canvasParentId, groupInputs, groupOutputs } }];
-          draftEdges = draftEdges.map((edge) => { const inputIndex = incoming.findIndex((item) => item.id === edge.id); if (inputIndex >= 0) return { ...edge, target: operation.id, targetHandle: groupInputs[inputIndex].id }; const outputIndex = outgoing.findIndex((item) => item.id === edge.id); if (outputIndex >= 0) return { ...edge, source: operation.id, sourceHandle: groupOutputs[outputIndex].id }; return edge; });
-        } else if (operation.type === "arrange") {
-          requestedDirection = operation.direction;
-        } else if (operation.type === "delete_node") {
-          const removed = new Set<string>([operation.nodeId]);
-          if (!draftNodes.some((node) => node.id === operation.nodeId)) throw new Error(`找不到节点：${operation.nodeId}`);
-          for (let changed = true; changed;) {
-            changed = false;
-            for (const node of draftNodes) if ((node.parentId && removed.has(node.parentId) || node.data.canvasParentId && removed.has(node.data.canvasParentId)) && !removed.has(node.id)) { removed.add(node.id); changed = true; }
-          }
-          draftNodes = draftNodes.filter((node) => !removed.has(node.id));
-          draftEdges = draftEdges.filter((edge) => !removed.has(edge.source) && !removed.has(edge.target));
-        } else if (operation.type === "run_workflow") {
-          runRequested = true;
-        }
-      }
-      if (requestedDirection) {
-        const layer = draftNodes.filter((node) => (node.data.canvasParentId ?? null) === currentCanvasId);
-        const arranged = new Map(compactNodeLayout(layer, viewportWidth, requestedDirection, draftEdges).map((node) => [node.id, node]));
-        draftNodes = arrangeStructureChildren(draftNodes.map((node) => arranged.get(node.id) ?? node), requestedDirection);
-        setLayoutMode(requestedDirection);
-      }
-      pushHistory();
-      setNodes(draftNodes);
-      setEdges(draftEdges);
-      setSelectedId(null);
-      setSelectedIds([]);
+      const applied = applyAgentOperationsToSession(session, agentPlan.operations, {
+        canvasId: currentCanvasId,
+        viewportWidth,
+        createNode,
+        isAllowed: (operation) => agentSettings.permissions[agentPermissionFor(operation)],
+      });
+      if (applied.requestedDirection) setLayoutMode(applied.requestedDirection);
       clearExecutionResult();
-      setAgentAudit((current) => [{ at: new Date().toISOString(), summary: agentPlan.summary, result: `已应用 ${agentPlan.operations.length} 项操作${runRequested ? "，并请求运行" : ""}` }, ...current].slice(0, 30));
+      setAgentAudit((current) => [{ at: new Date().toISOString(), summary: agentPlan.summary, result: `已应用 ${agentPlan.operations.length} 项操作${applied.runRequested ? "，并请求运行" : ""}` }, ...current].slice(0, 30));
       setMessage(`AI 计划已应用：${agentPlan.operations.length} 项操作`);
-      if (runRequested) await runPrototype(draftNodes, draftEdges);
+      if (applied.runRequested) await runPrototype(applied.snapshot.nodes, applied.snapshot.edges);
     } catch (error) {
       const detail = error instanceof Error ? error.message : "AI 计划应用失败";
       setAgentPlanError(detail);
@@ -3558,21 +3485,21 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={ui("搜索内置或导入节点", "Search built-in or imported nodes")} /><span>{matchedCatalog.length}</span></label>
           </div>
           <div className="palette-content">
-            {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length} · 可拖拽排序</small></h3>{savedNodeLibrary.map((entry) => { const resource: PaletteResource = { kind: "saved-node", id: entry.id, label: entry.name }; return <button draggable={finePointer} key={entry.id} className={savedNodeDragOverId === entry.id ? "palette-sort-target" : ""} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setSavedNodeDragOverId(entry.id); } }} onDragLeave={() => setSavedNodeDragOverId((current) => current === entry.id ? null : current)} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); setSavedNodeDragOverId(null); const data = event.dataTransfer.getData("application/pydroid-resource"); if (data) { try { const dragged = JSON.parse(data) as PaletteResource; if (dragged.kind === "saved-node") reorderSavedNodes(dragged.id, entry.id); } catch { /* 忽略无效拖拽数据 */ } } }} onDragEnd={clearPaletteDrag} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => { if (event.pointerType !== "mouse") onPalettePointerDown(event, resource); }} onPointerMove={(event) => { if (event.pointerType !== "mouse") onPalettePointerMove(event); }} onPointerUp={(event) => { if (event.pointerType !== "mouse") onPalettePointerUp(event); }} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onClick={() => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } insertSavedNode(entry); }} title="加入保存的节点与参数 · 长按管理"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
+            {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length} · 可拖拽排序</small></h3>{savedNodeLibrary.map((entry) => { const descriptor = describeSavedNode(entry); const resource = resourceRef(descriptor); return <button draggable={finePointer && descriptor.capabilities.draggable} key={entry.id} className={savedNodeDragOverId === entry.id ? "palette-sort-target" : ""} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setSavedNodeDragOverId(entry.id); } }} onDragLeave={() => setSavedNodeDragOverId((current) => current === entry.id ? null : current)} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); setSavedNodeDragOverId(null); const data = event.dataTransfer.getData("application/pydroid-resource"); if (data) { try { const dragged = JSON.parse(data) as PaletteResource; if (dragged.kind === "saved-node") reorderSavedNodes(dragged.id, entry.id); } catch { /* 忽略无效拖拽数据 */ } } }} onDragEnd={clearPaletteDrag} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => { if (event.pointerType !== "mouse") onPalettePointerDown(event, resource); }} onPointerMove={(event) => { if (event.pointerType !== "mouse") onPalettePointerMove(event); }} onPointerUp={(event) => { if (event.pointerType !== "mouse") onPalettePointerUp(event); }} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onClick={() => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } insertSavedNode(entry); }} title="加入保存的节点与参数 · 长按管理"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
             {[...catalogGroups.entries()].map(([category, specs]) => (
               <section className="palette-group" key={category}>
                 <h3>{category}</h3>
-                {specs.map((spec) => { const resource: PaletteResource = { kind: "node", id: spec.nodeType, label: spec.label }; return <button draggable={false} key={spec.nodeType} title={`按住后拖到画布添加 · ${spec.pythonCallable ?? spec.nodeType}${spec.description ? ` · ${spec.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }}>⠿ <strong>{spec.label}</strong>{nodeSearch && <small>{spec.pythonCallable ?? spec.nodeType}</small>}</button>; })}
+                {specs.map((spec) => { const resource = resourceRef(describeCatalogNode(spec.nodeType, spec.label)); return <button draggable={false} key={spec.nodeType} title={`按住后拖到画布添加 · ${spec.pythonCallable ?? spec.nodeType}${spec.description ? ` · ${spec.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }}>⠿ <strong>{spec.label}</strong>{nodeSearch && <small>{spec.pythonCallable ?? spec.nodeType}</small>}</button>; })}
               </section>
             ))}
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
-            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const resource: PaletteResource = { kind: "group", id: entry.id, label: entry.name }; return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`拖动添加 · 静止长按约 0.7 秒或双击打开菜单 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
+            {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const descriptor = describeGroup(entry); const resource = resourceRef(descriptor); return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`拖动添加 · 静止长按约 0.7 秒或双击打开菜单 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
             {paletteTab === "functions" && <>
               <section className="palette-group palette-group--custom workflow-language-state"><h3>{ui("工作区变量", "Workspace variables")}<small>{workspaceVariableNames.length} · {ui("当前标签页", "current tab")}</small></h3>{workspaceVariableNames.length ? <div className="workflow-variable-list">{workspaceVariableNames.map((name) => <code key={name}>{name}</code>)}</div> : <p className="muted">{ui("尚未写入工作区变量。使用“设置工作区变量”节点后会显示在这里。", "No workspace variables yet. Use a Set Workspace Variable node to create one.")}</p>}<button className="secondary" disabled={!workspaceVariableNames.length} onClick={clearWorkspaceVariables}>{ui("清空当前标签变量", "Clear tab variables")}</button></section>
-              {functions.map((definition) => <section className="palette-group palette-group--custom workflow-function-card" key={definition.id}><h3>{definition.name}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{definition.description && <p className="muted">{definition.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button><button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>)}
+              {functions.map((definition) => { const resource = describeFunction(definition); return <section className="palette-group palette-group--custom workflow-function-card" key={resource.id}><h3>{resource.label}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{resource.description && <p className="muted">{resource.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button><button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>; })}
               {!functions.length && <p className="muted">{ui("先将节点组合，然后在组合检查器中选择“保存为函数”。函数会随工作流一起保存。", "Group nodes first, then choose Save as function in the group inspector. Functions are stored with the workflow.")}</p>}
             </>}
-            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const resource: PaletteResource = { kind: "flow", id: entry.id, label: entry.name }; return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
+            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const descriptor = describeFlow(entry); const resource = resourceRef(descriptor); return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
 
@@ -3728,18 +3655,20 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             const catalog = resourceMenu.kind === "catalog-node" ? getNodeSpec(resourceMenu.entryId) : undefined;
             const saved = resourceMenu.kind === "saved-node" ? savedNodeLibrary.find((item) => item.id === resourceMenu.entryId) : undefined;
             const group = resourceMenu.kind === "group" ? groupLibrary.find((item) => item.id === resourceMenu.entryId) : undefined;
-            const label = catalog?.label ?? saved?.name ?? group?.name ?? "资源";
+            const descriptor = catalog ? describeCatalogNode(catalog.nodeType, catalog.label) : saved ? describeSavedNode(saved) : group ? describeGroup(group) : null;
+            const label = descriptor?.label ?? "资源";
             return <div className="context-menu resource-context-menu" style={{ left: Math.min(resourceMenu.x, window.innerWidth - 210), top: Math.min(resourceMenu.y, window.innerHeight - 240) }} role="menu" aria-label="资源操作" onContextMenu={(event) => event.preventDefault()}><strong>{label}</strong>
               <button onClick={() => { if (catalog) addNodeFromCatalog(catalog.nodeType); else if (saved) insertSavedNode(saved); else if (group) insertGroupTemplate(group); setResourceMenu(null); }}>添加到画布</button>
-              {saved && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名节点", label: "节点名称", value: saved.name }).then((value) => { const name = value?.trim(); if (name) setSavedNodeLibrary((current) => current.map((item) => item.id === saved.id ? { ...item, name } : item)); }); }}>重命名</button>}
-              {group && !group.builtIn && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名组合", label: "组合名称", value: group.name }).then((value) => { const name = value?.trim(); if (name) setGroupLibrary((current) => current.map((item) => item.id === group.id ? { ...item, name, nodes: item.nodes.map((node) => node.data.nodeType === "workflow.group" ? { ...node, data: { ...node.data, label: name } } : node) } : item)); }); }}>重命名</button>}
-              {saved && <button className="danger" onClick={() => { setSavedNodeLibrary((current) => current.filter((item) => item.id !== saved.id)); setResourceMenu(null); }}>删除我的节点</button>}
-              {group && !group.builtIn && <button className="danger" onClick={() => { setGroupLibrary((current) => current.filter((item) => item.id !== group.id)); setResourceMenu(null); }}>删除组合</button>}
+              {saved && descriptor?.capabilities.rename && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名节点", label: "节点名称", value: saved.name }).then((value) => { const name = value?.trim(); if (name) setSavedNodeLibrary((current) => current.map((item) => item.id === saved.id ? { ...item, name } : item)); }); }}>重命名</button>}
+              {group && descriptor?.capabilities.rename && <button onClick={() => { setResourceMenu(null); void requestTextPrompt({ title: "重命名组合", label: "组合名称", value: group.name }).then((value) => { const name = value?.trim(); if (name) setGroupLibrary((current) => current.map((item) => item.id === group.id ? { ...item, name, nodes: item.nodes.map((node) => node.data.nodeType === "workflow.group" ? { ...node, data: { ...node.data, label: name } } : node) } : item)); }); }}>重命名</button>}
+              {saved && descriptor?.capabilities.remove && <button className="danger" onClick={() => { setSavedNodeLibrary((current) => current.filter((item) => item.id !== saved.id)); setResourceMenu(null); }}>删除我的节点</button>}
+              {group && descriptor?.capabilities.remove && <button className="danger" onClick={() => { setGroupLibrary((current) => current.filter((item) => item.id !== group.id)); setResourceMenu(null); }}>删除组合</button>}
             </div>;
           })()}
           {flowMenu && (() => {
             const entry = flowLibrary.find((item) => item.id === flowMenu.entryId);
-            return entry ? <div className="context-menu flow-context-menu" style={{ left: flowMenu.x, top: flowMenu.y }} role="menu" aria-label="流程资源操作" onContextMenu={(event) => event.preventDefault()}><strong>◇ {entry.name}</strong><button onClick={() => beginRenameFlow(entry)} disabled={entry.locked}>重命名</button><button onClick={() => toggleFlowLock(entry)}>{entry.locked ? "解除锁定" : "锁定流程"}</button><button onClick={() => void jumpToWorkflowFolder()}>跳转到文件夹</button><button className="danger" disabled={entry.locked} onClick={() => void deleteFlow(entry)}>删除流程</button></div> : null;
+            const descriptor = entry ? describeFlow(entry) : null;
+            return entry && descriptor ? <div className="context-menu flow-context-menu" style={{ left: flowMenu.x, top: flowMenu.y }} role="menu" aria-label="流程资源操作" onContextMenu={(event) => event.preventDefault()}><strong>◇ {entry.name}</strong><button onClick={() => beginRenameFlow(entry)} disabled={!descriptor.capabilities.rename}>重命名</button><button onClick={() => toggleFlowLock(entry)} disabled={!descriptor.capabilities.lock}>{entry.locked ? "解除锁定" : "锁定流程"}</button><button onClick={() => void jumpToWorkflowFolder()}>跳转到文件夹</button><button className="danger" disabled={!descriptor.capabilities.remove} onClick={() => void deleteFlow(entry)}>删除流程</button></div> : null;
           })()}
           {replacementOpen && <ReplacementPanel node={selectedNode} search={replacementSearch} showAll={replacementShowAll} candidates={replacementCandidates} onSearch={setReplacementSearch} onToggleShowAll={setReplacementShowAll} onSelect={replaceSelectedNode} onClose={() => setReplacementOpen(false)} />}
         </section>
@@ -4162,6 +4091,8 @@ function TitleBar() {
 }
 
 function MultiTabWorkspace() {
+  const workspaceExecutionClientId = getExecutionClientId();
+  const workspaceSessionSource = isRemoteRuntime() ? "remote" as const : "local" as const;
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const resolvedTheme: "dark" | "light" = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
@@ -4248,7 +4179,8 @@ function MultiTabWorkspace() {
       const hostStatus = await getHostExecutionStatus().catch(() => null);
       if (disposed || !hostStatus) return;
       for (const tab of tabs) {
-        const hostEntry = hostStatus.executions.find((entry) => entry.workspaceId === tab.id && entry.clientId === clientId);
+        const identity = createWorkspaceSessionIdentity(tab.id, clientId, workspaceSessionSource);
+        const hostEntry = hostStatus.executions.find((entry) => matchesHostExecution(identity, entry));
         const phase = hostEntry?.phase ?? getExecutionStatus(tab.id).phase;
         applyWorkspaceExecutionPhase(tab.id, phase, tab.id === activeId);
       }
@@ -4295,8 +4227,9 @@ function MultiTabWorkspace() {
         if (neighbor) setActiveId(neighbor.id);
       }
       cancelActiveExecution(id);
-      clearWorkspaceExecutionResult(id);
-      clearWorkspaceVariableState(id);
+      const identity = createWorkspaceSessionIdentity(id, workspaceExecutionClientId, workspaceSessionSource);
+      clearWorkspaceExecutionResult(identity);
+      clearWorkspaceVariableState(identity);
       sessionStoreRef.current.delete(id);
       lifecycleRef.current.clearAutosave(id);
       setExecutionPhases((phases) => { const next = { ...phases }; delete next[id]; return next; });

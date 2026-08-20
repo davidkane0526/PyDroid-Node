@@ -1,4 +1,17 @@
-# Phase 9 progress — 1.4.63 (86)
+# Phase 9 progress — 1.4.64 (87)
+
+Phase 9 continues on `phase9/resource-remote-agent-session`. The accepted Desktop/Android gesture meanings remain unchanged; this milestone unifies resource capabilities, makes runtime/editor state addressable by an explicit workspace-session identity, and moves AI graph surgery behind one atomic Session batch transaction.
+
+- Added a shared Resource Contract for catalog nodes, saved nodes, reusable functions, groups and workflows. Primary action, drag, rename, delete and lock capabilities are resolved centrally, including built-in/locked protection.
+- Added `WorkspaceSessionIdentity = workspaceId + clientId + source`. Execution-result/workspace-variable storage now keys state by this identity, so different Remote Web clients can safely use the same tab/workspace ID without state collision.
+- Shared and Desktop execution adapters construct the same identity before reading/writing workspace state; host execution matching also requires workspace, client and source identity.
+- Added `EditorWorkspaceSession.applyGraphCommandBatch()`. A complete AI plan now validates/stages first and commits as one Session transaction/one undo baseline; a rejected plan cannot partially mutate the graph.
+- AI graph surgery moved from `App.tsx` into `src/editor-core/agent-operations.ts`; UI remains responsible for permissions, confirmation, messages and optional run requests.
+- Automated diagnostics add Resource Contract, Remote/Local Session identity and AI atomic-batch cases. A fully capable Desktop/Android host should now report **15/15**.
+- `App.tsx` is now 4302 lines, down from 4369 in 1.4.63 and 4679 at the 1.4.60 foundation.
+- Build script revision: `1.4.64-dev-r40-phase9-resource-remote-agent-session`.
+
+## 2026-08-20 — Phase 9 connections/drag / 1.4.63 (86)
 
 Phase 9 continues on `phase9/editor-core-connections-drag-transactions`. The accepted Desktop/Android gesture meanings remain unchanged; this milestone moves connection, replacement, metadata/template and drag-history semantics behind Editor Core boundaries.
 

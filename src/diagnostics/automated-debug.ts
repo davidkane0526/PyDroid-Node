@@ -1,11 +1,15 @@
 import type { Edge } from "@xyflow/react";
 import type { ExecutionResult, RuntimeId } from "../runtime";
-import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVariableNames } from "../execution-workspace";
+import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVariableNames, setWorkspaceVariableState } from "../execution-workspace";
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import { createFunctionCallNode } from "../workflow-functions";
 import { EditorSessionStore } from "../editor-core/session";
 import { EditorWorkspaceLifecycleService } from "../editor-core/lifecycle";
 import { resolveGesturePolicy } from "../editor-core/gesture-policy";
+import { createWorkspaceSessionIdentity, matchesHostExecution } from "../editor-core/workspace-identity";
+import { applyAgentOperationsToSession } from "../editor-core/agent-operations";
+import { describeFlow, describeFunction, describeGroup, describeSavedNode, resourceContractKey } from "../editor-core/resource-contract";
+import { getNodeSpec } from "../nodeCatalog";
 import { emptyWorkflowSnapshot } from "../workflow-core";
 
 export const AUTOMATED_DIAGNOSTICS_SCHEMA_VERSION = 1;
@@ -49,6 +53,7 @@ export type AutomatedDiagnosticsDependencies = {
   native: boolean;
   remote: boolean;
   activeWorkspaceId: string;
+  executionClientId: string;
   activeVariableNames: string[];
   activeFunctions: WorkflowFunctionDefinition[];
   activeNodeCount: number;
@@ -92,7 +97,8 @@ async function runCase(id: string, label: string, runtime: RuntimeId | undefined
 
 async function workspacePersistenceCase(runtime: RuntimeId, deps: AutomatedDiagnosticsDependencies): Promise<DiagnosticCase> {
   const workspaceId = `diagnostic-${runtime}-${Date.now().toString(36)}`;
-  clearWorkspaceVariableState(workspaceId);
+  const identity = createWorkspaceSessionIdentity(workspaceId, deps.executionClientId, deps.remote ? "remote" : "local");
+  clearWorkspaceVariableState(identity);
   return runCase(`workspace-persistence-${runtime}`, `工作区变量写入 → 跨运行读取（${runtime}）`, runtime, async () => {
     try {
       const writeNodes = [
@@ -105,9 +111,9 @@ async function workspacePersistenceCase(runtime: RuntimeId, deps: AutomatedDiagn
         { id: "write-2", source: "len", target: "set", sourceHandle: "output", targetHandle: "input" },
       ];
       const written = await deps.executeWithRuntime(runtime, writeNodes, writeEdges, "", { workspaceId, workspaceLabel: `自动诊断 ${runtime}` });
-      const storedAfterWrite = getWorkspaceVariableState(workspaceId);
+      const storedAfterWrite = getWorkspaceVariableState(identity);
       if (storedAfterWrite.phase8_rows !== 3) throw new Error(`写入后 phase8_rows=${JSON.stringify(storedAfterWrite.phase8_rows)}，预期 3`);
-      if (!listWorkspaceVariableNames(workspaceId).includes("phase8_rows")) throw new Error("资源状态中没有 phase8_rows");
+      if (!listWorkspaceVariableNames(identity).includes("phase8_rows")) throw new Error("资源状态中没有 phase8_rows");
 
       const readNodes = [
         node("get", "variable.get_workspace", { name: "phase8_rows" }, "读取 phase8_rows"),
@@ -115,18 +121,18 @@ async function workspacePersistenceCase(runtime: RuntimeId, deps: AutomatedDiagn
       ];
       const readEdges: Edge[] = [{ id: "read-1", source: "get", target: "print", sourceHandle: "output", targetHandle: "input" }];
       const read = await deps.executeWithRuntime(runtime, readNodes, readEdges, "", { workspaceId, workspaceLabel: `自动诊断 ${runtime}` });
-      const finalState = getWorkspaceVariableState(workspaceId);
+      const finalState = getWorkspaceVariableState(identity);
       if (finalState.phase8_rows !== 3) throw new Error("第二次运行没有保留 phase8_rows");
       return {
         writeRuntime: written.runtimeId ?? runtime,
         readRuntime: read.runtimeId ?? runtime,
         workspaceState: finalState,
-        variableNames: listWorkspaceVariableNames(workspaceId),
+        variableNames: listWorkspaceVariableNames(identity),
         executionOrder: read.executionOrder ?? [],
         printResult: read.nodeResults.print ?? null,
       };
     } finally {
-      clearWorkspaceVariableState(workspaceId);
+      clearWorkspaceVariableState(identity);
     }
   });
 }
@@ -431,6 +437,81 @@ async function editorDocumentLifecycleCase(): Promise<DiagnosticCase> {
   });
 }
 
+
+async function resourceContractCase(): Promise<DiagnosticCase> {
+  return runCase("editor-resource-contract", "统一 Resource Contract 节点/函数/组合/流程能力", undefined, async () => {
+    const fixture = node("saved-node", "python.print", {}, "保存节点");
+    const saved = describeSavedNode({ id: "saved", name: "保存节点", node: fixture, savedAt: "now" });
+    const group = describeGroup({ id: "builtin-group", name: "内置组合", description: "fixture", nodes: [fixture], edges: [], builtIn: true });
+    const fn = describeFunction({ id: "fn", name: "函数", version: 1, description: "fixture", inputs: [], outputs: [], nodes: [fixture], edges: [] });
+    const flow = describeFlow({ id: "flow", name: "流程", savedAt: "", document: "{}", external: true });
+    if (saved.capabilities.primaryAction !== "insert" || !saved.capabilities.rename) throw new Error("保存节点资源能力异常");
+    if (group.capabilities.remove || group.capabilities.rename) throw new Error("内置组合资源不应允许删除/改名");
+    if (fn.capabilities.primaryAction !== "call") throw new Error("函数资源主动作不是 call");
+    if (flow.capabilities.primaryAction !== "open") throw new Error("流程资源主动作不是 open");
+    return {
+      keys: [saved, group, fn, flow].map(resourceContractKey),
+      primaryActions: { savedNode: saved.capabilities.primaryAction, group: group.capabilities.primaryAction, function: fn.capabilities.primaryAction, flow: flow.capabilities.primaryAction },
+      builtInGroupProtected: !group.capabilities.remove && !group.capabilities.rename,
+    };
+  });
+}
+
+async function workspaceSessionIdentityCase(deps: AutomatedDiagnosticsDependencies): Promise<DiagnosticCase> {
+  return runCase("workspace-session-identity", "Remote/Local Workspace Session 身份边界", undefined, async () => {
+    const local = createWorkspaceSessionIdentity("default", "diagnostic-local", "local");
+    const remote = createWorkspaceSessionIdentity("default", "diagnostic-remote", "remote");
+    setWorkspaceVariableState(local, { owner: "local" });
+    setWorkspaceVariableState(remote, { owner: "remote" });
+    try {
+      if (local.key === remote.key) throw new Error("相同 workspaceId 的 local/remote session key 发生碰撞");
+      if (getWorkspaceVariableState(local).owner !== "local" || getWorkspaceVariableState(remote).owner !== "remote") throw new Error("Workspace 变量跨 client/source 串扰");
+      const remoteEntry = { workspaceId: "default", clientId: "diagnostic-remote", source: "remote" as const };
+      if (!matchesHostExecution(remote, remoteEntry) || matchesHostExecution(local, remoteEntry)) throw new Error("Host execution 没有按 workspaceId + clientId + source 绑定");
+      const active = createWorkspaceSessionIdentity(deps.activeWorkspaceId, deps.executionClientId, deps.remote ? "remote" : "local");
+      return { localKey: local.key, remoteKey: remote.key, activeKey: active.key, hostMatchUsesClientAndWorkspace: true, isolatedVariableState: true };
+    } finally {
+      clearWorkspaceVariableState(local);
+      clearWorkspaceVariableState(remote);
+    }
+  });
+}
+
+async function agentEditorBatchCase(): Promise<DiagnosticCase> {
+  return runCase("editor-agent-batch", "AI Agent 批量 Graph Surgery 单一 Session 事务", undefined, async () => {
+    const session = new EditorSessionStore("agent-batch", emptyWorkflowSnapshot()).get("agent-batch")!;
+    const createDiagnosticNode = (id: string, nodeType: string, x: number, y: number, parameters: Record<string, string | number | boolean | null>) => {
+      const spec = getNodeSpec(nodeType);
+      if (!spec) throw new Error(`未知诊断节点：${nodeType}`);
+      const created = node(id, nodeType, { ...spec.defaults, ...parameters }, spec.label);
+      created.position = { x, y };
+      return created;
+    };
+    const result = applyAgentOperationsToSession(session, [
+      { type: "add_node", id: "source", nodeType: "generate.random_table", parameters: { count: 4 } },
+      { type: "add_node", id: "absolute", nodeType: "table.absolute" },
+      { type: "connect", source: "source", target: "absolute", sourceHandle: "output", targetHandle: "input" },
+      { type: "arrange", direction: "horizontal" },
+    ], { canvasId: null, viewportWidth: 1000, createNode: createDiagnosticNode });
+    if (!result.changed || result.snapshot.nodes.length !== 2 || result.snapshot.edges.length !== 1) throw new Error("AI 批量事务未生成预期图");
+    if (session.history.entries.length !== 1) throw new Error(`AI 批量操作产生 ${session.history.entries.length} 条 history，预期 1 条`);
+    const beforeRejected = session.getRuntimeState().snapshot;
+    try {
+      applyAgentOperationsToSession(session, [
+        { type: "add_node", id: "temporary", nodeType: "table.absolute" },
+        { type: "connect", source: "missing", target: "temporary" },
+      ], { canvasId: null, viewportWidth: 1000, createNode: createDiagnosticNode });
+      throw new Error("无效 AI 计划没有被拒绝");
+    } catch (error) {
+      if (error instanceof Error && error.message === "无效 AI 计划没有被拒绝") throw error;
+    }
+    if (session.getRuntimeState().snapshot.nodes.length !== beforeRejected.nodes.length) throw new Error("被拒绝的 AI 批量计划发生了部分写入");
+    const undo = session.undo();
+    if (!undo || undo.nodes.length !== 0 || undo.edges.length !== 0) throw new Error("AI 批量事务 undo 没有一次恢复基线");
+    return { appliedOperations: result.appliedOperations, historyEntriesPerPlan: 1, atomicRejection: true, undoRestoredBaseline: true };
+  });
+}
+
 async function gestureContractCase(): Promise<DiagnosticCase> {
   return runCase("editor-gesture-contract", "桌面/移动端 × 节点/组合手势契约", undefined, async () => {
     const desktopNode = resolveGesturePolicy("desktop", "node");
@@ -455,6 +536,9 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await editorDragHistoryCase());
   cases.push(await editorLifecycleAutosaveCase());
   cases.push(await editorDocumentLifecycleCase());
+  cases.push(await resourceContractCase());
+  cases.push(await workspaceSessionIdentityCase(deps));
+  cases.push(await agentEditorBatchCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));
   cases.push(await reusableFunctionCase("javascript", deps));

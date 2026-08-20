@@ -7,3 +7,6 @@ export * from "./resources";
 export * from "./session";
 export * from "./workflow-structure";
 export * from "./react";
+export * from "./resource-contract";
+export * from "./workspace-identity";
+export * from "./agent-operations";

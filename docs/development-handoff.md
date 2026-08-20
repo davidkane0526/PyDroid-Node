@@ -16,9 +16,10 @@ Long-lived branches in this repository:
 - `phase9/editor-core-workspace-session`: `1.4.60 (83)` Phase 9 Session/Gesture foundation.
 - `phase9/editor-core-lifecycle-resources`: `1.4.61 (84)` Phase 9 structural/lifecycle milestone.
 - `phase9/editor-core-node-mutations-document-lifecycle`: `1.4.62 (85)` Phase 9 node mutation/document lifecycle milestone.
-- `phase9/editor-core-connections-drag-transactions`: `1.4.63 (86)` current Phase 9 line moving connection/reconnect, replacement, metadata/template and drag-history transactions into Editor Core.
+- `phase9/editor-core-connections-drag-transactions`: `1.4.63 (86)` connection/reconnect, replacement, metadata/template and drag-history milestone.
+- `phase9/resource-remote-agent-session`: `1.4.64 (87)` current Phase 9 line unifying Resource Contract capabilities, workspace/client/source identity and atomic AI batch graph surgery.
 
-Current working branch: `phase9/editor-core-connections-drag-transactions`.
+Current working branch: `phase9/resource-remote-agent-session`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -36,11 +37,11 @@ Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture w
 
 ## Phase 9 status — Editor Core & Workspace Session
 
-**Started on 1.4.60 (83), current milestone 1.4.63 (86); not frozen.** `EditorWorkspaceSession` is the per-tab owner of workflow snapshot, selected input, history/dirty state and session-only editor view state. React consumes it through `useSyncExternalStore`; `App.tsx` no longer keeps a second ReactFlow graph via `useNodesState` / `useEdgesState`. Editor Commands now cover deletion/disconnection, group/function/resource structure, ordinary node insertion/duplication/parameter edits/layout, connection/reconnect, node replacement, metadata/template edits and drag completion. Session owns continuous-edit history coalescing plus explicit begin/commit drag-history transactions. `EditorWorkspaceLifecycleService` owns autosave persistence, save/open/reset/close decisions and explicit autosave restore. Explicit restore does not alter the normal one-empty-workflow startup behavior.
+**Started on 1.4.60 (83), current milestone 1.4.64 (87); not frozen.** `EditorWorkspaceSession` is the per-tab owner of workflow snapshot, selected input, history/dirty state and session-only editor view state. React consumes it through `useSyncExternalStore`; `App.tsx` no longer keeps a second ReactFlow graph via `useNodesState` / `useEdgesState`. Editor Commands now cover deletion/disconnection, group/function/resource structure, ordinary node insertion/duplication/parameter edits/layout, connection/reconnect, node replacement, metadata/template edits and drag completion. Session owns continuous-edit history coalescing plus explicit begin/commit drag-history transactions. `EditorWorkspaceLifecycleService` owns autosave persistence, save/open/reset/close decisions and explicit autosave restore. Explicit restore does not alter the normal one-empty-workflow startup behavior.
 
 Input semantics are explicitly split by **input profile** (`desktop` vs `mobile`) and **target kind** (`node`, `group`, `canvas`, `resource`, `tab`). Do not merge these policies merely to reduce code. In particular, Android node long-press is a multi-select gesture, Android group long-press retains the accepted multi-select gesture while group double-tap remains subflow entry, desktop node double-click opens node actions, and desktop group double-click enters the subflow. See `docs/phase9-editor-core-workspace-session.md`.
 
-The temporary automated diagnostics now add eight Phase 9 cases: Session isolation, structural Editor Command transactions, node mutation/history/layout transactions, connection/replacement/metadata/template transactions, drag-history/structure-containment transactions, lifecycle autosave, full document lifecycle, and gesture contracts. Together with the four Phase 8 runtime cases, a normal Desktop/Android host with both runtimes should report **12/12**.
+The temporary automated diagnostics now add eleven Phase 9 cases: the previous Session/Command/node/connection/drag/lifecycle/document/gesture checks plus Resource Contract, workspace-session identity and atomic AI batch graph surgery. Together with the four Phase 8 runtime cases, a normal Desktop/Android host with both runtimes should report **15/15**.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -87,17 +88,17 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 9 / 1.4.63 validation
+### Current Phase 9 / 1.4.64 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
 - Build-tool, UI regression, PlatformAdapter, Host Contract (31 operations), Remote Web, Execution, Desktop Host/file export, Android Host, Workflow Core, Editor Core, Runtime Engine and NodeContract architecture smokes: passed.
 - Phase 9 Editor Core strict semantic subset compile: passed.
-- TS/TSX syntax parse of all **112 source files**: passed.
-- Executed Editor Core runtime harness: connect/reconnect, node replacement, drag-history transaction, structure containment and undo passed; prior node/lifecycle harnesses remain covered by automated diagnostics and unit sources.
+- TS/TSX syntax parse of all **122 source files**: passed.
+- Executed 1.4.64 Editor Core runtime harness: Resource Contract protection, Local/Remote workspace state isolation, valid AI batch commit, atomic rejection and single-undo restoration passed. Prior connection/drag/lifecycle harness coverage remains in diagnostics/unit sources.
 - `git diff --check` and version sync: passed.
 
-The removable in-app diagnostics now contain twelve cases. A real Desktop/Android host with both runtimes should report **12/12**.
+The removable in-app diagnostics now contain fifteen cases. A real Desktop/Android host with both runtimes should report **15/15**.
 
 Phase 1 production-boundary checks:
 

@@ -1,3 +1,13 @@
+## 1.4.64 (87) — Phase 9 Resource Contract / Remote Session Identity / Atomic AI Graph Surgery — 2026-08-20
+
+- Added a shared Resource Contract for catalog nodes, saved nodes, functions, groups and workflows, including centralized primary-action/drag/rename/remove/lock capabilities and built-in/locked protection.
+- Added cross-layer `WorkspaceSessionIdentity` (`workspaceId + clientId + source`) and keyed execution results/workspace variables by that identity to prevent Remote Web client collisions.
+- Shared and Desktop execution adapters now read/write workspace state through the same session identity and host execution matching requires workspace + client + source identity.
+- Added Session-level atomic command batches and moved AI plan graph surgery into Editor Core. A valid plan produces one undo baseline; an invalid plan is rejected without partial graph mutation.
+- Expanded removable automated diagnostics from 12 to 15 cases with Resource Contract, workspace identity and AI atomic-batch coverage.
+- Accepted Desktop/Mobile × Node/Group gesture behavior remains unchanged.
+- Build script revision: `1.4.64-dev-r40-phase9-resource-remote-agent-session`.
+
 ## 1.4.60 (83) — Phase 9 Editor Core / Workspace Session foundation — 2026-08-20
 
 - Started Phase 9 by introducing `EditorWorkspaceSession` / `EditorSessionStore` as the canonical per-tab owner of graph, reusable functions, requirements, selected input, undo/redo history, dirty/saved state and editor view state.

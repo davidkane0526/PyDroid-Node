@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.63
+Current behavior: 1.4.64
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -30,13 +30,16 @@ The report records only application/runtime diagnostics and the names/counts of 
 5. Editor drag history: live pointer movement must collapse to one history transaction, including structure-container/branch assignment and undo restoration.
 6. Editor lifecycle autosave: write/read preserves workflow state and corrupt autosaves are quarantined/deleted.
 7. Workspace document lifecycle: save/open/close dirty decisions and explicit autosave restore preserve the saved baseline.
-8. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
-9. JavaScript workspace variable write -> second-run read.
-10. JavaScript reusable function signature/handles + absolute-value execution.
-11. Python workspace variable write -> second-run read when a Python host exists.
-12. Python reusable function signature/handles + absolute-value execution when a Python host exists.
+8. Unified Resource Contract: node/saved-node/function/group/flow capabilities and built-in/locked protection.
+9. Workspace Session identity: same workspace ID remains isolated by client and Local/Remote source; host execution matching uses workspace + client + source.
+10. AI Agent batch transaction: a valid plan commits once/undoes once and an invalid plan cannot partially mutate the Session.
+11. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
+12. JavaScript workspace variable write -> second-run read.
+13. JavaScript reusable function signature/handles + absolute-value execution.
+14. Python workspace variable write -> second-run read when a Python host exists.
+15. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its two Python cases are reported as skipped. The eight Editor Core cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **12/12**.
+A plain local browser has no Python host, so its two Python cases are reported as skipped. The eleven Phase 9 Editor Core/session cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **15/15**.
 
 ## Output
 

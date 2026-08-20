@@ -108,3 +108,17 @@ it("captures a live drag as one history transaction instead of one entry per poi
   expect(session.history.entries).toHaveLength(1);
   expect(session.undo()?.nodes.find((node) => node.id === "a")?.position).toEqual({ x: 0, y: 0 });
 });
+
+it("applies command batches atomically with one history baseline", () => {
+  const session = new EditorSessionStore("batch", emptyWorkflowSnapshot()).get("batch")!;
+  const a = snapshotWithNode("a").nodes[0];
+  const b = { ...snapshotWithNode("b").nodes[0], position: { x: 200, y: 0 } };
+  const result = session.applyGraphCommandBatch([
+    { type: "insert-node", node: a },
+    { type: "insert-node", node: b },
+  ]);
+  expect(result.changed).toBe(true);
+  expect(session.getRuntimeState().snapshot.nodes.map((node) => node.id)).toEqual(["a", "b"]);
+  expect(session.history.entries).toHaveLength(1);
+  expect(session.undo()?.nodes).toHaveLength(0);
+});

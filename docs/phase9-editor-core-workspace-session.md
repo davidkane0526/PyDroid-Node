@@ -1,7 +1,7 @@
 # Phase 9 — Editor Core & Workspace Session
 
 Version started: **1.4.60 (83)**  
-Current branch: `phase9/editor-core-connections-drag-transactions`
+Current branch: `phase9/resource-remote-agent-session`
 
 ## Goal
 
@@ -57,7 +57,7 @@ The policy currently preserves accepted interaction behavior while making future
 
 ## Diagnostics
 
-The removable automated-diagnostics feature now adds eight Phase 9 cases:
+The removable automated-diagnostics feature now adds eleven Phase 9 cases:
 
 1. per-workspace Editor Session isolation across graph/input/history/dirty/view state;
 2. Editor Command transaction ownership, including history/undo/redo for group create/dissolve;
@@ -66,9 +66,12 @@ The removable automated-diagnostics feature now adds eight Phase 9 cases:
 5. one-history-entry drag transactions including structure containment;
 6. lifecycle autosave read/write/corruption quarantine;
 7. save/open/close/autosave-restore lifecycle;
-8. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
+8. unified Resource Contract capabilities for node/function/group/flow resources;
+9. Local/Remote workspace-session identity isolation by workspace + client + source;
+10. atomic AI Agent batch graph surgery with one undo baseline and no partial writes;
+11. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
 
-Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **12/12**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
+Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **15/15**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
 
 ## 1.4.61 milestone — lifecycle and structural resources
 
@@ -96,14 +99,22 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 - `beginHistoryTransaction()` / `commitHistoryTransaction()` let React Flow stream live drag positions without polluting history. `commit-node-drag` owns final structure-container and branch assignment.
 - Gesture behavior remains profile/target specific and unchanged; this milestone changes ownership, not accepted Desktop/Android interaction meaning.
 
+## 1.4.64 milestone — Resource Contract, Remote identity and AI batch transactions
+
+- `src/editor-core/resource-contract.ts` defines one capability contract for catalog nodes, saved nodes, functions, groups and full workflows without collapsing their distinct primary actions. Built-in and locked resources are protected centrally.
+- `src/workspace-session-identity.ts` defines the cross-layer workspace identity as `workspaceId + clientId + source`. Execution results and persistent workspace variables use that identity instead of a bare tab ID.
+- Remote Web clients may therefore reuse common local tab IDs such as `default` without sharing state with another browser/client. Host execution matching uses the same workspace/client/source identity.
+- `EditorWorkspaceSession.applyGraphCommandBatch()` provides an atomic multi-command boundary. AI plans stage/validate in `src/editor-core/agent-operations.ts` and commit once, producing one undo entry; invalid plans are rejected before any partial graph mutation reaches the Session.
+- The gesture matrix remains unchanged and independent. This milestone changes resource/session/agent ownership, not Desktop/Mobile or Node/Group interaction meaning.
+
 ## Phase 9 continuation
 
-1. Converge node/function/group/flow persistence on a common Resource Contract while preserving target-specific gesture policy.
-2. Route Remote Web workspace selection through the same Session identity boundary.
-3. Move the remaining AI-plan batch graph surgery behind Editor Core transaction services.
+1. Move remaining resource-library persistence mutations behind explicit resource services while preserving the shared capability contract.
+2. Continue converging tab/session lifecycle and host execution presentation on the explicit workspace identity.
+3. Reduce remaining UI-owned selection/import convenience mutations and inspect whether Phase 9 can freeze without changing accepted gestures.
 4. Continue reducing `App.tsx` by responsibility, not by cosmetic file splitting.
 
-## Non-goals for 1.4.60–1.4.63
+## Non-goals for 1.4.60–1.4.64
 
 - no visual redesign;
 - no forced gesture unification between Desktop and Android;

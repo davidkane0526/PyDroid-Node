@@ -23,6 +23,7 @@ import {
 import { collectReachableFunctionNodes, flattenWorkflowGroups, serializeWorkflow, type WorkflowFunctionDefinition, type WorkflowNode } from "./workflow";
 import { emptyHostExecutionStatus, normalizeHostExecutionStatus, type HostExecutionStatus } from "./execution-host";
 import { getExecutionClientId, getWorkspaceVariableState, setWorkspaceExecutionResult, setWorkspaceVariableState } from "./execution-workspace";
+import { createWorkspaceSessionIdentity } from "./workspace-session-identity";
 
 export { WorkflowExecutionError } from "./runtime";
 export { ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError } from "./execution-controller";
@@ -259,10 +260,11 @@ export async function executeWorkflow(
   const workspaceId = options.workspaceId?.trim() || "default";
   const workspaceLabel = options.workspaceLabel?.trim() || "工作流";
   const clientId = options.clientId?.trim() || getExecutionClientId();
-  const workspaceState = getWorkspaceVariableState(workspaceId);
+  const identity = createWorkspaceSessionIdentity(workspaceId, clientId, isRemoteRuntime() ? "remote" : "local");
+  const workspaceState = getWorkspaceVariableState(identity);
   const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, workspaceState, functions: options.functions ?? [], control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
-  if (result.workspaceState) setWorkspaceVariableState(workspaceId, result.workspaceState);
-  setWorkspaceExecutionResult(workspaceId, result);
+  if (result.workspaceState) setWorkspaceVariableState(identity, result.workspaceState);
+  setWorkspaceExecutionResult(identity, result);
   return result;
 }
 
@@ -278,10 +280,11 @@ export async function executeWorkflowWithRuntime(
   const workspaceId = options.workspaceId?.trim() || "default";
   const workspaceLabel = options.workspaceLabel?.trim() || "工作流";
   const clientId = options.clientId?.trim() || getExecutionClientId();
-  const workspaceState = getWorkspaceVariableState(workspaceId);
+  const identity = createWorkspaceSessionIdentity(workspaceId, clientId, isRemoteRuntime() ? "remote" : "local");
+  const workspaceState = getWorkspaceVariableState(identity);
   const result = await executionManager.execute(workspaceId, runtime.descriptor.id, (control) => runtime.execute({ nodes, edges, csvText, inputFiles, workspaceState, functions: options.functions ?? [], control: { ...control, workspaceId, workspaceLabel, clientId } as ExecutionControl & { workspaceId: string; workspaceLabel: string; clientId: string } }), { ...options, enforceTimeout: runtime.descriptor.id !== "python" });
-  if (result.workspaceState) setWorkspaceVariableState(workspaceId, result.workspaceState);
-  setWorkspaceExecutionResult(workspaceId, result);
+  if (result.workspaceState) setWorkspaceVariableState(identity, result.workspaceState);
+  setWorkspaceExecutionResult(identity, result);
   return result;
 }
 

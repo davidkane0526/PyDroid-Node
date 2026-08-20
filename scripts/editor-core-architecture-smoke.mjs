@@ -15,6 +15,12 @@ const connection = readFileSync(path.join(root, "src/editor-core/connection.ts")
 const reactAdapter = readFileSync(path.join(root, "src/editor-core/react.ts"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
 const diagnostics = readFileSync(path.join(root, "src/diagnostics/automated-debug.ts"), "utf8");
+const resourceContract = readFileSync(path.join(root, "src/editor-core/resource-contract.ts"), "utf8");
+const workspaceIdentity = readFileSync(path.join(root, "src/workspace-session-identity.ts"), "utf8");
+const agentOperations = readFileSync(path.join(root, "src/editor-core/agent-operations.ts"), "utf8");
+const executionWorkspace = readFileSync(path.join(root, "src/execution-workspace.ts"), "utf8");
+const sharedExecution = readFileSync(path.join(root, "src/execution.ts"), "utf8");
+const desktopExecution = readFileSync(path.join(root, "desktop/renderer/execution.ts"), "utf8");
 
 assert.match(app, /new EditorSessionStore\("default"/, "multi-tab shell should be owned by EditorSessionStore");
 assert.doesNotMatch(app, /new WorkspaceSessionStore\(/, "App.tsx must not own the legacy Workflow Core session store");
@@ -100,5 +106,22 @@ assert.match(diagnostics, /editor-drag-history/, "one-click diagnostics should c
 assert.match(diagnostics, /editor-lifecycle-autosave/, "one-click diagnostics should cover Workspace Lifecycle autosave");
 assert.match(diagnostics, /editor-document-lifecycle/, "one-click diagnostics should cover save/open/close/autosave restore lifecycle");
 assert.match(diagnostics, /editor-gesture-contract/, "one-click diagnostics should report the gesture policy contract");
+
+assert.match(resourceContract, /type EditorResourceKind = "node" \| "saved-node" \| "function" \| "group" \| "flow"/, "resources should share one Editor Resource Contract");
+assert.match(resourceContract, /resourceCapabilities/, "resource capabilities should be resolved centrally");
+assert.match(app, /describeCatalogNode|describeSavedNode|describeFunction|describeGroup|describeFlow/, "resource UI should consume Resource Contract descriptors");
+assert.match(workspaceIdentity, /workspaceId: string[\s\S]*clientId: string[\s\S]*source: WorkspaceSessionSource/, "workspace identity should include workspace, client and local/remote source");
+assert.match(workspaceIdentity, /matchesHostExecution/, "host execution lookup should use the shared workspace identity contract");
+assert.doesNotMatch(executionWorkspace, /editor-core\//, "low-level execution workspace storage must not depend on Editor Core");
+assert.match(sharedExecution, /createWorkspaceSessionIdentity/, "shared execution should address workspace state by session identity");
+assert.match(desktopExecution, /createWorkspaceSessionIdentity/, "desktop execution should address workspace state by session identity");
+assert.match(session, /applyGraphCommandBatch/, "EditorWorkspaceSession should expose one atomic batch command boundary");
+assert.match(agentOperations, /applyAgentOperationsToSession/, "AI graph surgery should live behind Editor Core");
+assert.match(agentOperations, /session\.applyGraphCommandBatch/, "AI plans should commit through one Session batch transaction");
+assert.match(app, /applyAgentOperationsToSession\(session, agentPlan\.operations/, "App AI apply should delegate graph surgery to Editor Core");
+assert.doesNotMatch(app, /let draftNodes =|let draftEdges =/, "App must not perform manual AI draft graph surgery");
+assert.match(diagnostics, /editor-resource-contract/, "one-click diagnostics should cover Resource Contract semantics");
+assert.match(diagnostics, /workspace-session-identity/, "one-click diagnostics should cover remote/local workspace identity isolation");
+assert.match(diagnostics, /editor-agent-batch/, "one-click diagnostics should cover atomic AI batch graph surgery");
 
 console.log("editor-core architecture smoke passed");

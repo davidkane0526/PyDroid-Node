@@ -32,6 +32,7 @@ export type EditorGraphCommand =
   | { type: "delete-nodes"; nodeIds: string[] }
   | { type: "disconnect-nodes"; nodeIds: string[] }
   | { type: "disconnect-edges"; edgeIds: string[] }
+  | { type: "disconnect-matching"; source?: string; target?: string }
   | { type: "create-group"; nodeIds: string[]; groupId: string; label: string; canvasId: string | null }
   | { type: "dissolve-group"; groupId: string }
   | { type: "save-group-as-function"; groupId: string }
@@ -520,6 +521,15 @@ export function applyEditorGraphCommand(snapshot: WorkflowSnapshot, command: Edi
       snapshot: { ...cloneWorkflowSnapshot(snapshot), edges },
       changed: edges.length !== snapshot.edges.length,
       affectedCount: snapshot.edges.length - edges.length,
+    };
+  }
+  if (command.type === "disconnect-matching") {
+    const edges = snapshot.edges.filter((edge) => !((!command.source || edge.source === command.source) && (!command.target || edge.target === command.target)));
+    return {
+      snapshot: { ...cloneWorkflowSnapshot(snapshot), edges },
+      changed: edges.length !== snapshot.edges.length,
+      affectedCount: snapshot.edges.length - edges.length,
+      ...(edges.length === snapshot.edges.length ? { meta: { blockedReason: "没有找到要断开的连线" } } : {}),
     };
   }
   if (command.type === "create-group") return createGroup(snapshot, command);

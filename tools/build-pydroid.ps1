@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.63-dev-r39-phase9-editor-core-connections-drag"
+$script:BuildScriptRevision = "1.4.64-dev-r40-phase9-resource-remote-agent-session"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

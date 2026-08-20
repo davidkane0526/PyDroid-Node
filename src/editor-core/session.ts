@@ -222,6 +222,39 @@ export class EditorWorkspaceSession {
     return result;
   }
 
+  applyGraphCommandBatch(commands: EditorGraphCommand[], options: { captureHistory?: boolean } = {}): EditorGraphCommandResult {
+    const baseline = this.runtimeState.snapshot;
+    let draft = baseline;
+    let affectedCount = 0;
+    let changed = false;
+    let lastMeta: EditorGraphCommandResult["meta"] | undefined;
+    for (const command of commands) {
+      const result = applyEditorGraphCommand(draft, command);
+      if (!result.changed && result.meta?.blockedReason) {
+        return { snapshot: baseline, changed: false, affectedCount: 0, meta: { blockedReason: result.meta.blockedReason } };
+      }
+      if (!result.changed) continue;
+      draft = result.snapshot;
+      affectedCount += result.affectedCount;
+      changed = true;
+      if (result.meta) lastMeta = result.meta;
+    }
+    if (!changed) return { snapshot: baseline, changed: false, affectedCount: 0 };
+    if (options.captureHistory !== false) this.history.push(baseline);
+    this.lastHistoryCapture = null;
+    this.pendingHistoryTransaction = null;
+    this.runtimeState = { ...this.runtimeState, snapshot: draft };
+    if (lastMeta) {
+      const next = { ...this.viewState };
+      if ("primaryNodeId" in lastMeta) next.primaryNodeId = lastMeta.primaryNodeId ?? null;
+      if (lastMeta.selectedNodeIds) next.selectedNodeIds = [...lastMeta.selectedNodeIds];
+      if (typeof lastMeta.selectionMode === "boolean") next.selectionMode = lastMeta.selectionMode;
+      this.viewState = next;
+    }
+    this.emit();
+    return { snapshot: draft, changed: true, affectedCount, meta: lastMeta };
+  }
+
   replaceInput(input: WorkspaceRuntimeInputState | undefined): void {
     this.runtimeState = { ...this.runtimeState, input };
     this.emit();
