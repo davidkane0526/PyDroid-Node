@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
 const root = process.cwd();
 const javaRoot = path.join(root, "android", "app", "src", "main", "java", "com", "dk", "pydroidflow");
+const remoteServerSource = readFileSync(path.join(javaRoot, "RemoteWorkflowServer.java"), "utf8");
+const readinessStart = remoteServerSource.indexOf("private String verifyEndpoint");
+const readinessEnd = remoteServerSource.indexOf("JSONObject connectionInfo", readinessStart);
+const readinessSource = remoteServerSource.slice(readinessStart, readinessEnd);
+assert.ok(readinessStart >= 0 && readinessEnd > readinessStart, "Android readiness helper must exist");
+assert.doesNotMatch(readinessSource, /HttpURLConnection|new URL\(/, "Android host readiness must not use Android cleartext HTTP APIs against 127.0.0.1");
+assert.match(readinessSource, /new Socket\(\)/, "Android host readiness must use a raw loopback socket");
 const javacProbe = spawnSync("javac", ["-version"], { encoding: "utf8" });
 if (javacProbe.error || javacProbe.status !== 0) {
   console.warn("Android Remote host JVM smoke skipped because javac is unavailable.");

@@ -4,7 +4,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
-const { LAN_WEB_PORT, ensureWindowsLanFirewall, inspectWindowsLanFirewall } = require("../lan/firewall.cjs");
+const { LAN_WEB_PORT } = require("../lan/firewall.cjs");
 const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
 
 const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
@@ -71,6 +71,7 @@ function normalizeClientAddress(request) {
 
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
+  let remoteStartPromise = null;
   let remotePin = null;
   let lanDiscovery = null;
   const accessGuard = new RemoteAccessGuard();
@@ -105,8 +106,14 @@ function createRemoteServerService({ pythonService, log }) {
     return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
   }
 
-  async function start(requirePin) {
+  function start(requirePin) {
     if (remoteServer) return Promise.resolve(remoteServer.__info);
+    if (remoteStartPromise) return remoteStartPromise;
+    remoteStartPromise = startOnce(requirePin).finally(() => { remoteStartPromise = null; });
+    return remoteStartPromise;
+  }
+
+  async function startOnce(requirePin) {
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
     accessGuard.reset();
@@ -212,7 +219,6 @@ function createRemoteServerService({ pythonService, log }) {
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
 
-    const firewall = await ensureWindowsLanFirewall({ log });
     return new Promise((resolve, reject) => {
       const onError = (error) => {
         if (error?.code === "EADDRINUSE") return reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用，请关闭占用程序后重试`));
@@ -252,7 +258,6 @@ function createRemoteServerService({ pythonService, log }) {
             lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
           }
         }
-        const firewallState = process.platform === "win32" ? await inspectWindowsLanFirewall() : firewall;
         const discovery = {
           interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
           ssdp: discoveryState.ssdp ?? "unavailable",
@@ -263,7 +268,6 @@ function createRemoteServerService({ pythonService, log }) {
           lanHttp: lanHealth,
           allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
           discoveryReady: discovery.ssdp === "running" && discovery.mdns === "running",
-          firewall: firewallState,
         };
         const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery, readiness };
         server.__info = info;

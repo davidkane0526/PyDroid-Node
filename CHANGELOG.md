@@ -1,3 +1,18 @@
+## 1.4.73 (96) — Phase 10 Remote startup reliability correction — 2026-08-21
+
+- Corrected two regressions exposed by the real 1.4.72 Desktop/Android builds. Desktop no longer blocks Remote Web startup on synchronous Windows network-profile/firewall PowerShell probing, and Android no longer uses `HttpURLConnection` for its loopback readiness probe.
+- Desktop Remote Web startup is single-flight in both the renderer transition and Electron host service. Repeated clicks/concurrent IPC calls share one in-flight startup instead of creating repeated elevation/start attempts; a failed start no longer reopens the Remote Access dialog automatically.
+- Removed the unapproved Windows-firewall explanatory sentence added to the Remote Access dialog in 1.4.72. No new UI copy is introduced in this release.
+- The runtime start path no longer calls `ensureWindowsLanFirewall()`. Fixed TCP 8765, LAN-address `/health`, default-route interface selection, real SSDP/mDNS bind+multicast readiness, persistent UPnP identity and PIN/token security remain intact. Firewall tooling remains separated from the foreground host startup path.
+- Android host readiness now performs a real raw TCP/HTTP request to `127.0.0.1:8765`, avoiding Android cleartext-policy rejection while still proving that the actual server socket serves `/health`, the SPA shell and its main asset. `SO_REUSEADDR` is set before bind, and SSDP/mDNS only report running after at least one multicast join succeeds.
+- Diagnostics remain 22 cases. The host E2E case verifies host/LAN-interface HTTP and discovery readiness but no longer pretends that same-process testing can certify Windows firewall policy or reachability from a second physical device.
+- Build script revision: `1.4.73-dev-r49-phase10-remote-startup-reliability`.
+
+## 1.4.72 (95) — Phase 10 LAN firewall / readiness experiment — 2026-08-20
+
+- Introduced fixed TCP 8765, stronger LAN-IP and multicast readiness, and default-route/same-subnet interface selection. These parts are retained in 1.4.73.
+- Also introduced synchronous Windows firewall/profile enforcement in the foreground Remote Web startup path. Real 1.4.72 validation showed `NetworkCategory=Unknown` could stop an otherwise startable host, cause long first-start latency/repeated elevation prompts, and make diagnostics fail for the wrong reason. That foreground enforcement is reverted in 1.4.73.
+
 ## 1.4.71 (94) — Phase 10 Remote Web host E2E repair — 2026-08-20
 
 - Corrected a validation gap exposed by the real 1.4.69 Windows/Android builds: the previous 21/21 in-app diagnostics verified editor/runtime/security contracts but did not prove that a packaged host actually bound HTTP, served the browser bundle, or started SSDP/mDNS.

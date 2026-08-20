@@ -41,10 +41,12 @@ final class SsdpService {
         created.bind(new InetSocketAddress(PORT));
         created.setTimeToLive(2);
         InetAddress group = InetAddress.getByName(ADDRESS);
+        int joined = 0;
         for (LanNetworkInterfaceManager.Entry entry : interfaces) {
-            try { created.joinGroup(new InetSocketAddress(group, PORT), entry.networkInterface); }
+            try { created.joinGroup(new InetSocketAddress(group, PORT), entry.networkInterface); joined++; }
             catch (Exception exception) { Log.w(TAG, "[SSDP] join failed " + entry.key(), exception); }
         }
+        if (joined == 0) { created.close(); throw new java.io.IOException("SSDP did not join any LAN multicast interface"); }
         socket = created;
         running = true;
         receiveThread = new Thread(this::receiveLoop, "pydroid-ssdp");

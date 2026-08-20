@@ -1,8 +1,8 @@
 # PyDroid Node 架构与可靠性开发路线
 
-更新时间：2026-08-20
-当前架构开发分支：`phase10/desktop-platform-export-gate-fix`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.71 (94)`
+更新时间：2026-08-21
+当前架构开发分支：`fix/phase10-remote-startup-single-flight`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.73 (96)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -630,3 +630,8 @@ Discovery (`SSDP/mDNS/device.xml`) 仍与认证 API 分离。健康检查和发�
 ### 1.4.72 — LAN firewall / real readiness correction
 
 Real 1.4.71 Windows use demonstrated that 22/22 could still pass while LAN Web/discovery was unusable. 1.4.72 restores the proven demo contract: stable TCP 8765, Private+LocalSubnet firewall ownership, default-route interface preference, per-LAN-IP HTTP readiness, and SSDP/mDNS readiness only after real UDP bind plus multicast join. 1.4.51 remains the known validation-regression boundary; 1.4.72 does not attribute the functional root cause to 1.4.68 without evidence.
+
+
+### 1.4.73 — Remote startup reliability correction
+
+Real 1.4.72 Desktop/Android results invalidated the foreground firewall/profile gate: Desktop could stop on `NetworkCategory=Unknown` and Android could reject its own `HttpURLConnection` loopback probe under cleartext policy. 1.4.73 moves firewall provisioning out of the normal start/diagnostic transaction, adds Desktop single-flight startup, restores the accepted Remote Access dialog copy, and uses raw-socket Android readiness. The stable 8765 endpoint and real LAN/discovery readiness remain.

@@ -1,3 +1,20 @@
+# Phase 10 progress — 1.4.73 (96)
+
+## 1.4.73 Remote startup reliability correction
+
+The real 1.4.72 reports exposed two regressions introduced by the previous correction. Desktop `remote-host-e2e` failed after ~13.7 s with `Windows 当前活动网络不是 Private：Unknown`; the UI used the same result to stop the service. Android failed with `Cleartext HTTP traffic to 127.0.0.1 not permitted` because production readiness used Android's cleartext-governed HTTP client against its own loopback server.
+
+- Desktop foreground startup no longer performs synchronous PowerShell firewall/profile inspection or elevation. This removes the 1.4.72 startup blocker and repeated/slow prompt path.
+- Renderer and Electron host starts are single-flight; repeated/concurrent starts share one transaction. A failure no longer reopens the Remote Access dialog.
+- The extra Windows-firewall explanatory sentence added to the Remote Access dialog in 1.4.72 is removed; this release adds no UI copy.
+- Android readiness now validates the real local server with a raw TCP HTTP request, so Android network-security cleartext policy cannot reject the self-probe. Socket reuse is configured before bind.
+- Android SSDP/mDNS only become running after at least one LAN multicast interface join succeeds.
+- Fixed port 8765, LAN-address `/health`, default-route/same-subnet interface selection, persistent UPnP identity and real Desktop SSDP/mDNS readiness are retained.
+- The 22nd diagnostic case now represents host/network-stack readiness only. It does not claim to prove Windows firewall traversal from another physical client.
+- Build script revision: `1.4.73-dev-r49-phase10-remote-startup-reliability`.
+
+---
+
 # Phase 10 progress — 1.4.72 (95)
 
 ## 1.4.72 LAN firewall + real readiness repair

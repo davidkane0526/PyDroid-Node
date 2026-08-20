@@ -707,6 +707,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const [replacementShowAll, setReplacementShowAll] = useState(false);
   const [replacementSearch, setReplacementSearch] = useState("");
   const [remoteServer, setRemoteServer] = useState<RemoteServerInfo | null>(null);
+  const remoteServerTransitionRef = useRef(false);
   const [remoteBannerVisible, setRemoteBannerVisible] = useState(false);
   const [remoteAccessDialog, setRemoteAccessDialog] = useState(false);
   const [remoteRequirePin, setRemoteRequirePin] = useState(true);
@@ -2868,6 +2869,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const toggleRemoteServer = async () => {
+    if (remoteServerTransitionRef.current) return;
     if (!remoteServer) { setRemoteAccessDialog(true); return; }
     try {
       await stopRemoteServer();
@@ -2880,30 +2882,19 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const startConfiguredRemoteServer = async () => {
+    if (remoteServerTransitionRef.current) return;
+    remoteServerTransitionRef.current = true;
     setRemoteAccessDialog(false);
     setMessage("正在开启计算服务…");
     try {
       const info = await startRemoteServer(remoteRequirePin);
-      const readiness = info.readiness;
-      if (readiness?.firewall?.applicable && !readiness.firewall.privateNetworkActive) {
-        await stopRemoteServer().catch(() => undefined);
-        throw new Error(`Windows 当前活动网络不是“专用网络”（${readiness.firewall.activeProfiles.join(", ") || "Unknown"}），为避免开放 Public 网络，服务已停止`);
-      }
-      if (readiness?.firewall?.applicable && !readiness.firewall.rulesReady) {
-        await stopRemoteServer().catch(() => undefined);
-        throw new Error("Windows Private 防火墙规则未完成（TCP 8765 / UDP 1900 / UDP 5353），服务已停止；请重新开启并允许管理员授权");
-      }
-      if (readiness && !readiness.allLanHttpReady) {
-        await stopRemoteServer().catch(() => undefined);
-        throw new Error(`局域网 HTTP readiness 失败，服务已停止：${JSON.stringify(readiness.lanHttp)}`);
-      }
       setRemoteServer(info);
       setRemoteBannerVisible(true);
-      if (readiness && !readiness.discoveryReady) setMessage("计算服务已开启，但 SSDP/mDNS 网络发现未完全就绪；可先通过固定地址访问并运行自动诊断");
-      else setMessage("计算服务已开启");
+      setMessage("计算服务已开启");
     } catch (error) {
-      setRemoteAccessDialog(true);
       setMessage(error instanceof Error ? `局域网服务失败：${error.message}` : "局域网服务启动失败");
+    } finally {
+      remoteServerTransitionRef.current = false;
     }
   };
 
@@ -3193,8 +3184,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
               if (!readiness) throw new Error("Desktop 宿主没有返回真实 LAN readiness 状态");
               if (!readiness.allLanHttpReady) throw new Error(`至少一个 LAN IPv4 地址无法访问 /health：${JSON.stringify(readiness.lanHttp)}`);
               if (!readiness.discoveryReady) throw new Error("SSDP/mDNS socket 尚未完成真实 bind/join");
-              if (readiness.firewall.applicable && !readiness.firewall.privateNetworkActive) throw new Error(`Windows 当前活动网络不是 Private：${readiness.firewall.activeProfiles.join(",") || "Unknown"}`);
-              if (readiness.firewall.applicable && !readiness.firewall.rulesReady) throw new Error("Windows Private 防火墙规则未完成：TCP 8765 / UDP 1900 / UDP 5353");
+
             }
             return {
               nativeHttpReadinessVerified: true,

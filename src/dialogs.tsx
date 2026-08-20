@@ -243,7 +243,7 @@ export function RemoteAccessDialog({ open, requirePin, onRequirePin, onClose, on
   onStart: () => void;
 }) {
   if (!open) return null;
-  return <div className="remote-access-backdrop" role="dialog" aria-modal="true" aria-label="局域网网页设置"><section className="remote-access-dialog"><header><strong>局域网网页</strong><button aria-label="关闭" onClick={onClose}>×</button></header><p>访问设备与当前计算设备连接同一局域网；工作流由当前设备的 Python 内核执行。</p><label className="remote-access-option"><input type="checkbox" checked={requirePin} onChange={(event) => onRequirePin(event.target.checked)} />访问前要求随机四位数字校验码</label><small>关闭校验码后，知道局域网地址的设备即可访问此服务。Windows 首次启用时可能请求管理员授权，仅为“专用网络”添加 TCP 8765、UDP 1900 和 UDP 5353 的局域网规则。</small><footer><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" onClick={onStart}>开启服务</button></footer></section></div>;
+  return <div className="remote-access-backdrop" role="dialog" aria-modal="true" aria-label="局域网网页设置"><section className="remote-access-dialog"><header><strong>局域网网页</strong><button aria-label="关闭" onClick={onClose}>×</button></header><p>访问设备与当前计算设备连接同一局域网；工作流由当前设备的 Python 内核执行。</p><label className="remote-access-option"><input type="checkbox" checked={requirePin} onChange={(event) => onRequirePin(event.target.checked)} />访问前要求随机四位数字校验码</label><small>关闭后，知道局域网地址的设备即可访问此服务。</small><footer><button className="button secondary" onClick={onClose}>取消</button><button className="button primary" onClick={onStart}>开启服务</button></footer></section></div>;
 }
 
 export function RemotePairDialog({ policy, error, pinInput, onPinChange, onSubmitPin }: {

@@ -35,7 +35,7 @@ export type RemoteServerReadiness = {
   lanHttp: Array<{ address: string; ok: boolean; error?: string }>;
   allLanHttpReady: boolean;
   discoveryReady: boolean;
-  firewall: RemoteFirewallStatus;
+  firewall?: RemoteFirewallStatus;
 };
 export type RemoteServerInfo = {
   url: string;

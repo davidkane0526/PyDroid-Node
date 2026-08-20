@@ -15,11 +15,12 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.HttpURLConnection;
 import java.net.ServerSocket;
+import java.net.InetSocketAddress;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -67,8 +68,9 @@ final class RemoteWorkflowServer {
     static RemoteWorkflowServer start(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) throws IOException {
         RemoteWorkflowServer server = new RemoteWorkflowServer(context, pythonWorker, requestWorker, executionController, requiresPin);
         server.assetRoot = server.resolveAssetRoot();
-        server.socket = new ServerSocket(PORT);
+        server.socket = new ServerSocket();
         server.socket.setReuseAddress(true);
+        server.socket.bind(new InetSocketAddress(PORT));
         server.running = true;
         server.acceptThread = new Thread(server::acceptLoop, "pydroid-flow-lan-server");
         server.acceptThread.setDaemon(true);
@@ -100,18 +102,19 @@ final class RemoteWorkflowServer {
     }
 
     private String verifyEndpoint(String path) throws IOException {
-        HttpURLConnection connection = (HttpURLConnection) new URL("http://127.0.0.1:" + PORT + path).openConnection();
-        connection.setConnectTimeout(2500);
-        connection.setReadTimeout(2500);
-        connection.setUseCaches(false);
-        try {
-            int status = connection.getResponseCode();
-            if (status != 200) throw new IOException("Remote Web readiness returned HTTP " + status + " for " + path);
-            try (InputStream input = connection.getInputStream()) {
-                return new String(readAll(input, MAX_BODY_BYTES), StandardCharsets.UTF_8);
-            }
-        } finally {
-            connection.disconnect();
+        try (Socket probe = new Socket()) {
+            probe.connect(new InetSocketAddress("127.0.0.1", PORT), 2500);
+            probe.setSoTimeout(2500);
+            OutputStream output = probe.getOutputStream();
+            output.write(("GET " + path + " HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+            output.flush();
+            byte[] response = readAll(probe.getInputStream(), MAX_BODY_BYTES);
+            String text = new String(response, StandardCharsets.UTF_8);
+            int headerEnd = text.indexOf("\r\n\r\n");
+            if (headerEnd < 0) throw new IOException("Remote Web readiness returned an invalid HTTP response for " + path);
+            String statusLine = text.substring(0, Math.max(0, text.indexOf("\r\n")));
+            if (!statusLine.matches("HTTP/1\\.[01] 200(?: .*)?")) throw new IOException("Remote Web readiness returned " + statusLine + " for " + path);
+            return text.substring(headerEnd + 4);
         }
     }
 

@@ -41,20 +41,16 @@ Discovery itself exposes only the device identity, IP, port and UPnP metadata. E
 
 ## Windows firewall and stable endpoint
 
-Starting with 1.4.72, Desktop uses the same stable Web endpoint as the proven LAN demo: **TCP 8765**. Android already uses 8765. On first LAN enable, Windows checks three named inbound rules and may request one-time UAC elevation to create them:
+Desktop and Android use the stable LAN Web endpoint **TCP 8765**. The runtime host binds `0.0.0.0:8765`; SSDP uses UDP 1900 and mDNS uses UDP 5353.
 
-- TCP 8765 — Remote Web
-- UDP 1900 — SSDP
-- UDP 5353 — mDNS
+1.4.72 attempted to synchronously inspect the active Windows network category and create Private/LocalSubnet firewall rules during every foreground service-start path. Real validation showed this was not a safe readiness gate: PowerShell could return `Unknown`, the service was then stopped even though the host stack could start, and repeated starts/diagnostics could trigger slow or repeated elevation flows.
 
-The rules are restricted to **Private profile + LocalSubnet**. The application does not create Public-profile rules. If the current active profile is Public or the user declines the elevation and the rules remain missing, Desktop does not present LAN Web as successfully enabled. Centrally managed policy may still override local rules.
-
-`desktop/lan/firewall.cjs` owns this boundary. Disabling LAN stops the sockets but does not repeatedly delete/recreate the narrow rules; no installer/uninstaller cleanup hook exists in the current portable distribution.
+Starting with 1.4.73, **firewall inspection/elevation is not part of the foreground Remote Web start transaction or in-app diagnostic pass criteria**. `desktop/lan/firewall.cjs` retains the narrow Private+LocalSubnet rule definitions for future installer/explicit provisioning, but the portable runtime does not block HTTP/discovery startup on that helper. A same-process diagnostic cannot prove that Windows Defender Firewall or enterprise policy permits a second physical device, so cross-device access remains a required manual acceptance test.
 
 ## Manual Windows acceptance test
 
 1. Put the PyDroid host and another Windows PC on the same private Wi-Fi/Ethernet LAN.
-2. Ensure Windows reports the active LAN as **Private**, then start “局域网网页访问”. Approve the one-time firewall UAC prompt if rules are not yet present.
+2. Start “局域网网页访问”. If Windows itself presents a network-access prompt, allow only the trusted/private network according to the local system policy.
 3. Confirm `http://HOST_IP:8765/` loads from the other PC.
 4. Open `http://HOST_IP:8765/upnp/device.xml` and verify `friendlyName`, `UDN` and `presentationURL`.
 5. Open File Explorer → Network and locate `PyDroid Node - ...`.
@@ -69,8 +65,8 @@ The rules are restricted to **Private profile + LocalSubnet**. The application d
 Phase 10 / 1.4.70 adds `pnpm test:lan-discovery`. The gate verifies Desktop packet/lifecycle behavior directly and audits Android parity; with JDK available it also compiles and runs the Android LAN protocol classes against minimal Android stubs. Covered contracts include `ssdp:all`, CRLF/ST/USN/LOCATION, UPnP identity fields, persistent UUID, network restart, SSDP byebye, and mDNS A/PTR/SRV/TXT live/goodbye records.
 
 
-## 1.4.72 readiness semantics
+## 1.4.73 readiness semantics
 
 A discovery subsystem is not `running` merely because `socket.bind()` was called. Desktop SSDP and mDNS transition `starting -> running` only after the UDP socket bind callback completes and at least one usable LAN interface successfully joins its multicast group. Remote Web startup also probes `/health` through every advertised LAN IPv4. The primary advertised address prefers the Windows default-route interface. Multiple adapters on the same IPv4 subnet are collapsed to the best/default-route entry, which avoids publishing the same UPnP identity simultaneously at addresses such as a primary `WLAN` and a secondary `WLAN 2`; adapters on different LAN subnets remain publishable in parallel.
 
-The built-in `remote-host-e2e` report exposes these checks under `readiness`. This is still not a substitute for the final physical second-device acceptance test, but a missing firewall rule, Public profile, failed LAN-IP HTTP probe, failed UDP bind or failed multicast membership can no longer produce a passing Desktop host case.
+The built-in `remote-host-e2e` report exposes host-side checks under `readiness`. It requires fixed port 8765, LAN-address `/health`, and completed SSDP/mDNS bind + multicast membership. It deliberately does **not** certify Windows firewall/profile state, because same-process probes cannot establish reachability from a second physical device. The final cross-device access and File Explorer discovery tests remain mandatory.

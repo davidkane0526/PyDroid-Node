@@ -144,3 +144,10 @@ After the 1.4.71 real-host E2E repair is validated on packaged Windows and Andro
 A packaged 1.4.71 host returned 22/22 while external Web/discovery still failed. The case had verified internal HTTP startup and reported discovery state, but the Desktop discovery services marked themselves running before asynchronous bind/join had completed and the application had no Windows firewall ownership. The Desktop host also used an ephemeral Web port instead of the already-proven demo's 8765 contract.
 
 1.4.72 fixes this by using TCP 8765, adding Private/LocalSubnet firewall rules for 8765/1900/5353, checking the active network profile, probing every advertised LAN IPv4, preferring the default-route interface, and withholding SSDP/mDNS `running` until real multicast membership succeeds. The in-app case count remains 22; its acceptance criteria are stronger.
+
+
+## 1.4.73 correction after real 1.4.72 Desktop/Android validation
+
+Real 1.4.72 validation showed the firewall/profile check itself had become a product regression. Desktop could receive `NetworkCategory=Unknown`, wait on PowerShell/elevation, then deliberately stop an otherwise startable Remote Web host. Android also failed production startup because its new self-readiness request used `HttpURLConnection` against cleartext loopback, which Android network-security policy rejected.
+
+1.4.73 removes Windows firewall/profile probing/elevation from the foreground start and diagnostic path, makes Desktop starts single-flight, and replaces Android loopback readiness with a raw TCP HTTP probe. Fixed TCP 8765, LAN-IP health checks and real SSDP/mDNS bind/multicast readiness remain. The diagnostic result now means “the host stack and discovery sockets are genuinely running on the local machine”; it does not claim to prove second-device firewall traversal.

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+const root = process.cwd();
 const { LAN_WEB_PORT, FIREWALL_PROFILE, FIREWALL_REMOTE_ADDRESS, RULES, inspectWindowsLanFirewall } = require("../desktop/lan/firewall.cjs");
 
 assert.equal(LAN_WEB_PORT, 8765, "LAN Web port must stay stable at 8765");
@@ -17,3 +20,6 @@ if (process.platform !== "win32") {
   assert.equal(status.rulesReady, true);
 }
 console.log("LAN firewall contract smoke passed: Private + LocalSubnet, TCP 8765, UDP 1900/5353");
+
+const remoteServerSource = readFileSync(path.join(root, "desktop/services/remote-server.cjs"), "utf8");
+assert.doesNotMatch(remoteServerSource, /ensureWindowsLanFirewall\s*\(/, "Remote Web startup must not trigger firewall elevation or block the UI path");

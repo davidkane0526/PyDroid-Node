@@ -37,10 +37,12 @@ final class MdnsService {
         created.setReuseAddress(true);
         created.bind(new InetSocketAddress(PORT));
         InetAddress group = InetAddress.getByName(ADDRESS);
+        int joined = 0;
         for (LanNetworkInterfaceManager.Entry entry : interfaces) {
-            try { created.joinGroup(new InetSocketAddress(group, PORT), entry.networkInterface); }
+            try { created.joinGroup(new InetSocketAddress(group, PORT), entry.networkInterface); joined++; }
             catch (Exception exception) { Log.w(TAG, "[mDNS] join failed " + entry.key(), exception); }
         }
+        if (joined == 0) { created.close(); throw new java.io.IOException("mDNS did not join any LAN multicast interface"); }
         socket = created;
         running = true;
         receiveThread = new Thread(this::receiveLoop, "pydroid-mdns");

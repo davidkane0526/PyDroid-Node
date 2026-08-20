@@ -7,6 +7,7 @@ const app = readFileSync(path.join(root, "src/App.tsx"), "utf8");
 const css = readFileSync(path.join(root, "src/styles.css"), "utf8");
 const uiFixes = readFileSync(path.join(root, "src/ui-fixes.css"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
+const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
 assert.match(app, /4500/, "failed\/timeout tab badge should auto-dismiss after a short diagnostic window");
 assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "failed tab badge visibility should be decoupled from persistent execution status");
@@ -51,6 +52,9 @@ assert.match(app, /data\.nodeType === "function\.call"[\s\S]*functionInputs[\s\S
 assert.match(app, /setWorkspaceVariableRevision\(\(value\) => value \+ 1\)/, "workspace variable resource list must refresh explicitly after execution");
 assert.match(app, /AutomatedDiagnosticsDialog/, "desktop and Android shared UI must expose the removable automated diagnostics dialog");
 assert.match(app, /runInAppAutomatedDiagnostics/, "automated diagnostics must be runnable from the application UI");
+assert.doesNotMatch(dialogs, /Windows 首次启用时可能请求管理员授权|TCP 8765、UDP 1900|防火墙规则/, "Remote Access UI must not gain unapproved firewall/explanatory copy");
+assert.match(app, /const remoteServerTransitionRef = useRef\(false\)/, "Remote Web UI start/stop must have a single-flight transition guard");
+assert.doesNotMatch(app, /readiness\?\.firewall|readiness\.firewall/, "Remote Web UI and in-app diagnostics must not block startup on brittle Windows firewall/profile probing");
 
 assert.match(app, /palette-tabs[\s\S]*paletteTab === "nodes"[\s\S]*paletteTab === "functions"[\s\S]*paletteTab === "groups"[\s\S]*paletteTab === "flows"/, "resource tabs must stay ordered Nodes → Functions → Groups → Flows");
 assert.match(app, /const PALETTE_MIN_WIDTH = 216/, "resource palette must enforce the wider Phase 8 minimum width");
