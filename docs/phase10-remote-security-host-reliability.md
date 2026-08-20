@@ -2,7 +2,7 @@
 
 Started: 2026-08-20
 Foundation: accepted/frozen `1.4.67 (90)` Phase 9
-Current milestone: `1.4.69 (92)`
+Current milestone: `1.4.70 (93)`
 
 ## Goal
 
@@ -26,6 +26,22 @@ Authenticated Remote API
                  │
                  └─ raw API key never crosses to Remote Web
 ```
+
+
+## 1.4.70 LAN discovery lifecycle automation
+
+1.4.70 does not redesign SSDP/mDNS. It freezes the existing LAN discovery behavior behind an executable regression gate. `pnpm test:lan-discovery` now covers the required lifecycle surface:
+
+- persistent Desktop UUID identity and Android SharedPreferences-backed UUID identity;
+- UPnP `device.xml` UDN, friendlyName and concise presentationURL;
+- SSDP `ssdp:all` expansion to the three supported targets;
+- SSDP CRLF framing and ST/USN/LOCATION consistency;
+- Desktop network-change restart without unnecessary restart when the interface key is unchanged;
+- SSDP stop-time `ssdp:byebye`;
+- mDNS A/PTR/SRV/TXT publication, query response and TTL=0 goodbye;
+- Android source parity plus a pure-JDK compile/runtime protocol harness when `javac` is available.
+
+Desktop `LanDiscoveryService` exposes the existing network poll body as `checkNetwork()` so the restart boundary can be exercised deterministically by the smoke test; the production timer remains 5 seconds. The accepted UI, Remote security policy, Editor/Workflow contracts and Python/JavaScript runtime semantics are unchanged. The removable in-app diagnostics remain **21/21** because this milestone is a host transport regression gate.
 
 
 ## 1.4.69 Desktop production bundle gate repair
@@ -102,4 +118,4 @@ Together with the accepted 19 Phase 8/9 cases, a fully capable Desktop/Android h
 
 ## Next milestone
 
-After the 1.4.69 production bundle repair is accepted, 1.4.70 should deepen LAN discovery lifecycle automation rather than redesign discovery. Required coverage includes SSDP `ssdp:all`, CRLF/USN/LOCATION/ST, device.xml identity fields, UUID persistence, network restart, stop/byebye, and mDNS A/PTR/SRV/TXT lifecycle behavior.
+After the 1.4.70 LAN discovery lifecycle gate is accepted, the next Phase 10 milestone should harden host observability/recovery around Remote Web and discovery failures without changing the accepted UI or protocol semantics.

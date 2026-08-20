@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.69",
+  "version": "1.4.70",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:build-tools && pnpm test:build-tool-architecture && pnpm test:ui-regressions && pnpm test:architecture && pnpm test:host-contract && pnpm test:remote-web && pnpm test:diagnostics-contract && pnpm test:remote-security && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:android-host-architecture && pnpm test:workflow-core && pnpm test:editor-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:build-tools && pnpm test:build-tool-architecture && pnpm test:ui-regressions && pnpm test:architecture && pnpm test:host-contract && pnpm test:remote-web && pnpm test:lan-discovery && pnpm test:diagnostics-contract && pnpm test:remote-security && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:android-host-architecture && pnpm test:workflow-core && pnpm test:editor-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -53,7 +53,8 @@
     "test:remote-web": "node scripts/remote-web-smoke.mjs",
     "test:editor-core": "node scripts/editor-core-architecture-smoke.mjs && node scripts/phase9-ownership-audit.mjs && node scripts/phase9-freeze-audit.mjs",
     "test:remote-security": "node scripts/remote-security-smoke.mjs",
-    "test:diagnostics-contract": "node scripts/automated-diagnostics-contract-smoke.mjs"
+    "test:diagnostics-contract": "node scripts/automated-diagnostics-contract-smoke.mjs",
+    "test:lan-discovery": "node scripts/lan-discovery-lifecycle-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

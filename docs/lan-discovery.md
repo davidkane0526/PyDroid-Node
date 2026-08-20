@@ -55,3 +55,7 @@ The portable build does not silently elevate or install global firewall policy. 
 8. Restart the host and verify the UPnP UUID is unchanged.
 9. Change Wi-Fi/IP and verify the old discovery disappears and the new address is announced.
 10. Stop Web access and verify discovery stops.
+
+## Automated lifecycle regression gate
+
+Phase 10 / 1.4.70 adds `pnpm test:lan-discovery`. The gate verifies Desktop packet/lifecycle behavior directly and audits Android parity; with JDK available it also compiles and runs the Android LAN protocol classes against minimal Android stubs. Covered contracts include `ssdp:all`, CRLF/ST/USN/LOCATION, UPnP identity fields, persistent UUID, network restart, SSDP byebye, and mDNS A/PTR/SRV/TXT live/goodbye records.

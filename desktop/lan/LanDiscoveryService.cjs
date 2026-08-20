@@ -26,16 +26,19 @@ class LanDiscoveryService {
     this.port = port;
     this.running = true;
     this.restartDiscovery();
-    this.monitor = setInterval(() => {
-      const next = getLanInterfaces();
-      const nextKey = networkKey(next);
-      if (nextKey !== this.key) {
-        this.log(`[LAN] Network changed: ${this.key || "none"} -> ${nextKey}`);
-        this.restartDiscovery(next);
-      }
-    }, 5_000);
+    this.monitor = setInterval(() => this.checkNetwork(), 5_000);
     this.monitor.unref?.();
     return this.getStatus();
+  }
+
+  checkNetwork() {
+    if (!this.running) return;
+    const next = getLanInterfaces();
+    const nextKey = networkKey(next);
+    if (nextKey !== this.key) {
+      this.log(`[LAN] Network changed: ${this.key || "none"} -> ${nextKey}`);
+      this.restartDiscovery(next);
+    }
   }
 
   restartDiscovery(precomputed = null) {

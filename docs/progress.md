@@ -1,4 +1,17 @@
-# Phase 10 progress — 1.4.69 (92)
+# Phase 10 progress — 1.4.70 (93)
+
+
+## 1.4.70 LAN discovery lifecycle automation
+
+The user-host 1.4.69 automated diagnostics passed **21/21**, so the Desktop production-bundle repair is accepted as the Phase 10 baseline. 1.4.70 keeps the existing discovery UI and protocols unchanged and turns LAN discovery behavior into a repeatable regression gate.
+
+- Added `test:lan-discovery` / `scripts/lan-discovery-lifecycle-smoke.mjs`.
+- Desktop executable coverage now verifies persistent UUID identity, UPnP UDN/friendlyName/presentationURL, SSDP `ssdp:all` expansion to rootdevice + UUID + Basic device, strict CRLF framing, ST/USN/LOCATION consistency, network-change protocol restart, stop-time `ssdp:byebye`, mDNS A/PTR/SRV/TXT records, query responses and TTL=0 goodbye.
+- `LanDiscoveryService.checkNetwork()` is now a directly testable lifecycle method; production still polls it every 5 seconds.
+- Android source parity is audited in the same gate. When JDK `javac` is available, the gate compiles the Android LAN classes against minimal Android API stubs and executes a pure-Java protocol harness for UUID persistence, UPnP identity, SSDP targets/USNs and mDNS live/goodbye TTL records.
+- No discovery protocol redesign, no UI change, no Workflow/Runtime/Editor semantic change, and no change to the 21-case in-app diagnostic schema.
+- Build script revision: `1.4.70-dev-r46-phase10-lan-discovery-lifecycle`.
+- Delivery-container validation: LAN lifecycle smoke, Remote Web/Security, Platform/Host/Editor/Workflow/Runtime/NodeContract/UI/build-tool architecture gates, runtime parity **68/68 + 75/75**, Python **111 passed, 1 skipped**, version sync, syntax checks and Git integrity passed. Full pnpm/Vite/Electron dependency build was not rerun because this container has Node 22.16.0 and no pnpm/node_modules while the project requires Node 24.19.x.
 
 
 ## 1.4.69 production bundle gate repair

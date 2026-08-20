@@ -1,3 +1,13 @@
+## 1.4.70 (93) — Phase 10 LAN Discovery Lifecycle Automation — 2026-08-20
+
+- Promoted the existing SSDP/UPnP + mDNS implementation to a guarded Phase 10 lifecycle contract instead of redesigning discovery behavior.
+- Added `scripts/lan-discovery-lifecycle-smoke.mjs` with executable Desktop coverage for persistent UUID identity, UPnP `device.xml`, SSDP `ssdp:all` three-target responses, CRLF/ST/USN/LOCATION framing, network-change restart, SSDP `ssdp:byebye`, mDNS A/PTR/SRV/TXT publication and TTL=0 goodbye.
+- Added Android parity auditing plus a pure-JDK compile/runtime harness (when `javac` is available) for persistent identity, UPnP identity fields, SSDP target/USN parity and mDNS record/TTL parity without requiring an emulator or Android SDK.
+- Extracted Desktop network polling into `LanDiscoveryService.checkNetwork()` so network-change restart behavior is directly testable while preserving the existing 5-second production monitor.
+- Added `test:lan-discovery` to the normal `pnpm check` gate. The in-app automated diagnostic contract remains **21/21** because this milestone protects host discovery transport rather than adding a renderer/runtime diagnostic case.
+- Accepted UI, gesture, Workflow schema, Remote security and Python/JavaScript runtime semantics are unchanged.
+- Build script revision: `1.4.70-dev-r46-phase10-lan-discovery-lifecycle`.
+
 ## 1.4.69 (92) — Phase 10 Desktop Platform Export / Production Bundle Gate Repair — 2026-08-20
 
 - Fixed the dependency-backed Desktop Vite/Rolldown build failure where `App.tsx` imported `proxyRemoteAgentRequest` through `./platform` but the Desktop Vite alias facade did not export that symbol.

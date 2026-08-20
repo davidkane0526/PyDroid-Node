@@ -20,9 +20,10 @@ Long-lived branches in this repository:
 - `phase9/full-build-gate-fix`: `1.4.65 (88)` production TypeScript build-gate repair.
 - `phase9/resource-service-session-lifecycle-audit`: `1.4.66 (89)` Resource Library Service / Session-owned execution identity milestone.
 - `phase9/final-freeze-audit`: `1.4.67 (90)` accepted/frozen Phase 9 boundary after the user-host build and 19/19 diagnostics.
-- `phase10/desktop-platform-export-gate-fix`: `1.4.69 (92)` current Phase 10 Desktop production bundle gate repair milestone.
+- `phase10/desktop-platform-export-gate-fix`: `1.4.69 (92)` accepted Phase 10 Desktop production bundle gate repair milestone.
+- `phase10/lan-discovery-lifecycle-automation`: `1.4.70 (93)` current Phase 10 LAN discovery lifecycle automation milestone.
 
-Current working branch: `phase10/desktop-platform-export-gate-fix`.
+Current working branch: `phase10/lan-discovery-lifecycle-automation`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -52,7 +53,7 @@ The frozen Phase 9 diagnostic boundary contains fifteen Editor Core/session case
 
 Primary files: `desktop/services/remote-security.cjs`, `RemoteAccessGuard.java`, `src/remote-security-policy.ts`, `scripts/remote-security-smoke.mjs`, and `docs/phase10-remote-security-host-reliability.md`. The next milestone should deepen LAN discovery lifecycle automation rather than redesign SSDP/mDNS.
 
-1.4.69 is a production-bundle repair after the user build exposed Desktop Vite alias export drift. `desktop/renderer/platform.ts` now exports `proxyRemoteAgentRequest`, and `platform-architecture-smoke.mjs` checks all `App.tsx` `./platform` imports against both the shared and Desktop facades. The next discovery milestone moves to 1.4.70.
+1.4.69 is accepted after the user-host automated diagnostics passed 21/21. 1.4.70 adds the LAN discovery lifecycle regression gate: Desktop executable SSDP/UPnP/mDNS protocol/lifecycle checks plus Android parity and a pure-JDK protocol harness when `javac` is available. `LanDiscoveryService.checkNetwork()` exposes the existing 5-second poll body for deterministic restart testing; discovery behavior itself is not redesigned.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -99,13 +100,14 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.69 validation
+### Current Phase 10 / 1.4.70 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
 - Build-tool, UI regression, PlatformAdapter, Host Contract (31 operations), Remote Web, Execution, Desktop Host/file export, Android Host, Workflow Core, Editor Core, Runtime Engine and NodeContract architecture smokes: passed.
-- Phase 9 Editor Core strict semantic subset compile: passed.
-- TS/TSX syntax parse of all **127 source files**: passed.
+- LAN discovery lifecycle smoke: Desktop SSDP/UPnP/mDNS identity, `ssdp:all`, CRLF/ST/USN/LOCATION, network restart, byebye/goodbye; Android parity + JDK protocol harness: passed in the delivery environment.
+- Phase 9 Editor Core strict semantic subset compile: previously passed on the 1.4.69 baseline.
+- Full dependency-backed TypeScript/Vite/Electron build was not rerun for 1.4.70 in this delivery container because `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x. The 1.4.70 source change is confined to Desktop LAN lifecycle factoring, a built-in Node/JDK smoke gate, documentation and version metadata; changed CJS/MJS syntax checks passed.
 - Phase 9 1.4.67 is frozen after the user-host build and 19/19 diagnostics passed. Phase 10 1.4.68 adds PIN abuse protection, expiring client-bound tokens, API rate limits, Android Host Agent Proxy secret isolation and Remote security regression gates.
 - `git diff --check` and version sync: passed.
 
