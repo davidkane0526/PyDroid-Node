@@ -57,7 +57,7 @@ import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -66,7 +66,6 @@ const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
 const NODE_DEFAULTS_KEY = "pydroid-flow.node-defaults.v1";
 const NODE_GROUPS_KEY = "pydroid-flow.node-groups.v1";
-const PACKAGE_REQUIREMENTS_KEY = "pydroid-flow.package-requirements.v1";
 const LAYOUT_MODE_KEY = "pydroid-flow.layout-mode.v2";
 const MINIMAP_MODE_KEY = "pydroid-flow.minimap-mode.v2";
 const SETTINGS_KEY = "pydroid-flow.settings.v1";
@@ -201,16 +200,6 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
     return <main className="startup-recovery" role="alert"><section><strong>PyDroid Flow 未能加载画布</strong><p>{this.state.error.message || "界面发生异常"}</p><p>可清除本机画布缓存后重新启动；不会影响已导出的工作流文件。</p><button onClick={() => { localStorage.removeItem(AUTOSAVE_KEY); localStorage.removeItem(SETTINGS_KEY); window.location.reload(); }}>清除画布缓存并重试</button></section></main>;
   }
 }
-
-function loadPackageRequirements(): string[] {
-  try {
-    const value: unknown = JSON.parse(localStorage.getItem(PACKAGE_REQUIREMENTS_KEY) ?? "[]");
-    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
 
 const initialNodes: WorkflowNode[] = [];
 
@@ -583,7 +572,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const {
-    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, requirements, setRequirements,
+    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, requirements,
     input, setFileName, setCsvText, setCsvBytes, setCsvFiles,
     primaryNodeId: selectedId, setPrimaryNodeId: setSelectedId,
     selectedNodeIds: selectedIds, setSelectedNodeIds: setSelectedIds,
@@ -944,10 +933,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     return trail;
   }, [currentCanvasId, nodes]);
 
-  const pushHistory = () => {
-    session.captureHistory();
-  };
-
   const undo = () => {
     if (!session.undo()) return;
     clearExecutionResult();
@@ -1004,10 +989,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     return () => window.clearTimeout(timer);
   }, [lifecycle, session, tabId, nodes, edges, functions, requirements]);
 
-
-  useEffect(() => {
-    localStorage.setItem(PACKAGE_REQUIREMENTS_KEY, JSON.stringify(requirements));
-  }, [requirements]);
 
   useEffect(() => {
     localStorage.setItem(LAYOUT_MODE_KEY, layoutMode);
@@ -2594,9 +2575,21 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       setMessage(`${packageName} 已由应用内置，无需重复添加`);
       return;
     }
-    setRequirements((current) => [...current.filter((item) => item.split(/[<>=~![]/, 1)[0].toLocaleLowerCase() !== packageName), requirement]);
+    const result = session.applyGraphCommand({ type: "upsert-requirement", requirement });
+    if (!result.changed) {
+      setMessage(result.meta?.blockedReason ?? "工作流依赖没有变化");
+      return;
+    }
+    clearExecutionResult();
     setPackageRequirement("");
     setMessage(`已将 ${requirement} 加入工作流依赖清单`);
+  };
+
+  const removePackageRequirement = (requirement: string) => {
+    const result = session.applyGraphCommand({ type: "remove-requirement", requirement });
+    if (!result.changed) return;
+    clearExecutionResult();
+    setMessage(`已从工作流依赖清单移除 ${requirement}`);
   };
 
   const openPackageManager = async () => {
@@ -3006,9 +2999,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       return;
     }
     const context = interactiveRunContext.current ?? { nodes, edges, completed: new Set<string>() };
-    const nextNodes = context.nodes.map((node) => node.id === inputDialogNode.id ? { ...node, data: { ...node.data, parameters: { ...node.data.parameters, value: inputDialogValue } } } : node);
+    const nextNodes = applyRuntimeNodeParameterOverride(context.nodes, inputDialogNode.id, { value: inputDialogValue });
     const completed = new Set<string>(context.completed).add(inputDialogNode.id);
-    setNodes(nextNodes);
     setInputDialogNode(null);
     await runPrototype(nextNodes, context.edges, completed);
   };
@@ -3016,9 +3008,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const submitAlertDialog = async (response: boolean | null) => {
     if (!alertDialogNode) return;
     const context = interactiveRunContext.current ?? { nodes, edges, completed: new Set<string>() };
-    const nextNodes = context.nodes.map((node) => node.id === alertDialogNode.id ? { ...node, data: { ...node.data, parameters: { ...node.data.parameters, response } } } : node);
+    const nextNodes = applyRuntimeNodeParameterOverride(context.nodes, alertDialogNode.id, { response });
     const completed = new Set<string>(context.completed).add(alertDialogNode.id);
-    setNodes(nextNodes);
     setAlertDialogNode(null);
     setAlertDialogPreview(undefined);
     await runPrototype(nextNodes, context.edges, completed);
@@ -3742,7 +3733,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
       <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={() => void exportAutomatedDiagnostics()} exportStatus={automatedDiagnosticsExportStatus} />
       {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
-      {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={(requirement) => setRequirements((current) => current.filter((value) => value !== requirement))} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
+      {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={removePackageRequirement} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
       {plotExpandedPreview && <PlotLightbox open preview={plotExpandedPreview} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpandedPreview(null)} />}
       {resultDetail && <ResultDetailDialog detail={resultDetail} onClose={() => setResultDetail(null)} onCopy={() => void navigator.clipboard.writeText(resultDetail.text).then(() => setMessage("节点结果已复制"))} onTextChange={(text) => setResultDetail((current) => current ? { ...current, text } : null)} />}

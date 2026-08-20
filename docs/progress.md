@@ -1,4 +1,16 @@
-# Phase 9 progress — 1.4.66 (89)
+# Phase 9 progress — 1.4.67 (90)
+
+Phase 9 is now a freeze candidate. The accepted Desktop/Mobile × Node/Group gesture matrix is unchanged.
+
+- Moved workflow dependency add/update/remove behind Editor Commands; package-manager mutations are now Session-owned and undoable.
+- Removed the legacy package-requirements localStorage mirror from `App.tsx`; workflow requirements remain part of the versioned workflow snapshot.
+- `ui.input_dialog` and `ui.alert` answers now use execution-only parameter overrides rather than mutating Editor Session nodes, so running an interactive workflow does not create an unsaved edit.
+- Added `scripts/phase9-freeze-audit.mjs` after the existing ownership audit. It rejects persistent-field mutations through direct React graph setters while allowing presentation-only selection/status/class writes.
+- `App.tsx` is now 4231 lines, down from 4679 at the Phase 9 foundation through ownership removal rather than cosmetic splitting.
+- Automated diagnostics add requirement ownership and runtime-interaction isolation; a fully capable Desktop/Android host should now report **19/19**.
+- Build script revision: `1.4.67-dev-r43-phase9-final-freeze-audit`.
+
+## Previous milestone — 1.4.66 (89)
 
 Phase 9 continues with its freeze-preparation ownership pass. The accepted Desktop/Mobile × Node/Group gesture matrix is unchanged.
 

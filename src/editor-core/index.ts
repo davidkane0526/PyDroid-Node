@@ -11,3 +11,4 @@ export * from "./resource-contract";
 export * from "./workspace-identity";
 export * from "./agent-operations";
 export * from "./resource-library";
+export * from "./runtime-interaction";

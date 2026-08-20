@@ -1,7 +1,7 @@
 # Phase 9 — Editor Core & Workspace Session
 
 Version started: **1.4.60 (83)**  
-Current branch: `phase9/resource-remote-agent-session`
+Current branch: `phase9/final-freeze-audit`
 
 ## Goal
 
@@ -57,7 +57,7 @@ The policy currently preserves accepted interaction behavior while making future
 
 ## Diagnostics
 
-The removable automated-diagnostics feature now adds thirteen Phase 9 cases:
+The removable automated-diagnostics feature now adds fifteen Phase 9 cases:
 
 1. per-workspace Editor Session isolation across graph/input/history/dirty/view state;
 2. Editor Command transaction ownership, including history/undo/redo for group create/dissolve;
@@ -71,9 +71,11 @@ The removable automated-diagnostics feature now adds thirteen Phase 9 cases:
 10. Local/Remote workspace-session identity isolation by workspace + client + source;
 11. Session-owned identity isolation in the local ExecutionManager lifecycle;
 12. atomic AI Agent batch graph surgery with one undo baseline and no partial writes;
-13. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
+13. workflow requirement add/update/remove ownership through Editor Commands;
+14. runtime-only interactive input/alert values that do not mutate or dirty the Editor Session;
+15. gesture-policy contract separation for desktop/mobile, node/group and mobile canvas.
 
-Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **17/17**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
+Together with the four Phase 8 runtime cases, a Desktop/Android host with Python available should report **19/19**. These checks prove policy wiring and state boundaries; they do not pretend to synthesize a physical Android touch stream.
 
 ## 1.4.61 milestone — lifecycle and structural resources
 
@@ -126,14 +128,23 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 - automated diagnostics add Resource Service persistence and Session/Execution lifecycle isolation, raising a full Desktop/Android run to **17/17**.
 - accepted Desktop/Mobile × Node/Group/Canvas/Resource/Tab gesture semantics are unchanged.
 
+## 1.4.67 milestone — Final ownership / freeze candidate
+
+- Workflow dependency-list mutations (`requirements`) now use `upsert-requirement` / `remove-requirement` Editor Commands, including normal Session history/undo behavior. The legacy package-requirements localStorage mirror was removed from `App.tsx`.
+- Runtime answers from `ui.input_dialog` and `ui.alert` are applied to cloned execution nodes through `applyRuntimeNodeParameterOverride()`. They no longer modify the Editor Snapshot or mark a workflow dirty merely because it was run.
+- `scripts/phase9-freeze-audit.mjs` classifies remaining direct `setNodes`/`setEdges` calls as presentation-only state (selection, execution status, temporary insertion class) and rejects persistent-field mutation through those paths.
+- automated diagnostics add requirement ownership and runtime-interaction isolation, raising a full Desktop/Android run to **19/19**.
+- No accepted Desktop/Mobile × Node/Group/Canvas/Resource/Tab gesture behavior changed.
+- This is the Phase 9 freeze candidate. Freeze requires a dependency-backed user-host build plus 19/19 diagnostics.
+
 ## Phase 9 continuation
 
-1. Audit the remaining UI-owned selection/import convenience mutations and move only true business ownership out of React.
-2. Run the dependency-backed production TypeScript/Vite/Desktop build on the user host and require the expanded 17/17 diagnostics.
-3. Decide whether the remaining UI code is presentation/interaction adaptation rather than domain ownership; if so, freeze Phase 9 instead of chasing a line-count target.
-4. Preserve the independent Desktop/Mobile and Node/Group gesture policies during freeze.
+1. Do not add more Phase 9 features or chase `App.tsx` line count. The strict freeze audit now classifies remaining direct graph writes as presentation-only.
+2. Run the dependency-backed production TypeScript/Vite/Desktop build on the user host and require **19/19** diagnostics.
+3. If that acceptance passes, freeze Phase 9 at 1.4.67 and start the next phase from this boundary.
+4. Preserve the independent Desktop/Mobile and Node/Group gesture policies after freeze.
 
-## Non-goals for 1.4.60–1.4.66
+## Non-goals for 1.4.60–1.4.67
 
 - no visual redesign;
 - no forced gesture unification between Desktop and Android;

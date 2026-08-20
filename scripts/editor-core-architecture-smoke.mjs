@@ -17,6 +17,7 @@ const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts
 const diagnostics = readFileSync(path.join(root, "src/diagnostics/automated-debug.ts"), "utf8");
 const resourceContract = readFileSync(path.join(root, "src/editor-core/resource-contract.ts"), "utf8");
 const resourceLibrary = readFileSync(path.join(root, "src/editor-core/resource-library.ts"), "utf8");
+const runtimeInteraction = readFileSync(path.join(root, "src/editor-core/runtime-interaction.ts"), "utf8");
 const workspaceIdentity = readFileSync(path.join(root, "src/workspace-session-identity.ts"), "utf8");
 const agentOperations = readFileSync(path.join(root, "src/editor-core/agent-operations.ts"), "utf8");
 const executionWorkspace = readFileSync(path.join(root, "src/execution-workspace.ts"), "utf8");
@@ -49,6 +50,8 @@ assert.match(commands, /type: "insert-resource"/, "resource insertion should cro
 assert.match(commands, /type: "insert-node"/, "node creation should cross Editor Command");
 assert.match(commands, /type: "duplicate-node"/, "node duplication should cross Editor Command");
 assert.match(commands, /type: "update-node-parameters"/, "parameter edits should cross Editor Command");
+assert.match(commands, /type: "upsert-requirement"/, "workflow dependency add/update should cross Editor Command");
+assert.match(commands, /type: "remove-requirement"/, "workflow dependency removal should cross Editor Command");
 assert.match(commands, /type: "arrange-canvas"/, "layout operations should cross Editor Command");
 assert.match(commands, /type: "replace-node"/, "node replacement should cross Editor Command");
 assert.match(commands, /type: "connect-edge"/, "edge creation should cross Editor Command");
@@ -64,6 +67,9 @@ assert.match(app, /session\.applyGraphCommand\(\{ type: "insert-resource"/, "res
 assert.match(app, /session\.applyGraphCommand\(\{ type: "insert-node"/, "catalog node insertion in App must route through session command");
 assert.match(app, /type: "duplicate-node"/, "node duplication in App must route through session command");
 assert.match(app, /type: "update-node-parameters"/, "parameter edits in App must route through session command");
+assert.match(app, /type: "upsert-requirement"/, "package requirements in App must route through session command");
+assert.match(app, /type: "remove-requirement"/, "package requirement removal in App must route through session command");
+assert.doesNotMatch(app, /setRequirements\(/, "App.tsx must not directly mutate workflow requirements");
 assert.match(app, /type: "arrange-canvas"/, "canvas layout in App must route through session command");
 assert.match(session, /historyGroup\?: string/, "EditorWorkspaceSession should own history coalescing keys for continuous edits");
 assert.match(session, /historyWindowMs\?: number/, "EditorWorkspaceSession should own continuous-edit history windows");
@@ -137,5 +143,10 @@ assert.match(desktopExecution, /executionManager\.execute\(identity\.key/, "desk
 assert.match(app, /subscribeExecutionStatus\(sessionStoreRef\.current\.ensure\(tab\.id\)\.identity/, "tab execution subscriptions should use session identity instead of raw tab ids");
 assert.match(diagnostics, /editor-resource-persistence/, "one-click diagnostics should cover Resource Service persistence semantics");
 assert.match(diagnostics, /execution-session-lifecycle/, "one-click diagnostics should cover Session-keyed local execution lifecycle");
+assert.match(runtimeInteraction, /applyRuntimeNodeParameterOverride/, "interactive runtime values should be isolated from the editor snapshot");
+assert.match(app, /applyRuntimeNodeParameterOverride\(context\.nodes/, "interactive UI should use execution-only node parameter overrides");
+assert.doesNotMatch(app, /setNodes\(nextNodes\)/, "interactive runtime responses must not mutate Editor Session nodes");
+assert.match(diagnostics, /editor-requirement-ownership/, "one-click diagnostics should cover requirement command ownership");
+assert.match(diagnostics, /editor-runtime-interaction-isolation/, "one-click diagnostics should cover execution-only interactive values");
 
 console.log("editor-core architecture smoke passed");

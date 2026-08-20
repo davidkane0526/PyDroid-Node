@@ -1,3 +1,12 @@
+## 1.4.67 (90) — Phase 9 Final Ownership / Freeze Candidate — 2026-08-20
+
+- Moved workflow dependency-list add/update/remove into explicit Editor Commands; package requirements are now undoable Session transactions rather than direct React state mutations.
+- Interactive `ui.input_dialog` / `ui.alert` responses now use execution-only node-parameter overrides and no longer write runtime answers back into the persisted Editor Snapshot or dirty state.
+- Added `scripts/phase9-freeze-audit.mjs` as a stricter freeze gate: persistent workflow fields may not be mutated through direct `setNodes`/`setRequirements` paths in `App.tsx`; remaining direct graph writes are presentation-only selection/status/class state.
+- Expanded removable automated diagnostics from 17 to **19** cases with requirement-command ownership and runtime-interaction isolation.
+- Accepted Desktop/Mobile × Node/Group/Canvas/Resource/Tab gesture semantics are unchanged.
+- Build script revision: `1.4.67-dev-r43-phase9-final-freeze-audit`.
+
 ## 1.4.66 (89) — Phase 9 Resource Service / Session Execution Lifecycle / Ownership Audit — 2026-08-20
 
 - Added `EditorResourceLibraryService` as the observable persistence owner for saved nodes, group resources and workflow-library entries; `App.tsx` no longer owns their localStorage keys or mutable library copies.

@@ -186,3 +186,18 @@ it("reconnects with the same single-input exclusivity as a fresh connection", ()
   expect(result.snapshot.edges).toHaveLength(1);
   expect(result.snapshot.edges[0]).toMatchObject({ id: "moving", source: "source-a", target: "print", targetHandle: "input" });
 });
+
+
+it("owns workflow dependency mutations as undoable editor commands", () => {
+  const added = applyEditorGraphCommand(snapshot, { type: "upsert-requirement", requirement: "scipy>=1.12" });
+  expect(added.changed).toBe(true);
+  expect(added.snapshot.requirements).toEqual(["scipy>=1.12"]);
+
+  const replaced = applyEditorGraphCommand(added.snapshot, { type: "upsert-requirement", requirement: "scipy==1.13.1" });
+  expect(replaced.snapshot.requirements).toEqual(["scipy==1.13.1"]);
+
+  const removed = applyEditorGraphCommand(replaced.snapshot, { type: "remove-requirement", requirement: "scipy==1.13.1" });
+  expect(removed.changed).toBe(true);
+  expect(removed.snapshot.requirements).toEqual([]);
+  expect(snapshot.requirements).toEqual([]);
+});

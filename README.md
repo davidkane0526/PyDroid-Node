@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.66 (89) · Phase 9 Editor Core & Workspace Session（冻结前收尾）**。Phase 8 已在 1.4.59 完成 Windows/Android 实机验收并冻结；当前分支以 `EditorWorkspaceSession` 为唯一编辑事务边界，资源持久化由 `EditorResourceLibraryService` 管理，本地/远程执行使用 Session-owned workspace identity，AI 批量图修改保持单一原子事务。Desktop/Mobile 与 Node/Group 手势策略仍保持独立。详见 [docs/phase9-editor-core-workspace-session.md](docs/phase9-editor-core-workspace-session.md)。
+> **当前开发版本：1.4.67 (90) · Phase 9 Editor Core & Workspace Session（冻结候选）**。Phase 8 已在 1.4.59 完成 Windows/Android 实机验收并冻结；Phase 9 已完成最终所有权审计：工作流依赖清单进入 Editor Command，交互输入/确认改为执行期 override，不再污染 Editor Session；资源、Session identity、AI 批量事务和 Desktop/Mobile × Node/Group 手势边界保持独立。实机 19/19 自动诊断通过后即可冻结 Phase 9。详见 [docs/phase9-editor-core-workspace-session.md](docs/phase9-editor-core-workspace-session.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

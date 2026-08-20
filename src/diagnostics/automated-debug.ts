@@ -4,6 +4,7 @@ import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVa
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import { createFunctionCallNode } from "../workflow-functions";
 import { EditorSessionStore } from "../editor-core/session";
+import { applyRuntimeNodeParameterOverride } from "../editor-core/runtime-interaction";
 import { EditorResourceLibraryService } from "../editor-core/resource-library";
 import { ExecutionManager } from "../execution-controller";
 import { EditorWorkspaceLifecycleService } from "../editor-core/lifecycle";
@@ -568,6 +569,39 @@ async function agentEditorBatchCase(): Promise<DiagnosticCase> {
   });
 }
 
+async function editorRequirementOwnershipCase(): Promise<DiagnosticCase> {
+  return runCase("editor-requirement-ownership", "工作流依赖清单 Editor Command 所有权", undefined, async () => {
+    const session = new EditorSessionStore("requirements", emptyWorkflowSnapshot()).get("requirements")!;
+    const added = session.applyGraphCommand({ type: "upsert-requirement", requirement: "scipy>=1.12" });
+    const replaced = session.applyGraphCommand({ type: "upsert-requirement", requirement: "scipy==1.13.1" });
+    const removed = session.applyGraphCommand({ type: "remove-requirement", requirement: "scipy==1.13.1" });
+    if (!added.changed || !replaced.changed || !removed.changed) throw new Error("依赖清单事务没有全部进入 Editor Command");
+    if ((session.getRuntimeState().snapshot.requirements ?? []).length !== 0) throw new Error("依赖删除事务没有提交");
+    const restored = session.undo();
+    if (restored?.requirements?.[0] !== "scipy==1.13.1") throw new Error("依赖清单 undo 没有恢复事务前状态");
+    return { historyEntries: 3, replacementDeduplicatedByPackage: true, undoRestoredRequirement: restored.requirements?.[0] ?? null };
+  });
+}
+
+async function runtimeInteractionIsolationCase(): Promise<DiagnosticCase> {
+  return runCase("editor-runtime-interaction-isolation", "交互节点运行值不污染 Editor Session", undefined, async () => {
+    const input = node("interactive-input", "ui.input_dialog", { inputKind: "text", value: "default" }, "交互输入");
+    const alert = node("interactive-alert", "ui.alert", { title: "确认", message: "继续吗", response: null }, "交互确认");
+    const store = new EditorSessionStore("interactive", { nodes: [input, alert], edges: [], functions: [], requirements: [] });
+    const session = store.get("interactive")!;
+    if (session.isDirty()) throw new Error("诊断 Session 初始状态不应为 dirty");
+    const executionNodes = applyRuntimeNodeParameterOverride(session.getRuntimeState().snapshot.nodes, input.id, { value: "runtime-only" });
+    const executionNodes2 = applyRuntimeNodeParameterOverride(executionNodes, alert.id, { response: true });
+    const editorNodes = session.getRuntimeState().snapshot.nodes;
+    if (editorNodes.find((item) => item.id === input.id)?.data.parameters.value !== "default") throw new Error("运行时输入回写了 Editor Snapshot");
+    if (editorNodes.find((item) => item.id === alert.id)?.data.parameters.response !== null) throw new Error("运行时确认回写了 Editor Snapshot");
+    if (executionNodes2.find((item) => item.id === input.id)?.data.parameters.value !== "runtime-only") throw new Error("运行时输入 override 未生效");
+    if (executionNodes2.find((item) => item.id === alert.id)?.data.parameters.response !== true) throw new Error("运行时确认 override 未生效");
+    if (session.isDirty()) throw new Error("仅响应运行时交互后工作区被错误标记为 dirty");
+    return { editorInputValue: "default", runtimeInputValue: "runtime-only", runtimeAlertResponse: true, editorStayedClean: true };
+  });
+}
+
 async function gestureContractCase(): Promise<DiagnosticCase> {
   return runCase("editor-gesture-contract", "桌面/移动端 × 节点/组合手势契约", undefined, async () => {
     const desktopNode = resolveGesturePolicy("desktop", "node");
@@ -597,6 +631,8 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await workspaceSessionIdentityCase(deps));
   cases.push(await executionSessionLifecycleCase());
   cases.push(await agentEditorBatchCase());
+  cases.push(await editorRequirementOwnershipCase());
+  cases.push(await runtimeInteractionIsolationCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));
   cases.push(await reusableFunctionCase("javascript", deps));

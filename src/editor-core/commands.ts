@@ -20,6 +20,8 @@ export type EditorGraphCommand =
   | { type: "insert-node"; node: WorkflowNode }
   | { type: "duplicate-node"; sourceNodeId: string; duplicateId: string; offset?: { x: number; y: number }; labelSuffix?: string }
   | { type: "update-node-parameters"; nodeId: string; patch: Record<string, string | number | boolean | null> }
+  | { type: "upsert-requirement"; requirement: string }
+  | { type: "remove-requirement"; requirement: string }
   | { type: "update-node-label"; nodeId: string; label: string }
   | { type: "update-node-tags"; nodeId: string; tags: string[] }
   | { type: "update-group-port-label"; groupId: string; direction: "input" | "output"; portId: string; label: string }
@@ -64,6 +66,35 @@ function unchanged(snapshot: WorkflowSnapshot, blockedReason?: string): EditorGr
     changed: false,
     affectedCount: 0,
     ...(blockedReason ? { meta: { blockedReason } } : {}),
+  };
+}
+
+function requirementPackageName(requirement: string): string {
+  return requirement.split(/[<>=~![]/, 1)[0].trim().toLocaleLowerCase();
+}
+
+function upsertRequirement(snapshot: WorkflowSnapshot, requirement: string): EditorGraphCommandResult {
+  const normalized = requirement.trim();
+  if (!normalized) return unchanged(snapshot, "依赖不能为空");
+  const packageName = requirementPackageName(normalized);
+  const current = snapshot.requirements ?? [];
+  const next = [...current.filter((item) => requirementPackageName(item) !== packageName), normalized];
+  if (current.length === next.length && current.every((item, index) => item === next[index])) return unchanged(snapshot);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), requirements: next },
+    changed: true,
+    affectedCount: 1,
+  };
+}
+
+function removeRequirement(snapshot: WorkflowSnapshot, requirement: string): EditorGraphCommandResult {
+  const current = snapshot.requirements ?? [];
+  const next = current.filter((item) => item !== requirement);
+  if (next.length === current.length) return unchanged(snapshot, "依赖不存在");
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), requirements: next },
+    changed: true,
+    affectedCount: 1,
   };
 }
 
@@ -487,6 +518,8 @@ export function applyEditorGraphCommand(snapshot: WorkflowSnapshot, command: Edi
   if (command.type === "insert-node") return insertNode(snapshot, command.node);
   if (command.type === "duplicate-node") return duplicateNode(snapshot, command);
   if (command.type === "update-node-parameters") return updateNodeParameters(snapshot, command);
+  if (command.type === "upsert-requirement") return upsertRequirement(snapshot, command.requirement);
+  if (command.type === "remove-requirement") return removeRequirement(snapshot, command.requirement);
   if (command.type === "update-node-label") return updateNodeLabel(snapshot, command);
   if (command.type === "update-node-tags") return updateNodeTags(snapshot, command);
   if (command.type === "update-group-port-label") return updateGroupPortLabel(snapshot, command);
