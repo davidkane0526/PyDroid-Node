@@ -12,7 +12,7 @@ Long-lived branches in this repository:
 - `dev`: `1.4.53 (76)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
 - `fix/phase7-android-service-polish`: `1.4.54 (77)` superseded visual candidate.
 - `fix/phase7-final-ui-acceptance`: `1.4.55 (78)` accepted Phase 7 visual baseline used for this phase.
-- `phase8/workflow-language-state-functions`: `1.4.57 (80)` current Phase 8 implementation with acceptance fixes and removable automated diagnostics on top of workspace state, schema-v2 reusable functions, dual-runtime execution/parity and Functions-resource UI.
+- `phase8/workflow-language-state-functions`: `1.4.58 (81)` current Phase 8 implementation with acceptance fixes, native Android diagnostics export and removable automated diagnostics on top of workspace state, schema-v2 reusable functions, dual-runtime execution/parity and Functions-resource UI.
 
 Current working branch: `phase8/workflow-language-state-functions`.
 
@@ -220,12 +220,12 @@ Remote Web startup must remain lightweight: do not add synchronous shell/asset/L
 
 ## Phase 8 — Workflow Language / State & Function System
 
-**Implemented on `phase8/workflow-language-state-functions` as 1.4.57 (80); cloud validation complete, real-host acceptance pending.** The implementation follows the planned order: execution/workspace state isolation, stable function IDs/versions/signatures, dynamic function-call NodeContracts, Python/JavaScript runtime support, parity coverage, then UI. Runtime semantics remain outside `App.tsx`.
+**Implemented on `phase8/workflow-language-state-functions` as 1.4.58 (81); cloud validation complete, real-host acceptance pending.** The implementation follows the planned order: execution/workspace state isolation, stable function IDs/versions/signatures, dynamic function-call NodeContracts, Python/JavaScript runtime support, parity coverage, then UI. Runtime semantics remain outside `App.tsx`.
 
 Workspace state is renderer/workspace-session scoped, passed explicitly to each execution and returned from successful runs; it is never host/process global. Temporary `variable.get/set` semantics are unchanged. Closing a tab or creating a new workflow clears that workspace's session state.
 
 Workflow schema v2 persists reusable `functions[]`. Calls bind an exact function ID/version and derive typed ports from the signature. Validation rejects broken mappings, version drift and recursive function graphs. Updating a function synchronizes existing calls and removes obsolete call-port edges. Auto runtime selection inspects reachable function bodies, including nested functions, so hidden Python-only dependencies cannot be dispatched to JavaScript accidentally.
 
-The existing Resources sidebar now contains a Functions tab for current-tab workspace variables and persisted function resources. Groups can be saved/updated as functions; calls can be inserted or expanded as editable groups. See `docs/phase8-workflow-language.md` and `tests/manual/phase8/README.md`.
+The existing Resources sidebar now orders its tabs as Nodes → Functions → Groups → Flows; the palette has a 216 px minimum/default width so the four Chinese labels remain fully visible. The Functions tab contains current-tab workspace variables and persisted function resources. Groups can be saved/updated as functions; calls can be inserted or expanded as editable groups. See `docs/phase8-workflow-language.md` and `tests/manual/phase8/README.md`.
 
-1.4.57 fixes two acceptance defects found on Desktop: its renderer-specific execution adapter now transports Phase 8 workspace/functions just like Android/shared execution, and `function.call` cards render their persisted dynamic handles. A temporary automated-diagnostics panel is available under Settings → Debug & hot reload; it is intentionally isolated in `src/diagnostics/` and may be removed using `docs/automated-diagnostics.md` without touching workflow semantics.
+1.4.57 fixed the Desktop state/function adapter and dynamic function-call handles. In 1.4.58, the user-provided Desktop diagnostics report passed 4/4, and Android diagnostics export was moved from WebView anchor download to a native SAF create-document flow with visible save/cancel/failure feedback. A temporary automated-diagnostics panel remains available under Settings → Debug & hot reload; it is intentionally isolated in `src/diagnostics/` and may be removed using `docs/automated-diagnostics.md` without touching workflow semantics.

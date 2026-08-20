@@ -10,7 +10,21 @@ const remoteSession = createRemoteSessionClient({
 export function createBrowserPlatformAdapter(): PlatformAdapter {
   return {
     id: "browser",
-    files: { async pickCsvFiles() { return null; } },
+    files: {
+      async pickCsvFiles() { return null; },
+      async exportTextFile(name, content, mimeType) {
+        const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = name;
+        anchor.style.display = "none";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+        return { saved: true, destination: "浏览器下载目录" };
+      },
+    },
     smb: {
       async discoverServers() { throw new Error("SMB 设备扫描仅在宿主应用中可用"); },
       async scanShares() { throw new Error("SMB 扫描仅在 Android 应用中可用"); },

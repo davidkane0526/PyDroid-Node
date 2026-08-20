@@ -34,6 +34,13 @@ public class PythonExecutorPlugin extends Plugin {
     @PluginMethod public void readSmbCsv(PluginCall call) { host().smb.readFiles(call); }
 
     @PluginMethod public void saveUserProfileFile(PluginCall call) { host().profile.saveUserProfileFile(call); }
+
+    @PluginMethod
+    public void exportTextFile(PluginCall call) {
+        startActivityForResult(call, host().profile.createExportTextFileIntent(call), "exportTextFileResult");
+    }
+
+    @ActivityCallback private void exportTextFileResult(PluginCall call, ActivityResult result) { host().profile.handleExportTextFileResult(call, result); }
     @PluginMethod public void getUserProfileInfo(PluginCall call) { call.resolve(host().profile.info()); }
     @PluginMethod public void listWorkflowLibrary(PluginCall call) { host().profile.listWorkflowLibrary(call); }
     @PluginMethod public void renameWorkflowFile(PluginCall call) { host().profile.renameWorkflowFile(call); }

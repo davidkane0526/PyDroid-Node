@@ -1,6 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
+Current behavior: 1.4.58
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -32,6 +33,8 @@ A plain local browser has no Python host, so its Python cases are reported as sk
 ## Output
 
 The dialog can copy or export `pydroid-flow.automated-diagnostics` schema v1 JSON. Android also saves the latest report internally at `logs/automated-diagnostics-latest.json` through the existing profile capability.
+
+From 1.4.58, Android export is native rather than a WebView download: **导出 JSON** launches the Android system `ACTION_CREATE_DOCUMENT` file picker, pre-fills the report filename, writes the selected document URI, and reports saved/cancelled/failed state in the diagnostics dialog. Desktop/browser builds retain the normal download behavior.
 
 ## Disable or permanently remove
 

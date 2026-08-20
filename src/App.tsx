@@ -56,7 +56,7 @@ import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelH
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, clearWorkspaceVariableState, getExecutionClientId, getWorkspaceExecutionResult, listWorkspaceVariableNames } from "./execution-workspace";
 import { canSafelyPreExecuteNodes, getNodeContract } from "./nodeContract";
-import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWorkflowFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
+import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWorkflowFile, exportTextFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
@@ -78,6 +78,7 @@ const FLOW_LIBRARY_KEY = "pydroid-flow.workflow-library.v1";
 const GROUP_LIBRARY_KEY = "pydroid-flow.group-library.v1";
 const SAVED_NODE_LIBRARY_KEY = "pydroid-flow.saved-node-library.v1";
 const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-override.v1";
+const PALETTE_MIN_WIDTH = 216;
 type PaletteResource = { kind: "node" | "saved-node" | "group" | "flow"; id: string; label: string };
 
 type ThemeMode = "system" | "dark" | "light";
@@ -154,13 +155,13 @@ function loadAgentSettings(value: unknown): AgentSettings {
 }
 
 function loadAppSettings(): AppSettings {
-  const defaults: AppSettings = { themeMode: "system", runtimePreference: "auto", paletteWidth: 176, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, automatedDiagnosticsEnabled: true, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
+  const defaults: AppSettings = { themeMode: "system", runtimePreference: "auto", paletteWidth: PALETTE_MIN_WIDTH, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, automatedDiagnosticsEnabled: true, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
     return {
       themeMode: saved.themeMode === "dark" || saved.themeMode === "light" ? saved.themeMode : "system",
       runtimePreference: saved.runtimePreference === "python" || saved.runtimePreference === "javascript" ? saved.runtimePreference : "auto",
-      paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(176, Number(saved.paletteWidth))) : defaults.paletteWidth,
+      paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(PALETTE_MIN_WIDTH, Number(saved.paletteWidth))) : defaults.paletteWidth,
       inspectorWidth: Number.isFinite(saved.inspectorWidth) ? Math.min(560, Math.max(250, Number(saved.inspectorWidth))) : defaults.inspectorWidth,
       inspectorHeight: Number.isFinite(saved.inspectorHeight) ? Math.min(440, Math.max(140, Number(saved.inspectorHeight))) : defaults.inspectorHeight,
       resultHeight: Number.isFinite(saved.resultHeight) ? Math.min(520, Math.max(180, Number(saved.resultHeight))) : defaults.resultHeight,
@@ -845,6 +846,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [automatedDiagnosticsOpen, setAutomatedDiagnosticsOpen] = useState(false);
   const [automatedDiagnosticsRunning, setAutomatedDiagnosticsRunning] = useState(false);
   const [automatedDiagnosticsReport, setAutomatedDiagnosticsReport] = useState<AutomatedDiagnosticReport | null>(null);
+  const [automatedDiagnosticsExportStatus, setAutomatedDiagnosticsExportStatus] = useState<string | null>(null);
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugBreakpoints, setDebugBreakpoints] = useState<Set<string>>(() => new Set());
   const [debugPausedAt, setDebugPausedAt] = useState<string | null>(null);
@@ -1363,7 +1365,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       applyingRemoteConfiguration.current = true;
       if (remote.themeMode === "system" || remote.themeMode === "dark" || remote.themeMode === "light") setThemeMode(remote.themeMode);
       if (remote.runtimePreference === "auto" || remote.runtimePreference === "python" || remote.runtimePreference === "javascript") setRuntimePreference(remote.runtimePreference);
-      if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(176, Number(remote.paletteWidth))));
+      if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(PALETTE_MIN_WIDTH, Number(remote.paletteWidth))));
       if (Number.isFinite(remote.inspectorWidth)) setInspectorWidth(Math.min(560, Math.max(250, Number(remote.inspectorWidth))));
       if (Number.isFinite(remote.inspectorHeight)) setInspectorHeight(Math.min(440, Math.max(140, Number(remote.inspectorHeight))));
       if (Number.isFinite(remote.resultHeight)) setResultHeight(Math.min(520, Math.max(180, Number(remote.resultHeight))));
@@ -2547,7 +2549,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const startHeight = inspectorHeight;
     const resize = (moveEvent: PointerEvent) => {
       const delta = moveEvent.clientX - startX;
-      if (side === "palette") setPaletteWidth(Math.min(360, Math.max(176, startWidth + delta)));
+      if (side === "palette") setPaletteWidth(Math.min(360, Math.max(PALETTE_MIN_WIDTH, startWidth + delta)));
       else if (inspectorDock === "bottom") setInspectorHeight(Math.min(440, Math.max(140, startHeight - (moveEvent.clientY - startY))));
       else setInspectorWidth(Math.min(560, Math.max(250, startWidth - delta)));
     };
@@ -2697,7 +2699,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       const imported = loadAppSettings();
       setThemeMode(imported.themeMode);
       setRuntimePreference(imported.runtimePreference);
-      setPaletteWidth(Math.min(360, Math.max(176, imported.paletteWidth)));
+      setPaletteWidth(Math.min(360, Math.max(PALETTE_MIN_WIDTH, imported.paletteWidth)));
       setInspectorWidth(imported.inspectorWidth);
       setInspectorHeight(imported.inspectorHeight);
       setResultHeight(imported.resultHeight);
@@ -3519,6 +3521,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setAutomatedDiagnosticsOpen(true);
     setAutomatedDiagnosticsRunning(true);
     setAutomatedDiagnosticsReport(null);
+    setAutomatedDiagnosticsExportStatus(null);
     try {
       const platform = getPlatformAdapter();
       const report = await runAutomatedDiagnostics({
@@ -3550,11 +3553,29 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setMessage("已复制完整自动诊断结果，可直接粘贴给开发者");
   };
 
-  const exportAutomatedDiagnostics = () => {
+  const exportAutomatedDiagnostics = async () => {
     if (!automatedDiagnosticsReport) return;
     const stamp = automatedDiagnosticsReport.createdAt.replace(/[:.]/g, "-");
-    downloadText(JSON.stringify(automatedDiagnosticsReport, null, 2), `pydroid-diagnostics-${APP_VERSION}-${stamp}.json`, "application/json");
-    setMessage("自动诊断结果已导出");
+    const fileName = `pydroid-diagnostics-${APP_VERSION}-${stamp}.json`;
+    try {
+      const exported = await exportTextFile(fileName, JSON.stringify(automatedDiagnosticsReport, null, 2), "application/json");
+      if (!exported.saved) {
+        const status = "已取消导出。最近一次结果仍保存在应用内部日志中。";
+        setAutomatedDiagnosticsExportStatus(status);
+        setMessage(status);
+        return;
+      }
+      const destination = exported.destination?.trim();
+      const status = isNativePlatform()
+        ? `已保存${destination ? `：${destination}` : "到系统文件选择器指定的位置"}`
+        : `已导出${destination ? `到${destination}` : ""}`;
+      setAutomatedDiagnosticsExportStatus(status);
+      setMessage(status);
+    } catch (error) {
+      const status = `导出失败：${readableError(error, "无法写入诊断 JSON")}`;
+      setAutomatedDiagnosticsExportStatus(status);
+      setMessage(status);
+    }
   };
 
   const requestPlanFromAgent = async () => {
@@ -3840,7 +3861,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
           <div className="sidebar-resizer sidebar-resizer--palette" role="separator" aria-orientation="vertical" aria-label="调整节点列表宽度" onPointerDown={(event) => startSidebarResize("palette", event)} />
           <div className="palette-fixed">
             <div className="palette-heading"><h2>{ui("资源", "Resources")}</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>{ui("收起", "Collapse")}</button></div>
-            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">{ui("节点", "Nodes")}</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">{ui("组合", "Groups")}</span></button><button className={paletteTab === "functions" ? "active" : ""} onClick={() => setPaletteTab("functions")}><span className="palette-tabs__icon" aria-hidden="true">ƒ</span><span className="palette-tabs__label">{ui("函数", "Functions")}</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">{ui("流程", "Flows")}</span></button></nav>
+            <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">{ui("节点", "Nodes")}</span></button><button className={paletteTab === "functions" ? "active" : ""} onClick={() => setPaletteTab("functions")}><span className="palette-tabs__icon" aria-hidden="true">ƒ</span><span className="palette-tabs__label">{ui("函数", "Functions")}</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">{ui("组合", "Groups")}</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">{ui("流程", "Flows")}</span></button></nav>
             <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={ui("搜索内置或导入节点", "Search built-in or imported nodes")} /><span>{matchedCatalog.length}</span></label>
           </div>
           <div className="palette-content">
@@ -4160,7 +4181,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       {alertDialogNode && <AlertDialog node={alertDialogNode} preview={alertInputPreview} onSubmit={(response) => void submitAlertDialog(response)} />}
       {renameFlow && <RenameFlowDialog name={renameFlow.name} value={renameFlowValue} onValueChange={setRenameFlowValue} onClose={() => setRenameFlow(null)} onConfirm={() => void confirmRenameFlow()} />}
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
-      <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={exportAutomatedDiagnostics} />
+      <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={() => void exportAutomatedDiagnostics()} exportStatus={automatedDiagnosticsExportStatus} />
       {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={(requirement) => setRequirements((current) => current.filter((value) => value !== requirement))} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}

@@ -1,3 +1,11 @@
+## 2026-08-20 — Phase 8 diagnostics export + Resources layout / 1.4.58 (81)
+
+- Desktop 1.4.57 diagnostics report from user acceptance passed 4/4: JavaScript/Python workspace persistence and reusable-function execution are healthy.
+- Replaced Android WebView anchor-download diagnostics export with a native SAF create-document flow. The user chooses the destination explicitly and the dialog reports save/cancel/failure state.
+- Resources navigation now reads 节点 → 函数 → 组合 → 流程.
+- Resources minimum/default width is 216 px and tab labels are no longer ellipsized.
+- Build script revision: `1.4.58-dev-r34-phase8-diagnostics-export-ui`.
+
 ## 2026-08-20 — Phase 8 acceptance corrections + automated diagnostics / 1.4.57 (80)
 
 - Corrected the Windows renderer execution adapter, which had remained on the pre-Phase-8 execution contract and therefore lost workspace variables/functions across runs on Desktop.

@@ -49,4 +49,11 @@ assert.match(app, /setWorkspaceVariableRevision\(\(value\) => value \+ 1\)/, "wo
 assert.match(app, /AutomatedDiagnosticsDialog/, "desktop and Android shared UI must expose the removable automated diagnostics dialog");
 assert.match(app, /runInAppAutomatedDiagnostics/, "automated diagnostics must be runnable from the application UI");
 
+assert.match(app, /palette-tabs[\s\S]*paletteTab === "nodes"[\s\S]*paletteTab === "functions"[\s\S]*paletteTab === "groups"[\s\S]*paletteTab === "flows"/, "resource tabs must stay ordered Nodes → Functions → Groups → Flows");
+assert.match(app, /const PALETTE_MIN_WIDTH = 216/, "resource palette must enforce the wider Phase 8 minimum width");
+assert.match(css, /minmax\(216px, min\(var\(--palette-width, 216px\)/, "responsive workspace CSS must preserve the 216px resource palette floor");
+assert.match(css, /\.palette-tabs__label \{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/, "resource tab labels must not be ellipsized or compressed");
+assert.match(app, /exportTextFile\(fileName,[\s\S]*application\/json/, "automated diagnostics export must use the platform file-export capability");
+assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must surface save/cancel/failure status inside the dialog");
+
 console.log("UI regression smoke passed.");

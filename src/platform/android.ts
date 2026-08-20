@@ -17,6 +17,9 @@ export function createAndroidPlatformAdapter(): PlatformAdapter {
         const response = await PythonExecutor.pickCsv({ mode });
         return response.files.map((file) => ({ name: file.name, bytes: decodeBase64Bytes(file.base64) }));
       },
+      async exportTextFile(name, content, mimeType) {
+        return PythonExecutor.exportTextFile({ name, content, mimeType });
+      },
     },
     smb: {
       async discoverServers() { return (await PythonExecutor.discoverSmbServers()).servers; },

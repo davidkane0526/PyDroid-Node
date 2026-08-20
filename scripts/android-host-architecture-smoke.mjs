@@ -27,14 +27,14 @@ assert.match(plugin, /new AndroidHostServices\(getContext\(\)\)/, "plugin must c
 assert.match(plugin, /services\.close\(\)/, "plugin must release Android host services on destroy");
 
 const expectedMethods = [
-  "warmUp", "getEnvironment", "getRuntimeStats", "saveUserProfileFile", "saveAgentSecret", "loadAgentSecret",
+  "warmUp", "getEnvironment", "getRuntimeStats", "saveUserProfileFile", "exportTextFile", "saveAgentSecret", "loadAgentSecret",
   "saveSmbSecret", "loadSmbSecret", "getUserProfileInfo", "chooseWorkflowFolder", "openWorkflowFolder",
   "listWorkflowLibrary", "renameWorkflowFile", "deleteWorkflowFile", "analyzeNotebook", "analyzeSignature",
   "runWorkflow", "cancelWorkflow", "getExecutionStatus", "pickCsv", "listSmb", "scanSmbShares",
   "discoverSmbServers", "readSmbCsv", "startRemoteServer", "stopRemoteServer",
 ];
 for (const method of expectedMethods) assert.match(plugin, new RegExp(`@PluginMethod\\s+public void ${method}\\(`), `Capacitor method contract must preserve ${method}`);
-for (const callback of ["pickCsvResult", "openWorkflowFolderResult", "chooseWorkflowFolderResult"]) {
+for (const callback of ["pickCsvResult", "openWorkflowFolderResult", "chooseWorkflowFolderResult", "exportTextFileResult"]) {
   assert.match(plugin, new RegExp(`@ActivityCallback\\s+private void ${callback}\\(`), `Activity callback must preserve ${callback}`);
 }
 
@@ -56,6 +56,8 @@ assert.match(smb, /jcifs\.smb\.client\.maxVersion/, "SMB service must own jcifs 
 assert.match(smb, /discoverServers\(/, "SMB service must own LAN discovery");
 assert.match(profile, /WORKFLOW_TREE_KEY/, "Profile service must own workflow-folder persistence");
 assert.match(profile, /DocumentsContract\.renameDocument/, "Profile service must own workflow-library mutations");
+assert.match(profile, /ACTION_CREATE_DOCUMENT/, "Profile service must export user-visible files through Android SAF");
+assert.match(profile, /openOutputStream\(uri, "wt"\)/, "Android SAF export must write the selected destination URI");
 assert.match(files, /ACTION_OPEN_DOCUMENT_TREE/, "File service must own SAF folder selection");
 assert.match(files, /MAX_TOTAL_BYTES/, "File service must own file-size safety limits");
 assert.match(secrets, /AgentSecretStore/, "Secret service must own keystore-backed secret access");

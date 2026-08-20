@@ -1,3 +1,12 @@
+## 1.4.58 (81) — Android diagnostics export + Resources layout — 2026-08-20
+
+- Android automated-diagnostics JSON export now uses the system Storage Access Framework (`ACTION_CREATE_DOCUMENT`) instead of a WebView download anchor, so tapping **导出 JSON** opens the native file-save picker and reports saved/cancelled/failed status inside the diagnostics dialog.
+- The latest diagnostics report continues to be written to the application profile log as a fallback.
+- Reordered Resources tabs to **节点 → 函数 → 组合 → 流程**.
+- Raised the Resources pane minimum/default width to 216 px and removed tab-label ellipsis so the four Chinese tab labels remain fully visible.
+- Added UI/Android-host regression guards for tab order, palette minimum width and native diagnostic export.
+- Build script revision: `1.4.58-dev-r34-phase8-diagnostics-export-ui`.
+
 ## 1.4.57 (80) — Phase 8 acceptance fixes + automated diagnostics — 2026-08-20
 
 - Fixed Windows Desktop workspace-session variables by bringing the renderer execution adapter onto the same Phase 8 state/function contract as the shared Android/Web execution path.

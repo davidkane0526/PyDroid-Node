@@ -105,10 +105,10 @@ button, input, select, textarea { font: inherit; }
 .icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
 .icon-button:not(:disabled) { color: var(--text-highlight); }
 .button.compact { padding-inline: 10px; }
-.workspace { display: grid; grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) var(--inspector-width, 320px); grid-template-rows: minmax(0, 1fr); min-height: 0; }
+.workspace { display: grid; grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr) var(--inspector-width, 320px); grid-template-rows: minmax(0, 1fr); min-height: 0; }
 .workspace.result-bottom { grid-template-rows: minmax(0, 1fr) var(--result-height, 280px); }
 .workspace.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--inspector-width, 320px); }
-.workspace.inspector-collapsed { grid-template-columns: var(--palette-width, 190px) minmax(0, 1fr) 0; }
+.workspace.inspector-collapsed { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr) 0; }
 .workspace.palette-collapsed.inspector-collapsed { grid-template-columns: 0 minmax(0, 1fr) 0; }
 .workspace.palette-collapsed .node-palette { display: none; }
 .workspace.palette-collapsed .canvas-toolbar { left: 116px; max-width: calc(100% - 128px); }
@@ -124,7 +124,7 @@ button, input, select, textarea { font: inherit; }
 .palette-heading { display: flex; align-items: start; justify-content: space-between; gap: 8px; }
 .palette-heading h2 { min-width: 0; }
 .palette-heading .download-link { margin-top: 2px; }
-.palette-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0 0 10px; padding: 4px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-deep); }.palette-tabs button { padding: 6px 3px; border: 0; border-radius: 5px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: var(--font-xs); }.palette-tabs button.active { color: var(--text-highlight); background: var(--accent); }.flow-library-item { display: grid; width: 100%; gap: 4px; margin-bottom: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-highlight); background: var(--surface-raised); text-align: left; cursor: pointer; touch-action: manipulation; }.flow-library-item:hover { border-color: var(--accent-hover); background: #1c2a42; }.flow-library-item.locked { border-color: #a16207; }.flow-library-item small { color: var(--text-faint); font-size: var(--font-xs); }
+.palette-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; margin: 0 0 10px; padding: 4px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-deep); }.palette-tabs button { padding: 6px 3px; border: 0; border-radius: 5px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: var(--font-xs); }.palette-tabs button.active { color: var(--text-highlight); background: var(--accent); }.flow-library-item { display: grid; width: 100%; gap: 4px; margin-bottom: 6px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; color: var(--text-highlight); background: var(--surface-raised); text-align: left; cursor: pointer; touch-action: manipulation; }.flow-library-item:hover { border-color: var(--accent-hover); background: #1c2a42; }.flow-library-item.locked { border-color: #a16207; }.flow-library-item small { color: var(--text-faint); font-size: var(--font-xs); }
 .flow-library-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 8px; }.flow-library-actions button { padding: 7px 5px; border: 1px solid var(--border); border-radius: 6px; color: #cbd5e1; background: var(--surface-raised); cursor: pointer; font-size: var(--font-xs); }.flow-library-path { display: block; margin: 0 0 8px; overflow: hidden; color: var(--text-faint); font-size: var(--font-xs); line-height: 1.35; text-overflow: ellipsis; }
 .node-search { display: flex; align-items: center; gap: 4px; margin: 0 0 10px; padding: 0; background: transparent; }
 .node-search input { min-width: 0; width: 100%; padding: 7px 8px; border: 1px solid var(--border)aa; border-radius: 7px; color: var(--text-bright); background: var(--surface-deep)cc; font-size: var(--font-xs); }
@@ -802,7 +802,7 @@ button, input, select, textarea { font: inherit; }
 .inspector-dock-switch button.active { color: var(--text-bright); background: var(--surface-hover); box-shadow: inset 0 0 0 1px var(--border); }
 
 /* Inspector docking is explicit. Portrait JS chooses bottom; landscape defaults to right but may be switched by the user. */
-.workspace.inspector-bottom { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--inspector-height, 220px); }
+.workspace.inspector-bottom { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) var(--inspector-height, 220px); }
 .workspace.inspector-bottom.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
 .workspace.inspector-bottom.inspector-collapsed { grid-template-rows: minmax(0, 1fr) 0; }
 .workspace.inspector-bottom.palette-collapsed.inspector-collapsed { grid-template-columns: 0 minmax(0, 1fr); }
@@ -814,9 +814,9 @@ button, input, select, textarea { font: inherit; }
 .workspace.inspector-bottom.inspector-collapsed.result-bottom { grid-template-rows: minmax(0, 1fr) 0 var(--result-height, 280px); }
 .workspace.inspector-bottom .result-panel--bottom { grid-column: 2; grid-row: 3; }
 
-.workspace.inspector-right { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) var(--inspector-width, 320px); grid-template-rows: minmax(0, 1fr); }
+.workspace.inspector-right { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr) var(--inspector-width, 320px); grid-template-rows: minmax(0, 1fr); }
 .workspace.inspector-right.palette-collapsed { grid-template-columns: 0 minmax(0, 1fr) var(--inspector-width, 320px); }
-.workspace.inspector-right.inspector-collapsed { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) 0; }
+.workspace.inspector-right.inspector-collapsed { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr) 0; }
 .workspace.inspector-right.palette-collapsed.inspector-collapsed { grid-template-columns: 0 minmax(0, 1fr) 0; }
 .workspace.inspector-right .inspector { display: block; grid-column: 3; grid-row: 1 / -1; padding: 12px 14px; border-top: 0; border-left: 1px solid var(--border-soft); }
 .workspace.inspector-right.inspector-collapsed .inspector { display: none; }
@@ -2484,38 +2484,38 @@ button, input, select, textarea { font: inherit; }
   .inspector__heading h2 { font-size: 14px; }
 }
 
-/* Do not allow the Resources pane to become narrower than the Nodes / Groups / Flows selector can display.
-   176 px is also the application's original/default palette width, so resizing now has a meaningful floor. */
+/* Keep the Resources pane wide enough for the four Phase 8 tabs (Nodes / Functions / Groups / Flows).
+   216 px prevents Chinese labels from being compressed while retaining useful canvas space on Android. */
 @media (min-width: 901px) {
   .workspace,
-  .workspace.inspector-right { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr) var(--inspector-width, 320px); }
-  .workspace.inspector-bottom { grid-template-columns: var(--palette-width, 176px) minmax(0, 1fr); }
+  .workspace.inspector-right { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr) var(--inspector-width, 320px); }
+  .workspace.inspector-bottom { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr); }
 }
 @media (min-width: 721px) and (max-width: 900px) {
   .workspace,
   .workspace.inspector-right {
-    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 30vw)) minmax(0, 1fr) min(var(--inspector-width, 300px), 42vw);
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 30vw)) minmax(0, 1fr) min(var(--inspector-width, 300px), 42vw);
   }
   .workspace.inspector-bottom {
-    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 30vw)) minmax(0, 1fr);
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 30vw)) minmax(0, 1fr);
   }
 }
 @media (max-width: 720px) {
   .workspace,
   .workspace.inspector-bottom,
   .workspace.inspector-collapsed {
-    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 46vw)) minmax(0, 1fr);
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 46vw)) minmax(0, 1fr);
   }
   .workspace.inspector-right {
-    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 38vw)) minmax(0, 1fr) minmax(210px, min(var(--inspector-width, 260px), 42vw));
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 38vw)) minmax(0, 1fr) minmax(210px, min(var(--inspector-width, 260px), 42vw));
   }
 }
 @media (orientation: landscape) and (max-height: 720px) {
   .workspace.inspector-right {
-    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 23vw)) minmax(0, 1fr) minmax(230px, min(var(--inspector-width, 300px), 36vw));
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 23vw)) minmax(0, 1fr) minmax(230px, min(var(--inspector-width, 300px), 36vw));
   }
   .workspace.inspector-bottom {
-    grid-template-columns: minmax(176px, min(var(--palette-width, 176px), 23vw)) minmax(0, 1fr);
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 23vw)) minmax(0, 1fr);
   }
 }
 
@@ -3631,6 +3631,8 @@ button.smb-file-row { cursor: pointer; }
 
 /* Phase 8 · workflow language resources */
 .palette-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.palette-tabs button { min-width: 0; white-space: nowrap; }
+.palette-tabs__label { overflow: visible; text-overflow: clip; white-space: nowrap; }
 .workflow-variable-list { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 8px; }
 .workflow-variable-list code { max-width: 100%; overflow: hidden; padding: 3px 6px; border: 1px solid var(--border-soft); border-radius: 5px; color: var(--text-highlight); background: var(--surface-deep); font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
 .workflow-language-state > button { width: 100%; }
@@ -3640,6 +3642,7 @@ button.smb-file-row { cursor: pointer; }
 .app-shell[data-theme="light"] .workflow-variable-list code { border-color: #cbd5e1; color: #1e3a5f; background: #f8fafc; }
 
 /* Temporary automated diagnostics: isolated from workflow semantics so the feature can be removed cleanly. */
+.diagnostics-export-status { margin: 0 15px 10px; padding: 7px 9px; border: 1px solid var(--border-soft); border-radius: 6px; color: var(--text-muted); background: var(--surface-deep); font-size: var(--font-xs); }
 .diagnostics-dialog { width: min(820px, 100%); }
 .diagnostics-dialog > p.muted { margin: 0; padding: 14px 16px 18px; }
 .diagnostics-dialog li.diagnostic-pass > b { color: #86efac; }

@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.DocumentsContract;
+import android.provider.OpenableColumns;
 import androidx.activity.result.ActivityResult;
 import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
@@ -67,6 +68,53 @@ final class AndroidProfileService {
                 try (FileOutputStream output = new FileOutputStream(file, false)) { output.write(content.getBytes(StandardCharsets.UTF_8)); }
                 JSObject response = new JSObject(); response.put("saved", true); response.put("path", file.getAbsolutePath()); call.resolve(response);
             } catch (Exception exception) { call.reject(exception.getMessage() == null ? "Unable to save user profile" : exception.getMessage(), exception); }
+        });
+    }
+
+
+    Intent createExportTextFileIntent(PluginCall call) {
+        String name = call.getString("name", "pydroid-export.json").trim();
+        String mimeType = call.getString("mimeType", "text/plain").trim();
+        if (name.isEmpty()) name = "pydroid-export.json";
+        if (mimeType.isEmpty()) mimeType = "text/plain";
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(mimeType);
+        intent.putExtra(Intent.EXTRA_TITLE, name);
+        return intent;
+    }
+
+    void handleExportTextFileResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        Intent data = result.getData();
+        if (result.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
+            JSObject response = new JSObject();
+            response.put("saved", false);
+            response.put("destination", (String) null);
+            call.resolve(response);
+            return;
+        }
+        Uri uri = data.getData();
+        String content = call.getString("content", "");
+        worker.execute(() -> {
+            try (java.io.OutputStream output = context.getContentResolver().openOutputStream(uri, "wt")) {
+                if (output == null) throw new IllegalStateException("无法打开目标文件");
+                output.write(content.getBytes(StandardCharsets.UTF_8));
+                output.flush();
+                String destination = uri.toString();
+                try (android.database.Cursor cursor = context.getContentResolver().query(uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                    if (cursor != null && cursor.moveToFirst()) {
+                        String displayName = cursor.getString(0);
+                        if (displayName != null && !displayName.trim().isEmpty()) destination = displayName;
+                    }
+                } catch (Exception ignored) { }
+                JSObject response = new JSObject();
+                response.put("saved", true);
+                response.put("destination", destination);
+                call.resolve(response);
+            } catch (Exception exception) {
+                call.reject(exception.getMessage() == null ? "Unable to export file" : exception.getMessage(), exception);
+            }
         });
     }
 

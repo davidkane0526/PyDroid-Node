@@ -4,6 +4,7 @@ import { createBrowserPlatformAdapter } from "./browser";
 import type { FilePickMode, PlatformAdapter, SmbConnection } from "./types";
 
 export type {
+  ExportedTextFile,
   ExternalWorkflowEntry,
   FilePickMode,
   PickedCsvFile,
@@ -58,3 +59,4 @@ export function scanSmbShares(connection: SmbConnection) { return getPlatformAda
 export function listSmbDirectory(connection: SmbConnection, path: string) { return getPlatformAdapter().smb.listDirectory(connection, path); }
 export function readSmbCsvFiles(connection: SmbConnection, paths: string[]) { return getPlatformAdapter().smb.readCsvFiles(connection, paths); }
 export function pickCsvFiles(mode: FilePickMode) { return getPlatformAdapter().files.pickCsvFiles(mode); }
+export function exportTextFile(name: string, content: string, mimeType: string) { return getPlatformAdapter().files.exportTextFile(name, content, mimeType); }

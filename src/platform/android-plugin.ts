@@ -9,6 +9,7 @@ export type PythonExecutorPlugin = {
   getEnvironment(): Promise<NativeExecutionResponse>;
   getRuntimeStats(): Promise<{ memoryBytes: number }>;
   saveUserProfileFile(options: { relativePath: string; content: string }): Promise<{ saved: boolean; path: string }>;
+  exportTextFile(options: { name: string; content: string; mimeType: string }): Promise<{ saved: boolean; destination?: string | null }>;
   saveAgentSecret(options: { value: string }): Promise<{ saved: boolean }>;
   loadAgentSecret(): Promise<{ value: string }>;
   saveSmbSecret(options: { value: string }): Promise<{ saved: boolean }>;

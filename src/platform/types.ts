@@ -1,5 +1,6 @@
 export type FilePickMode = "files" | "files_external" | "directory" | "directory_external";
 export type PickedCsvFile = { name: string; bytes: Uint8Array };
+export type ExportedTextFile = { saved: boolean; destination?: string | null };
 
 export type SmbConnection = {
   server: string;
@@ -29,6 +30,7 @@ export type WindowControls = {
 
 export interface FilePlatformCapability {
   pickCsvFiles(mode: FilePickMode): Promise<PickedCsvFile[] | null>;
+  exportTextFile(name: string, content: string, mimeType: string): Promise<ExportedTextFile>;
 }
 
 export interface SmbPlatformCapability {
