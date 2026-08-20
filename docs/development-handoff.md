@@ -4,7 +4,7 @@ Updated: 2026-08-20
 
 ## Current repository state
 
-This delivery is a **single local Git repository** whose Phase 8 work is based only on the user-provided clean `PyDroid Node 1.4.55.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
+This delivery is a **single local Git repository** whose Phase 9 work continues from the user-accepted local `PyDroid Node 1.4.59` baseline; the repository ultimately derives from the user-provided clean `PyDroid Node 1.4.55.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
 
 Long-lived branches in this repository:
 
@@ -12,9 +12,10 @@ Long-lived branches in this repository:
 - `dev`: `1.4.53 (76)` architecture/reliability line with Phase 1 PlatformAdapter + Phase 2 ExecutionController + completed Phase 3 Workflow Core + accepted Phase 3.5 Multi-Workspace Execution + completed Phase 4 Unified NodeSpec / Node Contract + completed Phase 5 full dual-runtime golden parity + completed/frozen Phase 6 Runtime Engine modularization + Phase 7 Desktop/Android Host decomposition, cross-platform host binding contract and safe build-tool module split.
 - `fix/phase7-android-service-polish`: `1.4.54 (77)` superseded visual candidate.
 - `fix/phase7-final-ui-acceptance`: `1.4.55 (78)` accepted Phase 7 visual baseline used for this phase.
-- `phase8/workflow-language-state-functions`: `1.4.59 (82)` current Phase 8 implementation with acceptance fixes, native Android/Desktop diagnostics export and removable automated diagnostics on top of workspace state, schema-v2 reusable functions, dual-runtime execution/parity and Functions-resource UI.
+- `phase8/workflow-language-state-functions`: `1.4.59 (82)` accepted/frozen Phase 8 implementation with native Android/Desktop diagnostics export and removable automated diagnostics.
+- `phase9/editor-core-workspace-session`: `1.4.60 (83)` current Phase 9 line introducing Editor Workspace Session ownership, Editor Commands and explicit desktop/mobile × target gesture policies.
 
-Current working branch: `phase8/workflow-language-state-functions`.
+Current working branch: `phase9/editor-core-workspace-session`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -29,6 +30,14 @@ The UI is considered stable. Unless the user reports a concrete UI/interaction d
 5. host/build modularization after the previous layers stabilize.
 
 Read `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` before continuing architecture work.
+
+## Phase 9 status — Editor Core & Workspace Session
+
+**Started on 1.4.60 (83); not frozen.** `EditorWorkspaceSession` is now the per-tab owner of workflow snapshot, selected input, history/dirty state and session-only editor view state. React consumes it through `useSyncExternalStore`; `App.tsx` no longer keeps a second ReactFlow graph via `useNodesState` / `useEdgesState`. The first Editor Command boundary covers graph deletion/disconnection.
+
+Input semantics are explicitly split by **input profile** (`desktop` vs `mobile`) and **target kind** (`node`, `group`, `canvas`, `resource`, `tab`). Do not merge these policies merely to reduce code. In particular, Android node long-press is a multi-select gesture, Android group long-press retains the accepted multi-select gesture while group double-tap remains subflow entry, desktop node double-click opens node actions, and desktop group double-click enters the subflow. See `docs/phase9-editor-core-workspace-session.md`.
+
+The temporary automated diagnostics now add session-isolation and gesture-contract cases, so a normal Desktop/Android host with both runtimes should report 6/6.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -220,7 +229,7 @@ Remote Web startup must remain lightweight: do not add synchronous shell/asset/L
 
 ## Phase 8 — Workflow Language / State & Function System
 
-**Implemented on `phase8/workflow-language-state-functions` as 1.4.59 (82); cloud validation complete, real-host acceptance pending.** The implementation follows the planned order: execution/workspace state isolation, stable function IDs/versions/signatures, dynamic function-call NodeContracts, Python/JavaScript runtime support, parity coverage, then UI. Runtime semantics remain outside `App.tsx`.
+**Frozen/accepted on `phase8/workflow-language-state-functions` as 1.4.59 (82).** Desktop/Android build and interaction acceptance plus the 4/4 automated diagnostic report were confirmed by the user before Phase 9 started. The implementation follows the planned order: execution/workspace state isolation, stable function IDs/versions/signatures, dynamic function-call NodeContracts, Python/JavaScript runtime support, parity coverage, then UI. Runtime semantics remain outside `App.tsx`.
 
 Workspace state is renderer/workspace-session scoped, passed explicitly to each execution and returned from successful runs; it is never host/process global. Temporary `variable.get/set` semantics are unchanged. Closing a tab or creating a new workflow clears that workspace's session state.
 

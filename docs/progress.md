@@ -1,3 +1,9 @@
+# Phase 9 progress — 1.4.60 (83)
+
+Phase 9 has started on `phase9/editor-core-workspace-session`. The first delivery moves per-tab graph/input/history/view ownership into `EditorWorkspaceSession`, adds an observable React adapter, establishes an Editor Command boundary for graph mutations, and centralizes desktop/mobile plus node/group gesture semantics in `src/editor-core/gesture-policy.ts`. Visible UI is intentionally unchanged.
+
+Automated diagnostics now include two Phase 9 architectural cases (workspace-session graph/input/history/view isolation and gesture-policy contract) in addition to the four Phase 8 runtime cases. Desktop/Android with both runtimes should report 6/6. Physical touch/mouse delivery remains a host-level acceptance boundary, but the gesture meaning and thresholds are no longer duplicated in `App.tsx`.
+
 ## 2026-08-20 — Desktop export/build repair / 1.4.59 (82)
 
 - Fixed the 1.4.58 Desktop renderer build failure caused by the new `FilePlatformCapability.exportTextFile` contract not being implemented by `desktop/renderer/platform.ts`.

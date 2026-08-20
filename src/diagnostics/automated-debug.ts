@@ -3,6 +3,8 @@ import type { ExecutionResult, RuntimeId } from "../runtime";
 import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVariableNames } from "../execution-workspace";
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import { createFunctionCallNode } from "../workflow-functions";
+import { EditorSessionStore, resolveGesturePolicy } from "../editor-core";
+import { emptyWorkflowSnapshot } from "../workflow-core";
 
 export const AUTOMATED_DIAGNOSTICS_SCHEMA_VERSION = 1;
 
@@ -154,8 +156,52 @@ async function reusableFunctionCase(runtime: RuntimeId, deps: AutomatedDiagnosti
   });
 }
 
+
+async function editorSessionIsolationCase(): Promise<DiagnosticCase> {
+  return runCase("editor-session-isolation", "Editor Session 多标签状态隔离", undefined, async () => {
+    const store = new EditorSessionStore("diagnostic-a", emptyWorkflowSnapshot());
+    const a = store.get("diagnostic-a")!;
+    const b = store.ensure("diagnostic-b", emptyWorkflowSnapshot());
+    const aRuntime = a.getRuntimeState();
+    a.replaceRuntimeState({
+      ...aRuntime,
+      snapshot: { ...aRuntime.snapshot, nodes: [node("node-a", "python.print", {}, "Session A")], requirements: ["phase9-a"] },
+      input: { fileName: "phase9-a.csv", csvText: "value\n1", csvBytes: null, csvFiles: [] },
+    });
+    a.patchViewState({ primaryNodeId: "node-a", selectedNodeIds: ["node-a"], selectionMode: true, currentCanvasId: "group-a" });
+    b.patchViewState({ primaryNodeId: "node-b", selectedNodeIds: ["node-b"] });
+    a.history.push(emptyWorkflowSnapshot());
+    if (!a.isDirty() || b.isDirty()) throw new Error("标签 dirty 状态发生串扰");
+    if (b.getRuntimeState().snapshot.nodes.length || b.getRuntimeState().snapshot.requirements?.includes("phase9-a")) throw new Error("标签图状态发生串扰");
+    if (b.getRuntimeState().input?.fileName) throw new Error("标签输入文件状态发生串扰");
+    if (!a.history.canUndo || b.history.canUndo) throw new Error("标签历史记录发生串扰");
+    if (a.getViewState().primaryNodeId !== "node-a" || b.getViewState().primaryNodeId !== "node-b") throw new Error("标签选择状态没有独立保存");
+    return {
+      workspaceA: { dirty: a.isDirty(), view: a.getViewState(), nodeCount: a.getRuntimeState().snapshot.nodes.length, inputFile: a.getRuntimeState().input?.fileName ?? null, historyCanUndo: a.history.canUndo },
+      workspaceB: { dirty: b.isDirty(), view: b.getViewState(), nodeCount: b.getRuntimeState().snapshot.nodes.length, inputFile: b.getRuntimeState().input?.fileName ?? null, historyCanUndo: b.history.canUndo },
+    };
+  });
+}
+
+async function gestureContractCase(): Promise<DiagnosticCase> {
+  return runCase("editor-gesture-contract", "桌面/移动端 × 节点/组合手势契约", undefined, async () => {
+    const desktopNode = resolveGesturePolicy("desktop", "node");
+    const desktopGroup = resolveGesturePolicy("desktop", "group");
+    const mobileNode = resolveGesturePolicy("mobile", "node");
+    const mobileGroup = resolveGesturePolicy("mobile", "group");
+    const mobileCanvas = resolveGesturePolicy("mobile", "canvas");
+    if (desktopNode.doubleTap === desktopGroup.doubleTap) throw new Error("桌面节点与组合双击行为未区分");
+    if (mobileNode.doubleTap === mobileGroup.doubleTap) throw new Error("移动端节点与组合双击行为未区分");
+    if (desktopNode.longPress === mobileNode.longPress) throw new Error("桌面端与移动端节点手势未区分");
+    if (mobileCanvas.longPress !== "marquee-select" || mobileCanvas.drag !== "pan-canvas") throw new Error("移动端画布长按/拖动契约异常");
+    return { desktop: { node: desktopNode, group: desktopGroup }, mobile: { node: mobileNode, group: mobileGroup, canvas: mobileCanvas } };
+  });
+}
+
 export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependencies): Promise<AutomatedDiagnosticReport> {
   const cases: DiagnosticCase[] = [];
+  cases.push(await editorSessionIsolationCase());
+  cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));
   cases.push(await reusableFunctionCase("javascript", deps));
 

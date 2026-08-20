@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.59
+Current behavior: 1.4.60
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -23,12 +23,14 @@ The report records only application/runtime diagnostics and the names/counts of 
 
 ## Current automated cases
 
-1. JavaScript workspace variable write -> second-run read.
-2. JavaScript reusable function signature/handles + absolute-value execution.
-3. Python workspace variable write -> second-run read when a Python host exists.
-4. Python reusable function signature/handles + absolute-value execution when a Python host exists.
+1. Editor Workspace Session isolation: graph/input/history/view/dirty state from one diagnostic tab must not leak into another.
+2. Gesture-policy contract: desktop/mobile and node/group semantics must remain intentionally distinct, including mobile canvas pan/marquee behavior.
+3. JavaScript workspace variable write -> second-run read.
+4. JavaScript reusable function signature/handles + absolute-value execution.
+5. Python workspace variable write -> second-run read when a Python host exists.
+6. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its Python cases are reported as skipped. Desktop, Android and paired Remote Web should execute both runtimes.
+A plain local browser has no Python host, so its Python cases are reported as skipped. The two Editor Core cases still run because they are host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports 6/6.
 
 ## Output
 

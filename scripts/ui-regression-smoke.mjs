@@ -6,14 +6,15 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = readFileSync(path.join(root, "src/App.tsx"), "utf8");
 const css = readFileSync(path.join(root, "src/styles.css"), "utf8");
 const uiFixes = readFileSync(path.join(root, "src/ui-fixes.css"), "utf8");
+const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
 assert.match(app, /4500/, "failed\/timeout tab badge should auto-dismiss after a short diagnostic window");
 assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "failed tab badge visibility should be decoupled from persistent execution status");
 assert.match(css, /\.smb-file-manager:has\(\.smb-connection-form input:focus\) \.smb-manager-footer[\s\S]*display:\s*none\s*!important/, "Android SMB footer should hide while editing credentials to avoid keyboard overlap");
 assert.match(css, /\.settings-layout\s*\{[\s\S]*align-items:\s*stretch/, "settings grid rows should stretch paired cards to equal height");
 assert.match(css, /\.settings-layout \.settings-section\s*\{[\s\S]*height:\s*100%/, "settings cards should fill their grid row height");
-assert.match(app, /startPaletteResourceMenuHold[\s\S]*710/, "touch resource menu should use a deliberate ~0.7s stationary long-press delay");
-assert.match(app, /distance > 8[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold");
+assert.match(gestures, /resource:[\s\S]*longPressMs:\s*710[\s\S]*dragThresholdPx:\s*8/, "touch resource menu should keep its deliberate ~0.7s hold and movement threshold in Gesture Policy");
+assert.match(app, /distance > policy\.dragThresholdPx[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold through Gesture Policy");
 assert.doesNotMatch(app, /paletteDragTimer\.current = window\.setTimeout[\s\S]{0,600}280/, "touch palette drag must be movement-driven rather than a competing hold timer");
 assert.match(app, /paletteTouchTap/, "touch resource menus should have an explicit double-tap state machine instead of relying on WebView dblclick synthesis");
 assert.match(app, /now - previous\.at <= 430/, "touch double-tap should use a bounded gesture window");
@@ -27,6 +28,8 @@ assert.doesNotMatch(css, /app-shell\.native-platform \.node-palette button[\s\S]
 assert.doesNotMatch(app, /remote-server-banner__alternates|remote-server-banner__expand/, "Remote Web banner should stay compact and show only the canonical address");
 assert.match(app, /pointerMode !== "mouse"\) return/, "synthetic Android contextmenu events should not race the explicit touch gesture");
 assert.match(app, /nodeTouchDragSuppressMenuUntil/, "dragging a canvas node on touch should suppress only the synthetic drag-time context menu");
+assert.match(gestures, /node:[\s\S]*longPress:\s*"enter-multi-select"/, "mobile node hold should remain a multi-select gesture");
+assert.match(gestures, /group:[\s\S]*doubleTap:\s*"open-group"[\s\S]*longPress:\s*"enter-multi-select"/, "mobile group should preserve accepted long-press multi-select while keeping its own double-tap subflow policy");
 
 assert.match(app, /remoteBannerVisible/, "Remote Web banner should be independently collapsible without stopping the server");
 assert.match(app, /setRemoteBannerVisible\(false\)/, "Remote Web banner should support collapsing into the status bar");

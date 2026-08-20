@@ -1,3 +1,13 @@
+## 1.4.60 (83) — Phase 9 Editor Core / Workspace Session foundation — 2026-08-20
+
+- Started Phase 9 by introducing `EditorWorkspaceSession` / `EditorSessionStore` as the canonical per-tab owner of graph, reusable functions, requirements, selected input, undo/redo history, dirty/saved state and editor view state.
+- Added a `useSyncExternalStore` React adapter so React Flow renders session-owned state instead of maintaining a second `useNodesState` / `useEdgesState` graph copy in `App.tsx`.
+- Added the first Editor Command boundary for graph deletion/disconnection, moving editing semantics out of event handlers and toward `UI -> EditorCommand -> WorkspaceSession -> Workflow Core`.
+- Added an explicit gesture-policy matrix keyed by input profile and target kind (`desktop/mobile × node/group/canvas/resource/tab`). Desktop and mobile no longer share hidden timing constants, and nodes/groups no longer have to share the same long-press/double-click meaning.
+- Current intended gesture contract preserves desktop node double-click actions and group double-click subflow entry, while Android node stationary long-press enters multi-select and Android group stationary long-press remains multi-select while its double-tap enters the group/subflow. Canvas pan/marquee, resource hold and tab hold thresholds are also centralized.
+- Expanded temporary automated diagnostics with Editor Session isolation and gesture-contract cases; a fully capable Desktop/Android host should now report 6/6 rather than 4/4.
+- Build script revision: `1.4.60-dev-r36-phase9-editor-core-session`.
+
 ## 1.4.59 (82) — Desktop export/build repair — 2026-08-20
 
 - Fixed the 1.4.58 Windows Desktop TypeScript build break: the Desktop `files` PlatformAdapter now implements the required `exportTextFile` capability.

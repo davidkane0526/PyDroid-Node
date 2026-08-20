@@ -18,8 +18,8 @@ assert.ok(remotePairState > remoteBrowserDeclaration, "remote pairing state shou
 assert.ok(hostPolling > remotePairState, "host execution polling should run after remote pairing state exists");
 assert.match(app.slice(remotePairState, hostPolling + 900), /remoteBrowser && !remotePaired/, "remote browser should poll host state immediately after pairing instead of waiting for UI interaction");
 
-assert.match(app, /workspaceHistory\s*\?\?\s*new WorkflowHistory\(50\)/, "FlowEditor should consume the per-workspace history owner");
-assert.match(app, /new WorkspaceSessionStore\(/, "App should delegate per-tab runtime state to WorkspaceSessionStore");
+assert.match(app, /session={sessionStoreRef\.current\.ensure/, "FlowEditor should consume the Editor Core session owner");
+assert.match(app, /new EditorSessionStore\(/, "App should delegate per-tab runtime/view state to EditorSessionStore");
 assert.doesNotMatch(app, /const historyRef\s*=\s*useRef/, "App should not recreate the legacy history-array owner");
 assert.match(app, /writeStorage\(localStorage/, "autosave should use the guarded Workflow Core persistence wrapper");
 assert.match(app, /upstreamSubgraph\(/, "interactive alert preflight should reuse Workflow Core graph slicing");
@@ -28,7 +28,7 @@ assert.match(workflow, /validateWorkflowDocument/, "workflow parsing should pass
 assert.match(history, /class WorkflowHistory/, "Workflow Core should own history behavior");
 assert.match(session, /class WorkspaceSessionStore/, "Workflow Core should own workspace dirty-state sessions");
 assert.match(session, /histories = new Map/, "WorkspaceSessionStore should retain independent undo\/redo history across tab switches");
-assert.match(app, /initialRuntimeState\?\.input/, "workspace input selections should survive tab switches");
+assert.match(app, /const initialRuntimeState = session\.getRuntimeState\(\)/, "workspace input selections should be restored through Editor Core sessions");
 assert.doesNotMatch(app, /pydroid-flow\.tabs\.v1/, "session-only tabs should not leave dead localStorage persistence behind");
 assert.match(persistence, /QuotaExceededError/, "Workflow Core persistence should classify storage quota failures");
 assert.match(commands, /function upstreamSubgraph/, "Workflow Core should expose reusable graph slicing commands");

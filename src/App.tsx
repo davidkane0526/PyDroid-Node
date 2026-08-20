@@ -14,8 +14,6 @@ import {
   ReactFlowProvider,
   getBezierPath,
   reconnectEdge,
-  useEdgesState,
-  useNodesState,
   useReactFlow,
   useUpdateNodeInternals,
   type Connection,
@@ -61,7 +59,8 @@ import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requ
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
-import { WorkflowHistory, WorkspaceSessionStore, cloneWorkflowSnapshot, createWorkspaceRuntimeState, deleteNodesFromGraph, disconnectEdgesFromGraph, disconnectNodesFromGraph, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, workflowSnapshotSignature, writeStorage, type WorkflowSnapshot, type WorkspaceRuntimeState } from "./workflow-core";
+import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, workflowSnapshotForPersistence, workflowSnapshotSignature, writeStorage, type WorkflowSnapshot } from "./workflow-core";
+import { EditorSessionStore, gestureTargetForNodeType, resolveGesturePolicy, useEditorWorkspaceSession, type EditorWorkspaceSession } from "./editor-core";
 import { createFunctionCallNode, createFunctionDefinitionFromGroup, functionCallCount, materializeFunctionAsGroup, synchronizeFunctionDefinitionCalls, synchronizeFunctionGraphCalls } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -731,41 +730,46 @@ function isAgentValue(value: unknown): value is string | number | boolean | null
   return value === null || ["string", "number", "boolean"].includes(typeof value);
 }
 
-function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntimeState, workspaceHistory, onRuntimeStateChange, onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { tabId?: string; tabName?: string; initialRuntimeState?: WorkspaceRuntimeState; workspaceHistory?: WorkflowHistory; onRuntimeStateChange: (tabId: string, state: WorkspaceRuntimeState) => void; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
+function FlowEditor({ session, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
+  const tabId = session.id;
+  const initialRuntimeState = session.getRuntimeState();
   const autosaveKey = `${AUTOSAVE_KEY}.${tabId}`;
-  const startingSnapshot = initialRuntimeState?.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
+  const startingSnapshot = initialRuntimeState.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
   const restoredExecutionStatus = getExecutionStatus(tabId);
   const restoredExecutionResult = getWorkspaceExecutionResult(tabId);
   const restoredCompletedNodes = new Set(restoredExecutionResult?.executionOrder ?? (restoredExecutionResult ? startingSnapshot.nodes.map((node) => node.id) : []));
-  const startingNodes = startingSnapshot.nodes.map((node) => ({
-    ...node,
-    data: {
-      ...node.data,
-      status: ["queued", "running", "cancelling"].includes(restoredExecutionStatus.phase)
-        ? "running" as const
-        : restoredExecutionResult && restoredCompletedNodes.has(node.id)
-          ? "success" as const
-          : "idle" as const,
-    },
-  }));
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
-  const [nodes, setNodes, onNodesChange] = useNodesState<WorkflowNode>(startingNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(startingSnapshot.edges);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [selectionMode, setSelectionMode] = useState(false);
+  const {
+    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, setFunctions, requirements, setRequirements,
+    input, setFileName, setCsvText, setCsvBytes, setCsvFiles,
+    primaryNodeId: selectedId, setPrimaryNodeId: setSelectedId,
+    selectedNodeIds: selectedIds, setSelectedNodeIds: setSelectedIds,
+    selectionMode, setSelectionMode, currentCanvasId, setCurrentCanvasId,
+  } = useEditorWorkspaceSession(session);
+  const { fileName, csvText, csvBytes, csvFiles } = input;
   const [touchMarquee, setTouchMarquee] = useState<{ pointerId: number; startX: number; startY: number; currentX: number; currentY: number } | null>(null);
   const [pointerMode, setPointerMode] = useState<"mouse" | "touch">(() => window.matchMedia("(pointer: coarse)").matches ? "touch" : "mouse");
   const [paletteDragPreview, setPaletteDragPreview] = useState<{ kind: PaletteResource["kind"]; label: string; x: number; y: number; overCanvas: boolean } | null>(null);
-  const [currentCanvasId, setCurrentCanvasId] = useState<string | null>(null);
   const [message, setMessage] = useState(() => ["queued", "running", "cancelling"].includes(restoredExecutionStatus.phase) ? "当前工作区正在后台执行" : restoredExecutionResult ? `执行完成 · ${restoredExecutionResult.runtimeId === "javascript" ? "JS" : "Python"}：${restoredExecutionResult.preview.totalRows} 行 × ${restoredExecutionResult.preview.totalColumns} 列` : "尚未执行");
-  const [fileName, setFileName] = useState<string | null>(initialRuntimeState?.input?.fileName ?? null);
-  const [csvText, setCsvText] = useState(initialRuntimeState?.input?.csvText ?? "");
-  const [csvBytes, setCsvBytes] = useState<Uint8Array | null>(initialRuntimeState?.input?.csvBytes ?? null);
-  const [csvFiles, setCsvFiles] = useState<Array<{ name: string; bytes: Uint8Array }>>(initialRuntimeState?.input?.csvFiles ?? []);
   const [result, setResult] = useState<ExecutionResult | null>(restoredExecutionResult);
   const clearExecutionResult = () => { setResult(null); clearWorkspaceExecutionResult(tabId); };
+  const restoredStatusApplied = useRef(false);
+  useEffect(() => {
+    if (restoredStatusApplied.current) return;
+    restoredStatusApplied.current = true;
+    setNodes((current) => current.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        status: ["queued", "running", "cancelling"].includes(restoredExecutionStatus.phase)
+          ? "running"
+          : restoredExecutionResult && restoredCompletedNodes.has(node.id)
+            ? "success"
+            : node.data.status === "error" ? "error" : "idle",
+      },
+    })));
+  }, [restoredExecutionResult, restoredExecutionStatus.phase, setNodes]);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
   const [flowMenu, setFlowMenu] = useState<FlowMenuState | null>(null);
@@ -798,7 +802,6 @@ function FlowEditor({ tabId = "default", tabName = "工作流 1", initialRuntime
   const [hostTaskMenuOpen, setHostTaskMenuOpen] = useState(false);
   const [newWorkflowDialogOpen, setNewWorkflowDialogOpen] = useState(false);
   const [replaceCurrentUnsavedOpen, setReplaceCurrentUnsavedOpen] = useState(false);
-  const savedSignatureRef = useRef(initialRuntimeState?.savedSignature ?? workflowSnapshotSignature(startingSnapshot));
   const [confirmDialog, setConfirmDialog] = useState<{ title: string; message: string; confirmLabel?: string; danger?: boolean; resolve: (confirmed: boolean) => void } | null>(null);
   const [textPromptDialog, setTextPromptDialog] = useState<{ title: string; label: string; value: string; confirmLabel?: string; resolve: (value: string | null) => void } | null>(null);
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
@@ -863,8 +866,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const [notebookRunningCell, setNotebookRunningCell] = useState<number | "all" | null>(null);
   const [packageManagerOpen, setPackageManagerOpen] = useState(false);
   const [packageRequirement, setPackageRequirement] = useState("");
-  const [requirements, setRequirements] = useState<string[]>(startingSnapshot.requirements ?? []);
-  const [functions, setFunctions] = useState<WorkflowFunctionDefinition[]>(startingSnapshot.functions ?? []);
   const [workspaceVariableRevision, setWorkspaceVariableRevision] = useState(0);
   const [pythonEnvironment, setPythonEnvironment] = useState<PythonEnvironment | null>(null);
   const [environmentLoading, setEnvironmentLoading] = useState(false);
@@ -928,7 +929,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const templateInput = useRef<HTMLInputElement>(null);
   const settingsInput = useRef<HTMLInputElement>(null);
   const longPressTimer = useRef<number | null>(null);
-  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const longPressOrigin = useRef<{ x: number; y: number; thresholdPx: number } | null>(null);
   const touchMarqueeTimer = useRef<number | null>(null);
   const touchMarqueeCandidate = useRef<{
     pointerId: number;
@@ -990,7 +991,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const palettePointerDragHandled = useRef(false);
   const suppressNextNodeClick = useRef(false);
   const nextNodeNumber = useRef(1);
-  const historyManager = useRef(workspaceHistory ?? new WorkflowHistory(50));
+  const historyManager = useRef(session.history);
   const [, setHistoryRevision] = useState(0);
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
@@ -1073,32 +1074,34 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   }, [selectedIds, setNodes]);
 
   const deleteNodes = useCallback((initialIds: Iterable<string>) => {
-    const next = deleteNodesFromGraph(nodes, edges, initialIds);
-    if (!next.removedIds.size) return;
-    pushHistory();
-    setNodes(next.nodes);
-    setEdges(next.edges);
+    const nodeIds = [...new Set(initialIds)];
+    const result = session.applyGraphCommand({ type: "delete-nodes", nodeIds });
+    if (!result.changed) return;
+    setHistoryRevision((value) => value + 1);
+    const remaining = new Set(result.snapshot.nodes.map((node) => node.id));
     setSelectedId(null);
-    setSelectedIds((current) => current.filter((id) => !next.removedIds.has(id)));
+    setSelectedIds((current) => current.filter((id) => remaining.has(id)));
     clearExecutionResult();
-    setMessage(`已删除 ${next.removedIds.size} 个节点及其连线`);
-  }, [edges, nodes, setEdges, setNodes]);
+    setMessage(`已删除 ${result.affectedCount} 个节点及其连线`);
+  }, [session, setSelectedId, setSelectedIds]);
   const disconnectNodes = useCallback((nodeIds: Iterable<string>) => {
-    const ids = new Set(nodeIds);
-    if (!ids.size) return;
-    pushHistory();
-    setEdges((current) => disconnectNodesFromGraph(current, ids));
+    const ids = [...new Set(nodeIds)];
+    if (!ids.length) return;
+    const result = session.applyGraphCommand({ type: "disconnect-nodes", nodeIds: ids });
+    if (!result.changed) return;
+    setHistoryRevision((value) => value + 1);
     clearExecutionResult();
-    setMessage(`已断开 ${ids.size} 个选中节点的连线`);
-  }, [setEdges]);
+    setMessage(`已断开 ${ids.length} 个选中节点的连线`);
+  }, [session]);
   const disconnectEdges = useCallback((edgeIds: Iterable<string>) => {
-    const ids = new Set(edgeIds);
-    if (!ids.size) return;
-    pushHistory();
-    setEdges((current) => disconnectEdgesFromGraph(current, ids));
+    const ids = [...new Set(edgeIds)];
+    if (!ids.length) return;
+    const result = session.applyGraphCommand({ type: "disconnect-edges", edgeIds: ids });
+    if (!result.changed) return;
+    setHistoryRevision((value) => value + 1);
     clearExecutionResult();
-    setMessage(`已断开 ${ids.size} 条连线`);
-  }, [setEdges]);
+    setMessage(`已断开 ${result.affectedCount} 条连线`);
+  }, [session]);
   const canvasTrail = useMemo(() => {
     const trail: WorkflowNode[] = [];
     let cursor = currentCanvasId;
@@ -1175,13 +1178,6 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     return () => window.clearTimeout(timer);
   }, [autosaveKey, edges, functions, nodes, requirements]);
 
-  useEffect(() => {
-    onRuntimeStateChange(tabId, {
-      snapshot: { nodes, edges, functions, requirements },
-      savedSignature: savedSignatureRef.current,
-      input: { fileName, csvText, csvBytes, csvFiles },
-    });
-  }, [csvBytes, csvFiles, csvText, edges, fileName, functions, nodes, onRuntimeStateChange, requirements, tabId]);
 
   useEffect(() => {
     localStorage.setItem(PACKAGE_REQUIREMENTS_KEY, JSON.stringify(requirements));
@@ -1676,23 +1672,36 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const card = target.closest<HTMLElement>("[data-workflow-node-id]");
     const nodeId = card?.dataset.workflowNodeId;
 
-    // Node long-press retains the existing multi-select affordance.
+    // Node and group touch gestures intentionally use different policies. A normal node hold enters
+    // multi-select, while a group hold opens group actions. Both remain distinct from drag.
     if (nodeId) {
-      if (selectionMode) return;
+      const touchedNode = nodes.find((node) => node.id === nodeId);
+      if (!touchedNode) return;
+      const targetKind = gestureTargetForNodeType(touchedNode.data.nodeType);
+      const policy = resolveGesturePolicy("mobile", targetKind);
+      if (selectionMode && policy.longPress === "enter-multi-select") return;
       clearLongPress();
       clearTouchMarqueeCandidate(true);
-      longPressOrigin.current = { x: event.clientX, y: event.clientY };
+      longPressOrigin.current = { x: event.clientX, y: event.clientY, thresholdPx: policy.dragThresholdPx };
+      if (policy.longPressMs === null || policy.longPress === "none") return;
       longPressTimer.current = window.setTimeout(() => {
         suppressNextNodeClick.current = true;
-        setSelectionMode(true);
-        setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
-        setSelectedId(nodeId);
-        setSelectedIds([nodeId]);
-        setContextMenu(null);
-        setMessage("已进入多选：点按节点勾选，完成后点击“组合”");
-        navigator.vibrate?.(30);
+        if (policy.longPress === "enter-multi-select") {
+          setSelectionMode(true);
+          setNodes((current) => current.map((node) => ({ ...node, selected: node.id === nodeId })));
+          setSelectedId(nodeId);
+          setSelectedIds([nodeId]);
+          setContextMenu(null);
+          setMessage("已进入多选：点按节点勾选，完成后点击“组合”");
+          navigator.vibrate?.(30);
+        } else if (policy.longPress === "open-context-menu") {
+          setSelectionMode(false);
+          openNodeMenu(nodeId, event.clientX, event.clientY);
+          setMessage("组合操作已打开；拖动组合仍用于移动");
+          navigator.vibrate?.(22);
+        }
         clearLongPress();
-      }, 550);
+      }, policy.longPressMs);
       return;
     }
 
@@ -1715,6 +1724,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       viewport: reactFlow.getViewport(),
     };
     touchMarqueeCandidate.current = candidate;
+    const canvasGesture = resolveGesturePolicy("mobile", "canvas");
     touchMarqueeTimer.current = window.setTimeout(() => {
       const current = touchMarqueeCandidate.current;
       if (!current || current.pointerId !== event.pointerId || current.moved || current.panning || touchPinch.current) return;
@@ -1729,7 +1739,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       setMessage("框选已启动：拖动手指框选节点；快速拖动画布仍用于平移");
       navigator.vibrate?.(22);
       touchMarqueeTimer.current = null;
-    }, 520);
+    }, canvasGesture.longPressMs ?? 520);
   };
 
   const onCanvasPointerMove = (event: ReactPointerEvent<HTMLElement>) => {
@@ -1762,7 +1772,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
 
     const origin = longPressOrigin.current;
-    if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 10) clearLongPress();
+    if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > origin.thresholdPx) clearLongPress();
 
     const active = touchMarquee;
     if (active && active.pointerId === event.pointerId) {
@@ -1789,7 +1799,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
         return;
       }
 
-      if (!candidate.panning && distance > 10) {
+      if (!candidate.panning && distance > resolveGesturePolicy("mobile", "canvas").dragThresholdPx) {
         candidate.moved = true;
         candidate.panning = true;
         cancelTouchMarqueeHold();
@@ -1971,6 +1981,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     if (event.pointerType === "mouse") return;
     clearPaletteResourceMenuHold();
     paletteResourceMenuHold.current = { pointerId: event.pointerId, resource, startX: event.clientX, startY: event.clientY, moved: false };
+    const policy = resolveGesturePolicy("mobile", "resource");
     paletteResourceMenuTimer.current = window.setTimeout(() => {
       const hold = paletteResourceMenuHold.current;
       const drag = touchPaletteDrag.current;
@@ -1986,7 +1997,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
       paletteResourceMenuTimer.current = null;
       paletteResourceMenuHold.current = null;
       navigator.vibrate?.(12);
-    }, 710);
+    }, policy.longPressMs ?? 710);
   };
 
   const onPaletteResourceContextMenu = (event: ReactMouseEvent<HTMLButtonElement>, resource: PaletteResource) => {
@@ -2051,18 +2062,15 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     const drag = touchPaletteDrag.current;
     if (!drag || drag.pointerId !== event.pointerId) return;
     const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
-    if (distance > 8) {
+    const policy = resolveGesturePolicy(drag.pointerType === "mouse" ? "desktop" : "mobile", "resource");
+    if (distance > policy.dragThresholdPx) {
       drag.moved = true;
       const hold = paletteResourceMenuHold.current;
       if (hold?.pointerId === event.pointerId) hold.moved = true;
       clearPaletteResourceMenuHold();
     }
     if (!drag.armed) {
-      if (drag.pointerType === "mouse") {
-        if (distance < 4) return;
-      } else if (distance < 8) {
-        return;
-      }
+      if (distance < policy.dragThresholdPx) return;
       // A deliberate move wins immediately over the menu hold. Touch users no longer have to
       // keep perfectly still until the drag-arm timer expires before they can start dragging.
       if (paletteDragTimer.current !== null) window.clearTimeout(paletteDragTimer.current);
@@ -2889,8 +2897,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   };
 
   const currentWorkflowSnapshot = () => ({ nodes, edges, functions, requirements } satisfies WorkflowSnapshot);
-  const currentWorkflowSignature = () => workflowSnapshotSignature(currentWorkflowSnapshot());
-  const hasUnsavedWorkflowChanges = () => currentWorkflowSignature() !== savedSignatureRef.current;
+  const hasUnsavedWorkflowChanges = () => session.isDirty();
 
   const clearCurrentWorkflow = () => {
     pushHistory();
@@ -2912,8 +2919,8 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     setExecutionError(null);
     setErrorDetailOpen(false);
     const blankSnapshot: WorkflowSnapshot = { nodes: [], edges: [], functions: [], requirements: [] };
-    savedSignatureRef.current = workflowSnapshotSignature(blankSnapshot);
-    onRuntimeStateChange(tabId, { snapshot: blankSnapshot, savedSignature: savedSignatureRef.current, input: { fileName, csvText, csvBytes, csvFiles } });
+    const savedSignature = workflowSnapshotSignature(blankSnapshot);
+    session.replaceRuntimeState({ snapshot: blankSnapshot, savedSignature, input: { fileName, csvText, csvBytes, csvFiles } });
     setMessage("已在当前标签页新建空白流程");
   };
 
@@ -2974,8 +2981,7 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
   const saveWorkflow = () => {
     const snapshot = currentWorkflowSnapshot();
     persistWorkflowSnapshot(snapshot, tabName);
-    savedSignatureRef.current = workflowSnapshotSignature(snapshot);
-    onRuntimeStateChange(tabId, { snapshot, savedSignature: savedSignatureRef.current, input: { fileName, csvText, csvBytes, csvFiles } });
+    session.markSaved(workflowSnapshotSignature(snapshot));
     setFlowLibrary(loadFlowLibrary());
     setMessage(`工作流“${tabName}”已保存`);
   };
@@ -3912,7 +3918,14 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             defaultEdgeOptions={{ type: "default" }}
             isValidConnection={isValidConnection}
             onError={(code, detail) => setMessage(`画布连线提示 ${code}：${detail}`)}
-            onNodeDragStart={() => { if (pointerMode === "touch") nodeTouchDragSuppressMenuUntil.current = Date.now() + 900; setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); pushHistory(); }}
+            onNodeDragStart={(_event, node) => {
+              if (pointerMode === "touch") {
+                const targetKind = gestureTargetForNodeType(node.data.nodeType);
+                nodeTouchDragSuppressMenuUntil.current = Date.now() + resolveGesturePolicy("mobile", targetKind).suppressContextAfterDragMs;
+              }
+              clearLongPress();
+              setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); pushHistory();
+            }}
             onNodeDragStop={onNodeDragStop}
             onNodeClick={(_, node) => {
               if (suppressNextNodeClick.current) { suppressNextNodeClick.current = false; return; }
@@ -3920,17 +3933,19 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
             }}
             onNodeDoubleClick={(event, node) => {
               event.preventDefault();
-              if (node.data.nodeType === "workflow.group") { openSubflowGroup(node.id); return; }
-              openNodeMenu(node.id, event.clientX, event.clientY);
+              const profile = pointerMode === "mouse" && finePointer ? "desktop" : "mobile";
+              const action = resolveGesturePolicy(profile, gestureTargetForNodeType(node.data.nodeType)).doubleTap;
+              if (action === "open-group") { openSubflowGroup(node.id); return; }
+              if (action === "open-context-menu") openNodeMenu(node.id, event.clientX, event.clientY);
             }}
             onSelectionChange={onSelectionChange}
             onNodeContextMenu={(event, node) => {
               event.preventDefault();
-              // Keep stationary long-press menus on touch, but ignore the synthetic contextmenu
-              // emitted while a node is already being dragged.
-              if (pointerMode === "touch" && Date.now() < nodeTouchDragSuppressMenuUntil.current) return;
-              if (finePointer && node.selected && selectedIds.length > 1) openSelectionMenu(event.clientX, event.clientY);
-              else openNodeMenu(node.id, event.clientX, event.clientY);
+              const profile = pointerMode === "mouse" && finePointer ? "desktop" : "mobile";
+              const policy = resolveGesturePolicy(profile, gestureTargetForNodeType(node.data.nodeType));
+              if (profile === "mobile" || policy.contextMenu === "none" || Date.now() < nodeTouchDragSuppressMenuUntil.current) return;
+              if (node.selected && selectedIds.length > 1) openSelectionMenu(event.clientX, event.clientY);
+              else if (policy.contextMenu === "open-context-menu") openNodeMenu(node.id, event.clientX, event.clientY);
             }}
             onSelectionContextMenu={(event, selected) => {
               event.preventDefault();
@@ -4284,6 +4299,7 @@ function TabBar() {
   };
 
   const startLongPress = (id: string, x: number, y: number, element: HTMLElement) => {
+    const policy = resolveGesturePolicy("mobile", "tab");
     longPressHandled.current = false;
     clearLongPress();
     tabLongPressOrigin.current = { x, y };
@@ -4294,7 +4310,7 @@ function TabBar() {
       navigator.vibrate?.(18);
       longPressTimer.current = null;
       tabLongPressOrigin.current = null;
-    }, 500);
+    }, policy.longPressMs ?? 500);
   };
 
   useEffect(() => () => {
@@ -4382,7 +4398,7 @@ function TabBar() {
               onPointerMove={(event) => {
                 if (event.pointerType !== "touch") return;
                 const origin = tabLongPressOrigin.current;
-                if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > 9) clearLongPress();
+                if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) > resolveGesturePolicy("mobile", "tab").dragThresholdPx) clearLongPress();
               }}
               onPointerUp={clearLongPress}
               onPointerLeave={clearLongPress}
@@ -4484,10 +4500,9 @@ function MultiTabWorkspace() {
   }, [resolvedTheme]);
   // A new app session always starts from one predictable, empty workspace.
   const emptySnapshot = emptyWorkflowSnapshot();
-  const emptyRuntimeState = createWorkspaceRuntimeState(emptySnapshot);
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
   const [activeId, setActiveId] = useState<string>("default");
-  const sessionStoreRef = useRef(new WorkspaceSessionStore("default", emptySnapshot));
+  const sessionStoreRef = useRef(new EditorSessionStore("default", emptySnapshot));
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
   const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus("default").phase });
   const [completedIndicators, setCompletedIndicators] = useState<Record<string, boolean>>({});
@@ -4576,10 +4591,6 @@ function MultiTabWorkspace() {
     setCompletedIndicators((current) => current[id] ? { ...current, [id]: false } : current);
   }, []);
 
-  const updateRuntimeState = useCallback((tabId: string, state: WorkspaceRuntimeState) => {
-    sessionStoreRef.current.set(tabId, state);
-  }, []);
-
   const addTab = useCallback(() => {
     const id = `tab-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     setTabs((current) => {
@@ -4620,22 +4631,22 @@ function MultiTabWorkspace() {
 
   const closeTab = useCallback((id: string) => {
     if (tabs.length <= 1) return;
-    const state = sessionStoreRef.current.get(id) ?? emptyRuntimeState;
-    if (workflowSnapshotSignature(state.snapshot) === state.savedSignature) {
+    const session = sessionStoreRef.current.get(id);
+    if (!session || !session.isDirty()) {
       performCloseTab(id);
       return;
     }
     setPendingCloseTabId(id);
-  }, [emptyRuntimeState, performCloseTab, tabs.length]);
+  }, [performCloseTab, tabs.length]);
 
   const savePendingTabAndClose = useCallback(() => {
     if (!pendingCloseTabId) return;
     const tab = tabs.find((item) => item.id === pendingCloseTabId);
-    const state = sessionStoreRef.current.get(pendingCloseTabId);
-    if (!tab || !state) { setPendingCloseTabId(null); return; }
+    const session = sessionStoreRef.current.get(pendingCloseTabId);
+    if (!tab || !session) { setPendingCloseTabId(null); return; }
+    const state = session.getRuntimeState();
     persistWorkflowSnapshot(state.snapshot, tab.name);
-    const savedSignature = workflowSnapshotSignature(state.snapshot);
-    sessionStoreRef.current.set(pendingCloseTabId, { ...state, savedSignature });
+    session.markSaved(workflowSnapshotSignature(state.snapshot));
     const id = pendingCloseTabId;
     setPendingCloseTabId(null);
     performCloseTab(id);
@@ -4671,7 +4682,7 @@ function MultiTabWorkspace() {
     <TabsContext.Provider value={api}>
       <div className="workspace-shell" data-theme={resolvedTheme}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor tabId={activeTab.id} tabName={activeTab.name} initialRuntimeState={sessionStoreRef.current.get(activeTab.id)} workspaceHistory={sessionStoreRef.current.history(activeTab.id)} onRuntimeStateChange={updateRuntimeState} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
         <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>

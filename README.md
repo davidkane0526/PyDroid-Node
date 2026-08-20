@@ -1,10 +1,6 @@
-> **1.4.45 (68) · dev Phase 7**：Desktop 与 Android Host 已完成 service/IPC/binding 分域；新增 30 项跨平台 Host binding contract；Windows 构建器开始按 Network / Paths / Node / Java / Android / Python / Packaging 拆为 PowerShell 模块。Phase 1–6 均已冻结。
-
-> **本次 UI 修复**：Remote/Web 标签被宿主终止后红色错误点会自动消退；Android SMB 输入凭据时避免软键盘挤乱底部操作按钮；设置页双列功能卡按行统一底边。
-
-当前 `dev` Android 调试构建版本：`1.4.45 (68)`；稳定 `main` 仍保留 `1.4.27 (50)` LAN 基线。Android 1.4.44 Host 分域已经过真机宿主功能验收；1.4.45 因修改 Windows Build Tool，在 Phase 7 冻结前还需要一次真实 Windows `Build PyDroid GUI.cmd` 构建验证。详见 [docs/development-handoff.md](docs/development-handoff.md)、[docs/host-contract.md](docs/host-contract.md) 与 [BUILD_TOOLCHAIN.md](BUILD_TOOLCHAIN.md)。
-
 # PyDroid Flow
+
+> **当前开发版本：1.4.60 (83) · Phase 9 Editor Core & Workspace Session**。Phase 8 已在 1.4.59 完成 Windows/Android 实机验收并冻结；当前分支将每标签页编辑状态迁入 `EditorWorkspaceSession`，并明确区分 Desktop/Mobile 与 Node/Group 的手势策略。详见 [docs/phase9-editor-core-workspace-session.md](docs/phase9-editor-core-workspace-session.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -60,7 +56,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 - 统一 Runtime Adapter：Python 保持完整兼容，内置 JavaScript 引擎可执行兼容节点并输出交互式 ECharts 图表
 - 响应式 Web 界面
 - AI Agent：OpenAI Responses / 兼容接口的结构化工具调用、逐项权限、确认预览与本地审计
-- 节点抽屉分为“节点 / 组合 / 流程”；流程可保存到库，并扫描用户选择的 Android 文件夹
+- 资源栏分为“节点 / 函数 / 组合 / 流程”；函数、组合和流程保留各自资源语义，并扫描用户选择的 Android 文件夹
 - 自定义交互节点：弹窗提示、文本/数值/下拉选择输入；可导出为可运行的 Jupyter Python 占位代码
 
 ## 平台进度
@@ -68,7 +64,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 能力 | Android | Windows 桌面端 |
 | --- | --- | --- |
 | 节点编辑器与参数编辑 | 已实现 | 已实现，共用渲染层 |
-| 节点快捷操作与多选 | 双击打开节点菜单；长按进入勾选多选 | 右键/双击打开节点菜单；鼠标拖框多选 |
+| 节点/组合快捷操作与多选 | 节点静止长按进入多选；组合静止长按同样进入多选、双击进入子流程；画布长按框选/快速拖动平移 | 节点双击/右键打开节点操作；组合双击进入子流程、右键打开组合操作；鼠标拖框多选 |
 | 类型化端口与连线校验 | 已实现；阻止类型冲突及环路 | 已实现，共用渲染层 |
 | 自定义 Python 函数节点 | 已实现基础版；由函数类型标注生成端口和参数 | 已实现，共用 Python 核心 |
 | 工作流导入/导出与恢复 | 已实现 | 已实现，共用渲染层 |
