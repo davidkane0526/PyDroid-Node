@@ -1,3 +1,13 @@
+## 1.4.74 (97) — Phase 10 Host lifecycle recovery — 2026-08-21
+
+- Keeps the user-validated 1.4.73 Remote Web/LAN behavior frozen: fixed TCP 8765, existing UI copy, LAN HTTP readiness, SSDP/UPnP/mDNS protocol semantics and PIN/token behavior are unchanged.
+- Fixed a real Desktop lifecycle race where `stop()` issued during an in-flight `start()` could return before the stale start committed, allowing TCP 8765 to resurrect behind a stopped UI state. Start/stop now share a generation barrier; restart requested during stop waits for the stop transaction to finish.
+- Added equivalent Android Remote host generation/future ownership so a cancelled queued start cannot revive the server after stop. Concurrent Android starts share one transaction.
+- Desktop and Android LAN discovery now recover a transient SSDP or mDNS startup failure independently on an unchanged network, rate-limited to 15 seconds, without restarting the healthy sibling protocol. Recovery attempts are observable in host status.
+- A running Desktop host now returns a freshly measured connection/readiness snapshot instead of its startup-time object. In-app host diagnostics query the host even when the UI already considers the service running, so later discovery recovery/failure cannot be hidden by stale React state.
+- Added executable Desktop and Android host lifecycle regression coverage for start/stop races, stop barriers, idempotent stop and safe restart. No UI text, layout, gesture, Workflow schema or Runtime semantic changes are introduced.
+- Build script revision: `1.4.74-dev-r50-phase10-host-lifecycle-recovery`.
+
 ## 1.4.73 (96) — Phase 10 Remote startup reliability correction — 2026-08-21
 
 - Corrected two regressions exposed by the real 1.4.72 Desktop/Android builds. Desktop no longer blocks Remote Web startup on synchronous Windows network-profile/firewall PowerShell probing, and Android no longer uses `HttpURLConnection` for its loopback readiness probe.

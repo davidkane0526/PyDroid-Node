@@ -17,6 +17,7 @@ export type RemoteDiscoveryStatus = {
   interfaces: Array<{ name: string; address: string; defaultRoute?: boolean }>;
   ssdp: "running" | "failed" | "unavailable" | string;
   mdns: "running" | "failed" | "unavailable" | string;
+  recoveryAttempts?: number;
 };
 export type RemoteFirewallStatus = {
   applicable: boolean;

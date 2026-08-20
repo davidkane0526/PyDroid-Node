@@ -72,6 +72,8 @@ function normalizeClientAddress(request) {
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
   let remoteStartPromise = null;
+  let remoteStopPromise = null;
+  let remoteLifecycleGeneration = 0;
   let remotePin = null;
   let lanDiscovery = null;
   const accessGuard = new RemoteAccessGuard();
@@ -106,14 +108,55 @@ function createRemoteServerService({ pythonService, log }) {
     return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
   }
 
-  function start(requirePin) {
-    if (remoteServer) return Promise.resolve(remoteServer.__info);
-    if (remoteStartPromise) return remoteStartPromise;
-    remoteStartPromise = startOnce(requirePin).finally(() => { remoteStartPromise = null; });
-    return remoteStartPromise;
+  async function currentConnectionInfo(server, port = LAN_WEB_PORT) {
+    const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
+    const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
+    const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
+    const url = `http://${address}:${port}/`;
+    const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
+    let loopback = false;
+    try {
+      const health = await requestText(port, "/health");
+      loopback = health.status === 200 && health.body.trim() === "OK";
+    } catch {}
+    const lanHealth = [];
+    for (const item of discoveryState.interfaces ?? []) {
+      try {
+        const health = await requestText(port, "/health", item.address);
+        lanHealth.push({ address: item.address, ok: health.status === 200 && health.body.trim() === "OK" });
+      } catch (error) {
+        lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
+      }
+    }
+    const discovery = {
+      interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
+      ssdp: discoveryState.ssdp ?? "unavailable",
+      mdns: discoveryState.mdns ?? "unavailable",
+      recoveryAttempts: Number(discoveryState.recoveryAttempts ?? 0),
+    };
+    const readiness = {
+      loopback,
+      lanHttp: lanHealth,
+      allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
+      discoveryReady: discovery.ssdp === "running" && discovery.mdns === "running",
+    };
+    const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery, readiness };
+    if (server) server.__info = info;
+    return info;
   }
 
-  async function startOnce(requirePin) {
+  function start(requirePin) {
+    if (remoteStopPromise) return remoteStopPromise.then(() => start(requirePin));
+    if (remoteServer) return currentConnectionInfo(remoteServer);
+    if (remoteStartPromise) return remoteStartPromise;
+    const generation = remoteLifecycleGeneration;
+    const operation = startOnce(requirePin, generation);
+    const tracked = operation.finally(() => { if (remoteStartPromise === tracked) remoteStartPromise = null; });
+    remoteStartPromise = tracked;
+    return tracked;
+  }
+
+  async function startOnce(requirePin, generation) {
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
     accessGuard.reset();
@@ -219,6 +262,17 @@ function createRemoteServerService({ pythonService, log }) {
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
 
+    const ensureCurrentGeneration = async (server) => {
+      if (generation === remoteLifecycleGeneration) return true;
+      try { lanDiscovery?.stop(); } catch {}
+      lanDiscovery = null;
+      remoteTokens.clear();
+      accessGuard.reset();
+      remotePin = null;
+      if (server.listening) await new Promise((resolve) => server.close(() => resolve()));
+      return false;
+    };
+
     return new Promise((resolve, reject) => {
       const onError = (error) => {
         if (error?.code === "EADDRINUSE") return reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用，请关闭占用程序后重试`));
@@ -234,6 +288,7 @@ function createRemoteServerService({ pythonService, log }) {
           try { server.close(); } catch {}
           return reject(error);
         }
+        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
         try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
           const discovery = lanDiscovery.start({ port });
@@ -244,46 +299,42 @@ function createRemoteServerService({ pythonService, log }) {
           lanDiscovery = null;
           log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
         }
-        const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
-        const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
-        const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
-        const url = `http://${address}:${port}/`;
-        const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
-        const lanHealth = [];
-        for (const item of discoveryState.interfaces ?? []) {
-          try {
-            const health = await requestText(port, "/health", item.address);
-            lanHealth.push({ address: item.address, ok: health.status === 200 && health.body.trim() === "OK" });
-          } catch (error) {
-            lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
-          }
+        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
+        const info = await currentConnectionInfo(server, port);
+        if (!info.readiness.loopback) {
+          try { server.close(); } catch {}
+          return reject(new Error("Remote Web /health readiness check failed"));
         }
-        const discovery = {
-          interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
-          ssdp: discoveryState.ssdp ?? "unavailable",
-          mdns: discoveryState.mdns ?? "unavailable",
-        };
-        const readiness = {
-          loopback: true,
-          lanHttp: lanHealth,
-          allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
-          discoveryReady: discovery.ssdp === "running" && discovery.mdns === "running",
-        };
-        const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery, readiness };
-        server.__info = info;
+        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
         remoteServer = server;
+        server.on("error", (error) => log(`[Remote Web] Server error: ${error?.message || error}`));
+        server.once("close", () => {
+          if (remoteServer !== server) return;
+          remoteServer = null;
+          try { lanDiscovery?.stop(); } catch {}
+          lanDiscovery = null;
+          remoteTokens.clear();
+          accessGuard.reset();
+          remotePin = null;
+          log("[Remote Web] Server closed; lifecycle state reset");
+        });
         resolve(info);
       });
     });
   }
 
-  function stop() {
+  function stopActiveHost() {
     for (const executionId of remoteExecutionIds) pythonService.cancel(executionId);
     remoteExecutionIds.clear();
     const hadDiscovery = Boolean(lanDiscovery);
     lanDiscovery?.stop();
     lanDiscovery = null;
-    if (!remoteServer) return hadDiscovery ? new Promise((resolve) => setTimeout(resolve, 80)) : Promise.resolve();
+    if (!remoteServer) {
+      remoteTokens.clear();
+      accessGuard.reset();
+      remotePin = null;
+      return hadDiscovery ? new Promise((resolve) => setTimeout(resolve, 80)) : Promise.resolve();
+    }
     const server = remoteServer;
     remoteServer = null;
     remoteTokens.clear();
@@ -294,7 +345,27 @@ function createRemoteServerService({ pythonService, log }) {
     }));
   }
 
-  return { start, stop };
+  function stop() {
+    remoteLifecycleGeneration += 1;
+    if (remoteStopPromise) return remoteStopPromise;
+    const pendingStart = remoteStartPromise;
+    const operation = (async () => {
+      if (pendingStart) { try { await pendingStart; } catch {} }
+      await stopActiveHost();
+    })();
+    const tracked = operation.finally(() => { if (remoteStopPromise === tracked) remoteStopPromise = null; });
+    remoteStopPromise = tracked;
+    return tracked;
+  }
+
+  function lifecycleState() {
+    if (remoteStopPromise) return "stopping";
+    if (remoteStartPromise) return "starting";
+    if (remoteServer) return "running";
+    return "stopped";
+  }
+
+  return { start, stop, lifecycleState };
 }
 
 module.exports = { createRemoteServerService, normalizeClientAddress, REMOTE_SECURITY_POLICY };

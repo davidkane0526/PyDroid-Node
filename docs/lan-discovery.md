@@ -70,3 +70,8 @@ Phase 10 / 1.4.70 adds `pnpm test:lan-discovery`. The gate verifies Desktop pack
 A discovery subsystem is not `running` merely because `socket.bind()` was called. Desktop SSDP and mDNS transition `starting -> running` only after the UDP socket bind callback completes and at least one usable LAN interface successfully joins its multicast group. Remote Web startup also probes `/health` through every advertised LAN IPv4. The primary advertised address prefers the Windows default-route interface. Multiple adapters on the same IPv4 subnet are collapsed to the best/default-route entry, which avoids publishing the same UPnP identity simultaneously at addresses such as a primary `WLAN` and a secondary `WLAN 2`; adapters on different LAN subnets remain publishable in parallel.
 
 The built-in `remote-host-e2e` report exposes host-side checks under `readiness`. It requires fixed port 8765, LAN-address `/health`, and completed SSDP/mDNS bind + multicast membership. It deliberately does **not** certify Windows firewall/profile state, because same-process probes cannot establish reachability from a second physical device. The final cross-device access and File Explorer discovery tests remain mandatory.
+
+
+## 1.4.74 transient protocol recovery
+
+1.4.74 keeps the 1.4.73 discovery protocol and UI behavior unchanged. The lifecycle owner now retries a transient failed SSDP or mDNS startup on an unchanged network at most once per 15 seconds, and only the failed protocol is restarted. A healthy sibling protocol is left running. `recoveryAttempts` is included in host discovery status so diagnostics can distinguish an initially clean startup from a recovered one.

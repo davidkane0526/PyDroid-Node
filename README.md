@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.71 (94) · Phase 10 Remote Access Security & Host Reliability**。真实 Windows/Android 验证证明 1.4.69 的 21/21 诊断没有覆盖实际宿主启动，因此 1.4.71 将 HTTP 监听/页面资源、Desktop 成品打包和 SSDP/mDNS 运行状态纳入真实 Host E2E 门禁；完整 Desktop/Android 宿主诊断目标提升为 22/22。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
+> **当前开发版本：1.4.74 (97) · Phase 10 Host Lifecycle Recovery**。1.4.73 已由用户实机确认桌面 Remote Web/LAN 服务可用并作为冻结网络基线；1.4.74 仅加固宿主 start/stop 生命周期、异常恢复与实时状态观测，不改变已验收的 TCP 8765、LAN Discovery、PIN/Token 或 UI 文案。完整 Desktop/Android 宿主诊断目标保持 22/22。详见 [docs/phase10-remote-security-host-reliability.md](docs/phase10-remote-security-host-reliability.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -73,7 +73,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 局域网网页遥控 | 已实现：Android 托管同一 UI；启动后自动 SSDP/UPnP + mDNS 发现 | 已实现：Electron 托管同一 UI；启动后自动 SSDP/UPnP + mDNS 发现 |
 | AI 节点规划 | 已实现：会话密钥、计划预览、权限和审计 | 已实现，共用渲染层与工作流模型 |
 | 表格、图表及导出预览 | 已实现 | 已实现 |
-| 自动化测试 | 共享诊断 21 项；LAN discovery Android 协议/生命周期门禁 | 共享诊断 21 项；LAN discovery Desktop SSDP/UPnP/mDNS 可执行生命周期门禁 |
+| 自动化测试 | 共享诊断 22 项；Remote Host 与 LAN discovery Android 生命周期门禁 | 共享诊断 22 项；Remote Host 与 LAN discovery Desktop SSDP/UPnP/mDNS 可执行生命周期门禁 |
 | 安装包构建 | ARM64 debug APK 本机构建通过，待真机复验 | 自包含 Windows x64 便携包已生成并验证 |
 | 物理设备/人工交互验收 | 待完成 | 新版便携包与自动化链路通过，完整人工交互待完成 |
 

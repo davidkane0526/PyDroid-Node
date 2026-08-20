@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit;
 
 final class LanDiscoveryService {
     private static final String TAG = "PyDroid-LAN";
+    private static final long RECOVERY_RETRY_MS = 15_000L;
 
     private final Context context;
     private final int webPort;
@@ -26,6 +27,8 @@ final class LanDiscoveryService {
     private ScheduledExecutorService monitor;
     private WifiManager.MulticastLock multicastLock;
     private volatile boolean running;
+    private long lastRecoveryAtMs;
+    private int recoveryAttempts;
 
     LanDiscoveryService(Context context, int webPort) {
         this.context = context.getApplicationContext();
@@ -51,6 +54,8 @@ final class LanDiscoveryService {
         multicastLock = null;
         interfaces = new ArrayList<>();
         networkKey = "";
+        lastRecoveryAtMs = 0L;
+        recoveryAttempts = 0;
     }
 
     synchronized String primaryAddress() { return interfaces.isEmpty() ? "127.0.0.1" : interfaces.get(0).address.getHostAddress(); }
@@ -72,6 +77,7 @@ final class LanDiscoveryService {
             result.put("interfaces", values);
             result.put("ssdp", interfaces.isEmpty() ? "unavailable" : ssdp != null ? "running" : "failed");
             result.put("mdns", interfaces.isEmpty() ? "unavailable" : mdns != null ? "running" : "failed");
+            result.put("recoveryAttempts", recoveryAttempts);
         } catch (Exception ignored) { }
         return result;
     }
@@ -86,10 +92,19 @@ final class LanDiscoveryService {
         List<LanNetworkInterfaceManager.Entry> next = LanNetworkInterfaceManager.list();
         String nextKey = LanNetworkInterfaceManager.key(next);
         synchronized (this) {
-            if (running && !nextKey.equals(networkKey)) {
+            if (!running) return;
+            if (!nextKey.equals(networkKey)) {
                 Log.i(TAG, "[LAN] network changed: " + networkKey + " -> " + nextKey);
                 restartDiscovery(next);
+                return;
             }
+            if (next.isEmpty() || (ssdp != null && mdns != null)) return;
+            long now = System.currentTimeMillis();
+            if (now - lastRecoveryAtMs < RECOVERY_RETRY_MS) return;
+            lastRecoveryAtMs = now;
+            recoveryAttempts += 1;
+            Log.i(TAG, "[LAN] discovery recovery attempt " + recoveryAttempts);
+            recoverProtocols();
         }
     }
 
@@ -97,14 +112,34 @@ final class LanDiscoveryService {
         stopProtocols();
         interfaces = next;
         networkKey = LanNetworkInterfaceManager.key(next);
-        if (next.isEmpty()) { Log.w(TAG, "[LAN] no usable IPv4 LAN interface; HTTP remains active"); return; }
+        if (next.isEmpty()) {
+            lastRecoveryAtMs = 0L;
+            Log.w(TAG, "[LAN] no usable IPv4 LAN interface; HTTP remains active");
+            return;
+        }
         for (LanNetworkInterfaceManager.Entry entry : next) Log.i(TAG, "[LAN] interface " + entry.key());
-        try { ssdp = new SsdpService(identity, webPort, next); ssdp.start(); }
-        catch (Exception exception) { ssdp = null; Log.w(TAG, "[SSDP] startup failed; HTTP/mDNS continue", exception); }
-        try { mdns = new MdnsService(identity, webPort, next); mdns.start(); }
-        catch (Exception exception) { mdns = null; Log.w(TAG, "[mDNS] startup failed; HTTP/SSDP continue", exception); }
+        startSsdp();
+        startMdns();
+        lastRecoveryAtMs = ssdp != null && mdns != null ? 0L : System.currentTimeMillis();
         Log.i(TAG, "[LAN] HTTP http://" + primaryAddress() + ":" + webPort + "/");
         Log.i(TAG, "[LAN] local " + localUrl());
+    }
+
+    private void recoverProtocols() {
+        if (!running || interfaces.isEmpty()) return;
+        if (ssdp == null) startSsdp();
+        if (mdns == null) startMdns();
+        if (ssdp != null && mdns != null) lastRecoveryAtMs = 0L;
+    }
+
+    private void startSsdp() {
+        try { ssdp = new SsdpService(identity, webPort, interfaces); ssdp.start(); }
+        catch (Exception exception) { ssdp = null; Log.w(TAG, "[SSDP] startup failed; HTTP/mDNS continue", exception); }
+    }
+
+    private void startMdns() {
+        try { mdns = new MdnsService(identity, webPort, interfaces); mdns.start(); }
+        catch (Exception exception) { mdns = null; Log.w(TAG, "[mDNS] startup failed; HTTP/SSDP continue", exception); }
     }
 
     private void stopProtocols() {

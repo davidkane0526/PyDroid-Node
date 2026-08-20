@@ -1,10 +1,10 @@
-# Current handoff — 1.4.73 / Phase 10 Remote startup reliability
+# Current handoff — 1.4.74 / Phase 10 Host lifecycle recovery
 
-Real 1.4.72 validation identified two product regressions rather than another test-only issue. Desktop startup was deliberately stopped when PowerShell returned Windows network category `Unknown`, and the same synchronous firewall/profile path could cause long first-start latency and repeated elevation prompts. Android startup failed its own readiness check because `HttpURLConnection` rejected cleartext HTTP to `127.0.0.1`.
+The user physically validated 1.4.73 Desktop Remote Web/LAN access. Treat **1.4.73 as the frozen accepted network baseline**: fixed TCP 8765, the current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not be changed without a concrete defect and user approval for any UI text change.
 
-1.4.73 removes firewall/profile enforcement from the foreground Remote Web start transaction, makes Desktop start single-flight, prevents a failed start from reopening the Remote Access dialog, restores the previously accepted dialog copy, and replaces Android loopback readiness with a raw TCP/HTTP probe. Stable TCP 8765, LAN-IP `/health`, SSDP/UPnP/mDNS, default-route selection and real multicast-join readiness remain. The 22-case diagnostics no longer claim to certify second-device firewall reachability; physical cross-device access/discovery remains the final system-level acceptance step.
+1.4.74 stays behind that boundary and hardens lifecycle/recovery only. It fixes a reproduced start/stop race that could resurrect TCP 8765 after stop, gives Android the same generation/future ownership, adds independent rate-limited SSDP/mDNS self-recovery, and makes host diagnostics query a fresh running-host readiness snapshot instead of trusting stale startup/React state.
 
-Version: **1.4.73**, Android versionCode **96**. Build revision: `1.4.73-dev-r49-phase10-remote-startup-reliability`.
+Version: **1.4.74**, Android versionCode **97**. Build revision: `1.4.74-dev-r50-phase10-host-lifecycle-recovery`.
 
 # Development handoff
 
@@ -32,9 +32,10 @@ Long-lived branches in this repository:
 - `phase10/lan-discovery-lifecycle-automation`: `1.4.70 (93)` LAN discovery lifecycle automation milestone.
 - `fix/phase10-remote-web-host-e2e`: `1.4.71 (94)` Remote Web real-host E2E and packaging repair milestone.
 - `fix/phase10-lan-firewall-real-readiness`: `1.4.72 (95)` superseded foreground firewall/profile readiness experiment.
-- `fix/phase10-remote-startup-single-flight`: `1.4.73 (96)` current Remote startup reliability correction.
+- `fix/phase10-remote-startup-single-flight`: `1.4.73 (96)` user-accepted Remote Web/LAN baseline.
+- `phase10/host-lifecycle-recovery`: `1.4.74 (97)` current host lifecycle/recovery milestone.
 
-Current working branch: `fix/phase10-remote-startup-single-flight`.
+Current working branch: `phase10/host-lifecycle-recovery`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -66,7 +67,7 @@ Primary files: `desktop/services/remote-security.cjs`, `RemoteAccessGuard.java`,
 
 1.4.70 added the LAN discovery lifecycle regression gate: Desktop executable SSDP/UPnP/mDNS protocol/lifecycle checks plus Android parity and a pure-JDK protocol harness when `javac` is available. `LanDiscoveryService.checkNetwork()` exposes the existing 5-second poll body for deterministic restart testing; discovery behavior itself is not redesigned.
 
-Real 1.4.69 Windows/Android use showed that the old **21/21** report did not prove Remote Web startup. 1.4.71 restored real host HTTP/resource coverage and packaged `package-remote`; 1.4.72 then added fixed 8765 plus stronger LAN/discovery readiness but incorrectly made synchronous Windows firewall/profile inspection a foreground startup blocker. Real 1.4.72 validation also exposed Android cleartext rejection of its own `127.0.0.1` readiness request. 1.4.73 removes those two regressions while retaining fixed-port/LAN/discovery checks. The confirmed validation-regression boundary remains 1.4.51. The Desktop compatibility packaging defect was possible from 1.4.50 onward.
+Real 1.4.69 Windows/Android use showed that the old **21/21** report did not prove Remote Web startup. 1.4.71 restored real host HTTP/resource coverage and packaged `package-remote`; 1.4.72 then added fixed 8765 plus stronger LAN/discovery readiness but incorrectly made synchronous Windows firewall/profile inspection a foreground startup blocker. Real 1.4.72 validation also exposed Android cleartext rejection of its own `127.0.0.1` readiness request. 1.4.73 removes those two regressions while retaining fixed-port/LAN/discovery checks and has now been physically accepted by the user. 1.4.74 does not alter that network contract; it adds start/stop generation barriers, Android lifecycle parity, transient per-protocol discovery recovery and fresh running-host observability. The confirmed validation-regression boundary remains 1.4.51. The Desktop compatibility packaging defect was possible from 1.4.50 onward.
 
 ## Phase 1 status — PlatformAdapter
 
@@ -113,7 +114,7 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.73 validation
+### Current Phase 10 / 1.4.74 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
@@ -122,6 +123,8 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 - LAN discovery lifecycle smoke: Desktop SSDP/UPnP/mDNS identity, `ssdp:all`, CRLF/ST/USN/LOCATION, network restart, byebye/goodbye; Android parity + JDK protocol harness: passed.
 - Packaged Desktop smoke source now calls `startRemoteServer(true)` and the compatibility package path stages both Electron and Remote Web browser bundles.
 - Full dependency-backed TypeScript/Vite/Electron/Gradle packaging was not rerun in this delivery container because `node_modules`/pnpm are absent and the available Node is 22.16.0 while the repository requires Node 24.19.x.
+- Desktop start/stop lifecycle smoke covers stale-start cancellation, stop barrier restart, live running-host readiness refresh and idempotent stop. Android JVM host coverage includes queued-start cancellation and concurrent-start ownership.
+- LAN discovery smoke covers transient single-protocol self-recovery without restarting the healthy protocol.
 - `git diff --check`, syntax checks and version sync must pass before delivery.
 
 The removable in-app diagnostics now contain twenty-two full-host cases. A real Desktop/Android host with both runtimes should report **22/22**. Plain browser/paired Remote Web cannot host another service, so `remote-host-e2e` is skipped there.

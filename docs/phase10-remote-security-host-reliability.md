@@ -151,3 +151,14 @@ A packaged 1.4.71 host returned 22/22 while external Web/discovery still failed.
 Real 1.4.72 validation showed the firewall/profile check itself had become a product regression. Desktop could receive `NetworkCategory=Unknown`, wait on PowerShell/elevation, then deliberately stop an otherwise startable Remote Web host. Android also failed production startup because its new self-readiness request used `HttpURLConnection` against cleartext loopback, which Android network-security policy rejected.
 
 1.4.73 removes Windows firewall/profile probing/elevation from the foreground start and diagnostic path, makes Desktop starts single-flight, and replaces Android loopback readiness with a raw TCP HTTP probe. Fixed TCP 8765, LAN-IP health checks and real SSDP/mDNS bind/multicast readiness remain. The diagnostic result now means “the host stack and discovery sockets are genuinely running on the local machine”; it does not claim to prove second-device firewall traversal.
+
+
+## 1.4.74 Host lifecycle recovery after 1.4.73 acceptance
+
+The user has physically confirmed that the 1.4.73 Desktop Remote Web/LAN service starts and is reachable. 1.4.73 is therefore the accepted network-behavior baseline; this milestone deliberately does not change UI copy, fixed TCP 8765, pairing/token policy, advertised URL semantics, or the SSDP/UPnP/mDNS protocol contract.
+
+A new reproducible lifecycle defect was found behind that accepted behavior: on Desktop, `stop()` issued while `start()` was still in flight could return and then allow the stale start to commit, reopening TCP 8765 after the UI considered the service stopped. 1.4.74 introduces lifecycle generations and a stop barrier so stale starts cannot commit and restarts requested during stop wait for shutdown completion. Android `AndroidRemoteService` now applies the same generation/future ownership to queued and concurrent starts.
+
+LAN discovery recovery is also made local and non-destructive. If SSDP or mDNS alone fails to start while the network identity remains unchanged, only the failed protocol is retried, no more often than every 15 seconds; the healthy protocol continues running. `recoveryAttempts` is exposed through host status for diagnostics.
+
+Finally, host observability no longer trusts a startup-time object. Desktop re-measures loopback/LAN HTTP readiness and current discovery state when an already-running host is queried, and the in-app host diagnostic always queries the host rather than substituting React's cached `RemoteServerInfo`. The diagnostic case count remains 22.

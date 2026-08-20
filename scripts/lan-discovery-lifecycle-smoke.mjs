@@ -199,15 +199,27 @@ let activeInterfaces = [interfaceA];
 networkModule.getLanInterfaces = () => activeInterfaces;
 const ssdpStarts = [];
 const mdnsStarts = [];
+let failNextSsdp = false;
+let failNextMdns = false;
 class FakeSsdpService {
-  constructor() { this.stopped = false; ssdpStarts.push(this); }
-  start(config, interfaces) { this.config = config; this.interfaces = interfaces; }
-  stop() { this.stopped = true; }
+  constructor() { this.stopped = false; this.ready = false; ssdpStarts.push(this); }
+  start(config, interfaces) {
+    this.config = config; this.interfaces = interfaces;
+    if (failNextSsdp) { failNextSsdp = false; return Promise.reject(new Error("synthetic SSDP bind failure")); }
+    this.ready = true;
+    return Promise.resolve({ joined: interfaces.length });
+  }
+  stop() { this.stopped = true; this.ready = false; }
 }
 class FakeMdnsService {
-  constructor() { this.stopped = false; mdnsStarts.push(this); }
-  start(config, interfaces) { this.config = config; this.interfaces = interfaces; }
-  stop() { this.stopped = true; }
+  constructor() { this.stopped = false; this.ready = false; mdnsStarts.push(this); }
+  start(config, interfaces) {
+    this.config = config; this.interfaces = interfaces;
+    if (failNextMdns) { failNextMdns = false; return Promise.reject(new Error("synthetic mDNS bind failure")); }
+    this.ready = true;
+    return Promise.resolve({ joined: interfaces.length });
+  }
+  stop() { this.stopped = true; this.ready = false; }
 }
 require.cache[require.resolve(ssdpPath)].exports.SsdpService = FakeSsdpService;
 require.cache[require.resolve(mdnsPath)].exports.MdnsService = FakeMdnsService;
@@ -215,25 +227,41 @@ delete require.cache[require.resolve(discoveryPath)];
 const { LanDiscoveryService } = require(discoveryPath);
 const lifecycleRoot = mkdtempSync(path.join(os.tmpdir(), "pydroid-lan-lifecycle-"));
 try {
-  const lifecycle = new LanDiscoveryService({ userDataRoot: lifecycleRoot, version: "1.4.70" });
+  const lifecycle = new LanDiscoveryService({ userDataRoot: lifecycleRoot, version: "1.4.74" });
   lifecycle.start({ port: 43123 });
+  await lifecycle.waitUntilReady(1000);
   assert.equal(ssdpStarts.length, 1, "LAN start must start SSDP once");
   assert.equal(mdnsStarts.length, 1, "LAN start must start mDNS once");
   const firstSsdp = ssdpStarts[0];
   const firstMdns = mdnsStarts[0];
   activeInterfaces = [{ name: "Wi-Fi", address: "192.168.60.7", netmask: "255.255.255.0" }];
-  lifecycle.checkNetwork();
+  await lifecycle.checkNetwork();
   assert.equal(firstSsdp.stopped, true, "network change must stop the old SSDP service");
   assert.equal(firstMdns.stopped, true, "network change must stop the old mDNS service");
   assert.equal(ssdpStarts.length, 2, "network change must restart SSDP");
   assert.equal(mdnsStarts.length, 2, "network change must restart mDNS");
   assert.equal(lifecycle.primaryAddress(), "192.168.60.7", "network restart must publish the new primary address");
-  lifecycle.checkNetwork();
-  assert.equal(ssdpStarts.length, 2, "unchanged network must not restart SSDP");
-  assert.equal(mdnsStarts.length, 2, "unchanged network must not restart mDNS");
+  await lifecycle.checkNetwork();
+  assert.equal(ssdpStarts.length, 2, "unchanged healthy network must not restart SSDP");
+  assert.equal(mdnsStarts.length, 2, "unchanged healthy network must not restart mDNS");
+
+  failNextSsdp = true;
+  activeInterfaces = [{ name: "Wi-Fi", address: "192.168.61.7", netmask: "255.255.255.0" }];
+  await lifecycle.checkNetwork();
+  assert.match(lifecycle.getStatus().ssdp, /^failed:/, "synthetic SSDP startup failure must be observable");
+  assert.equal(lifecycle.getStatus().mdns, "running", "healthy mDNS must stay available when SSDP startup fails");
+  const mdnsStartsBeforeRecovery = mdnsStarts.length;
+  lifecycle.lastRecoveryAt = 0;
+  await lifecycle.checkNetwork();
+  assert.equal(lifecycle.getStatus().ssdp, "running", "unchanged network must recover a transient SSDP startup failure");
+  assert.equal(mdnsStarts.length, mdnsStartsBeforeRecovery, "SSDP recovery must not restart an already healthy mDNS service");
+  assert.equal(lifecycle.getStatus().recoveryAttempts, 1, "recovery attempts must be observable");
+
+  const activeSsdp = ssdpStarts.at(-1);
+  const activeMdns = mdnsStarts.at(-1);
   lifecycle.stop();
-  assert.equal(ssdpStarts[1].stopped, true, "LAN stop must stop the active SSDP service");
-  assert.equal(mdnsStarts[1].stopped, true, "LAN stop must stop the active mDNS service");
+  assert.equal(activeSsdp.stopped, true, "LAN stop must stop the active SSDP service");
+  assert.equal(activeMdns.stopped, true, "LAN stop must stop the active mDNS service");
   assert.equal(lifecycle.getStatus().running, false, "LAN stop must clear running state");
 } finally {
   rmSync(lifecycleRoot, { recursive: true, force: true });
@@ -256,6 +284,9 @@ assert.match(androidMdns, /records\.add\(record\(instance\(\), TXT, ttl/, "Andro
 assert.match(androidMdns, /announce\(0\)/, "Android mDNS stop must emit TTL=0 goodbye records");
 assert.match(androidDiscovery, /scheduleAtFixedRate\(this::checkNetwork, 5, 5, TimeUnit\.SECONDS\)/, "Android discovery must monitor network changes");
 assert.match(androidDiscovery, /if \(ssdp != null\) ssdp\.stop\(\);[\s\S]*if \(mdns != null\) mdns\.stop\(\);/, "Android network restart/stop must release both discovery protocols");
+assert.match(androidDiscovery, /RECOVERY_RETRY_MS\s*=\s*15_000L/, "Android discovery must rate-limit transient protocol recovery attempts");
+assert.match(androidDiscovery, /if \(ssdp == null\) startSsdp\(\);[\s\S]*if \(mdns == null\) startMdns\(\);/, "Android discovery recovery must restart only failed protocols");
+assert.match(androidDiscovery, /recoveryAttempts \+= 1/, "Android discovery recovery attempts must be observable");
 assert.match(androidUpnp, /<UDN>uuid:/, "Android device.xml must expose UDN");
 assert.match(androidUpnp, /<friendlyName>/, "Android device.xml must expose friendlyName");
 assert.match(androidUpnp, /<presentationURL>/, "Android device.xml must expose presentationURL");

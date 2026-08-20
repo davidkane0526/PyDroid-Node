@@ -17,6 +17,8 @@ class LanDiscoveryService {
     this.monitor = null;
     this.running = false;
     this.status = { ssdp: "stopped", mdns: "stopped" };
+    this.lastRecoveryAt = 0;
+    this.recoveryAttempts = 0;
     this.readyPromise = Promise.resolve(this.getStatus());
   }
 
@@ -50,7 +52,52 @@ class LanDiscoveryService {
       this.log(`[LAN] Network changed: ${this.key || "none"} -> ${nextKey}`);
       this.readyPromise = this.restartDiscovery(next);
       await this.readyPromise;
+      return;
     }
+    if (!next.length) return;
+    const needsRecovery = this.status.ssdp !== "running" || this.status.mdns !== "running";
+    if (!needsRecovery || Date.now() - this.lastRecoveryAt < 15_000) return;
+    this.lastRecoveryAt = Date.now();
+    this.recoveryAttempts += 1;
+    this.log(`[LAN] Discovery recovery attempt ${this.recoveryAttempts}`);
+    this.readyPromise = this.recoverProtocols();
+    await this.readyPromise;
+  }
+
+  async startSsdp() {
+    try {
+      this.ssdp?.stop();
+      this.ssdp = new SsdpService(this.log);
+      this.status.ssdp = "starting";
+      await this.ssdp.start(this.config(), this.interfaces);
+      this.status.ssdp = this.ssdp?.ready ? "running" : "failed: socket did not become ready";
+    } catch (error) {
+      this.status.ssdp = `failed: ${error.message}`;
+      this.log(`[SSDP] Startup failed: ${error.message}`);
+    }
+  }
+
+  async startMdns() {
+    try {
+      this.mdns?.stop();
+      this.mdns = new MdnsService(this.log);
+      this.status.mdns = "starting";
+      await this.mdns.start(this.config(), this.interfaces);
+      this.status.mdns = this.mdns?.ready ? "running" : "failed: socket did not become ready";
+    } catch (error) {
+      this.status.mdns = `failed: ${error.message}`;
+      this.log(`[mDNS] Startup failed: ${error.message}`);
+    }
+  }
+
+  async recoverProtocols() {
+    if (!this.running || !this.interfaces.length) return this.getStatus();
+    const pending = [];
+    if (this.status.ssdp !== "running") pending.push(this.startSsdp());
+    if (this.status.mdns !== "running") pending.push(this.startMdns());
+    await Promise.allSettled(pending);
+    if (this.status.ssdp === "running" && this.status.mdns === "running") this.lastRecoveryAt = 0;
+    return this.getStatus();
   }
 
   async restartDiscovery(precomputed = null) {
@@ -63,35 +110,13 @@ class LanDiscoveryService {
     this.key = networkKey(this.interfaces);
     if (!this.interfaces.length) {
       this.status = { ssdp: "unavailable", mdns: "unavailable" };
+      this.lastRecoveryAt = 0;
       this.log("[LAN] No usable IPv4 LAN interface; HTTP remains available on 0.0.0.0");
       return this.getStatus();
     }
     for (const item of this.interfaces) this.log(`[LAN] Interface ${item.name} / ${item.address}${item.defaultRoute ? " (default route)" : ""}`);
-    const config = this.config();
-    const pending = [];
-    try {
-      this.ssdp = new SsdpService(this.log);
-      this.status.ssdp = "starting";
-      pending.push(this.ssdp.start(config, this.interfaces).then(() => { if (this.ssdp?.ready) this.status.ssdp = "running"; }).catch((error) => {
-        this.status.ssdp = `failed: ${error.message}`;
-        this.log(`[SSDP] Startup failed: ${error.message}`);
-      }));
-    } catch (error) {
-      this.status.ssdp = `failed: ${error.message}`;
-      this.log(`[SSDP] Startup failed: ${error.message}`);
-    }
-    try {
-      this.mdns = new MdnsService(this.log);
-      this.status.mdns = "starting";
-      pending.push(this.mdns.start(config, this.interfaces).then(() => { if (this.mdns?.ready) this.status.mdns = "running"; }).catch((error) => {
-        this.status.mdns = `failed: ${error.message}`;
-        this.log(`[mDNS] Startup failed: ${error.message}`);
-      }));
-    } catch (error) {
-      this.status.mdns = `failed: ${error.message}`;
-      this.log(`[mDNS] Startup failed: ${error.message}`);
-    }
-    await Promise.allSettled(pending);
+    await Promise.allSettled([this.startSsdp(), this.startMdns()]);
+    this.lastRecoveryAt = this.status.ssdp === "running" && this.status.mdns === "running" ? 0 : Date.now();
     return this.getStatus();
   }
 
@@ -109,6 +134,7 @@ class LanDiscoveryService {
       identityPath: this.identity.filePath,
       interfaces: this.interfaces.map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
       localUrl: this.running && this.port ? this.localUrl() : null,
+      recoveryAttempts: this.recoveryAttempts,
       ...this.status,
     };
   }
@@ -124,6 +150,8 @@ class LanDiscoveryService {
     this.interfaces = [];
     this.key = "";
     this.status = { ssdp: "stopped", mdns: "stopped" };
+    this.lastRecoveryAt = 0;
+    this.recoveryAttempts = 0;
     this.readyPromise = Promise.resolve(this.getStatus());
   }
 }

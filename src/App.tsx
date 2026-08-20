@@ -3166,7 +3166,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         activeEdgeCount: edges.length,
         testRemoteHost: canHostRemoteServer() ? async () => {
           const alreadyRunning = Boolean(remoteServer);
-          const info = remoteServer ?? await startRemoteServer(true);
+          const info = await startRemoteServer(true);
           try {
             if (!Number.isFinite(info.port) || info.port <= 0) throw new Error("宿主没有返回有效 HTTP 监听端口");
             if (info.port !== 8765) throw new Error(`宿主没有使用固定 LAN Web 端口 8765：${info.port}`);

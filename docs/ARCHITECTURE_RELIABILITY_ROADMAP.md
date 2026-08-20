@@ -1,10 +1,12 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-21
-当前架构开发分支：`fix/phase10-remote-startup-single-flight`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.73 (96)`
+当前架构开发分支：`phase10/host-lifecycle-recovery`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.74 (97)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
+
+> **Remote Web/LAN 冻结基线：1.4.73 已由用户实机确认可用。** 后续 Phase 10 工作不得无故改变固定 TCP 8765、现有启动交互/文案、PIN/Token、LAN HTTP readiness 或 SSDP/UPnP/mDNS 协议行为。未经用户明确允许，不新增 UI 说明文字。1.4.74 只处理 Host lifecycle/recovery。
 
 ## 1. 开发原则
 

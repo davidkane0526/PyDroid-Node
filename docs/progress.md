@@ -1,3 +1,19 @@
+# Phase 10 progress — 1.4.74 (97)
+
+## 1.4.74 Host lifecycle recovery
+
+The user has physically validated the 1.4.73 Desktop Remote Web/LAN path. That behavior is now a frozen acceptance baseline: 1.4.74 does not redesign the UI, change its copy, change TCP 8765, alter pairing/security semantics, or replace SSDP/UPnP/mDNS behavior.
+
+- Reproduced and fixed a 1.4.73 Desktop lifecycle race: `start()` followed immediately by `stop()` could let stop return before the in-flight start committed, resurrecting TCP 8765 while the UI already considered the host stopped. Lifecycle generation and stop barriers now prevent stale starts from committing.
+- Start requested while stop is finishing waits for the stop transaction and then performs a clean restart; repeated stop remains idempotent.
+- Android `AndroidRemoteService` now owns the same generation/future boundary. A queued start cancelled by stop cannot later revive `RemoteWorkflowServer`; concurrent starts share one future.
+- SSDP and mDNS recover independently after transient startup failure on an unchanged network, with a 15-second retry limit. A healthy sibling protocol is not churned.
+- Host observability is live rather than startup-snapshot-only: an already-running Desktop host re-reads discovery status and HTTP readiness, and the in-app `remote-host-e2e` case queries the host even if React already has a RemoteServerInfo object.
+- Added/extended executable Desktop lifecycle, Android JVM host and LAN discovery recovery smokes. No user-visible UI text is added.
+- Build script revision: `1.4.74-dev-r50-phase10-host-lifecycle-recovery`.
+
+---
+
 # Phase 10 progress — 1.4.73 (96)
 
 ## 1.4.73 Remote startup reliability correction

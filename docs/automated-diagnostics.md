@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.73
+Current behavior: 1.4.74
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -46,7 +46,7 @@ The report records only application/runtime diagnostics and the names/counts of 
 21. Python workspace variable write -> second-run read when a Python host exists.
 22. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host is externally reachable. Starting with 1.4.71, Desktop and Android add the host E2E case above; a fully capable local host therefore reports **22/22**. 1.4.73 keeps the stronger fixed-port/LAN-HTTP/multicast readiness from 1.4.72 but removes Windows firewall/profile state from the pass criteria after real 1.4.72 use showed that brittle PowerShell profile detection could block a valid host startup. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
+A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host is externally reachable. Starting with 1.4.71, Desktop and Android add the host E2E case above; a fully capable local host therefore reports **22/22**. 1.4.73 keeps the stronger fixed-port/LAN-HTTP/multicast readiness from 1.4.72 but removes Windows firewall/profile state from the pass criteria after real 1.4.72 use showed that brittle PowerShell profile detection could block a valid host startup. In 1.4.74, an already-running host is queried again for current HTTP/discovery readiness instead of reusing the renderer's cached startup object, so later recovery or failure is observable. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
 
 Repository gate `scripts/automated-diagnostics-contract-smoke.mjs` pins this 22-case full-host contract so the diagnostic runner and documentation cannot silently drift apart.
 
