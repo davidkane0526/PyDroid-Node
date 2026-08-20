@@ -2,7 +2,7 @@
 
 更新时间：2026-08-20
 当前架构开发分支：`phase9/editor-core-node-mutations-document-lifecycle`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.64 (87)`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.65 (88)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -601,8 +601,8 @@ UI 稳定
 
 ## 13. Phase 9 — Editor Core & Workspace Session
 
-状态：**1.4.64 持续开发中，尚未冻结。**
+状态：**1.4.65 持续开发中，尚未冻结。**
 
-Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并逐步将用户操作收敛为 Editor Commands。React 负责订阅和呈现，不再作为工作流编辑语义的拥有者。1.4.64 已进一步统一资源能力契约、Remote/Local workspace session 身份边界，并把 AI Agent 批量图修改变成原子 Session 事务；1.4.63 已迁移连线/重连、节点替换、标签/模板编辑和拖动历史事务；`EditorWorkspaceLifecycleService` 继续接管保存、打开、关闭 dirty 判断和显式 autosave restore。正常启动仍保持单个空白工作流，不自动恢复旧画布。
+Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并逐步将用户操作收敛为 Editor Commands。React 负责订阅和呈现，不再作为工作流编辑语义的拥有者。1.4.65 在保留 1.4.64 资源能力契约、Remote/Local workspace session 身份边界和 AI Agent 原子批量事务的基础上，修复 Function 资源拖放 helper 的完整 TypeScript 构建门禁回归；1.4.63 已迁移连线/重连、节点替换、标签/模板编辑和拖动历史事务；`EditorWorkspaceLifecycleService` 继续接管保存、打开、关闭 dirty 判断和显式 autosave restore。正常启动仍保持单个空白工作流，不自动恢复旧画布。
 
 手势采用二维策略矩阵：输入 profile（Desktop/Mobile）× 目标 kind（Node/Group/Canvas/Resource/Tab）。这是刻意的架构要求，不允许为了“统一”而让移动端和桌面端、节点和组合共享不适合的长按/双击含义。具体契约见 `docs/phase9-editor-core-workspace-session.md`。

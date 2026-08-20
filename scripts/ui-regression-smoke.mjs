@@ -58,5 +58,7 @@ assert.match(css, /minmax\(216px, min\(var\(--palette-width, 216px\)/, "responsi
 assert.match(css, /\.palette-tabs__label \{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/, "resource tab labels must not be ellipsized or compressed");
 assert.match(app, /exportTextFile\(fileName,[\s\S]*application\/json/, "automated diagnostics export must use the platform file-export capability");
 assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must surface save/cancel/failure status inside the dialog");
+assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefinition, requestedPosition\?: \{ x: number; y: number \}\)/, "function resource drop must keep an optional explicit position in the UI helper contract");
+assert.match(app, /const position = requestedPosition \?\? fallbackPosition;/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
 
 console.log("UI regression smoke passed.");

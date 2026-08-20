@@ -99,6 +99,13 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 - `beginHistoryTransaction()` / `commitHistoryTransaction()` let React Flow stream live drag positions without polluting history. `commit-node-drag` owns final structure-container and branch assignment.
 - Gesture behavior remains profile/target specific and unchanged; this milestone changes ownership, not accepted Desktop/Android interaction meaning.
 
+## 1.4.65 milestone — production TypeScript build gate correction
+
+- Preserves the 1.4.64 Resource Contract, workspace-session identity and atomic AI batch transaction semantics.
+- Fixes Function resource drag/drop compilation by allowing the UI insertion helper to accept an explicit requested canvas position while retaining automatic placement for the Functions panel button.
+- Adds a UI regression guard for the helper contract and keeps automated diagnostics at 15/15 because runtime semantics are unchanged.
+- The accepted Desktop/Mobile × target-kind Gesture Policies remain unchanged.
+
 ## 1.4.64 milestone — Resource Contract, Remote identity and AI batch transactions
 
 - `src/editor-core/resource-contract.ts` defines one capability contract for catalog nodes, saved nodes, functions, groups and full workflows without collapsing their distinct primary actions. Built-in and locked resources are protected centrally.
@@ -114,7 +121,7 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 3. Reduce remaining UI-owned selection/import convenience mutations and inspect whether Phase 9 can freeze without changing accepted gestures.
 4. Continue reducing `App.tsx` by responsibility, not by cosmetic file splitting.
 
-## Non-goals for 1.4.60–1.4.64
+## Non-goals for 1.4.60–1.4.65
 
 - no visual redesign;
 - no forced gesture unification between Desktop and Android;

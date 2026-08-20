@@ -2085,11 +2085,12 @@ const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(nu
     }
   };
 
-  const insertFunctionCall = (definition: WorkflowFunctionDefinition) => {
+  const insertFunctionCall = (definition: WorkflowFunctionDefinition, requestedPosition?: { x: number; y: number }) => {
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
-    const position = resolvedLayoutDirection === "vertical"
+    const fallbackPosition = resolvedLayoutDirection === "vertical"
       ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
       : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
+    const position = requestedPosition ?? fallbackPosition;
     const result = session.applyGraphCommand({ type: "insert-function-call", definition, position, canvasId: currentCanvasId });
     if (!result.changed) return;
     clearExecutionResult();

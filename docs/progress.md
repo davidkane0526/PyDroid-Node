@@ -1,4 +1,15 @@
-# Phase 9 progress — 1.4.64 (87)
+# Phase 9 progress — 1.4.65 (88)
+
+Phase 9 continues on `phase9/full-build-gate-fix`. This is a build-gate correction on top of the accepted 1.4.64 Resource/Remote/Agent milestone; no accepted Desktop/Mobile gesture semantics or Phase 9 runtime behavior are intentionally changed.
+
+- Fixed the production TypeScript failure in `src/App.tsx`: the Function resource drop path passed an explicit canvas position while `insertFunctionCall()` still exposed the old one-argument helper signature. The helper now accepts an optional requested position and falls back to the existing automatic placement when called from the Functions panel button.
+- Function drag/drop therefore keeps the intended drop location instead of discarding the second argument merely to satisfy the compiler.
+- Added a UI regression guard for the Function resource-drop helper contract so this exact arity/placement mismatch cannot silently reappear.
+- The user-provided 1.4.64 production build log reached the full `tsc --noEmit -p tsconfig.json` gate and reported this as the only TypeScript error; 1.4.65 corrects that exact compile failure.
+- Automated diagnostics remain **15/15**; this bug occurs at compile time and does not change the diagnostic schema or runtime cases.
+- Build script revision: `1.4.65-dev-r41-phase9-full-build-gate-fix`.
+
+## 2026-08-20 — Resource/Remote/Agent session / 1.4.64 (87)
 
 Phase 9 continues on `phase9/resource-remote-agent-session`. The accepted Desktop/Android gesture meanings remain unchanged; this milestone unifies resource capabilities, makes runtime/editor state addressable by an explicit workspace-session identity, and moves AI graph surgery behind one atomic Session batch transaction.
 
