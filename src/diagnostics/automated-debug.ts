@@ -14,6 +14,8 @@ import { applyAgentOperationsToSession } from "../editor-core/agent-operations";
 import { describeFlow, describeFunction, describeGroup, describeSavedNode, resourceContractKey } from "../editor-core/resource-contract";
 import { getNodeSpec } from "../nodeCatalog";
 import { emptyWorkflowSnapshot, type StorageLike } from "../workflow-core";
+import { describeRemoteSecurityPolicy } from "../remote-security-policy";
+import { DEFAULT_AGENT_SETTINGS, testAgentConnection } from "../agent";
 
 export const AUTOMATED_DIAGNOSTICS_SCHEMA_VERSION = 1;
 
@@ -602,6 +604,31 @@ async function runtimeInteractionIsolationCase(): Promise<DiagnosticCase> {
   });
 }
 
+async function remoteSecurityPolicyCase(): Promise<DiagnosticCase> {
+  return runCase("remote-security-policy", "Remote Web 配对/Token/API 限流安全策略", undefined, async () => {
+    const policy = describeRemoteSecurityPolicy();
+    if (policy.pairLocksAtAttempt !== 5) throw new Error("PIN 失败锁定阈值不是 5 次");
+    if (policy.pairRetryAfterSeconds < 60) throw new Error("PIN 冷却时间低于 60 秒");
+    if (policy.generalLimit < 120 || policy.expensiveLimit >= policy.generalLimit) throw new Error("Remote API 分级限流策略异常");
+    if (policy.tokenTtlHours !== 12) throw new Error("Remote Token TTL 不是 12 小时");
+    return policy;
+  });
+}
+
+async function remoteAgentProxyBoundaryCase(): Promise<DiagnosticCase> {
+  return runCase("remote-agent-proxy-boundary", "Remote Agent 宿主代理不需要浏览器持有原始密钥", undefined, async () => {
+    let transportCalls = 0;
+    const settings = { ...DEFAULT_AGENT_SETTINGS, endpoint: "https://host-owned.invalid/v1/responses", model: "diagnostic-model" };
+    const result = await testAgentConnection(settings, "", async (_settings, body) => {
+      transportCalls += 1;
+      if (!body || typeof body !== "object") throw new Error("宿主代理没有收到结构化 Agent 请求");
+      return { model: "host-proxy-diagnostic" };
+    });
+    if (!result.ok || transportCalls !== 1) throw new Error("无浏览器 API key 的宿主代理路径没有生效");
+    return { browserRawApiKeyRequired: false, transportCalls, model: "host-proxy-diagnostic" };
+  });
+}
+
 async function gestureContractCase(): Promise<DiagnosticCase> {
   return runCase("editor-gesture-contract", "桌面/移动端 × 节点/组合手势契约", undefined, async () => {
     const desktopNode = resolveGesturePolicy("desktop", "node");
@@ -633,6 +660,8 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await agentEditorBatchCase());
   cases.push(await editorRequirementOwnershipCase());
   cases.push(await runtimeInteractionIsolationCase());
+  cases.push(await remoteSecurityPolicyCase());
+  cases.push(await remoteAgentProxyBoundaryCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));
   cases.push(await reusableFunctionCase("javascript", deps));

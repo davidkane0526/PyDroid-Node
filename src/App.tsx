@@ -51,8 +51,8 @@ import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelH
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, clearWorkspaceVariableState, getExecutionClientId, getWorkspaceExecutionResult, listWorkspaceVariableNames } from "./execution-workspace";
 import { canSafelyPreExecuteNodes, getNodeContract } from "./nodeContract";
-import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWorkflowFile, exportTextFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
-import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings } from "./agent";
+import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWorkflowFile, exportTextFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, proxyRemoteAgentRequest, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
+import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings, type AgentTransport } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
@@ -615,6 +615,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const [runtimePreference, setRuntimePreference] = useState<RuntimePreference>(() => loadAppSettings().runtimePreference);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(() => loadAppSettings().agent);
   const [agentApiKey, setAgentApiKey] = useState("");
+  const [remoteAgentProxyAvailable, setRemoteAgentProxyAvailable] = useState(false);
   const [agentSecretReady, setAgentSecretReady] = useState(() => !isNativePlatform() && !isRemoteRuntime());
   const [agentInstruction, setAgentInstruction] = useState("");
   const [agentRequesting, setAgentRequesting] = useState(false);
@@ -1155,9 +1156,10 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       if (remote.miniMapMode === "auto" || remote.miniMapMode === "show" || remote.miniMapMode === "hide") setMiniMapMode(remote.miniMapMode);
       if (remote.layoutMode === "auto" || remote.layoutMode === "horizontal" || remote.layoutMode === "vertical") setLayoutMode(remote.layoutMode);
       if (remote.agent) setAgentSettings(loadAgentSettings(remote.agent));
-      if (typeof configuration.agentApiKey === "string") setAgentApiKey(configuration.agentApiKey);
+      setRemoteAgentProxyAvailable(Boolean(configuration.agentProxyAvailable));
+      if (configuration.agentProxyAvailable) setAgentApiKey("");
       setAgentSecretReady(true);
-      setMessage("已采用 Android 端配置；网页修改后将仅保存到此浏览器");
+      setMessage(configuration.agentProxyAvailable ? "已采用宿主配置；AI 密钥由宿主安全代理持有" : "已采用宿主配置；网页修改后将仅保存到此浏览器");
     }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "无法同步 Android 配置"); });
     return () => { active = false; };
   }, [remoteBrowser, remotePaired]);
@@ -3201,6 +3203,10 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     }
   };
 
+  const agentTransport: AgentTransport | undefined = remoteBrowser && remoteAgentProxyAvailable
+    ? (settings, body) => proxyRemoteAgentRequest(settings.provider, body)
+    : undefined;
+
   const requestPlanFromAgent = async () => {
     setAgentRequesting(true);
     try {
@@ -3215,7 +3221,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         nodes: nodes.map((node) => ({ id: node.id, label: node.data.label, nodeType: node.data.nodeType, parentId: node.parentId ?? node.data.canvasParentId, branch: node.data.branch, parameterKeys: nodeSpecFor(node)?.parameters.map((parameter) => parameter.key) ?? [], inputs: nodeSpecFor(node)?.inputPorts.map((port) => ({ id: port.id, type: port.valueType, required: port.required })) ?? [], outputs: nodeSpecFor(node)?.outputPorts.map((port) => ({ id: port.id, type: port.valueType })) ?? [] })),
         edges: edges.map((edge) => ({ source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle ?? "output", targetHandle: edge.targetHandle ?? "input" })),
         runtimePreference,
-      });
+      }, agentTransport);
       setAgentPlanText(JSON.stringify(nextPlan, null, 2));
       setAgentPlan(nextPlan);
       setAgentPlanError(null);
@@ -3232,7 +3238,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     setAgentTesting(true);
     setAgentConnectionStatus(null);
     try {
-      const result = await testAgentConnection(agentSettings, agentApiKey);
+      const result = await testAgentConnection(agentSettings, agentApiKey, agentTransport);
       setAgentConnectionStatus(result.message);
     } catch (error) {
       setAgentConnectionStatus(error instanceof Error ? error.message : "连接测试失败");
@@ -3730,7 +3736,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       {inputDialogNode && <InputDialog node={inputDialogNode} value={inputDialogValue} onValueChange={setInputDialogValue} onSubmit={() => void submitInputDialog()} onCancel={() => setInputDialogNode(null)} />}
       {alertDialogNode && <AlertDialog node={alertDialogNode} preview={alertInputPreview} onSubmit={(response) => void submitAlertDialog(response)} />}
       {renameFlow && <RenameFlowDialog name={renameFlow.name} value={renameFlowValue} onValueChange={setRenameFlowValue} onClose={() => setRenameFlow(null)} onConfirm={() => void confirmRenameFlow()} />}
-      {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : remoteBrowser ? "synced" : "session"} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
+      {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : "session"} apiKeyManagedByHost={remoteBrowser && remoteAgentProxyAvailable} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
       <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={() => void exportAutomatedDiagnostics()} exportStatus={automatedDiagnosticsExportStatus} />
       {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={removePackageRequirement} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}

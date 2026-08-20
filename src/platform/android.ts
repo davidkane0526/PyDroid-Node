@@ -95,6 +95,10 @@ export function createAndroidPlatformAdapter(): PlatformAdapter {
         if (!remoteSession.isRemoteRuntime()) throw new Error("仅局域网网页可读取 Android 配置");
         return remoteSession.request<RemoteAppConfiguration>("/api/app-configuration");
       },
+      async proxyAgentRequest(provider, body) {
+        if (!remoteSession.isRemoteRuntime()) throw new Error("Agent 宿主代理仅在局域网网页中可用");
+        return remoteSession.request("/api/agent-proxy", { provider, body });
+      },
       startServer(requirePin = true) { return PythonExecutor.startRemoteServer({ requirePin }); },
       async stopServer() { await PythonExecutor.stopRemoteServer(); },
       request: remoteSession.request,

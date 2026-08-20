@@ -6,6 +6,7 @@ function memoryStorage() {
   return {
     getItem(key: string) { return values.get(key) ?? null; },
     setItem(key: string, value: string) { values.set(key, value); },
+    removeItem(key: string) { values.delete(key); },
   };
 }
 
@@ -44,6 +45,20 @@ describe("remote session transport", () => {
     expect(result.memoryBytes).toBe(1234);
     expect(calls[0]?.init?.body).toBe(JSON.stringify({ pin: "1234" }));
     expect(new Headers(calls[1]?.init?.headers).get("X-PyDroid-Token")).toBe("session-token");
+  });
+
+  it("clears an expired session token after a 401 response", async () => {
+    const env = environment(async (input) => {
+      if (String(input) === "/api/pair") return new Response(JSON.stringify({ token: "expired-token" }), { status: 200 });
+      return new Response(JSON.stringify({ error: "配对会话无效或已过期，请重新配对" }), { status: 401 });
+    });
+    const client = createRemoteSessionClient(
+      { missingToken: "pair first", healthFailed: "health", pairFailed: "pair" },
+      () => env,
+    );
+    await client.pair("1234");
+    await expect(client.request("/api/runtime-stats")).rejects.toThrow("配对会话无效或已过期");
+    await expect(client.request("/api/runtime-stats")).rejects.toThrow("pair first");
   });
 
   it("rejects authenticated requests before pairing", async () => {

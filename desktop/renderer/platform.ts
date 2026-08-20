@@ -88,6 +88,10 @@ export function getPlatformAdapter(): PlatformAdapter {
       getAccessPolicy: remoteSession.getAccessPolicy,
       pair: remoteSession.pair,
       getAppConfiguration() { return remoteSession.request<RemoteAppConfiguration>("/api/app-configuration"); },
+      async proxyAgentRequest(provider, body) {
+        if (!remoteSession.isRemoteRuntime()) throw new Error("Agent 宿主代理仅在局域网网页中可用");
+        return remoteSession.request("/api/agent-proxy", { provider, body });
+      },
       async startServer(requirePin = true) {
         const bridge = getDesktopBridge();
         if (!bridge?.startRemoteServer) throw new Error("桌面局域网服务不可用");

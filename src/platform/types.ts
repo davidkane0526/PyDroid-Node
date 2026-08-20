@@ -16,7 +16,7 @@ export type SmbEntry = { name: string; path: string; directory: boolean; size: n
 export type RemoteServerInfo = { url: string; urls?: string[]; pin: string | null; requiresPin: boolean; port: number };
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
-export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentApiKey: string };
+export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentProxyAvailable: boolean };
 export type RemoteRequestOptions = { signal?: AbortSignal };
 export type UserProfileInfo = { path: string; workspaceUri: string | null };
 export type ExternalWorkflowEntry = { name: string; content: string; uri: string };
@@ -63,6 +63,7 @@ export interface RemotePlatformCapability {
   getAccessPolicy(): Promise<RemoteAccessPolicy>;
   pair(pin?: string): Promise<void>;
   getAppConfiguration(): Promise<RemoteAppConfiguration>;
+  proxyAgentRequest(provider: string, body: unknown): Promise<unknown>;
   startServer(requirePin?: boolean): Promise<RemoteServerInfo>;
   stopServer(): Promise<void>;
   request<T>(path: string, payload?: Record<string, unknown>, options?: RemoteRequestOptions): Promise<T>;

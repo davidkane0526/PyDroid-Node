@@ -1,3 +1,15 @@
+## 1.4.68 (91) — Phase 10 Remote Access Security / Host Agent Proxy — 2026-08-20
+
+- Phase 9 is formally frozen at 1.4.67 after the user-host dependency-backed build and **19/19** automated diagnostics passed.
+- Added Desktop/Android Remote Web PIN failure throttling: 5 failures in a 60 s window trigger a 60 s cooldown and HTTP 429/`Retry-After`.
+- Replaced reusable host-wide pairing tokens with fresh client-address-bound session tokens (12 h TTL, 32-token cap) and added normal/expensive API rate limits (240/min and 30/min).
+- Added a small 64 KiB unauthenticated pairing-body limit and stale-token removal after Remote Web receives HTTP 401.
+- Android `/api/app-configuration` no longer returns the raw Agent API key. Remote Web uses an Android Host Agent Proxy when a Keystore-backed secret is available; provider/endpoint remain host-owned and upstream redirects are disabled.
+- Removed Android wildcard CORS exposure for Remote APIs; packaged Remote Web continues to use same-origin requests.
+- Added `remote-security-smoke.mjs`, pure-Java Android `RemoteAccessGuard`, shared diagnostic policy, Agent transport abstraction and two automated diagnostic cases. A full Desktop/Android host should now report **21/21**.
+- Accepted Desktop/Mobile × Node/Group gesture semantics, Workflow schema and Python/JavaScript runtime semantics are unchanged.
+- Build script revision: `1.4.68-dev-r44-phase10-remote-security`.
+
 ## 1.4.67 (90) — Phase 9 Final Ownership / Freeze Candidate — 2026-08-20
 
 - Moved workflow dependency-list add/update/remove into explicit Editor Commands; package requirements are now undoable Session transactions rather than direct React state mutations.

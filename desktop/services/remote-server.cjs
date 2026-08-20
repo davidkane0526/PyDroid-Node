@@ -5,6 +5,10 @@ const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
 const { projectPaths } = require("./profile-service.cjs");
+const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
+
+const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
+const MAX_PAIR_BODY_BYTES = 64 * 1024;
 
 function resolveRendererRoot() {
   const candidates = app.isPackaged
@@ -28,28 +32,33 @@ function resolveRendererRoot() {
 
 function safeStaticPath(rendererRoot, pathname) {
   let requested = pathname === "/" ? "index.html" : decodeURIComponent(pathname.replace(/^\/+/, ""));
-  if (!requested || requested.includes("\\0")) requested = "index.html";
+  if (!requested || requested.includes("\0")) requested = "index.html";
   const root = path.resolve(rendererRoot);
   const filePath = path.resolve(root, requested);
   if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) return null;
   return filePath;
 }
 
+function normalizeClientAddress(request) {
+  return String(request.socket?.remoteAddress ?? "unknown").replace(/^::ffff:/, "").replace(/^\[|\]$/g, "") || "unknown";
+}
+
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
   let remotePin = null;
   let lanDiscovery = null;
-  const remoteTokens = new Set();
+  const accessGuard = new RemoteAccessGuard();
+  const remoteTokens = new RemoteTokenStore();
   const remoteExecutionIds = new Set();
   const maxOutputBytes = pythonService.MAX_OUTPUT_BYTES;
   const defaultExecutionTimeoutMs = pythonService.DEFAULT_EXECUTION_TIMEOUT_MS;
 
-  function readRequestBody(request) {
+  function readRequestBody(request, limitBytes = maxOutputBytes) {
     return new Promise((resolve, reject) => {
       const chunks = []; let size = 0;
       request.on("data", (chunk) => {
         size += chunk.length;
-        if (size > maxOutputBytes) { reject(new Error("请求超过 64 MiB")); request.destroy(); }
+        if (size > limitBytes) { reject(new Error("请求体过大")); request.destroy(); }
         else chunks.push(chunk);
       });
       request.on("end", () => {
@@ -60,21 +69,27 @@ function createRemoteServerService({ pythonService, log }) {
     });
   }
 
-  function sendJson(response, status, value) {
+  function sendJson(response, status, value, extraHeaders = {}) {
     const body = JSON.stringify(value);
-    response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store" });
+    response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store", ...extraHeaders });
     response.end(body);
+  }
+
+  function sendRateLimit(response, error, retryAfterSeconds) {
+    return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
   }
 
   function start(requirePin) {
     if (remoteServer) return Promise.resolve(remoteServer.__info);
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
+    accessGuard.reset();
     const rendererRoot = resolveRendererRoot();
     log(`[Remote Web] Renderer root: ${rendererRoot}`);
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url, "http://localhost");
+        const clientKey = normalizeClientAddress(request);
         if (url.pathname === "/upnp/device.xml" && request.method === "GET") {
           const address = request.socket.localAddress && request.socket.localAddress !== "0.0.0.0" ? request.socket.localAddress.replace(/^::ffff:/, "") : undefined;
           const xml = lanDiscovery?.deviceXml(address) ?? "";
@@ -85,17 +100,31 @@ function createRemoteServerService({ pythonService, log }) {
           response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
           return response.end("OK");
         }
-        if (url.pathname === "/api/health") return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
-        if (url.pathname === "/api/pair" && request.method === "POST") {
-          const body = await readRequestBody(request);
-          if (remotePin && String(body.pin ?? "") !== remotePin) return sendJson(response, 403, { error: "四位校验码不正确" });
-          const token = crypto.randomBytes(24).toString("hex");
-          remoteTokens.add(token);
+        if (url.pathname === "/api/health") {
+          if (request.method !== "GET") return sendJson(response, 405, { error: "Method not allowed" });
+          return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
+        }
+        if (url.pathname === "/api/pair") {
+          if (request.method !== "POST") return sendJson(response, 405, { error: "Method not allowed" });
+          const pairCheck = accessGuard.checkPair(clientKey);
+          if (!pairCheck.allowed) return sendRateLimit(response, `配对尝试过多，请 ${pairCheck.retryAfterSeconds} 秒后重试`, pairCheck.retryAfterSeconds);
+          const body = await readRequestBody(request, MAX_PAIR_BODY_BYTES);
+          if (remotePin && String(body.pin ?? "") !== remotePin) {
+            const failure = accessGuard.recordPairFailure(clientKey);
+            if (failure.locked) return sendRateLimit(response, `配对尝试过多，请 ${failure.retryAfterSeconds} 秒后重试`, failure.retryAfterSeconds);
+            return sendJson(response, 403, { error: "四位校验码不正确" });
+          }
+          accessGuard.recordPairSuccess(clientKey);
+          const token = remoteTokens.issue(clientKey);
           return sendJson(response, 200, { token });
         }
         if (url.pathname.startsWith("/api/")) {
-          if (!remoteTokens.has(String(request.headers["x-pydroid-token"] ?? ""))) return sendJson(response, 401, { error: "尚未配对" });
-          const body = request.method === "POST" ? await readRequestBody(request) : {};
+          const token = String(request.headers["x-pydroid-token"] ?? "");
+          if (!remoteTokens.validate(token, clientKey)) return sendJson(response, 401, { error: "配对会话无效或已过期，请重新配对" });
+          const rate = accessGuard.consumeApi(clientKey, EXPENSIVE_API_PATHS.has(url.pathname));
+          if (!rate.allowed) return sendRateLimit(response, `请求过于频繁，请 ${rate.retryAfterSeconds} 秒后重试`, rate.retryAfterSeconds);
+          if (request.method !== "POST") return sendJson(response, 405, { error: "Method not allowed" });
+          const body = await readRequestBody(request);
           if (url.pathname === "/api/execute") {
             const executionId = String(body.executionId ?? `remote-${crypto.randomUUID()}`);
             remoteExecutionIds.add(executionId);
@@ -135,8 +164,10 @@ function createRemoteServerService({ pythonService, log }) {
               const raw = hostWindow ? await hostWindow.webContents.executeJavaScript(`localStorage.getItem("pydroid-flow.settings.v1")`) : null;
               if (raw) settings = JSON.parse(raw);
             } catch {}
-            return sendJson(response, 200, { settings, agentApiKey: "" });
+            // Desktop Agent keys are intentionally renderer-session scoped; never expose them to Remote Web.
+            return sendJson(response, 200, { settings, agentProxyAvailable: false });
           }
+          if (url.pathname === "/api/agent-proxy") return sendJson(response, 409, { error: "桌面宿主当前没有可供网页使用的安全 Agent 密钥代理；请在此浏览器会话中单独填写 API 密钥" });
           return sendJson(response, 404, { error: "接口不存在" });
         }
         let filePath = safeStaticPath(rendererRoot, url.pathname);
@@ -187,6 +218,7 @@ function createRemoteServerService({ pythonService, log }) {
     const server = remoteServer;
     remoteServer = null;
     remoteTokens.clear();
+    accessGuard.reset();
     remotePin = null;
     return new Promise((resolve) => server.close(() => {
       if (hadDiscovery) setTimeout(resolve, 80); else resolve();
@@ -196,4 +228,4 @@ function createRemoteServerService({ pythonService, log }) {
   return { start, stop };
 }
 
-module.exports = { createRemoteServerService };
+module.exports = { createRemoteServerService, normalizeClientAddress, REMOTE_SECURITY_POLICY };

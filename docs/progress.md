@@ -1,3 +1,17 @@
+# Phase 10 progress — 1.4.68 (91)
+
+Phase 9 is frozen at `1.4.67 (90)` after the user's dependency-backed Desktop build and **19/19** real-host diagnostics passed. Phase 10 starts with Remote Access Security & Host Reliability; no accepted editor UI/gesture or Workflow/Runtime semantics are changed.
+
+- Desktop and Android hosts share the same PIN failure window/cooldown, expiring client-bound pairing token policy and normal/expensive API rate limits.
+- Android Remote Web no longer receives a raw Agent API key. When the Android host has a Keystore-backed Agent secret, the browser uses a Host Agent Proxy and sees only `agentProxyAvailable`.
+- Agent proxy provider/endpoint are host-owned; unsupported protocols are rejected and upstream redirects are disabled before credentials are attached.
+- Android Remote APIs no longer expose wildcard CORS; the packaged Remote Web application remains same-origin.
+- Remote browser 401 responses invalidate the stale session token; unauthenticated pairing bodies are limited to 64 KiB.
+- Added `test:remote-security`, cross-host policy parity checks and two in-app diagnostics. A fully capable host should report **21/21**.
+- Build script revision: `1.4.68-dev-r44-phase10-remote-security`.
+
+---
+
 # Phase 9 progress — 1.4.67 (90)
 
 Phase 9 is now a freeze candidate. The accepted Desktop/Mobile × Node/Group gesture matrix is unchanged.

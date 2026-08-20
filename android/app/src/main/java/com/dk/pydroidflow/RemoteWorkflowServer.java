@@ -2,8 +2,6 @@ package com.dk.pydroidflow;
 
 import android.content.Context;
 import android.content.res.AssetManager;
-import android.util.Base64;
-
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 
@@ -17,9 +15,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.HashMap;
@@ -36,13 +36,15 @@ import java.util.concurrent.Future;
 final class RemoteWorkflowServer {
     private static final int PORT = 8765;
     private static final int MAX_BODY_BYTES = 96 * 1024 * 1024;
+    private static final int MAX_CONTROL_BODY_BYTES = 1024 * 1024;
+    private static final int MAX_PAIR_BODY_BYTES = 64 * 1024;
     private static final int MAX_HEADER_BYTES = 16 * 1024;
 
     private final Context context;
     private final ExecutorService pythonWorker;
     private final ExecutorService requestWorker;
     private final PythonExecutionController executionController;
-    private final String token;
+    private final RemoteAccessGuard accessGuard = new RemoteAccessGuard();
     private final String pin;
     private final boolean requiresPin;
     private final LanDiscoveryService discovery;
@@ -57,9 +59,6 @@ final class RemoteWorkflowServer {
         this.pythonWorker = pythonWorker;
         this.requestWorker = requestWorker;
         this.executionController = executionController;
-        byte[] bytes = new byte[18];
-        new SecureRandom().nextBytes(bytes);
-        token = Base64.encodeToString(bytes, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
         this.requiresPin = requiresPin;
         pin = String.format(java.util.Locale.US, "%04d", new SecureRandom().nextInt(10_000));
         discovery = new LanDiscoveryService(this.context, PORT);
@@ -93,6 +92,7 @@ final class RemoteWorkflowServer {
         discovery.stop();
         for (String executionId : remoteExecutionIds) executionController.cancel(executionId);
         remoteExecutionIds.clear();
+        accessGuard.reset();
         try { if (socket != null) socket.close(); } catch (IOException ignored) { }
     }
 
@@ -130,12 +130,19 @@ final class RemoteWorkflowServer {
                 return;
             }
             if (request.path.startsWith("/api/")) {
+                String clientKey = client.getInetAddress() == null ? "unknown" : client.getInetAddress().getHostAddress();
                 if ("/api/pair".equals(request.path)) {
-                    handlePair(request, output);
+                    handlePair(request, output, clientKey);
                     return;
                 }
-                if (!token.equals(request.headers.get("x-pydroid-token"))) {
-                    sendJson(output, 401, new JSONObject().put("error", "Please pair this browser first"));
+                if (!accessGuard.validateToken(request.headers.get("x-pydroid-token"), clientKey)) {
+                    sendJson(output, 401, new JSONObject().put("error", "配对会话无效或已过期，请重新配对"));
+                    return;
+                }
+                boolean expensive = "/api/execute".equals(request.path) || "/api/analyze-notebook".equals(request.path) || "/api/analyze-signature".equals(request.path) || "/api/agent-proxy".equals(request.path);
+                RemoteAccessGuard.Decision rate = accessGuard.consumeApi(clientKey, expensive);
+                if (!rate.allowed) {
+                    sendRateLimited(output, "请求过于频繁，请 " + rate.retryAfterSeconds + " 秒后重试", rate.retryAfterSeconds);
                     return;
                 }
                 handleApi(request, output);
@@ -155,17 +162,25 @@ final class RemoteWorkflowServer {
         }
     }
 
-    private void handlePair(Request request, OutputStream output) throws Exception {
+    private void handlePair(Request request, OutputStream output, String clientKey) throws Exception {
         if (!"POST".equals(request.method)) {
             send(output, 405, "text/plain", "Method not allowed".getBytes(StandardCharsets.UTF_8));
             return;
         }
-        JSONObject payload = new JSONObject(new String(request.body, StandardCharsets.UTF_8));
-        if (requiresPin && !pin.equals(payload.optString("pin", ""))) {
-            sendJson(output, 401, new JSONObject().put("error", "四位校验码不正确"));
+        RemoteAccessGuard.Decision pairCheck = accessGuard.checkPair(clientKey);
+        if (!pairCheck.allowed) {
+            sendRateLimited(output, "配对尝试过多，请 " + pairCheck.retryAfterSeconds + " 秒后重试", pairCheck.retryAfterSeconds);
             return;
         }
-        sendJson(output, 200, new JSONObject().put("token", token));
+        JSONObject payload = new JSONObject(new String(request.body, StandardCharsets.UTF_8));
+        if (requiresPin && !pin.equals(payload.optString("pin", ""))) {
+            RemoteAccessGuard.Decision failure = accessGuard.recordPairFailure(clientKey);
+            if (!failure.allowed) sendRateLimited(output, "配对尝试过多，请 " + failure.retryAfterSeconds + " 秒后重试", failure.retryAfterSeconds);
+            else sendJson(output, 403, new JSONObject().put("error", "四位校验码不正确"));
+            return;
+        }
+        accessGuard.recordPairSuccess(clientKey);
+        sendJson(output, 200, new JSONObject().put("token", accessGuard.issueToken(clientKey)));
     }
 
     private void handleApi(Request request, OutputStream output) throws Exception {
@@ -232,15 +247,92 @@ final class RemoteWorkflowServer {
             if (code == null) throw new IllegalArgumentException("code is required");
             sendJsonText(output, 200, callPython("pydroid_flow.engine", "analyze_signature_json", code));
         } else if ("/api/app-configuration".equals(request.path)) {
-            // The session token is required before returning any device configuration.
-            // The API key is decrypted only in memory and sent over the user-authorized LAN session.
             JSONObject configuration = new JSONObject();
             configuration.put("settings", readSettings());
-            configuration.put("agentApiKey", AgentSecretStore.load(context));
+            configuration.put("agentProxyAvailable", !AgentSecretStore.load(context).trim().isEmpty());
             sendJson(output, 200, configuration);
+        } else if ("/api/agent-proxy".equals(request.path)) {
+            proxyAgentRequest(payload, output);
         } else {
             sendJson(output, 404, new JSONObject().put("error", "Unknown API endpoint"));
         }
+    }
+
+    private void proxyAgentRequest(JSONObject payload, OutputStream output) throws Exception {
+        String secret = AgentSecretStore.load(context).trim();
+        if (secret.isEmpty()) {
+            sendJson(output, 409, new JSONObject().put("error", "Android 宿主未配置 Agent API 密钥"));
+            return;
+        }
+        JSONObject settings = readSettings().optJSONObject("agent");
+        if (settings == null) {
+            sendJson(output, 409, new JSONObject().put("error", "Android 宿主未配置 Agent 模型"));
+            return;
+        }
+        String endpoint = settings.optString("endpoint", "").trim();
+        String provider = settings.optString("provider", "").trim();
+        String requestedProvider = payload.optString("provider", provider).trim();
+        if (endpoint.isEmpty() || provider.isEmpty()) {
+            sendJson(output, 409, new JSONObject().put("error", "Android 宿主的 Agent 接口配置不完整"));
+            return;
+        }
+        if (!provider.equals(requestedProvider)) {
+            sendJson(output, 409, new JSONObject().put("error", "网页端 Agent 协议与宿主配置不一致，请重新同步宿主配置"));
+            return;
+        }
+        Object bodyValue = payload.opt("body");
+        if (!(bodyValue instanceof JSONObject)) {
+            sendJson(output, 400, new JSONObject().put("error", "Agent proxy body must be a JSON object"));
+            return;
+        }
+        URL url = new URL(endpoint);
+        String scheme = url.getProtocol();
+        if (!("https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme))) {
+            sendJson(output, 400, new JSONObject().put("error", "Agent endpoint must use HTTP or HTTPS"));
+            return;
+        }
+        if (!("openai-responses".equals(provider) || "openai-compatible".equals(provider) || "anthropic-messages".equals(provider))) {
+            sendJson(output, 409, new JSONObject().put("error", "Android 宿主的 Agent 协议不受支持"));
+            return;
+        }
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setInstanceFollowRedirects(false);
+        connection.setRequestMethod("POST");
+        connection.setConnectTimeout(30_000);
+        connection.setReadTimeout(90_000);
+        connection.setDoOutput(true);
+        connection.setRequestProperty("Content-Type", "application/json");
+        connection.setRequestProperty("Accept", "application/json");
+        connection.setRequestProperty("Accept-Encoding", "identity");
+        if ("anthropic-messages".equals(provider)) {
+            connection.setRequestProperty("x-api-key", secret);
+            connection.setRequestProperty("anthropic-version", "2023-06-01");
+        } else {
+            connection.setRequestProperty("Authorization", "Bearer " + secret);
+        }
+        byte[] requestBytes = bodyValue.toString().getBytes(StandardCharsets.UTF_8);
+        if (requestBytes.length > MAX_BODY_BYTES) {
+            sendJson(output, 413, new JSONObject().put("error", "Agent request is too large"));
+            return;
+        }
+        try (OutputStream upstream = connection.getOutputStream()) { upstream.write(requestBytes); }
+        int status = connection.getResponseCode();
+        InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
+        byte[] responseBytes = stream == null ? "{}".getBytes(StandardCharsets.UTF_8) : readAll(stream, MAX_BODY_BYTES);
+        String text = new String(responseBytes, StandardCharsets.UTF_8);
+        try {
+            sendJson(output, status, new JSONObject(text));
+        } catch (Exception ignored) {
+            sendJson(output, status, new JSONObject().put("error", text.isEmpty() ? "Agent provider returned an empty response" : text));
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private void sendRateLimited(OutputStream output, String error, int retryAfterSeconds) throws IOException {
+        JSONObject payload = new JSONObject();
+        try { payload.put("error", error).put("retryAfterSeconds", retryAfterSeconds); } catch (Exception ignored) { }
+        sendJsonWithHeaders(output, 429, payload, "Retry-After: " + retryAfterSeconds + "\r\n");
     }
 
 
@@ -334,7 +426,10 @@ final class RemoteWorkflowServer {
             if (colon > 0) headers.put(lines[index].substring(0, colon).trim().toLowerCase(), lines[index].substring(colon + 1).trim());
         }
         int contentLength = headers.containsKey("content-length") ? Integer.parseInt(headers.get("content-length")) : 0;
-        if (contentLength < 0 || contentLength > MAX_BODY_BYTES) throw new IOException("Request body is too large");
+        int bodyLimit = "/api/pair".equals(path) ? MAX_PAIR_BODY_BYTES
+            : ("/api/execute".equals(path) || "/api/agent-proxy".equals(path)) ? MAX_BODY_BYTES
+            : MAX_CONTROL_BODY_BYTES;
+        if (contentLength < 0 || contentLength > bodyLimit) throw new IOException("Request body is too large");
         byte[] body = readExactly(input, contentLength);
         return new Request(requestLine[0], path, headers, body);
     }
@@ -362,10 +457,12 @@ final class RemoteWorkflowServer {
     }
 
     private static void sendJson(OutputStream output, int status, JSONObject value) throws IOException { send(output, status, "application/json; charset=utf-8", value.toString().getBytes(StandardCharsets.UTF_8)); }
+    private static void sendJsonWithHeaders(OutputStream output, int status, JSONObject value, String extraHeaders) throws IOException { send(output, status, "application/json; charset=utf-8", value.toString().getBytes(StandardCharsets.UTF_8), extraHeaders); }
     private static void sendJsonText(OutputStream output, int status, String value) throws IOException { send(output, status, "application/json; charset=utf-8", value.getBytes(StandardCharsets.UTF_8)); }
-    private static void send(OutputStream output, int status, String type, byte[] body) throws IOException {
-        String text = status == 200 ? "OK" : status == 204 ? "No Content" : status == 400 ? "Bad Request" : status == 401 ? "Unauthorized" : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Internal Server Error";
-        String headers = "HTTP/1.1 " + status + " " + text + "\r\nContent-Type: " + type + "\r\nContent-Length: " + body.length + "\r\nCache-Control: no-store\r\nConnection: close\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Allow-Headers: Content-Type, X-PyDroid-Token\r\n\r\n";
+    private static void send(OutputStream output, int status, String type, byte[] body) throws IOException { send(output, status, type, body, ""); }
+    private static void send(OutputStream output, int status, String type, byte[] body, String extraHeaders) throws IOException {
+        String text = status == 200 ? "OK" : status == 204 ? "No Content" : status == 400 ? "Bad Request" : status == 401 ? "Unauthorized" : status == 403 ? "Forbidden" : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : status == 409 ? "Conflict" : status == 413 ? "Payload Too Large" : status == 429 ? "Too Many Requests" : "Internal Server Error";
+        String headers = "HTTP/1.1 " + status + " " + text + "\r\nContent-Type: " + type + "\r\nContent-Length: " + body.length + "\r\nCache-Control: no-store\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\nCross-Origin-Resource-Policy: same-origin\r\nAccess-Control-Allow-Headers: Content-Type, X-PyDroid-Token\r\n" + (extraHeaders == null ? "" : extraHeaders) + "\r\n";
         output.write(headers.getBytes(StandardCharsets.ISO_8859_1));
         output.write(body);
         output.flush();

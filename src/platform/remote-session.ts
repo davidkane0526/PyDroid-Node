@@ -2,7 +2,7 @@ import type { RemoteAccessPolicy } from "./types";
 
 const REMOTE_SESSION_TOKEN_KEY = "pydroid-flow.remote-session-token.v1";
 
-type StorageLike = Pick<Storage, "getItem" | "setItem">;
+type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 type LocationLike = Pick<Location, "search" | "protocol" | "hostname">;
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -75,6 +75,7 @@ export function createRemoteSessionClient(
     });
     const text = await response.text();
     if (!response.ok) {
+      if (response.status === 401) environmentProvider().storage?.removeItem(REMOTE_SESSION_TOKEN_KEY);
       let message = `远程服务请求失败（${response.status}）`;
       try { message = String((JSON.parse(text) as { error?: string }).error ?? message); } catch { /* retain status */ }
       throw new Error(message);

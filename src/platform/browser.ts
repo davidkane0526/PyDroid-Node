@@ -2,8 +2,8 @@ import { createRemoteSessionClient } from "./remote-session";
 import type { PlatformAdapter, RemoteAppConfiguration } from "./types";
 
 const remoteSession = createRemoteSessionClient({
-  missingToken: "请先完成 Android 局域网配对",
-  healthFailed: "无法连接 Android 计算服务",
+  missingToken: "请先完成局域网宿主配对",
+  healthFailed: "无法连接宿主计算服务",
   pairFailed: "局域网配对失败",
 });
 
@@ -52,10 +52,14 @@ export function createBrowserPlatformAdapter(): PlatformAdapter {
       getAccessPolicy: remoteSession.getAccessPolicy,
       pair: remoteSession.pair,
       async getAppConfiguration() {
-        if (!remoteSession.isRemoteRuntime()) throw new Error("仅局域网网页可读取 Android 配置");
+        if (!remoteSession.isRemoteRuntime()) throw new Error("仅局域网网页可读取宿主配置");
         return remoteSession.request<RemoteAppConfiguration>("/api/app-configuration");
       },
-      async startServer() { throw new Error("局域网服务只能在 Android 应用内开启"); },
+      async proxyAgentRequest(provider, body) {
+        if (!remoteSession.isRemoteRuntime()) throw new Error("Agent 宿主代理仅在局域网网页中可用");
+        return remoteSession.request("/api/agent-proxy", { provider, body });
+      },
+      async startServer() { throw new Error("局域网服务只能在宿主应用内开启"); },
       async stopServer() { /* browser cannot host */ },
       request: remoteSession.request,
     },

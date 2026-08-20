@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.67
+Current behavior: 1.4.68
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -37,13 +37,17 @@ The report records only application/runtime diagnostics and the names/counts of 
 12. AI Agent batch transaction: a valid plan commits once/undoes once and an invalid plan cannot partially mutate the Session.
 13. Workflow requirement ownership: add/update/remove executes through Editor Commands and remains undoable.
 14. Runtime interaction isolation: `ui.input_dialog` and `ui.alert` responses affect only the current execution and do not mutate/dirty the Editor Session.
-15. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
-16. JavaScript workspace variable write -> second-run read.
-17. JavaScript reusable function signature/handles + absolute-value execution.
-18. Python workspace variable write -> second-run read when a Python host exists.
-19. Python reusable function signature/handles + absolute-value execution when a Python host exists.
+15. Remote Web security policy: PIN lock/cooldown, token TTL and normal/expensive API limits match the Phase 10 contract.
+16. Remote Agent proxy boundary: Agent transport can run without a browser-held raw API key.
+17. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
+18. JavaScript workspace variable write -> second-run read.
+19. JavaScript reusable function signature/handles + absolute-value execution.
+20. Python workspace variable write -> second-run read when a Python host exists.
+21. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its two Python cases are reported as skipped. The fifteen Phase 9 Editor Core/session cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **19/19**.
+A plain local browser has no Python host, so its two Python cases are reported as skipped. The fifteen Phase 9 Editor Core/session cases plus the two Phase 10 Remote security/Agent-proxy boundary cases remain host-independent. Desktop, Android and paired Remote Web should execute both runtimes; a fully capable local host therefore reports **21/21**.
+
+Repository gate `scripts/automated-diagnostics-contract-smoke.mjs` pins this 21-case full-host contract so the diagnostic runner and documentation cannot silently drift apart.
 
 ## Output
 

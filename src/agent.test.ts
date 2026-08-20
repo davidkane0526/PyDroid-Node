@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_SELF_CHALLENGES, agentPlanningDiagnostic, buildAgentPlanningContext, parseAgentPlan, presetById, validateAgentPlan, type AgentCatalogEntry } from "./agent";
+import { AGENT_SELF_CHALLENGES, DEFAULT_AGENT_SETTINGS, agentPlanningDiagnostic, buildAgentPlanningContext, parseAgentPlan, presetById, testAgentConnection, validateAgentPlan, type AgentCatalogEntry } from "./agent";
 import { NODE_CATALOG } from "./nodeCatalog";
 
 const catalog: AgentCatalogEntry[] = NODE_CATALOG.map((spec) => ({
@@ -44,6 +44,19 @@ describe("AI Agent plan parser", () => {
       summary: "尝试执行任意代码",
       operations: [{ type: "run_python", source: "print('unsafe')" }],
     }))).toThrow("不支持的 AI 操作");
+  });
+
+
+  it("supports a host Agent transport without exposing an API key to the browser", async () => {
+    const settings = { ...DEFAULT_AGENT_SETTINGS, endpoint: "https://host.invalid/v1/responses", model: "host-model" };
+    let calls = 0;
+    const result = await testAgentConnection(settings, "", async (_settings, body) => {
+      calls += 1;
+      expect(body).toMatchObject({ model: "host-model" });
+      return { model: "host-proxy-model" };
+    });
+    expect(calls).toBe(1);
+    expect(result).toEqual({ ok: true, message: "连接成功：host-proxy-model" });
   });
 
   it("uses DeepSeek Chat Completions and Anthropic-compatible presets", () => {

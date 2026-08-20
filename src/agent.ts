@@ -83,6 +83,7 @@ export type AgentCatalogEntry = {
   cachePolicy?: string;
 };
 export type AgentConnectionResult = { ok: boolean; message: string };
+export type AgentTransport = (settings: AgentSettings, body: unknown) => Promise<unknown>;
 
 export type AgentPlanningDiagnostic = {
   instruction: string;
@@ -136,7 +137,8 @@ function assertSupportedEndpoint(settings: AgentSettings): void {
   }
 }
 
-async function post(settings: AgentSettings, apiKey: string, body: unknown): Promise<unknown> {
+async function post(settings: AgentSettings, apiKey: string, body: unknown, transport?: AgentTransport): Promise<unknown> {
+  if (transport) return transport(settings, body);
   const headers: Record<string, string> = { "content-type": "application/json", authorization: `Bearer ${apiKey.trim()}` };
   if (settings.provider === "anthropic-messages") { headers["x-api-key"] = apiKey.trim(); headers["anthropic-version"] = "2023-06-01"; delete headers.authorization; }
   const response = await fetch(settings.endpoint, { method: "POST", headers, body: JSON.stringify(body) });
@@ -357,23 +359,23 @@ export function validateAgentPlan(plan: AgentPlan, workflowContext: unknown = { 
   return errors;
 }
 
-export async function testAgentConnection(settings: AgentSettings, apiKey: string): Promise<AgentConnectionResult> {
-  if (!settings.endpoint.trim() || !settings.model.trim() || !apiKey.trim()) throw new Error("请填写接口地址、模型名称和 API 密钥");
+export async function testAgentConnection(settings: AgentSettings, apiKey: string, transport?: AgentTransport): Promise<AgentConnectionResult> {
+  if (!settings.endpoint.trim() || !settings.model.trim() || (!transport && !apiKey.trim())) throw new Error("请填写接口地址、模型名称和 API 密钥");
   assertSupportedEndpoint(settings);
   const deepSeek = isDeepSeek(settings);
   const payload = settings.provider === "anthropic-messages"
-    ? await post(settings, apiKey, { model: settings.model, max_tokens: 8, messages: [{ role: "user", content: "Reply with OK." }] })
+    ? await post(settings, apiKey, { model: settings.model, max_tokens: 8, messages: [{ role: "user", content: "Reply with OK." }] }, transport)
     : settings.provider === "openai-responses"
-      ? await post(settings, apiKey, { model: settings.model, input: "Reply with OK.", max_output_tokens: 8, store: false })
-      : await post(settings, apiKey, { model: settings.model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 8, ...(deepSeek ? { thinking: { type: "disabled" } } : {}) });
+      ? await post(settings, apiKey, { model: settings.model, input: "Reply with OK.", max_output_tokens: 8, store: false }, transport)
+      : await post(settings, apiKey, { model: settings.model, messages: [{ role: "user", content: "Reply with OK." }], max_tokens: 8, ...(deepSeek ? { thinking: { type: "disabled" } } : {}) }, transport);
   const model = payload && typeof payload === "object" && "model" in payload ? String((payload as { model: unknown }).model) : settings.model;
   return { ok: true, message: `连接成功：${model}` };
 }
 
-async function requestPlanToolCall(settings: AgentSettings, apiKey: string, input: string): Promise<string | undefined> {
+async function requestPlanToolCall(settings: AgentSettings, apiKey: string, input: string, transport?: AgentTransport): Promise<string | undefined> {
   const deepSeek = isDeepSeek(settings);
   if (settings.provider === "anthropic-messages") {
-    const payload = await post(settings, apiKey, { model: settings.model, max_tokens: 3072, system: plannerInstructions, messages: [{ role: "user", content: input }], tools: [{ name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", input_schema: planSchema }], tool_choice: { type: "tool", name: "propose_workflow_plan" } }) as { content?: Array<{ type?: string; name?: string; input?: unknown }> };
+    const payload = await post(settings, apiKey, { model: settings.model, max_tokens: 3072, system: plannerInstructions, messages: [{ role: "user", content: input }], tools: [{ name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", input_schema: planSchema }], tool_choice: { type: "tool", name: "propose_workflow_plan" } }, transport) as { content?: Array<{ type?: string; name?: string; input?: unknown }> };
     const call = payload.content?.find((item) => item.type === "tool_use" && item.name === "propose_workflow_plan");
     return call?.input ? JSON.stringify(call.input) : undefined;
   }
@@ -385,7 +387,7 @@ async function requestPlanToolCall(settings: AgentSettings, apiKey: string, inpu
       tools: [{ type: "function", name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema }],
       tool_choice: { type: "function", name: "propose_workflow_plan" },
       store: false,
-    }) as { output?: Array<{ type?: string; name?: string; arguments?: string }> };
+    }, transport) as { output?: Array<{ type?: string; name?: string; arguments?: string }> };
     return payload.output?.find((item) => item.type === "function_call" && item.name === "propose_workflow_plan")?.arguments;
   }
   const toolChoice = deepSeek ? "required" : { type: "function", function: { name: "propose_workflow_plan" } };
@@ -395,7 +397,7 @@ async function requestPlanToolCall(settings: AgentSettings, apiKey: string, inpu
     tools: [{ type: "function", function: { name: "propose_workflow_plan", description: "Propose user-confirmed workflow changes.", parameters: planSchema } }],
     tool_choice: toolChoice,
     ...(deepSeek ? { thinking: { type: "disabled" } } : {}),
-  }) as { choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
+  }, transport) as { choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ function?: { name?: string; arguments?: string } }> } }> };
   const toolArguments = payload.choices?.[0]?.message?.tool_calls?.find((call) => call.function?.name === "propose_workflow_plan")?.function?.arguments;
   if (toolArguments || !deepSeek) return toolArguments;
 
@@ -414,13 +416,13 @@ Return the complete workflow plan as JSON.` },
     response_format: { type: "json_object" },
     max_tokens: 3072,
     thinking: { type: "disabled" },
-  }) as { choices?: Array<{ message?: { content?: string | null } }> };
+  }, transport) as { choices?: Array<{ message?: { content?: string | null } }> };
   return jsonPayload.choices?.[0]?.message?.content ?? undefined;
 }
 
-export async function requestAgentPlan(settings: AgentSettings, apiKey: string, instruction: string, catalog: AgentCatalogEntry[], workflowContext: unknown): Promise<AgentPlan> {
+export async function requestAgentPlan(settings: AgentSettings, apiKey: string, instruction: string, catalog: AgentCatalogEntry[], workflowContext: unknown, transport?: AgentTransport): Promise<AgentPlan> {
   if (!settings.model.trim()) throw new Error("请先在设置中填写模型名称");
-  if (!apiKey.trim()) throw new Error("请填写仅本次会话使用的 API 密钥");
+  if (!transport && !apiKey.trim()) throw new Error("请填写仅本次会话使用的 API 密钥");
   if (!instruction.trim()) throw new Error("请描述要让 AI 创建或修改的节点");
   assertSupportedEndpoint(settings);
 
@@ -433,7 +435,7 @@ export async function requestAgentPlan(settings: AgentSettings, apiKey: string, 
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const input = repair ? `${baseInput}\n\nLOCAL VALIDATION FAILED FOR THE PREVIOUS PLAN. Repair it and return a complete replacement plan.\n${repair}` : baseInput;
     try {
-      const argumentsText = await requestPlanToolCall(settings, apiKey, input);
+      const argumentsText = await requestPlanToolCall(settings, apiKey, input, transport);
       if (!argumentsText) throw new Error("AI 没有返回工作流计划工具调用");
       const plan = parseAgentPlan(argumentsText);
       const validation = validateAgentPlan(plan, workflowContext);

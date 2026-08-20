@@ -135,14 +135,14 @@ Together with the four Phase 8 runtime cases, a Desktop/Android host with Python
 - `scripts/phase9-freeze-audit.mjs` classifies remaining direct `setNodes`/`setEdges` calls as presentation-only state (selection, execution status, temporary insertion class) and rejects persistent-field mutation through those paths.
 - automated diagnostics add requirement ownership and runtime-interaction isolation, raising a full Desktop/Android run to **19/19**.
 - No accepted Desktop/Mobile × Node/Group/Canvas/Resource/Tab gesture behavior changed.
-- This is the Phase 9 freeze candidate. Freeze requires a dependency-backed user-host build plus 19/19 diagnostics.
+- The dependency-backed user-host build and 19/19 diagnostics passed on 1.4.67. **Phase 9 is frozen at 1.4.67 (90).**
 
-## Phase 9 continuation
+## Phase 9 frozen boundary
 
-1. Do not add more Phase 9 features or chase `App.tsx` line count. The strict freeze audit now classifies remaining direct graph writes as presentation-only.
-2. Run the dependency-backed production TypeScript/Vite/Desktop build on the user host and require **19/19** diagnostics.
-3. If that acceptance passes, freeze Phase 9 at 1.4.67 and start the next phase from this boundary.
-4. Preserve the independent Desktop/Mobile and Node/Group gesture policies after freeze.
+1. Phase 9 is frozen at `1.4.67 (90)` after the dependency-backed real-host build and **19/19** diagnostics passed.
+2. Do not add more Phase 9 features or chase `App.tsx` line count. The strict freeze audit classifies remaining direct graph writes as presentation-only.
+3. Preserve the independent Desktop/Mobile and Node/Group gesture policies in later phases.
+4. Phase 10 starts from this boundary and must not reopen Editor Core ownership without a concrete regression.
 
 ## Non-goals for 1.4.60–1.4.67
 

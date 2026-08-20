@@ -552,11 +552,12 @@ export function CodeEditorModal({ open, code, summary, error, onClose, onCodeCha
   );
 }
 
-export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, connectionStatus, language, instruction, requesting, planText, plan, planError, audit, onClose, onPresetSelect, onSettingsChange, onApiKeyChange, onLanguageChange, onTestConnection, onInstructionChange, onRequestPlan, onPlanTextChange, onReviewPlan, onApplyPlan }: {
+export function AgentDialog({ open, settings, apiKey, keyStorageHint, apiKeyManagedByHost = false, testing, connectionStatus, language, instruction, requesting, planText, plan, planError, audit, onClose, onPresetSelect, onSettingsChange, onApiKeyChange, onLanguageChange, onTestConnection, onInstructionChange, onRequestPlan, onPlanTextChange, onReviewPlan, onApplyPlan }: {
   open: boolean;
   settings: AgentSettings;
   apiKey: string;
   keyStorageHint: string;
+  apiKeyManagedByHost?: boolean;
   testing: boolean;
   connectionStatus: string | null;
   language: string;
@@ -601,10 +602,10 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, testing, c
           <label><span>{L("模型", "Model")}</span><ThemedSelect ariaLabel={L("模型", "Model")} value={settings.model} options={[{ value: "", label: L("选择模型", "Select a model") }, ...selectedPreset.models.map((model) => ({ value: model, label: model }))]} onChange={(value) => onSettingsChange({ model: value })} /></label>
           {selectedPreset.note && <small className="agent-preset-note">{selectedPreset.note}</small>}
           {settings.presetId === "custom" && <label>{L("自定义模型", "Custom model")}<input value={settings.model} placeholder="模型 ID" onChange={(event) => onSettingsChange({ model: event.target.value })} /></label>}
-          <label>{L("API 密钥", "API key")}<input type="password" autoComplete="off" value={apiKey} placeholder={keyStorageHint} onChange={(event) => onApiKeyChange(event.target.value)} /></label>
+          <label>{L("API 密钥", "API key")}<input type="password" autoComplete="off" value={apiKeyManagedByHost ? "" : apiKey} disabled={apiKeyManagedByHost} placeholder={apiKeyManagedByHost ? L("由宿主机安全代理持有", "Managed by host proxy") : keyStorageHint} onChange={(event) => onApiKeyChange(event.target.value)} /></label>
           <label><span>{L("语言（同步界面）", "Language (synced with UI)")}</span><ThemedSelect ariaLabel={L("语言", "Language")} value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label>
           <div className="agent-inline-actions"><button className="button secondary" disabled={testing} onClick={onTestConnection}>{testing ? L("测试中…", "Testing…") : L("尝试连接", "Test connection")}</button>{connectionStatus && <small className={connectionStatus.startsWith("连接成功") ? "agent-success" : "agent-failure"}>{connectionStatus}</small>}</div>
-          <small>{keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : keyStorageHint === "synced" ? "密钥来自已配对 Android 的加密密钥库，仅驻留当前网页内存；刷新页面会重新从 Android 同步。" : "桌面端密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
+          <small>{apiKeyManagedByHost ? L("密钥始终留在宿主机，由安全代理代发模型请求；局域网网页不会取得原始 API 密钥。", "The key stays on the host. A secure proxy sends model requests, and Remote Web never receives the raw API key.") : keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : "桌面/网页密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
         </section>
         <div className="agent-side-stack">
         <section className="agent-permissions"><h3>{L("AI 权限", "AI permissions")}</h3>

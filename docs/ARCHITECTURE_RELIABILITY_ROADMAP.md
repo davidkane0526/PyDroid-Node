@@ -1,8 +1,8 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-20
-当前架构开发分支：`phase9/final-freeze-audit`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已验收基线：`1.4.59 (82)`；当前 Phase 9：`1.4.67 (90)`
+当前架构开发分支：`phase10/remote-security-host-reliability`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；当前 Phase 10：`1.4.68 (91)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -543,13 +543,13 @@ desktop/
 
 ### Remote Access
 
-后续需要：
+1.4.68 已开始落实：
 
-- PIN 失败次数限制/冷却；
-- 请求 rate limit；
-- 不向 Remote Browser 返回原始 Agent API Key；
-- 由 Host Agent Proxy 代替浏览器直接持有密钥；
-- 保持 discovery 与敏感 API authentication 分离。
+- PIN 失败次数限制/冷却：已实现；
+- 请求 rate limit：已实现普通/重型 API 分级限流；
+- 不向 Remote Browser 返回原始 Agent API Key：Android/desktop configuration contract 已移除原始 key；
+- Host Agent Proxy：Android 已实现；Desktop 因 Agent key 仍为 renderer-session-only，当前明确报告 proxy unavailable，而不是复制/持久化密钥；
+- discovery 与敏感 API authentication 保持分离。
 
 ### LAN Discovery
 
@@ -576,7 +576,8 @@ desktop/
 7. Phase 6 Runtime Engine modularization：1.4.42 已完成并冻结。
 8. Phase 7 Host modularization：已完成并通过真实 Windows/Android 验收后冻结。
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
-10. Phase 9 Editor Core & Workspace Session：1.4.60 开始；1.4.67 已完成最终所有权审计，工作流依赖进入 Editor Command，交互输入/确认仅作为 execution override，不再污染 Editor Snapshot；Resource Service、Session-owned identity、Local/Remote ExecutionController、AI 原子事务及此前全部编辑事务保持在 Core 边界。当前为冻结候选，待真实宿主 19/19 自动诊断后冻结。Desktop/Mobile 与 Node/Group 手势不得被强制统一。
+10. Phase 9 Editor Core & Workspace Session：1.4.60 开始，1.4.67 经真实宿主依赖构建与 19/19 自动诊断验收后冻结。Desktop/Mobile 与 Node/Group 手势保持独立策略。
+11. Phase 10 Remote Access Security & Host Reliability：1.4.68 开始；首个里程碑增加 PIN 冷却、客户端绑定/过期 Session Token、分级 API rate limit，以及 Android Host Agent Proxy 密钥隔离。后续继续补 LAN discovery 生命周期自动化。
 
 核心原则始终是：
 
@@ -601,8 +602,22 @@ UI 稳定
 
 ## 13. Phase 9 — Editor Core & Workspace Session
 
-状态：**1.4.67 冻结候选；待真实宿主 19/19 自动诊断后冻结。**
+状态：**已于 1.4.67 (90) 通过真实宿主构建与 19/19 自动诊断验收并冻结。**
 
 Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成为每标签页 graph/input/history/view state 的唯一编辑器状态源，并将持久业务操作收敛为 Editor Commands/Services。1.4.67 在 1.4.66 Resource Service 与 Session identity 基础上完成最后两处所有权修正：workflow requirements 由 Editor Command 管理；交互输入/确认值仅覆盖本次执行节点，不写回 Editor Snapshot。`phase9-ownership-audit` 与更严格的 `phase9-freeze-audit` 共同阻止资源存储、裸 tabId 执行、AI graph surgery、直接 requirements 修改及持久节点字段修改重新回流 `App.tsx`。正常启动仍保持单个空白工作流，不自动恢复旧画布。
 
 手势采用二维策略矩阵：输入 profile（Desktop/Mobile）× 目标 kind（Node/Group/Canvas/Resource/Tab）。这是刻意的架构要求，不允许为了“统一”而让移动端和桌面端、节点和组合共享不适合的长按/双击含义。具体契约见 `docs/phase9-editor-core-workspace-session.md`。
+
+---
+
+## 14. Phase 10 — Remote Access Security & Host Reliability
+
+状态：**1.4.68 (91) 已开始。**
+
+Phase 10 不重新设计已工作的 Remote Web/LAN UI，而是把第 11 节长期安全与可靠性项变成可测试契约。1.4.68 首先处理敏感边界：Desktop/Android 使用相同的 PIN 失败窗口与冷却策略、成功配对后签发客户端地址绑定且有 TTL/数量上限的 Session Token，并对普通与重型 Remote API 分级限流。Android 的 Remote Web 配置只返回 `agentProxyAvailable`，原始 Agent API Key 始终留在宿主 Keystore；网页通过 Host Agent Proxy 发起模型请求。代理的 provider/endpoint 由宿主设置决定，不接受网页任意改写，且禁止上游 redirect 后继续携带宿主凭据。
+
+Discovery (`SSDP/mDNS/device.xml`) 仍与认证 API 分离。健康检查和发现元数据保持公开，执行/配置/Agent 等 API 必须在配对 Session 后使用。Android Remote API 不再发布 wildcard CORS，以避免无关网页源通过浏览器驱动宿主 API。
+
+1.4.68 的正式安全回归由 `scripts/remote-security-smoke.mjs`、Desktop `RemoteAccessGuard/RemoteTokenStore`、Android pure-Java `RemoteAccessGuard` 与两项 in-app diagnostics 共同覆盖。完整宿主自动诊断目标从 19/19 提升到 **21/21**。具体策略见 `docs/phase10-remote-security-host-reliability.md`。
+
+下一里程碑优先补充 LAN Discovery 生命周期自动化：SSDP `ssdp:all` 多目标响应、CRLF/USN/LOCATION/ST、device.xml 身份字段、UUID persistence、network restart、stop/byebye 以及 mDNS A/PTR/SRV/TXT；不重新发明 discovery 协议。
