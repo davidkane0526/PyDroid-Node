@@ -1,3 +1,11 @@
+## 1.4.91 (114) — deterministic long-path build cleanup — 2026-08-21
+
+- Replaced recursive PowerShell `Remove-Item` directory cleanup with one .NET recursive delete using Windows extended-length paths.
+- The same cleanup primitive now covers stale `release`/`dist` trees, copied Desktop Python runtime trees, and optional old Desktop archives.
+- No retry, alternate cleaner, deferred cleanup, or ignored deletion error was added. Cleanup failure remains a hard build failure.
+- Remote Web runtime behavior is unchanged from 1.4.90; this release only removes the build blocker that prevented the new runtime log build from being produced.
+- Build revision: `1.4.91-dev-r68-long-path-cleanup`.
+
 ## 1.4.90 (113) — deterministic runtime log path + repeatable stable Desktop replacement — 2026-08-21
 
 - Fix the runtime-log path mistake from 1.4.89. Packaged Windows Desktop now writes `logs\desktop.log` beside the executable, so the fixed build output uses `D:\PyDroidTemp\PyDroid-Flow-Desktop\logs\desktop.log`. The log remains passive and never controls Remote Web startup.

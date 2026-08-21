@@ -40,8 +40,9 @@ for (const [name, source] of [
   assert.doesNotMatch(source, /Get-Command|Get-ItemProperty|Registry|CurrentVersion\\Uninstall|where\.exe|py\.exe|Program Files|LOCALAPPDATA|recursive|fallback/i,
     `${name} build helper must not scan alternate machine locations`);
 }
-assert.match(packagingModule, /Remove-Item -LiteralPath \$Path -Recurse -Force -ErrorAction Stop/);
-assert.doesNotMatch(packagingModule, /cmd\.exe|robocopy|\\\\\?\\|fallback|retry/i);
+assert.match(packagingModule, /System\.IO\.Directory/);
+assert.match(packagingModule, /Delete\(\$deletePath, \$true\)/);
+assert.doesNotMatch(packagingModule, /Remove-Item[^\n]*-Recurse|cmd\.exe|robocopy|fallback|retry/i);
 assert.equal(existsSync(path.join(root, "tools/deferred-cleanup.ps1")), false, "deferred cleanup worker must be removed");
 
 assert.match(network, /ValidateSet\('Direct','Manual'\)/);

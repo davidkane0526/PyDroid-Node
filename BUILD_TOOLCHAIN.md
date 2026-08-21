@@ -1,6 +1,6 @@
 # PyDroid Node deterministic build toolchain
 
-Baseline: **1.4.90 / Deterministic Core** (2026-08-21).
+Baseline: **1.4.91 / Deterministic Core** (2026-08-21).
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
 
@@ -65,7 +65,7 @@ D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13\python.exe
 6. 不关闭签名/资源编辑后重新打 Electron 包，不生成 plain-EXE 替代品。
 7. 不在 Gradle daemon 失败后清状态、`--stop`、再切到 `--no-daemon`。
 8. 不依据“APK 已经出现”覆盖 Gradle 进程退出码。
-9. 不使用多级长路径清理器。一次 `Remove-Item -Recurse -Force` 失败即失败。
+9. 工作区目录树只使用一次 .NET 递归删除，并使用 Windows extended-length path；不再使用 PowerShell `Remove-Item -Recurse`，也不切换备用清理器。
 10. 不启动 detached cleanup worker，最终产物就位后构建结束。
 
 ## 网络

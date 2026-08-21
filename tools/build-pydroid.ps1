@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.90-dev-r67-runtime-log-mirror-output"
+$script:BuildScriptRevision = "1.4.91-dev-r68-long-path-cleanup"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

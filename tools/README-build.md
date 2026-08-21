@@ -1,4 +1,4 @@
-# PyDroid Build GUI — 1.4.90 deterministic baseline
+# PyDroid Build GUI — 1.4.91 deterministic baseline
 
 正常构建入口是项目根目录的 `Build PyDroid GUI.cmd`。GUI 调用 `tools/build-pydroid.ps1`，源码先同步到外部工作目录，再从工作副本构建。
 
@@ -28,7 +28,7 @@
 ## 构建顺序
 
 1. 校验项目和确定的工具路径。
-2. 清理工作区中可再生的旧打包目录。
+2. 使用一次 .NET extended-length-path 递归删除清理工作区中可再生的旧打包目录；不使用 `Remove-Item -Recurse`。
 3. `robocopy /MIR /R:0 /W:0` 同步源码到工作区。
 4. 执行一次 `pnpm install --frozen-lockfile --prefer-offline`。
 5. Desktop：准备一次 Python runtime，执行一次 `pnpm desktop:package`。
