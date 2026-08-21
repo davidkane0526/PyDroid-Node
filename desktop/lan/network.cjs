@@ -1,5 +1,5 @@
 const os = require("node:os");
-const { execFileSync } = require("node:child_process");
+const dgram = require("node:dgram");
 
 const VIRTUAL_INTERFACE = /(^|\b)(vEthernet|vmware|virtualbox|virtual|hyper-v|wsl|docker|tailscale|zerotier|loopback|bluetooth)(\b|$)/i;
 
@@ -21,23 +21,26 @@ function isUsableIpv4(address) {
   return ipv4ToInt(address) != null && !address.startsWith("127.") && !address.startsWith("169.254.") && address !== "0.0.0.0";
 }
 
-function windowsDefaultRouteAddress() {
-  if (process.platform !== "win32") return null;
-  const script = "$c=Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.IPv4Address -ne $null } | Sort-Object { $_.NetIPv4Interface.InterfaceMetric } | Select-Object -First 1; if($c){ @($c.IPv4Address)[0].IPAddress }";
-  try {
-    const output = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], {
-      encoding: "utf8",
-      windowsHide: true,
-      timeout: 3500,
-    }).trim();
-    return isUsableIpv4(output) ? output : null;
-  } catch {
-    return null;
-  }
+function resolvePreferredLanAddress() {
+  return new Promise((resolve) => {
+    const socket = dgram.createSocket("udp4");
+    let settled = false;
+    const finish = (address = null) => {
+      if (settled) return;
+      settled = true;
+      try { socket.close(); } catch {}
+      resolve(isUsableIpv4(address) ? address : null);
+    };
+    socket.once("error", () => finish(null));
+    // connect() selects the OS route/source address but sends no packet.
+    socket.connect(9, "192.0.2.1", () => {
+      try { finish(socket.address().address); }
+      catch { finish(null); }
+    });
+  });
 }
 
-function getLanInterfaces() {
-  const preferredAddress = windowsDefaultRouteAddress();
+function getLanInterfaces(preferredAddress = null) {
   const candidates = [];
   for (const [name, entries] of Object.entries(os.networkInterfaces())) {
     for (const entry of entries ?? []) {
@@ -99,4 +102,4 @@ function selectInterfaceForRemote(interfaces, remoteAddress) {
   return subnetMatches.find((item) => item.defaultRoute) ?? subnetMatches[0] ?? interfaces.find((item) => item.defaultRoute) ?? interfaces[0] ?? null;
 }
 
-module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet, windowsDefaultRouteAddress };
+module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet, resolvePreferredLanAddress };

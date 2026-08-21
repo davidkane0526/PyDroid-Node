@@ -4,7 +4,6 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
-const { ensureWindowsLanAccess } = require("../lan/windows-firewall.cjs");
 const LAN_WEB_PORT = 8765;
 
 function resolveRendererRoot() {
@@ -64,7 +63,6 @@ function createRemoteServerService({ pythonService, log }) {
     remoteTokens.clear();
     const rendererRoot = resolveRendererRoot();
     log(`[Remote Web] Renderer root: ${rendererRoot}`);
-    if (process.platform === "win32" && process.env.PYDROID_DESKTOP_SMOKE !== "1") await ensureWindowsLanAccess({ log });
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url, "http://localhost");
@@ -153,12 +151,12 @@ function createRemoteServerService({ pythonService, log }) {
         if (error?.code === "EADDRINUSE") reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用`));
         else reject(error);
       };
-      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", () => {
+      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", async () => {
         server.removeListener("error", onError);
         const port = LAN_WEB_PORT;
         try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
-          const discovery = lanDiscovery.start({ port });
+          const discovery = await lanDiscovery.start({ port });
           log(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
           log(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
         } catch (error) {

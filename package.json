@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.85",
+  "version": "1.4.86",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -53,7 +53,7 @@
     "test:remote-web": "node scripts/remote-web-smoke.mjs",
     "test:editor-core": "node scripts/editor-core-architecture-smoke.mjs && node scripts/phase9-ownership-audit.mjs",
     "test:diagnostics-contract": "node scripts/automated-diagnostics-contract-smoke.mjs",
-    "test:lan-discovery": "node scripts/lan-firewall-smoke.mjs && node scripts/lan-network-selection-smoke.mjs",
+    "test:lan-discovery": "node scripts/lan-runtime-boundary-smoke.mjs && node scripts/lan-network-selection-smoke.mjs",
     "test:remote-host-e2e": "node scripts/remote-host-e2e-smoke.mjs && node scripts/android-remote-host-jvm-smoke.mjs",
     "test:workflow-compatibility": "node scripts/workflow-history-corpus-audit.mjs && node --experimental-strip-types scripts/workflow-compatibility-smoke.mjs && node scripts/workflow-compatibility-typecheck-smoke.mjs"
   },

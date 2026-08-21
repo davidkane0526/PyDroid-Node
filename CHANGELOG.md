@@ -1,3 +1,10 @@
+## 1.4.86 (109) — remove runtime PowerShell/firewall gate — 2026-08-21
+
+- Revert the 1.4.85 Windows firewall/UAC prerequisite. It was a regression against the deterministic-core requirement and could prevent the HTTP listener from starting at all. `desktop/lan/windows-firewall.cjs` and its production call are removed.
+- Remove the remaining Remote/LAN `powershell.exe Get-NetIPConfiguration` route lookup. The preferred LAN IPv4 is now obtained by a native Node UDP socket route/source-address decision; no packet is sent and no shell command is launched.
+- Add a production-boundary regression test that fails if Remote/LAN code reintroduces PowerShell, UAC, firewall/profile commands or `child_process`. HTTP still binds directly to `0.0.0.0:8765`; SSDP/UPnP/mDNS remain independent best-effort discovery.
+- Build revision: `1.4.86-dev-r63-no-runtime-powershell`.
+
 ## 1.4.85 (108) — LAN advertised-entrypoint correction — 2026-08-21
 
 - Fix the remaining real cross-device regression after 1.4.84: the host bound `0.0.0.0:8765`, but 1.4.83 had removed 1.4.73 default-route preference and selected the banner/copy URL by adapter-name scoring. On multi-adapter Windows hosts this can produce an address that the host itself can open while another LAN device cannot route to it.

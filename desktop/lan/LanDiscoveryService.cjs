@@ -1,4 +1,4 @@
-const { getLanInterfaces } = require("./network.cjs");
+const { getLanInterfaces, resolvePreferredLanAddress } = require("./network.cjs");
 const { loadOrCreateIdentity } = require("./identity.cjs");
 const { makeUpnpDeviceXml } = require("./upnp.cjs");
 const { SsdpService } = require("./ssdp.cjs");
@@ -18,9 +18,10 @@ class LanDiscoveryService {
 
   config() { return { ...this.identity, port: this.port, version: this.version }; }
 
-  start({ port }) {
+  async start({ port }) {
     this.port = port;
-    this.interfaces = getLanInterfaces();
+    const preferredAddress = await resolvePreferredLanAddress();
+    this.interfaces = getLanInterfaces(preferredAddress);
     if (!this.interfaces.length) {
       this.status = { ssdp: "unavailable", mdns: "unavailable" };
       this.log("[LAN] No usable IPv4 LAN interface; HTTP remains available on 0.0.0.0");

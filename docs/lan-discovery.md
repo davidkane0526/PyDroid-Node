@@ -42,7 +42,7 @@ Discovery itself exposes only the device identity, IP, port and UPnP metadata. E
 
 Desktop and Android bind the Remote Web host directly to **`0.0.0.0:8765`**. SSDP uses UDP 1900 and mDNS uses UDP 5353.
 
-Starting with 1.4.83, the application does not inspect, modify or gate startup on Windows firewall/profile state and does not probe a default route through PowerShell. A successful `startServer()` means the application listener itself bound successfully; an OS or network policy that blocks a second physical client remains outside the process boundary and must be reported as such rather than hidden behind another readiness layer.
+Starting with 1.4.86, the application does not inspect, modify or gate startup on Windows firewall/profile state and does not launch PowerShell or request UAC from the Remote/LAN runtime. A successful `startServer()` means the application listener itself bound successfully. The preferred advertised IPv4 is obtained from the operating system through a native UDP socket routing decision; no packet is sent and no shell command is executed. An OS or network policy that blocks a second physical client remains outside the process boundary.
 
 Discovery is independent best-effort behavior. Failure to bind or publish SSDP/mDNS is reflected in discovery status but does not stop HTTP. There is no network-change recovery loop: if the host changes LAN interfaces while the service is running, stop/start the service to publish the new address set.
 
@@ -65,8 +65,8 @@ Discovery is independent best-effort behavior. Failure to bind or publish SSDP/m
 
 - `scripts/remote-host-e2e-smoke.mjs` starts the real Desktop service on 8765, performs live HTTP, pairing/authenticated API, UPnP and SSDP M-SEARCH.
 - `scripts/android-remote-host-jvm-smoke.mjs` compiles the real Android Remote server/service with minimal platform stubs, then requests the live health endpoint, shell and JS asset and verifies stop releases the port.
-- `scripts/lan-network-selection-smoke.mjs` verifies deterministic interface enumeration without route/PowerShell probing.
-- `scripts/lan-firewall-smoke.mjs` verifies that firewall/UAC automation cannot re-enter the production start path.
+- `scripts/lan-network-selection-smoke.mjs` verifies deterministic multi-interface selection.
+- `scripts/lan-runtime-boundary-smoke.mjs` verifies that PowerShell/UAC/firewall automation cannot re-enter the Remote/LAN production path.
 - Packaged Desktop smoke must open the real listener and serve packaged resources before it can report success.
 
 The sections below describe historical Phase 10 experiments and are retained only for root-cause history. **They are superseded by the 1.4.83 deterministic contract and are not implementation requirements.**

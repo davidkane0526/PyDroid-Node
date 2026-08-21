@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.85 (108) · Deterministic Core / LAN 入口地址修复**。Remote Web 保持单一路径：直接绑定固定 TCP 8765，HTTP 启动不经过 lifecycle/readiness/recovery 状态机；Windows 在用户显式开启服务时只做两件网络入口工作：若固定入站规则缺失则一次性申请管理员授权创建 TCP 8765 / UDP 1900 / UDP 5353 规则，并读取一次默认 IPv4 路由选择实际应展示给局域网客户端的地址。没有网络类别判断、轮询、自恢复或 readiness 门禁；SSDP/UPnP/mDNS 仍是独立发现能力。桌面成品 Smoke 现在必须真实启动 8765 并请求 `/health`、主页和实际 JS 资源，不能再用状态桥接“替代启动”。构建器同样改为缺失即报错、一次执行，不自动安装工具、探测代理、重试或降级打包。Phase 11 工作流迁移能力保留。详见 [docs/1.4.83-deterministic-core.md](docs/1.4.83-deterministic-core.md)。
+> **当前开发版本：1.4.86 (109) · Deterministic Core / Remote LAN runtime correction**。Remote Web 只有一条生产路径：直接绑定 `0.0.0.0:8765` 并提供 HTTP；Desktop Remote/LAN 运行时不调用 PowerShell、不申请 UAC、不检查或修改 Windows 防火墙/网络类别，也没有 lifecycle/readiness/recovery 状态机。主 LAN 地址由 Node UDP socket 直接采用操作系统路由选择结果，不通过外部命令探测；SSDP/UPnP/mDNS 仍为独立 best-effort 发现能力。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -248,7 +248,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.85 构建器采用确定性工具链：默认只读使用 `D:\Code` 中固定的 Node/JDK/Android SDK/Python，并在 `D:\PyDroidTemp` 中保存工作区和缓存。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不再扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.86 构建器采用确定性工具链：默认只读使用 `D:\Code` 中固定的 Node/JDK/Android SDK/Python，并在 `D:\PyDroidTemp` 中保存工作区和缓存。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不再扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 

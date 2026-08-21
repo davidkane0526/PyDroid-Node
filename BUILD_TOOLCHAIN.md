@@ -1,6 +1,6 @@
 # PyDroid Node deterministic build toolchain
 
-Baseline: **1.4.85 / Deterministic Core** (2026-08-21).
+Baseline: **1.4.86 / Deterministic Core** (2026-08-21).
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
 
