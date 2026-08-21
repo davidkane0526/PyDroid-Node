@@ -1,4 +1,4 @@
-# PyDroid Build GUI — 1.4.88 deterministic baseline
+# PyDroid Build GUI — 1.4.89 deterministic baseline
 
 正常构建入口是项目根目录的 `Build PyDroid GUI.cmd`。GUI 调用 `tools/build-pydroid.ps1`，源码先同步到外部工作目录，再从工作副本构建。
 

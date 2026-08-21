@@ -282,7 +282,7 @@ $desktopCheck.Text = "Windows Desktop"
 $desktopCheck.Checked = if ($stored -and $null -ne $stored.Desktop) { [bool]$stored.Desktop } else { $true }
 $desktopCheck.AutoSize = $true
 $historyCheck = New-Object System.Windows.Forms.CheckBox
-$historyCheck.Text = "保留旧构建"
+$historyCheck.Text = "保留版本归档（当前 Desktop 路径固定）"
 $historyCheck.Checked = if ($stored) { [bool]$stored.KeepHistory } else { $false }
 $historyCheck.AutoSize = $true
 @($androidCheck, $desktopCheck, $historyCheck) | ForEach-Object { [void]$optionsFlow.Controls.Add($_) }

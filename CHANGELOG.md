@@ -1,3 +1,11 @@
+## 1.4.89 (112) — stable current Desktop path + passive Remote runtime logging — 2026-08-21
+
+- Fixed the 1.4.88 output-path bug: `KeepHistory` no longer changes the current runnable Desktop directory. The current Windows build always lands in `PyDroid-Flow-Desktop`; versioned directories are optional archives only.
+- Removed the remaining `route.exe` child-process query from Remote/LAN runtime. LAN addresses now come only from Node `os.networkInterfaces()`.
+- Added passive Remote Web facts to the existing desktop log: actual listening address, advertised URL candidates, and the first 20 incoming HTTP request sources. Logging never gates or changes service startup.
+- Remote Web remains direct `0.0.0.0:8765`, with no PowerShell/UAC/firewall management, readiness gate, lifecycle reconciliation or recovery loop.
+- Build revision: `1.4.89-dev-r66-stable-output`.
+
 ## 1.4.88 (111) — stable Windows LAN entrypoint — 2026-08-21
 
 - Stop guessing Remote Web causes and restore the one 1.4.73 behavior that had not yet been reproduced without PowerShell: Windows now reads the active default IPv4 route once through hidden `route.exe PRINT 0.0.0.0`, then matches that interface against Node `os.networkInterfaces()`. No PowerShell, UAC, firewall mutation, network watcher, readiness gate or active UDP probe is involved.

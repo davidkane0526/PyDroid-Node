@@ -35,8 +35,8 @@
     跳过桌面版构建。
 
 .PARAMETER KeepHistory
-    默认会先清理旧 APK、历史版本 Desktop 目录，并覆盖稳定的 PyDroid-Flow-Desktop，
-    只保留最新一份。加此参数则保留旧版本产物。
+    当前 Windows Desktop 始终覆盖稳定的 PyDroid-Flow-Desktop。
+    加此参数仅额外保留版本归档，不改变当前可运行 Desktop 的固定路径。
 
 
 .PARAMETER CleanBuild
@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.88-dev-r65-stable-lan-path"
+$script:BuildScriptRevision = "1.4.89-dev-r66-stable-output"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -671,7 +671,10 @@ function Copy-Outputs {
 
     if ($HasDesktop) {
         Write-BuildStage -Percent 94 -Message "整理 Windows Desktop 产物"
-        $desktopDest = if ($KeepHistory) { Join-Path $OutputRoot "$outputBaseName-$version-Desktop" } else { Join-Path $OutputRoot "$outputBaseName-Desktop" }
+        # The runnable Desktop path is intentionally stable. KeepHistory only creates an archive;
+        # it must never change the executable path Windows sees for the current application.
+        $desktopDest = Join-Path $OutputRoot "$outputBaseName-Desktop"
+        $desktopArchive = if ($KeepHistory) { Join-Path $OutputRoot "$outputBaseName-$version-Desktop" } else { $null }
         $unpacked = Join-Path $workspace 'release\win-unpacked'
         if (-not (Test-Path -LiteralPath $unpacked -PathType Container)) { throw "未找到 Windows Desktop 打包目录：$unpacked" }
         if (Test-Path -LiteralPath $desktopDest) { Remove-BuildDirectory -Path $desktopDest }
@@ -686,8 +689,18 @@ function Copy-Outputs {
             if ($LASTEXITCODE -ge 8) { throw "桌面版复制失败，robocopy 退出码 $LASTEXITCODE。" }
             $global:LASTEXITCODE = 0
         }
+
+        if ($desktopArchive) {
+            if (Test-Path -LiteralPath $desktopArchive) { Remove-BuildDirectory -Path $desktopArchive }
+            $archiveArgs = @($desktopDest, $desktopArchive, '/E', '/MT:16', '/J', '/R:0', '/W:0', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
+            & robocopy @archiveArgs
+            if ($LASTEXITCODE -ge 8) { throw "桌面版历史归档失败，robocopy 退出码 $LASTEXITCODE。" }
+            $global:LASTEXITCODE = 0
+            Write-Host "Windows 历史归档：$desktopArchive" -ForegroundColor DarkGray
+        }
+
         Write-BuildArtifact -Platform "windows" -Path $desktopDest
-        Write-Host "Windows 输出：$desktopDest" -ForegroundColor Yellow
+        Write-Host "Windows 当前输出（固定路径）：$desktopDest" -ForegroundColor Yellow
     }
 
     Write-BuildStage -Percent 96 -Message "最终产物已就位"

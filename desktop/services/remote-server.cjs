@@ -31,6 +31,7 @@ function createRemoteServerService({ pythonService, log }) {
   let remoteStartPromise = null;
   let remotePin = null;
   let lanDiscovery = null;
+  let requestLogCount = 0;
   const remoteTokens = new Set();
   const remoteExecutionIds = new Set();
   const maxOutputBytes = pythonService.MAX_OUTPUT_BYTES;
@@ -73,6 +74,11 @@ function createRemoteServerService({ pythonService, log }) {
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url, "http://localhost");
+        if (requestLogCount < 20) {
+          requestLogCount += 1;
+          const remoteAddress = String(request.socket?.remoteAddress ?? "unknown").replace(/^::ffff:/, "");
+          log(`[Remote Web] Request ${request.method || "GET"} ${url.pathname} from ${remoteAddress}`);
+        }
         if (url.pathname === "/upnp/device.xml" && request.method === "GET") {
           const address = request.socket.localAddress && request.socket.localAddress !== "0.0.0.0" ? request.socket.localAddress.replace(/^::ffff:/, "") : undefined;
           const xml = lanDiscovery?.deviceXml(address) ?? "";
@@ -161,6 +167,8 @@ function createRemoteServerService({ pythonService, log }) {
       server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", () => {
         server.removeListener("error", onError);
         const port = LAN_WEB_PORT;
+        const bound = server.address();
+        log(`[Remote Web] Listening ${typeof bound === "object" && bound ? `${bound.address}:${bound.port}` : `0.0.0.0:${port}`}`);
         try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
           const discovery = lanDiscovery.start({ port });
@@ -176,6 +184,7 @@ function createRemoteServerService({ pythonService, log }) {
         const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
         const discovery = lanDiscovery?.getStatus?.();
         const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, ...(discovery ? { discovery } : {}) };
+        log(`[Remote Web] Advertised URLs: ${urls.join(" | ")}`);
         server.__info = info;
         remoteServer = server;
         server.on("error", (error) => log(`[Remote Web] ${error?.message || error}`));

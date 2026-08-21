@@ -11,8 +11,8 @@ android {
         applicationId "com.dk.pydroidflow"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 111
-        versionName "1.4.88"
+        versionCode 112
+        versionName "1.4.89"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         ndk {
             abiFilters "arm64-v8a"
