@@ -1,8 +1,17 @@
-# Current handoff — 1.4.87 Remote startup baseline restore
+# Current handoff — 1.4.88 stable Windows LAN entrypoint
 
-The current Remote Web production rule is intentionally narrow: preserve the 1.4.73 direct-bind + single-flight baseline, bind `0.0.0.0:8765`, return the service info immediately after bind, enumerate LAN IPv4 addresses synchronously from `os.networkInterfaces()`, and start SSDP/mDNS as non-blocking best-effort discovery. Do not add route probes, PowerShell, firewall/UAC automation, readiness gates, lifecycle reconciliation, network watchers, recovery loops, or in-app diagnostic control around this path.
+Updated: 2026-08-21
+Branch: `fix/1.4.88-stable-lan-path`
+Version: **1.4.88**, Android versionCode **111**
+Build revision: `1.4.88-dev-r65-stable-lan-path`
 
-The user-validated behavioral reference remains 1.4.73 (`fea874f`). Phase 11 Workflow Compatibility & Migration remains retained independently of Remote Web.
+Remote Web remains a direct listener: `0.0.0.0:8765` is the production truth, and SSDP/mDNS never gate HTTP startup. The user-validated behavior reference remains 1.4.73 (`fea874f`).
+
+Windows now restores only one required 1.4.73 networking semantic: the displayed primary LAN address follows the active lowest-metric default route. It is read once with hidden `route.exe PRINT 0.0.0.0` and matched against Node `os.networkInterfaces()`. Do not replace this with PowerShell, UAC/firewall management, UDP probing, route polling, readiness/lifecycle/recovery state, or background reconciliation. If `route.exe` fails, HTTP still starts and local interface ordering is used.
+
+Default Windows build output is the stable `<OutputRoot>\PyDroid-Flow-Desktop` path. Do not return to version-specific default Desktop directories: Windows application-network permissions are path-oriented, and changing the EXE path every build invalidates continuity. `-KeepHistory` is the explicit exception. The build must not auto-launch Remote Web from the stable final executable path; the first network-listen decision for that path belongs to the user’s explicit service start. Package smoke remains evidence for packaging only, not cross-device reachability.
+
+Phase 11 Workflow Compatibility & Migration remains retained independently of Remote Web.
 
 ---
 

@@ -26,6 +26,7 @@ assert.match(pythonModule, /Join-Path \$ToolRoot 'Python\\3\.13\\python\.exe'/);
 assert.match(androidModule, /Join-Path \$ToolRoot 'Android\\Sdk'/);
 assert.match(build, /Invoke-Pnpm \$installArgs/);
 assert.match(build, /Invoke-Pnpm @\("desktop:package"\)/);
+assert.match(build, /Join-Path \$OutputRoot "\$outputBaseName-Desktop"/, "default Desktop output must use a stable executable path across versions");
 assert.doesNotMatch(build, /Corepack|COREPACK_HOME|Install-Node|Install-Jdk|Install-AndroidSdk|Install-Python|SearchRoots|DeferredCleanup|compatibility package|PLAIN_EXE_FALLBACK/i);
 
 assert.match(nodeModule, /Join-Path \$env:LOCALAPPDATA 'pnpm\\bin\\pnpm\.cmd'/);

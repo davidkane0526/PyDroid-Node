@@ -1,4 +1,5 @@
 const os = require("node:os");
+const { execFileSync } = require("node:child_process");
 
 const VIRTUAL_INTERFACE = /(^|\b)(vEthernet|vmware|virtualbox|virtual|hyper-v|wsl|docker|tailscale|zerotier|loopback|bluetooth)(\b|$)/i;
 
@@ -20,6 +21,33 @@ function isUsableIpv4(address) {
   return ipv4ToInt(address) != null && !address.startsWith("127.") && !address.startsWith("169.254.") && address !== "0.0.0.0";
 }
 
+function parseWindowsDefaultRoute(output) {
+  const routes = [];
+  for (const rawLine of String(output ?? "").split(/\r?\n/)) {
+    const columns = rawLine.trim().split(/\s+/);
+    if (columns.length < 5 || columns[0] !== "0.0.0.0" || columns[1] !== "0.0.0.0") continue;
+    const address = columns[3];
+    const metric = Number(columns[4]);
+    if (isUsableIpv4(address)) routes.push({ address, metric: Number.isFinite(metric) ? metric : Number.MAX_SAFE_INTEGER });
+  }
+  routes.sort((a, b) => a.metric - b.metric || a.address.localeCompare(b.address));
+  return routes[0]?.address ?? null;
+}
+
+function windowsDefaultRouteAddress() {
+  if (process.platform !== "win32") return null;
+  try {
+    const output = execFileSync("route.exe", ["PRINT", "0.0.0.0"], {
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 3000,
+    });
+    return parseWindowsDefaultRoute(output);
+  } catch {
+    return null;
+  }
+}
+
 function subnetKey(item) {
   const address = ipv4ToInt(item.address);
   const mask = ipv4ToInt(item.netmask);
@@ -29,6 +57,7 @@ function subnetKey(item) {
 
 function interfaceScore(item) {
   let score = 0;
+  if (item.defaultRoute) score += 250;
   if (item.private) score += 100;
   if (!item.virtual) score += 50;
   if (/wi-?fi|wlan|wireless/i.test(item.name)) score += 20;
@@ -47,6 +76,7 @@ function dedupeInterfacesBySubnet(interfaces) {
 }
 
 function getLanInterfaces() {
+  const preferredAddress = windowsDefaultRouteAddress();
   const candidates = [];
   for (const [name, entries] of Object.entries(os.networkInterfaces())) {
     for (const entry of entries ?? []) {
@@ -57,7 +87,7 @@ function getLanInterfaces() {
         netmask: entry.netmask || "255.255.255.0",
         private: isPrivateIpv4(entry.address),
         virtual: VIRTUAL_INTERFACE.test(name),
-        defaultRoute: false,
+        defaultRoute: entry.address === preferredAddress,
       });
     }
   }
@@ -78,7 +108,14 @@ function sameSubnet(addressA, addressB, netmask) {
 
 function selectInterfaceForRemote(interfaces, remoteAddress) {
   const subnetMatches = interfaces.filter((item) => sameSubnet(item.address, remoteAddress, item.netmask));
-  return subnetMatches[0] ?? interfaces[0] ?? null;
+  return subnetMatches.find((item) => item.defaultRoute) ?? subnetMatches[0] ?? interfaces.find((item) => item.defaultRoute) ?? interfaces[0] ?? null;
 }
 
-module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet };
+module.exports = {
+  getLanInterfaces,
+  isPrivateIpv4,
+  selectInterfaceForRemote,
+  dedupeInterfacesBySubnet,
+  parseWindowsDefaultRoute,
+  windowsDefaultRouteAddress,
+};

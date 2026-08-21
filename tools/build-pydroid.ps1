@@ -9,7 +9,7 @@
     - JDK 只验证一个选定路径，不读取注册表、不遍历厂商目录、不从 PATH 猜测。
     - 最终产物平铺到 $OutputRoot：
           <productName>-<版本>.apk
-          <productName>-<版本>-Desktop\    （win-unpacked 未压缩桌面版）
+          <productName>-Desktop\          （默认稳定路径，win-unpacked 未压缩桌面版）
     - 每次构建开始前清理可再生打包产物；Android Gradle/增量构建缓存默认保留，
       使用 -CleanBuild 时在构建开始前一并删除。
 
@@ -35,7 +35,7 @@
     跳过桌面版构建。
 
 .PARAMETER KeepHistory
-    默认会先清理输出目录中旧的 PyDroid-Flow-*.apk 和 PyDroid-Flow-*-Desktop，
+    默认会先清理旧 APK、历史版本 Desktop 目录，并覆盖稳定的 PyDroid-Flow-Desktop，
     只保留最新一份。加此参数则保留旧版本产物。
 
 
@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.87-dev-r64-remote-startup-baseline"
+$script:BuildScriptRevision = "1.4.88-dev-r65-stable-lan-path"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -671,7 +671,7 @@ function Copy-Outputs {
 
     if ($HasDesktop) {
         Write-BuildStage -Percent 94 -Message "整理 Windows Desktop 产物"
-        $desktopDest = Join-Path $OutputRoot "$outputBaseName-$version-Desktop"
+        $desktopDest = if ($KeepHistory) { Join-Path $OutputRoot "$outputBaseName-$version-Desktop" } else { Join-Path $OutputRoot "$outputBaseName-Desktop" }
         $unpacked = Join-Path $workspace 'release\win-unpacked'
         if (-not (Test-Path -LiteralPath $unpacked -PathType Container)) { throw "未找到 Windows Desktop 打包目录：$unpacked" }
         if (Test-Path -LiteralPath $desktopDest) { Remove-BuildDirectory -Path $desktopDest }
@@ -699,6 +699,8 @@ function Copy-Outputs {
     Write-Host "工作区：$workspace"
     Write-Host "==================================================" -ForegroundColor Green
 }
+
+
 
 # ---------------------------------------------------------------
 # 主流程

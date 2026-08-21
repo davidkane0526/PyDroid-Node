@@ -1,4 +1,4 @@
-# PyDroid Build GUI — 1.4.86 deterministic baseline
+# PyDroid Build GUI — 1.4.88 deterministic baseline
 
 正常构建入口是项目根目录的 `Build PyDroid GUI.cmd`。GUI 调用 `tools/build-pydroid.ps1`，源码先同步到外部工作目录，再从工作副本构建。
 
@@ -33,9 +33,9 @@
 4. 执行一次 `pnpm install --frozen-lockfile --prefer-offline`。
 5. Desktop：准备一次 Python runtime，执行一次 `pnpm desktop:package`。
 6. Android：执行一次 `pnpm android:sync`，然后一次 Gradle `assembleDebug`；daemon/no-daemon 由用户在开始前选择。
-7. 复制最终产物并结束进程。
+7. Desktop 默认复制/移动到稳定的 `<product>-Desktop` 路径，Android APK 保持版本号文件名，然后结束进程。
 
-不会在成功后继续做隐藏清理，也不会把“已经发现某个中间文件”当成构建成功替代进程退出码。
+不会在成功后继续做隐藏清理，也不会把“已经发现某个中间文件”当成构建成功替代进程退出码。构建器不会为了测试网络而自动启动最终 Desktop EXE。
 
 ## 输出
 

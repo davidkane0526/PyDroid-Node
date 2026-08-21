@@ -1,3 +1,11 @@
+## 1.4.88 (111) — stable Windows LAN entrypoint — 2026-08-21
+
+- Stop guessing Remote Web causes and restore the one 1.4.73 behavior that had not yet been reproduced without PowerShell: Windows now reads the active default IPv4 route once through hidden `route.exe PRINT 0.0.0.0`, then matches that interface against Node `os.networkInterfaces()`. No PowerShell, UAC, firewall mutation, network watcher, readiness gate or active UDP probe is involved.
+- Keep HTTP startup unchanged and direct: bind `0.0.0.0:8765`, return the service information immediately, and keep SSDP/mDNS best-effort. `route.exe` only chooses the advertised primary LAN address; it never controls whether the HTTP listener starts.
+- Change the default Windows Desktop output from version-specific `<product>-<version>-Desktop` directories to the stable `<product>-Desktop` path. Windows Firewall application permissions are path-based, so changing the executable path every build can make each version a new network application. `-KeepHistory` may still request versioned Desktop output explicitly.
+- Keep package smoke separate from the stable final executable path. The build does not auto-launch Remote Web from the final path, so Windows gets its first application-network decision only when the user explicitly starts the network service.
+- Build revision: `1.4.88-dev-r65-stable-lan-path`.
+
 ## 1.4.87 (110) — restore non-blocking Remote Web startup baseline — 2026-08-21
 
 - Fix the remaining 1.4.86 startup regression: Remote Web bound TCP 8765 and then awaited a UDP default-route probe with no timeout before resolving the Electron IPC start request. On Windows this could leave the UI in a permanent "正在开启计算服务…"/unusable state even though the HTTP listener had already been created.

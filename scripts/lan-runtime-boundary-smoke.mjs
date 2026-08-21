@@ -19,11 +19,15 @@ assert.doesNotMatch(remoteServerSource, /await\s+lanDiscovery\.start/,
   "LAN discovery must never block Remote Web startup");
 assert.equal(existsSync(legacyFirewallPath), false,
   "Remote/LAN runtime must not own or provision Windows firewall rules");
-assert.doesNotMatch(runtimeLanSource, /powershell|Start-Process|runas|Get-NetFirewallRule|New-NetFirewallRule|Get-NetConnectionProfile|Get-NetIPConfiguration|child_process|dgram\.createSocket|socket\.connect/i,
-  "Remote/LAN startup must not shell out, elevate, manage firewall/profile state, or probe external routes");
+assert.doesNotMatch(runtimeLanSource, /powershell|Start-Process|runas|Get-NetFirewallRule|New-NetFirewallRule|Get-NetConnectionProfile|Get-NetIPConfiguration|dgram\.createSocket|socket\.connect/i,
+  "Remote/LAN startup must not use PowerShell/UAC/firewall management or active UDP route probes");
+assert.match(networkSource, /execFileSync\("route\.exe", \["PRINT", "0\.0\.0\.0"\]/,
+  "Windows LAN address selection must read the native route table once without PowerShell");
+assert.match(networkSource, /windowsHide:\s*true/,
+  "route.exe query must not open a console window");
 assert.match(networkSource, /os\.networkInterfaces\(\)/,
-  "LAN address enumeration must use the local OS interface table directly");
+  "LAN address enumeration must use the local OS interface table");
 assert.doesNotMatch(discoverySource, /\bawait\b/,
   "LAN discovery startup must remain synchronous from the Remote Web startup path");
 
-console.log("LAN runtime boundary smoke passed: direct 8765 bind, synchronous interface enumeration, non-blocking discovery, no PowerShell/UAC/firewall/route probe.");
+console.log("LAN runtime boundary smoke passed: direct 8765 bind, native route-table address selection, non-blocking discovery, no PowerShell/UAC/firewall management.");

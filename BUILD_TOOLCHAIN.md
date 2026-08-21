@@ -1,6 +1,6 @@
 # PyDroid Node deterministic build toolchain
 
-Baseline: **1.4.86 / Deterministic Core** (2026-08-21).
+Baseline: **1.4.88 / Deterministic Core** (2026-08-21).
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
 
@@ -27,6 +27,8 @@ ToolRoot   = DK_TOOL_ROOT       或 D:\Code
 CacheRoot  = DK_CACHE_ROOT      或 <WorkRoot>\cache
 OutputRoot = <WorkRoot>
 ```
+
+默认 Windows Desktop 最终运行目录固定为 `<OutputRoot>\PyDroid-Flow-Desktop`，版本号由应用自身显示，不再写进默认 EXE 目录路径。这样每次构建不会因为目录名变化而让操作系统把它视为另一个应用路径。显式 `-KeepHistory` 时才使用版本化 Desktop 目录。
 
 `ToolRoot` 是只读工具来源。默认工具位置：
 
