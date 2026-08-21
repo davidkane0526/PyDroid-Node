@@ -96,3 +96,7 @@ Real 1.4.78 Desktop use again showed that same-host `http://<LAN-IP>:8765/` prob
 - `remote-host-e2e` no longer treats a same-host LAN-IP HTTP request as proof of LAN reachability. On Desktop, it passes only after the Windows boundary is ready and a real non-local client has reached the service; otherwise it fails for a boundary defect or skips for missing external evidence.
 
 This supersedes the 1.4.72 Private-profile startup experiment. 1.4.79 does **not** reintroduce Private-profile gating, synchronous profile checks, repeated application dialogs or any new UI copy.
+
+## 1.4.80 production-path freeze
+
+The 1.4.79 package-build failure showed that firewall/readiness verification must not control the production host. 1.4.80 therefore treats Windows firewall integration as asynchronous, best-effort OS integration after the Remote Web host has already started. Packaged smoke never starts a real LAN listener. External reachability evidence is observational only. `test:remote-production-freeze` hashes the accepted Desktop/Android host/discovery files to block unrelated future changes.

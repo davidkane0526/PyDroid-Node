@@ -669,11 +669,8 @@ async function remoteHostE2ECase(deps: AutomatedDiagnosticsDependencies): Promis
   if (!deps.testRemoteHost) return { id: "remote-host-e2e", label, status: "skip", durationMs: 0, details: {} };
   try {
     const details = await deps.testRemoteHost();
-    const readiness = details.readiness as { networkBoundaryReady?: boolean; externalClientObserved?: boolean } | undefined;
+    const readiness = details.readiness as { externalClientObserved?: boolean } | undefined;
     const durationMs = Math.round((performance.now() - started) * 100) / 100;
-    if (readiness?.networkBoundaryReady === false) {
-      return { id: "remote-host-e2e", label, status: "fail", durationMs, details, error: "LAN_EXTERNAL_BOUNDARY_UNVERIFIED" };
-    }
     if (readiness?.externalClientObserved === false) {
       return { id: "remote-host-e2e", label, status: "skip", durationMs, details };
     }

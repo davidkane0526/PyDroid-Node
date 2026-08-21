@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.79-dev-r55-phase11-lan-boundary-verification"
+$script:BuildScriptRevision = "1.4.80-dev-r56-phase11-remote-production-path-freeze"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

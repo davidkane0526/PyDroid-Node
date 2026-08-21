@@ -2,11 +2,11 @@
 
 更新时间：2026-08-21
 当前架构开发分支：`fix/phase11-lan-boundary-verification`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.79 (102)`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.80 (103)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
-> **Remote Web/LAN 行为基线仍以用户实机确认可用的 1.4.73/1.4.76 为准。** 1.4.78 在 `192.168.3.185` 再次暴露 Windows 入站边界与同机自测假阳性，因此 1.4.79 仅允许对 Desktop firewall/remote-server 做证据驱动修复：固定 TCP 8765、现有启动交互/文案、PIN/Token、SSDP/UPnP/mDNS 协议保持不变；诊断必须把真实外部客户端证据与本机 readiness 分离。未经用户明确允许，不新增 UI 说明文字。
+> **Remote Web/LAN 行为基线仍以用户实机确认可用的 1.4.73/1.4.76 为准。** 1.4.78 在 `192.168.3.185` 再次暴露 Windows 入站边界与同机自测假阳性，因此 1.4.80 已纠正 1.4.79 的过度防御：Remote Web/LAN 生产路径冻结，打包/诊断 gate 不得启动、阻断或重写真实服务行为；固定 TCP 8765、现有启动交互/文案、PIN/Token、SSDP/UPnP/mDNS 协议保持不变，外部客户端证据只作为旁路诊断。未经用户明确允许，不新增 UI 说明文字。
 
 ## 1. 开发原则
 
@@ -580,7 +580,7 @@ desktop/
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
 10. Phase 9 Editor Core & Workspace Session：1.4.60 开始，1.4.67 经真实宿主依赖构建与 19/19 自动诊断验收后冻结。Desktop/Mobile 与 Node/Group 手势保持独立策略。
 11. Phase 10 Remote Access Security & Host Reliability：1.4.68 开始；已完成安全策略、LAN discovery 生命周期、真实宿主 E2E、固定 8765、start/stop 生命周期恢复及 read-only Host/UI 状态对齐；1.4.76 经真实 Windows 构建与 22/22 诊断后冻结。
-12. Phase 11 Workflow Compatibility & Migration：1.4.79 完成 Workflow schema v3、NodeSpec/函数迁移、Editor Resource schema v2、future-version 非破坏保护、完整 Git 历史 corpus 与迁移后 Python/JavaScript 执行门禁；并修正 1.4.78 实机暴露的 Desktop Windows LAN 入站边界/诊断假阳性。
+12. Phase 11 Workflow Compatibility & Migration：1.4.80 完成 Workflow schema v3、NodeSpec/函数迁移、Editor Resource schema v2、future-version 非破坏保护、完整 Git 历史 corpus 与迁移后 Python/JavaScript 执行门禁；并修正 1.4.78 实机暴露的 Desktop Windows LAN 入站边界/诊断假阳性。
 
 核心原则始终是：
 
@@ -651,7 +651,7 @@ After the accepted 1.4.73 network baseline, 1.4.74 fixes stale start resurrectio
 
 ## 15. Phase 11 — Workflow Compatibility & Migration
 
-状态：**1.4.79 (102) 最终完成候选，等待一次真实 Windows + 第二物理 LAN 客户端验证后冻结。1.4.77 的 diagnostics TS2339 已在 1.4.78 修复；1.4.78 随后暴露同机 LAN-IP 自测无法证明 Windows 外部入站可达，1.4.79 已将该证据边界修正。**
+状态：**1.4.80 (103) 最终完成候选，等待一次真实 Windows + 第二物理 LAN 客户端验证后冻结。1.4.77 因 diagnostics TS2339 被拒绝；1.4.78 暴露同机 LAN 假阳性；1.4.79 又因打包 smoke 真实启动 LAN 服务并被 readiness gate 反向阻断而被拒绝。1.4.80 将生产路径与测试/防火墙旁路彻底解耦，并用冻结哈希门禁阻止无证据修改。**
 
 Phase 11 将“工作流能否长期演进”从零散兼容代码提升为独立契约。Workflow schema 固定为 v3，并通过不可覆盖的逐版本 migration chain 从历史 v1/v2 升级；NodeSpec 迁移负责参数、类型、端口及边界 handle 演进，同时禁止修改稳定 node id；Reusable Function 调用只有在保存签名能够证明兼容时才自动升级。Editor Saved Node/Group/Flow 使用独立 resource schema v2，future/invalid payload 作为 opaque raw data 原样保护，当前版本不得通过普通持久化、重命名或删除破坏它们。未来版本 autosave 同样受到覆盖保护，未来工作流打开失败时不得污染当前 Editor Session。
 

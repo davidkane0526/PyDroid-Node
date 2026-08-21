@@ -1,4 +1,13 @@
-# Phase 11 progress — 1.4.79 (102)
+## 1.4.80 production-path freeze correction
+
+- 1.4.79 rejected by the real Windows package build: packaged smoke opened a real LAN listener and readiness/firewall logic re-entered production startup.
+- Packaged smoke now verifies Remote IPC/resource presence without opening TCP 8765.
+- Optional Windows LocalSubnet provisioning is asynchronous after successful startup and never gates start/readiness.
+- External-client evidence is diagnostic-only.
+- Added hash-based `test:remote-production-freeze` across 10 Desktop/Android Remote/LAN production files.
+- Build script revision: `1.4.80-dev-r56-phase11-remote-production-path-freeze`.
+
+# Phase 11 progress — 1.4.80 (103)
 
 ## 1.4.79 final LAN-boundary verification correction
 

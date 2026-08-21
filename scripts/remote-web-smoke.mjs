@@ -24,7 +24,8 @@ assert.ok(packageJson.build.files.includes("desktop/package-remote/**/*"), "elec
 const buildScript = readFileSync(path.join(root, "tools/build-pydroid.ps1"), "utf8");
 const packagedSmoke = readFileSync(path.join(root, "desktop/window/create-window.cjs"), "utf8");
 assert.match(buildScript, /Invoke-DesktopCompatibilityPackage[\s\S]*remoteRendererSource[\s\S]*package-remote/, "Desktop compatibility packaging must stage the browser-native Remote Web bundle");
-assert.match(packagedSmoke, /startRemoteServer\(true\)/, "Packaged desktop smoke must actually start Remote Web");
+assert.doesNotMatch(packagedSmoke, /startRemoteServer\(true\)/, "Packaged desktop smoke must not open a real LAN listener during packaging");
+assert.match(packagedSmoke, /getRemoteServerStatus\(\)/, "Packaged desktop smoke must verify that the Remote Web IPC bridge is present");
 assert.match(desktop, /verifyLoopbackReady/, "Desktop Remote Web must verify a real loopback HTTP response before reporting startup success");
 assert.match(android, /verifyLoopbackReady\(\)/, "Android Remote Web must verify a real loopback HTTP response before reporting startup success");
 assert.doesNotMatch(desktop, /verifyEndpointAtHost|LAN self-test/i, "Desktop startup readiness must not depend on hairpin access through the selected LAN address");

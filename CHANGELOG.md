@@ -1,3 +1,14 @@
+## 1.4.80 (103) — Phase 11 Remote production-path freeze correction — 2026-08-21
+
+- Rejected 1.4.79 after the real Windows packaged build proved that the packaged smoke still opened TCP 8765 and allowed firewall/readiness verification to re-enter the production start path.
+- Packaged Desktop smoke now verifies the Remote Web IPC bridge/resources without opening a LAN listener.
+- Windows `LocalSubnet` firewall provisioning is asynchronous best-effort work scheduled only after Remote Web startup has resolved; it is never awaited and cannot fail/slow the start transaction.
+- Removed synchronous PowerShell from the firewall helper so optional OS integration cannot block Electron Main/HTTP callbacks.
+- `remote-host-e2e` uses real external-client observation only as diagnostic evidence; absence of external evidence skips rather than self-certifies reachability.
+- Added `test:remote-production-freeze`, hashing ten accepted Desktop/Android Remote/LAN production files so unrelated phases cannot silently rewrite the working network path.
+- Phase 11 Workflow schema v3 / NodeSpec / function / resource migration implementation is unchanged. No UI copy was added or changed.
+- Build script revision: `1.4.80-dev-r56-phase11-remote-production-path-freeze`.
+
 ## 1.4.79 (102) — Phase 11 Desktop LAN boundary verification correction — 2026-08-21
 
 - Corrects the real packaged 1.4.78 Desktop false-positive: `remote-host-e2e` passed in about 135 ms on `192.168.3.185:8765` even though another LAN device could not reach the service. The old case proved same-host socket/resource/discovery readiness, not the Windows inbound boundary.

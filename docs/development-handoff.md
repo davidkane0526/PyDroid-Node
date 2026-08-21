@@ -1,10 +1,10 @@
-# Current handoff — 1.4.79 / Phase 11 Workflow Compatibility & Migration
+# Current handoff — 1.4.80 / Phase 11 Workflow Compatibility & Migration
 
 The user physically validated the 1.4.73 Desktop Remote Web/LAN path, reported no regression in 1.4.74, and then completed a real Windows dependency-backed build plus **22/22** diagnostics on 1.4.76. Treat **1.4.76 as the frozen Phase 10 boundary** and **1.4.73 as the accepted network-behavior baseline**: fixed TCP 8765, current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not change without a concrete defect. Any new UI text still requires explicit user approval.
 
-1.4.79 is the corrected Phase 11 completion candidate. 1.4.77 completed the migration architecture but failed the first real dependency-backed Windows build because `src/diagnostics/automated-debug.ts` referenced a nonexistent `EditorWorkspaceSession.captureSnapshot()` API; 1.4.78 fixed that error and then exposed a separate real-host defect: on `192.168.3.185` the Desktop service/discovery could still be unreachable externally while a 135 ms same-host LAN-IP self-probe made `remote-host-e2e` pass. 1.4.79 keeps the Phase 11 migration architecture unchanged and makes a narrow defect-backed Desktop LAN exception: single-flight `LocalSubnet` firewall ownership independent of Public/Private categorization plus real external-client evidence in the host diagnostic. It does not add UI copy or change TCP 8765, SSDP/mDNS, UPnP or PIN/token semantics.
+1.4.80 is the corrected Phase 11 completion candidate. 1.4.77 failed the first real dependency-backed Windows build because diagnostics referenced a nonexistent Editor API; 1.4.78 fixed that and exposed a same-host LAN false positive; 1.4.79 then failed the next real Windows package build because the packaged smoke launched the real LAN server while firewall/readiness checks still participated in startup. 1.4.80 keeps the Phase 11 migration architecture unchanged and enforces the opposite boundary: production Remote Web startup is independent of diagnostics/firewall proof, packaged smoke never opens a real LAN listener, optional Windows LocalSubnet provisioning is asynchronous after successful startup, and external-client evidence is observational only. No UI copy, port, discovery protocol or PIN/token semantics are changed.
 
-Version: **1.4.79**, Android versionCode **102**. Build revision: `1.4.79-dev-r55-phase11-lan-boundary-verification`.
+Version: **1.4.80**, Android versionCode **103**. Build revision: `1.4.80-dev-r56-phase11-remote-production-path-freeze`.
 
 # Development handoff
 
@@ -38,7 +38,7 @@ Long-lived branches in this repository:
 - `fix/phase10-host-state-typecheck`: `1.4.76 (99)` accepted Phase 10 TypeScript production-build hotfix/freeze boundary.
 - `phase11/workflow-compatibility-migration`: `1.4.77 (100)` rejected completion candidate due to diagnostics TS2339 in the first real Windows build.
 - `fix/phase11-final-typecheck-hotfix`: `1.4.78 (101)` rejected final candidate after packaged Desktop LAN false-positive on `192.168.3.185`.
-- `fix/phase11-lan-boundary-verification`: `1.4.79 (102)` final Phase 11 correction candidate.
+- `fix/phase11-remote-production-path-freeze`: `1.4.80 (103)` final Phase 11 correction candidate; 1.4.79 rejected by real packaged-build smoke.
 
 Current working branch: `fix/phase11-lan-boundary-verification`.
 
@@ -133,7 +133,7 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 - LAN discovery smoke covers transient single-protocol self-recovery without restarting the healthy protocol. The UI reconciliation hook is separately guarded to remain read-only, 3-second bounded, and free of `setMessage()`/new user copy.
 - `git diff --check`, syntax checks and version sync must pass before delivery.
 
-The removable in-app diagnostics contain twenty-two rows. On Desktop 1.4.79, a **22/22** full-host result is valid only after a real non-local LAN client has reached the current service/network and Windows boundary readiness is valid. Before external evidence exists, `remote-host-e2e` is skipped instead of self-certifying reachability; a boundary defect fails the row. Plain browser/paired Remote Web cannot host another service, so `remote-host-e2e` is skipped there.
+The removable in-app diagnostics contain twenty-two rows. On Desktop 1.4.80, a **22/22** full-host result is valid only after a real non-local LAN client has reached the current service/network. Before external evidence exists, `remote-host-e2e` is skipped instead of self-certifying reachability. Firewall inspection is not a start/pass gate. Plain browser/paired Remote Web cannot host another service, so `remote-host-e2e` is skipped there.
 
 Phase 1 production-boundary checks:
 
@@ -188,7 +188,7 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 11 status — Workflow Compatibility & Migration
 
-**Implemented in 1.4.79 (102) from the accepted 1.4.76 Phase 10 freeze boundary.** Workflow schema is v3 and migrates through immutable explicit steps. NodeSpec evolution has a registered per-node version chain with parameter/type/port migration, stable-id protection and edge/group/function-handle reconciliation. Reusable function calls only advance when saved signature evidence proves compatibility. Saved Node/Group/Flow resources use resource schema v2; future/invalid payloads are retained as opaque protected raw records rather than normalized or overwritten. Future autosave/workflow open is non-destructive and atomic.
+**Implemented in 1.4.80 (103) from the accepted 1.4.76 Phase 10 freeze boundary.** Workflow schema is v3 and migrates through immutable explicit steps. NodeSpec evolution has a registered per-node version chain with parameter/type/port migration, stable-id protection and edge/group/function-handle reconciliation. Reusable function calls only advance when saved signature evidence proves compatibility. Saved Node/Group/Flow resources use resource schema v2; future/invalid payloads are retained as opaque protected raw records rather than normalized or overwritten. Future autosave/workflow open is non-destructive and atomic.
 
 The compatibility corpus is derived from the repository's complete local Git history: all 8 unique committed historical `.workflow.json` documents (schemas v1/v2) are fixtures, plus a future-v99 protection fixture. `test:workflow-compatibility` runs the Git corpus audit, the real parser/migration + canonical save/reopen + migrated-v1 Python/JavaScript execution smoke, a strict TypeScript no-emit subset covering eight production modules including the diagnostics module, and the Phase 11 freeze audit. The full-host diagnostic UI remains 22 cases; Phase 11 checks are embedded into existing rows with no new visible labels. See `docs/phase11-workflow-compatibility-migration.md`.
 
@@ -227,7 +227,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Workflow Compatibility & Migration is complete in the corrected 1.4.79 candidate; 1.4.77 and 1.4.78 are rejected final candidates. Final Desktop verification must start LAN service, allow the single Windows system elevation if the v2 LocalSubnet rules are absent, reach `http://<LAN-IP>:8765/` from a second physical LAN device, and only then run diagnostics in the same app/network session. A missing external observation must skip rather than pass `remote-host-e2e`. Do not ask for additional intermediate Phase 11 tests. Do not modify other frozen Remote Web/LAN paths or add UI copy without a concrete defect and explicit user approval.
+**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Workflow Compatibility & Migration is complete in the corrected 1.4.80 candidate; 1.4.77, 1.4.78 and 1.4.79 are rejected final candidates. Final Desktop verification must start LAN service, allow at most one optional Windows system elevation if LocalSubnet rules are absent, reach `http://<LAN-IP>:8765/` from a second physical LAN device, and only then run diagnostics in the same app/network session. A missing external observation must skip rather than pass `remote-host-e2e`. Do not ask for additional intermediate Phase 11 tests. Do not modify other frozen Remote Web/LAN paths or add UI copy without a concrete defect and explicit user approval.
 
 ### Production TypeScript vs test TypeScript
 

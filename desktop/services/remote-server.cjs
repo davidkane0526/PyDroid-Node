@@ -5,7 +5,7 @@ const http = require("node:http");
 const os = require("node:os");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
-const { LAN_WEB_PORT, ensureWindowsLanFirewall, inspectWindowsLanFirewall } = require("../lan/firewall.cjs");
+const { LAN_WEB_PORT, ensureWindowsLanFirewall } = require("../lan/firewall.cjs");
 const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
 
 const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
@@ -152,7 +152,7 @@ function createRemoteServerService({ pythonService, log }) {
     return info;
   }
 
-  async function currentConnectionInfo(server, port = LAN_WEB_PORT, firewallOverride = null) {
+  async function currentConnectionInfo(server, port = LAN_WEB_PORT) {
     const snapshot = currentConnectionSnapshot(server, port);
     const discoveryState = snapshot.discovery ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
     let loopback = false;
@@ -169,20 +169,16 @@ function createRemoteServerService({ pythonService, log }) {
         lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
       }
     }
-    const firewall = firewallOverride ?? await inspectWindowsLanFirewall();
     const externalClient = recentExternalClient((discoveryState.interfaces ?? []).map((item) => item.address));
     const readiness = {
       loopback,
       lanHttp: lanHealth,
       allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
       discoveryReady: discoveryState.ssdp === "running" && discoveryState.mdns === "running",
-      // A verified named firewall rule is the proactive boundary proof. A real
-      // non-local client reaching this exact interface set is stronger empirical
-      // proof and also covers machines managed by broader enterprise/app rules.
-      networkBoundaryReady: Boolean(firewall?.networkBoundaryReady) || Boolean(externalClient),
+      // External reachability is observational evidence only. It never gates
+      // the production start path or changes whether the HTTP service is allowed to run.
       externalClientObserved: Boolean(externalClient),
       externalClient,
-      firewall,
     };
     const info = { ...snapshot, readiness };
     if (server) server.__info = info;
@@ -334,7 +330,6 @@ function createRemoteServerService({ pythonService, log }) {
           return reject(error);
         }
         if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
-        const firewallSetupPromise = ensureWindowsLanFirewall({ log });
         try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
           const discovery = lanDiscovery.start({ port });
@@ -346,9 +341,7 @@ function createRemoteServerService({ pythonService, log }) {
           log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
         }
         if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
-        const firewallSetup = await firewallSetupPromise;
-        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
-        const info = await currentConnectionInfo(server, port, firewallSetup);
+        const info = await currentConnectionInfo(server, port);
         if (!info.readiness.loopback) {
           try { server.close(); } catch {}
           return reject(new Error("Remote Web /health readiness check failed"));
@@ -367,6 +360,10 @@ function createRemoteServerService({ pythonService, log }) {
           log("[Remote Web] Server closed; lifecycle state reset");
         });
         resolve(info);
+        // Optional OS integration runs after startup completes. It is deliberately
+        // detached so firewall inspection/elevation can never make Remote Web fail
+        // or delay the UI start transaction.
+        setImmediate(() => { ensureWindowsLanFirewall({ log }).catch((error) => log(`[LAN] Optional firewall provisioning failed: ${error?.message || error}`)); });
       });
     });
   }
