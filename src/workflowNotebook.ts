@@ -37,6 +37,9 @@ export type NotebookConversionReport = {
   functionCalls: number;
   functionMaps: number;
   functionConcatMaps: number;
+  dependencyLinks: number;
+  linkedOperations: number;
+  isolatedOperations: number;
   importedModules: string[];
   androidUnsupportedModules: string[];
   windowsPathCells: number;
@@ -74,6 +77,37 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
   const windowsPathCells = cells.filter((cell) => cell.cellType === "code" && /(?:[A-Za-z]:\\|\\\\[^\\\s]+\\)/.test(cell.source)).length;
   const functionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef").length;
   const promotedFunctionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string").length;
+  const producer = new Map<string, number>();
+  const functionDefinitionById = new Map<string, number>();
+  const linked = new Set<number>();
+  let dependencyLinks = 0;
+  const markLink = (sourceIndex: number | undefined, targetIndex: number): void => {
+    if (sourceIndex === undefined || sourceIndex === targetIndex) return;
+    linked.add(sourceIndex);
+    linked.add(targetIndex);
+    dependencyLinks += 1;
+  };
+  operations.forEach((operation, operationIndex) => {
+    const dependencies = new Set([operation.inputVariable, ...(operation.uses ?? [])].filter((name): name is string => typeof name === "string" && Boolean(name)));
+    dependencies.forEach((dependency) => markLink(producer.get(dependency), operationIndex));
+    if (operation.kind === "FunctionDef") {
+      const rawDependencies = operation.parameters?.workflowFunctionDependenciesJson;
+      if (typeof rawDependencies === "string" && rawDependencies) {
+        try {
+          const parsed = JSON.parse(rawDependencies) as unknown;
+          if (Array.isArray(parsed)) parsed.filter((item): item is string => typeof item === "string").forEach((dependency) => markLink(producer.get(dependency), operationIndex));
+        } catch { /* conversion report remains best-effort */ }
+      }
+      const functionId = operation.parameters?.workflowFunctionId;
+      if (typeof functionId === "string" && functionId) functionDefinitionById.set(functionId, operationIndex);
+    }
+    const sourceFunctionId = typeof operation.parameters?.notebookSourceFunctionId === "string"
+      ? operation.parameters.notebookSourceFunctionId
+      : typeof operation.parameters?.functionId === "string" ? operation.parameters.functionId : "";
+    if (sourceFunctionId) markLink(functionDefinitionById.get(sourceFunctionId), operationIndex);
+    const definitions = new Set([...(operation.defines ?? []), operation.outputVariable].filter((name): name is string => typeof name === "string" && Boolean(name)));
+    definitions.forEach((definition) => producer.set(definition, operationIndex));
+  });
   const typedFunctionDefinitions = operations.filter((operation) => {
     if (operation.kind !== "FunctionDef" || typeof operation.parameters?.workflowFunctionId !== "string") return false;
     const raw = operation.parameters.workflowFunctionOutputTypesJson;
@@ -96,6 +130,9 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
     functionCalls: operations.filter((operation) => operation.nodeType === "function.call" && operation.semantic).length,
     functionMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic).length,
     functionConcatMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic && operation.parameters?.collectMode === "concat_columns").length,
+    dependencyLinks,
+    linkedOperations: linked.size,
+    isolatedOperations: Math.max(0, operations.length - linked.size),
     importedModules,
     androidUnsupportedModules,
     windowsPathCells,
@@ -367,6 +404,12 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
   const edges: Edge[] = [];
   const variableNode = new Map<string, { nodeId: string; sourceHandle?: string; semantic: boolean }>();
   const notebookVariables = new Set<string>();
+  const functionDefinitionNode = new Map<string, string>();
+  entries.forEach((entry, index) => {
+    if (entry.operation?.kind !== "FunctionDef") return;
+    const functionId = entry.operation.parameters?.workflowFunctionId;
+    if (typeof functionId === "string" && functionId && nodes[index]) functionDefinitionNode.set(functionId, nodes[index].id);
+  });
   entries.forEach(({ operation }, flatIndex) => {
     if (!operation) return;
     const target = nodes[flatIndex]?.id;
@@ -374,18 +417,30 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     const semantic = Boolean(operation.semantic && operation.nodeType && !operation.nodeType.startsWith("notebook."));
     const dependencies = [...new Set([operation.inputVariable, ...(operation.uses ?? [])].filter((name): name is string => Boolean(name && notebookVariables.has(name))))];
     let explicitBindings: Record<string, string> = {};
+    let hasExplicitBindings = false;
     const rawBindings = operation.parameters?.notebookInputBindingsJson;
     if (typeof rawBindings === "string" && rawBindings) {
       try {
         const parsed = JSON.parse(rawBindings) as unknown;
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          hasExplicitBindings = true;
           explicitBindings = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([, value]) => typeof value === "string").map(([port, value]) => [port, String(value)]));
         }
       } catch { /* invalid metadata falls back to inferred bindings */ }
     }
+    let parameterBindings: Record<string, string> = {};
+    const rawParameterBindings = operation.parameters?.notebookParameterBindingsJson;
+    if (typeof rawParameterBindings === "string" && rawParameterBindings) {
+      try {
+        const parsed = JSON.parse(rawParameterBindings) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          parameterBindings = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([, value]) => typeof value === "string").map(([key, value]) => [key, String(value)]));
+        }
+      } catch { /* malformed parameter metadata remains losslessly executable as code elsewhere */ }
+    }
     const inferredBindings = dependencies.map((dependency, dependencyIndex) => [connectablePort(targetNode, "input", dependencyIndex), dependency] as const)
       .filter((entry): entry is readonly [string, string] => Boolean(entry[0]));
-    const bindingEntries = Object.keys(explicitBindings).length ? Object.entries(explicitBindings) : inferredBindings;
+    const bindingEntries = hasExplicitBindings ? Object.entries(explicitBindings) : inferredBindings;
     const inputBindings: Record<string, string> = {};
     bindingEntries.forEach(([targetHandle, dependency]) => {
       const sourceBinding = variableNode.get(dependency);
@@ -393,10 +448,86 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
       const sourceNode = nodes.find((node) => node.id === source);
       const sourceHandle = sourceBinding?.sourceHandle ?? connectablePort(sourceNode, "output");
       if (semantic && targetHandle) inputBindings[targetHandle] = dependency;
-      if (semantic && sourceBinding?.semantic && source && target && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.targetHandle === targetHandle)) {
-        edges.push({ id: `notebook-variable-${edges.length}`, source, sourceHandle, target, targetHandle });
+      if (source && target && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.targetHandle === targetHandle && edge.sourceHandle === sourceHandle)) {
+        if (semantic && sourceBinding?.semantic) {
+          // Native -> native dependencies are real executable data edges.
+          edges.push({ id: `notebook-variable-${edges.length}`, source, sourceHandle, target, targetHandle });
+        } else {
+          // Code carriers exchange the exact Python object through the shared
+          // Notebook namespace rather than through their generic `next` port.
+          // Keep that dependency visible on the canvas, but mark the edge as
+          // visual-only so the runtime never mistakes it for executable data.
+          edges.push({
+            id: `notebook-variable-${edges.length}`,
+            source, sourceHandle, target, targetHandle,
+            data: { role: "notebook-variable", variable: dependency },
+            style: { strokeDasharray: "6 4", opacity: 0.72 },
+          });
+        }
       }
     });
+    // Scalar Notebook parameters are namespace dependencies, not table data
+    // inputs. Show them on the canvas as dashed dependency edges, while the
+    // runtime resolves their actual values from notebookParameter* metadata.
+    const dataDependencies = new Set(bindingEntries.map(([, dependency]) => dependency));
+    const parameterDependencies = [...new Set([
+      ...Object.values(parameterBindings),
+      ...dependencies.filter((dependency) => !dataDependencies.has(dependency)),
+    ])];
+    for (const dependency of parameterDependencies) {
+      const sourceBinding = variableNode.get(dependency);
+      const source = sourceBinding?.nodeId;
+      const sourceNode = nodes.find((node) => node.id === source);
+      const sourceHandle = sourceBinding?.sourceHandle ?? connectablePort(sourceNode, "output");
+      const targetHandle = connectablePort(targetNode, "input");
+      if (source && target && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.data?.role === "notebook-parameter" && edge.data?.variable === dependency)) {
+        edges.push({
+          id: `notebook-parameter-${edges.length}`,
+          source, sourceHandle, target, targetHandle,
+          data: { role: "notebook-parameter", variable: dependency },
+          style: { strokeDasharray: "2 4", opacity: 0.58 },
+        });
+      }
+    }
+
+    // Provenance edges explain *why* a node exists without becoming runtime
+    // data dependencies.  They connect imported/global dependencies to a
+    // promoted function definition, and the original definition to calls that
+    // were either kept as function nodes or lowered to native built-ins.
+    if (operation.kind === "FunctionDef") {
+      for (const dependency of parseStringList(operation.parameters?.workflowFunctionDependenciesJson)) {
+        const sourceBinding = variableNode.get(dependency);
+        const source = sourceBinding?.nodeId;
+        const sourceNode = nodes.find((node) => node.id === source);
+        const sourceHandle = sourceBinding?.sourceHandle ?? connectablePort(sourceNode, "output");
+        const targetHandle = connectablePort(targetNode, "input");
+        if (source && target && source !== target && sourceHandle && targetHandle) {
+          edges.push({
+            id: `notebook-provenance-${edges.length}`,
+            source, sourceHandle, target, targetHandle,
+            data: { role: "notebook-provenance", variable: dependency, relation: "function-dependency" },
+            style: { strokeDasharray: "1 5", opacity: 0.42 },
+          });
+        }
+      }
+    }
+    const sourceFunctionId = typeof operation.parameters?.notebookSourceFunctionId === "string"
+      ? operation.parameters.notebookSourceFunctionId
+      : typeof operation.parameters?.functionId === "string" ? operation.parameters.functionId : "";
+    if (sourceFunctionId && target) {
+      const source = functionDefinitionNode.get(sourceFunctionId);
+      const sourceNode = nodes.find((node) => node.id === source);
+      const sourceHandle = connectablePort(sourceNode, "output");
+      const targetHandle = connectablePort(targetNode, "input");
+      if (source && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.data?.role === "notebook-provenance")) {
+        edges.push({
+          id: `notebook-provenance-${edges.length}`,
+          source, sourceHandle, target, targetHandle,
+          data: { role: "notebook-provenance", relation: "function-origin", functionId: sourceFunctionId },
+          style: { strokeDasharray: "1 5", opacity: 0.42 },
+        });
+      }
+    }
     if (target) {
       const outputHandles = resolvedNodePorts(targetNode, "output");
       const outputBindings: Record<string, string> = {};
@@ -585,13 +716,18 @@ function balancedDictionary(source: string, start: number): string {
   throw new Error("节点参数字典没有闭合");
 }
 
+function isNotebookVisualEdge(edge: Edge): boolean {
+  const role = edge.data?.role;
+  return role === "notebook-order" || role === "notebook-variable" || role === "notebook-parameter" || role === "notebook-provenance";
+}
+
 function edgeValueExpression(edge: Edge): string {
   const source = variableName(edge.source);
   return edge.sourceHandle && edge.sourceHandle !== "output" ? `${source}[${JSON.stringify(edge.sourceHandle)}]` : source;
 }
 
 function inputExpression(nodeId: string, edges: Edge[]): string {
-  const incoming = edges.filter((edge) => edge.target === nodeId);
+  const incoming = edges.filter((edge) => edge.target === nodeId && !isNotebookVisualEdge(edge));
   if (!incoming.length) return "None";
   if (incoming.length === 1) return edgeValueExpression(incoming[0]);
   return `{${incoming.map((edge) => `${JSON.stringify(edge.targetHandle ?? "input")}: ${edgeValueExpression(edge)}`).join(", ")}}`;
@@ -601,7 +737,7 @@ function orderedContainerChildren(children: WorkflowNode[], edges: Edge[]): Work
   const childIds = new Set(children.map((child) => child.id));
   const incoming = new Map(children.map((child) => [child.id, 0]));
   const outgoing = new Map<string, string[]>();
-  for (const edge of edges) if (childIds.has(edge.source) && childIds.has(edge.target)) {
+  for (const edge of edges) if (!isNotebookVisualEdge(edge) && childIds.has(edge.source) && childIds.has(edge.target)) {
     incoming.set(edge.target, (incoming.get(edge.target) ?? 0) + 1);
     outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]);
   }
@@ -630,7 +766,7 @@ function structureOperationCode(node: WorkflowNode, edges: Edge[], nodes: Workfl
   const input = inputExpression(node.id, edges);
   const allChildren = nodes.filter((child) => child.parentId === node.id || child.data.canvasParentId === node.id);
   const internalIds = new Set(allChildren.map((child) => child.id));
-  const internalEdges = edges.filter((edge) => internalIds.has(edge.source) && internalIds.has(edge.target));
+  const internalEdges = edges.filter((edge) => !isNotebookVisualEdge(edge) && internalIds.has(edge.source) && internalIds.has(edge.target));
   const makeRunner = (branch: "true" | "false" | "body", suffix: string) => {
     const children = orderedContainerChildren(allChildren.filter((child) => (child.data.branch ?? "body") === branch), internalEdges);
     const childIds = new Set(children.map((child) => child.id));
@@ -727,6 +863,43 @@ _offset = _size - _count if ${params}.get("position", "start") == "end" else int
 ${name} = ${input}.iloc[[row for base in range(0, len(${input}), _size) for row in range(base + _offset, min(base + _offset + _count, len(${input})))]]`;
   if (type === "table.periodic_tail_mean") return `_size, _tail = int(${params}.get("groupSize", 25)), int(${params}.get("tailRows", 10))
 ${name} = pd.DataFrame([${input}.iloc[start:start + _size].tail(_tail).mean(numeric_only=True) for start in range(0, len(${input}), _size)])`;
+  if (type === "table.periodic_group_mean") return `_size = int(${params}.get("groupSize", 50))
+_start = int(${params}.get("startRow", 1))
+_end = int(${params}.get("endRow", _size))
+_layout = str(${params}.get("layout", "rows"))
+_chunks = [${input}.iloc[start:start + _size].iloc[_start - 1:_end].mean(numeric_only=True) for start in range(0, len(${input}), _size) if not ${input}.iloc[start:start + _size].iloc[_start - 1:_end].empty]
+${name} = pd.DataFrame(_chunks).reset_index(drop=True) if _layout == "rows" else pd.DataFrame([item for chunk in _chunks for item in chunk.tolist()], columns=["mean"])`;
+  if (type === "table.row_chunks_to_columns") return `_chunks = int(${params}.get("chunks", 2))
+_parts = [pd.DataFrame(part, columns=${input}.columns) for part in np.array_split(${input}.to_numpy(), _chunks, axis=0)]
+${name} = pd.concat(_parts, axis=1)`;
+  if (type === "stats.column_group_cv") return `_group_size = int(${params}.get("groupSize", 50))
+${name} = []
+for _start in range(0, ${input}.shape[1], _group_size):
+    _group = ${input}.iloc[:, _start:_start + _group_size]
+    _means = _group.mean(axis=1)
+    _stds = _group.std(axis=1, ddof=0)
+    ${name}.append(pd.Series(np.where(_means != 0, _stds / _means, np.nan), index=${input}.index))`;
+  if (type === "sequence.consecutive_segments") return `_items = sorted(set(${input}))
+${name} = []
+if _items:
+    _start = _end = _items[0]
+    for _value in _items[1:]:
+        if _value == _end + 1: _end = _value
+        else:
+            ${name}.append((_start, _end, _end - _start + 1))
+            _start = _end = _value
+    ${name}.append((_start, _end, _end - _start + 1))`;
+  if (type === "sequence.filter_short_segments") return `_items = sorted(set(${input}))
+_minimum = int(${params}.get("minLength", 3))
+${name} = []
+if _items:
+    _start = _end = _items[0]
+    for _value in _items[1:]:
+        if _value == _end + 1: _end = _value
+        else:
+            if _end - _start + 1 >= _minimum: ${name}.extend(range(_start, _end + 1))
+            _start = _end = _value
+    if _end - _start + 1 >= _minimum: ${name}.extend(range(_start, _end + 1))`;
   if (type === "table.difference") return `${name} = ${input}.diff(periods=int(${params}.get("periods", 1)), axis=int(${params}.get("axis", 0)))`;
   if (type === "table.rename_columns") return `${name} = ${input}.set_axis([item.strip() for item in ${params}["names"].split(",")], axis=1)`;
   if (type === "table.pivot") return `${name} = ${input}.pivot_table(index=${params}["index"], columns=${params}["columns"], values=${params}["values"], aggfunc=${params}.get("aggregate", "mean")).sort_index().sort_index(axis=1).reset_index()`;
@@ -960,7 +1133,7 @@ ${name}_params = ${pythonLiteral(node.data.parameters)}
 
 ${operationCode(node, edges, nodes)}`;
     }),
-    `# %% [connections]\n${edges.map((edge) => `# connect ${edge.source}.${edge.sourceHandle ?? "output"} -> ${edge.target}.${edge.targetHandle ?? "input"}`).join("\n")}`,
+    `# %% [connections]\n${edges.filter((edge) => !isNotebookVisualEdge(edge)).map((edge) => `# connect ${edge.source}.${edge.sourceHandle ?? "output"} -> ${edge.target}.${edge.targetHandle ?? "input"}`).join("\n")}`,
   ];
   return `${cells.join("\n\n")}\n`;
 }

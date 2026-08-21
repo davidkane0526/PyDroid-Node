@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from .cache import _node_result_cache, _value_digest
-from .graph import _all_loop_body_ids, _contained_node_ids, _container_children, _edge_value, _loop_body, _ordered_nodes, _upstream_inputs, _upstream_tables, _upstream_value
+from .graph import _all_loop_body_ids, _contained_node_ids, _container_children, _data_edges, _edge_value, _loop_body, _ordered_nodes, _upstream_inputs, _upstream_tables, _upstream_value
 from .node_dispatch import _execute_node
 from .notebook_execution import _execute_notebook_cell
 from .presentation import _preview, _printable, _semantic_value
@@ -44,7 +44,7 @@ def _execute_container_graph(
     notebook_namespace: dict[str, Any] | None = None,
 ) -> Any:
     child_ids = {child["id"] for child in children}
-    internal_edges = [edge for edge in workflow.get("edges", []) if edge["source"] in child_ids and edge["target"] in child_ids]
+    internal_edges = [edge for edge in _data_edges(workflow) if edge["source"] in child_ids and edge["target"] in child_ids]
     internal_workflow = {"nodes": children, "edges": internal_edges}
     values: dict[str, dict[str, Any]] = {}
     ordered = _ordered_nodes(internal_workflow)
@@ -52,7 +52,7 @@ def _execute_container_graph(
     for child in ordered:
         data = child.get("data", {})
         child_type = data.get("nodeType")
-        params = data.get("parameters", {})
+        params = _bind_notebook_parameters(data.get("parameters", {}), notebook_namespace)
         if child_type in {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"}:
             raise ValueError("Nested visual structures are not supported in this build")
         has_internal_input = any(edge["target"] == child["id"] for edge in internal_edges)
@@ -185,6 +185,32 @@ def _bind_notebook_inputs(node_type: str, params: dict[str, Any], upstream: Any,
     return next(iter(resolved.values()))
 
 
+def _bind_notebook_parameters(params: dict[str, Any], namespace: dict[str, Any]) -> dict[str, Any]:
+    """Resolve Notebook variables/expressions into ordinary native-node parameters.
+
+    This keeps the NodeSpec contract literal and deterministic for normal
+    workflows, while imported notebooks may preserve expressions such as
+    ``Read_sample + Set_sample`` without falling back to a function black box.
+    """
+    merged = dict(params)
+    bindings = _notebook_binding_map(params, "notebookParameterBindingsJson")
+    for key, variable in bindings.items():
+        if variable in namespace:
+            merged[key] = namespace[variable]
+    raw_expressions = params.get("notebookParameterExpressionsJson")
+    if isinstance(raw_expressions, str) and raw_expressions.strip():
+        try:
+            expressions = json.loads(raw_expressions)
+        except (TypeError, ValueError):
+            expressions = {}
+        if isinstance(expressions, dict):
+            for key, expression in expressions.items():
+                if not isinstance(expression, str) or not expression.strip():
+                    continue
+                merged[str(key)] = eval(compile(ast.parse(expression, mode="eval"), "<notebook-parameter>", "eval"), namespace, namespace)
+    return merged
+
+
 def _sync_notebook_outputs(params: dict[str, Any], outputs: dict[str, Any], namespace: dict[str, Any]) -> None:
     """Publish native-node outputs back into the shared Python namespace."""
     bindings = _notebook_binding_map(params, "notebookOutputBindingsJson")
@@ -203,7 +229,7 @@ def _execute_loop_subflow(
     node_type = data.get("nodeType")
     params = data.get("parameters", {})
     entry_edges = [
-        edge for edge in workflow.get("edges", [])
+        edge for edge in _data_edges(workflow)
         if edge["target"] == loop_id and edge.get("targetHandle") in {None, "input"}
     ]
     notebook_namespace = notebook_namespace or _new_notebook_namespace(csv_text, input_files)
@@ -225,7 +251,7 @@ def _execute_loop_subflow(
             body_id = body_node["id"]
             body_data = body_node.get("data", {})
             body_type = body_data.get("nodeType")
-            params = body_data.get("parameters", {})
+            params = _bind_notebook_parameters(body_data.get("parameters", {}), notebook_namespace)
             if body_type in {"logic.for_each_subflow", "logic.while_subflow"}:
                 raise ValueError("Nested loop subflows are not supported yet")
             upstream = _node_upstream(body_id, body_type, workflow, local_values)
@@ -295,7 +321,7 @@ def _function_node_upstream(
     node: dict[str, Any], workflow: dict[str, Any], values: dict[str, dict[str, Any]], external: dict[str, Any],
 ) -> Any:
     inputs: dict[str, Any] = {}
-    for edge in workflow.get("edges", []):
+    for edge in _data_edges(workflow):
         if edge.get("target") != node["id"]:
             continue
         port = edge.get("targetHandle") or "input"
@@ -674,7 +700,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
             continue
         data = node.get("data", {})
         node_type = data.get("nodeType")
-        params = data.get("parameters", {})
+        params = _bind_notebook_parameters(data.get("parameters", {}), notebook_namespace)
         node_started = time.perf_counter()
         try:
             if isinstance(params.get("notebookSource"), str):

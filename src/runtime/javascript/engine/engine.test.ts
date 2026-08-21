@@ -114,6 +114,22 @@ describe("工作流执行", () => {
     expect(result.message).toContain("cycles");
   });
 
+  it("Notebook 可视依赖边不参与 JS 拓扑和数据输入", () => {
+    const result = run({
+      nodes: [
+        node("read", "io.read_csv", { header: "infer" }),
+        node("query", "pandas.query", { expression: "voltage >= 2" }),
+      ],
+      edges: [
+        edge("read", "query"),
+        { source: "query", target: "read", sourceHandle: "output", targetHandle: "input", data: { role: "notebook-variable", variable: "frame" } },
+        { source: "read", target: "query", sourceHandle: "output", targetHandle: "input", data: { role: "notebook-parameter", variable: "limit" } },
+      ],
+    }, SAMPLE_CSV);
+    expect(result.status).toBe("success");
+    expect((result.preview as { rows: unknown[][] }).rows).toEqual([[2, 0.3], [3, 0.4], [4, 0.5], [5, 0.6]]);
+  });
+
   it("节点失败时报告节点信息并保留已完成结果", () => {
     const result = run({
       nodes: [

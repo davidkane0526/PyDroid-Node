@@ -1,55 +1,59 @@
-# Current development handoff — 1.4.95 lossless Notebook compiler foundation
+# Current development handoff — 1.4.96 Notebook dataflow + native lowering
 
-Branch: `feature/1.4.95-notebook-compiler`
-Version: **1.4.95**
-Android versionCode: **118**
-Build revision: `1.4.95-dev-r73-notebook-compiler`
+Branch: `feature/1.4.96-notebook-dataflow`
+Version: **1.4.96**
+Android versionCode: **119**
+Build revision: `1.4.96-dev-r74-notebook-dataflow`
 
 ## Authoritative baseline
 
-Read `docs/BASELINE.md` first. The architecture baseline remains 1.4.92, the physically accepted Remote/LAN anchor remains 1.4.91, and the 1.4.94 read-only local tool discovery correction remains retained. 1.4.95 does not alter Remote Web, LAN discovery, build tool selection or packaging behavior.
+Read `docs/BASELINE.md` first. The architecture baseline remains 1.4.92, the physically accepted Remote/LAN anchor remains 1.4.91, and the 1.4.94 read-only local tool discovery correction remains retained. 1.4.96 does not change the accepted Remote Web startup path, LAN discovery ownership or build-tool selection policy.
 
-## 1.4.95 Notebook compiler state
+## 1.4.96 Notebook compiler state
 
-- Jupyter import is now hybrid and lossless: every executable statement is either represented by an equivalent workflow node or retained as an executable `notebook.code_cell` fragment.
-- Native workflow nodes and code carriers share one Notebook namespace through explicit input/output variable bindings.
-- Top-level `def` statements remain in that namespace. Safe definitions additionally become document-level workflow functions; direct call sites can become `function.call` nodes.
-- Generated function ports use `Any` unless the structure is certain. The compiler no longer guesses unannotated scalar/table types.
-- Function defaults, literal arguments, safe expressions and free-global dependencies are explicit call bindings.
-- Functions requiring unsupported custom-node semantics (`open`, generators, `global/nonlocal`, decorators or `*args/**kwargs`) remain lossless code instead of being falsely promoted.
-- Ordinary Python `if`/`for`/`while` stays Python because the current visual control nodes are table-oriented, not general Python control-flow equivalents. Only dedicated patterns with proven equivalence are promoted.
-- The first dedicated loop pattern is `function.map` with `collectMode=concat_columns`, covering strict `for item in items` + user-function + `pd.concat(..., axis=1)` aggregation while preserving the initial accumulator and optional final temporary value.
-- Notebook cell index and statement/child operation indexes are now independent and deterministic.
+- Jupyter import remains lossless: every executable operation is either promoted to an equivalent workflow node or retained as executable Notebook Python.
+- Imported workflows now distinguish executable data edges from Notebook visual dependency edges. Native-to-native dataflow stays a normal edge; namespace-variable, dynamic-parameter and source/provenance relations are visible dashed edges and are ignored by both Python and JavaScript runtime topology.
+- Cross-runtime graph semantics are aligned: visual Notebook edges cannot introduce false inputs, false ordering or cycles in either runtime.
+- Native nodes can bind data expressions and parameters from the shared Notebook namespace without reverting to `function.call` solely because an argument is dynamic.
+- Safe helper functions are lowered by AST implementation pattern, never by function name alone.
+- New cross-runtime native helpers: `table.periodic_group_mean`, `table.row_chunks_to_columns`, `stats.column_group_cv`, `sequence.consecutive_segments`, and `sequence.filter_short_segments`.
+- `table.row_chunks_to_columns` canonicalizes concatenated chunk columns to deterministic unique names (`name_1`, `name_2`, ...). This is the native cross-runtime table contract; the real Notebook corpus uses the promoted `Splite` outputs positionally, so this normalization does not alter the validated corpus behavior.
+- Existing periodic helpers (`table.periodic_window`, `table.periodic_tail_mean`) now accept safe Notebook expression/parameter bindings, allowing more `Pick_*` / `Split_*` helpers to become native nodes instead of function black boxes.
+- `function.call` remains for genuinely specialized operations rather than being forced to zero. In the real corpus only directory CSV merge, `VthGet`, and image merge remain direct calls.
+- `function.map` remains Python-only for the currently proven list-comprehension and map + column-concat patterns. General Python loops are not falsely mapped to table-oriented control nodes.
 
 ## Real corpus evidence
 
-The uploaded scientific workspace was used only as an external regression corpus, not copied into the product tree:
+External regression corpus (not copied into the product tree):
 
 - 186 `.ipynb` files
-- 1,443 code cells + 150 Markdown cells
-- 5,418 top-level operations
-- 0 analysis failures
-- 266 top-level user-function definitions
-- 262 safe function definitions promotable
-- 105 of 108 direct calls to previously defined user functions promoted to `function.call`; the remaining 3 use `open()` and remain lossless Python
-- 18 Python-only `function.map` operations promoted: 7 strict list-comprehension mappings plus 11 strict map + column-concat loops
-- 194 code cells contain Windows-specific paths
-- Android dependency review set from the corpus: `scipy` (19 notebooks), local `Tools` (4), `import_ipynb` (2), `PIL` (1)
-- all remaining operations have an explicit lossless code/Markdown carrier
+- 1,593 cells: 1,443 code + 150 Markdown
+- 5,418 top-level Python operations
+- 5,418/5,418 classified or losslessly carried; 0 analyzer failures
+- 6,150 dependency/provenance relations found
+- 5,242/5,418 operations have at least one traceable dependency/provenance relation; 176 are independent definitions/imports/constants/expressions
+- 266 top-level function definitions; 262 safely promotable; 110 have at least one proven output type
+- direct `function.call`: **3** (down from 105 before native lowering)
+- `function.map`: 18, including 11 strict map + `concat(axis=1)` loops
+- native semantic operations: 1,804; lossless code carriers: 3,614
+- Windows-specific path cells: 194
+- Android review dependencies: `scipy` (19 notebooks), local `Tools` (4), `import_ipynb` (2), `PIL` (1)
 
-Run an equivalent corpus audit with:
+Run the corpus audit with:
 
 `pnpm audit:notebooks -- <notebook-directory> --json`
 
 ## Validation completed in this environment
 
-- Python suite: **125 passed, 1 skipped** after the loop-aggregation/correctness pass.
-- Real-workspace compiler audit: **186/186 notebooks, 5,418/5,418 operations classified, 0 failures**.
-- Baseline consolidation, Workflow Core, Node Contract and Runtime Engine architecture smokes pass.
-- Runtime parity golden corpus remains **68/68** with JS-capable NodeContract coverage **75/75**.
-- Version sync passes at **1.4.95 / Android 118**.
-- Global TypeScript 5.8 syntax parsing reports no syntax diagnostics for the modified Notebook compiler files, but the full project TypeScript/Vitest build cannot run in this container because the ZIP intentionally contains no `node_modules` and the project requires its pinned Node 24 / TypeScript 7 toolchain.
+- Python suite: **136 passed, 1 skipped**.
+- Runtime parity golden corpus: **73/73**.
+- JavaScript-capable NodeContract parity coverage: **80/80**.
+- Baseline consolidation, build-tool architecture, PlatformAdapter, Host Contract, Remote Web, real HTTP 8765 Remote Host E2E, LAN boundary/selection, workflow history, Phase 11 compatibility, Workflow Core, Editor Core, Runtime Engine and Node Contract smokes pass.
+- Strict Phase 11 TypeScript check passes.
+- Modified front-end/Notebook files pass TypeScript 5.8 `--noCheck` syntax compilation.
+- Version sync passes at **1.4.96 / Android 119**.
+- Full project `pnpm build` / Vitest is not claimed in this container because the clean project ZIP intentionally has no `node_modules` and the available environment is Node 22 / TypeScript 5.8 rather than the pinned Node 24.19 / TypeScript 7 toolchain.
 
 ## Next development step
 
-Continue improving **semantic promotion coverage**, not by adding lossy heuristics. The next useful targets are nested function calls and iterator-index transforms that can be represented explicitly without changing Python evaluation order. Platform dependency reporting is implemented and should remain diagnostic rather than a runtime gate. Preserve the invariant: 100% source semantics first, visual-node coverage second.
+The next architecture layer should improve general iterative expressiveness without weakening deterministic execution: first-class Map / Reduce / Accumulator, then explicit State / Delay / Feedback semantics. A feedback edge must represent previous-iteration state (`n -> n+1`), not an ordinary data edge that creates an ambiguous current-iteration cycle. Keep the current priority invariant: native nodes when equivalence is provable, executable Python otherwise.

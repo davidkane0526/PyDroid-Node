@@ -6,11 +6,13 @@ import { executeControlStateNode } from "./nodes/control_state";
 import { executeAnalysisPulseNode } from "./nodes/analysis_pulse";
 import { executePlotsNode } from "./nodes/plots";
 import { executeConversionUiNode } from "./nodes/conversion_ui";
+import { executeSequenceNode } from "./nodes/sequence";
 export { terMatrix } from "./nodes/support/analysis";
 
 const DOMAIN_HANDLERS = [
   executeIoGenerateNode,
   executeTablePandasNode,
+  executeSequenceNode,
   executeControlStateNode,
   executeAnalysisPulseNode,
   executePlotsNode,

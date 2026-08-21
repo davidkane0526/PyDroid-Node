@@ -73,6 +73,7 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
       if (groupSize < 1 || count < 1) throw new Error("Periodic window sizes must be positive");
       const position = String(params.position ?? "start");
       const offset = position === "end" ? groupSize - count : position === "offset" ? Number(params.offset ?? 0) : 0;
+      if (offset < 0 || offset + count > groupSize) throw new Error("Periodic window must stay inside each group");
       const indexes: number[] = [];
       for (let base = 0; base < frame.rowCount; base += groupSize) {
         for (let r = base + offset; r < Math.min(base + offset + count, frame.rowCount); r += 1) indexes.push(r);
@@ -84,6 +85,65 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
       const frame = table();
       const value = frame.periodicTailMean(Number(params.groupSize ?? 25), Number(params.tailRows ?? 10));
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
+    case "table.periodic_group_mean": {
+      const frame = table();
+      const groupSize = Number(params.groupSize ?? 50);
+      const startRow = Number(params.startRow ?? 1);
+      const endRow = Number(params.endRow ?? groupSize);
+      const layout = String(params.layout ?? "rows");
+      if (!Number.isInteger(groupSize) || !Number.isInteger(startRow) || !Number.isInteger(endRow) || groupSize < 1 || startRow < 1 || endRow < startRow || endRow > groupSize) {
+        throw new Error("Periodic group mean requires 1 <= startRow <= endRow <= groupSize");
+      }
+      const rows = frame.groupAggregate(groupSize, startRow - 1, endRow, "mean");
+      let value: Table;
+      if (layout === "rows") {
+        value = rows;
+      } else if (layout === "stacked") {
+        value = new Table(["mean"], rows.rows().flatMap((row) => row.map((item) => [item])));
+      } else {
+        throw new Error("Periodic group mean layout must be rows or stacked");
+      }
+      return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
+    case "table.row_chunks_to_columns": {
+      const frame = table();
+      const chunks = Number(params.chunks ?? 2);
+      if (!Number.isInteger(chunks) || chunks < 1) throw new Error("Row chunks to columns requires chunks >= 1");
+      const rows = frame.rows();
+      const base = Math.floor(rows.length / chunks);
+      const remainder = rows.length % chunks;
+      const parts: unknown[][][] = [];
+      let cursor = 0;
+      for (let index = 0; index < chunks; index += 1) {
+        const size = base + (index < remainder ? 1 : 0);
+        parts.push(rows.slice(cursor, cursor + size));
+        cursor += size;
+      }
+      const height = Math.max(0, ...parts.map((part) => part.length));
+      const outputRows = Array.from({ length: height }, (_, rowIndex) => parts.flatMap((part) => part[rowIndex] ?? frame.columns.map(() => null)));
+      const outputColumns = Array.from({ length: chunks }, (_, chunkIndex) => frame.columns.map((column) => `${column}_${chunkIndex + 1}`)).flat();
+      const value = new Table(outputColumns, outputRows);
+      return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
+    case "stats.column_group_cv": {
+      const frame = table();
+      const groupSize = Number(params.groupSize ?? 50);
+      if (!Number.isInteger(groupSize) || groupSize < 1) throw new Error("Column group CV requires groupSize >= 1");
+      const rows = frame.rows();
+      const groups: Array<Array<number | null>> = [];
+      for (let start = 0; start < frame.columns.length; start += groupSize) {
+        const stop = Math.min(start + groupSize, frame.columns.length);
+        groups.push(rows.map((row) => {
+          const values = row.slice(start, stop).map((item) => Number(item)).filter((item) => Number.isFinite(item));
+          if (!values.length) return null;
+          const mean = values.reduce((sum, item) => sum + item, 0) / values.length;
+          if (mean === 0) return null;
+          const variance = values.reduce((sum, item) => sum + (item - mean) ** 2, 0) / values.length;
+          return Math.sqrt(variance) / mean;
+        }));
+      }
+      return { outputs: { output: groups }, tableResult, plotResult, exportResult };
     }
     case "table.sort_index": {
       const axis = Number(params.axis ?? 0);

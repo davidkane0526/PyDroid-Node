@@ -53,6 +53,7 @@ def main() -> int:
     imported_modules = Counter()
     android_unsupported_modules = Counter()
     failures: list[dict[str, object]] = []
+    isolated_kinds = Counter()
     for path in files:
         try:
             notebook = json.loads(path.read_text(encoding="utf-8"))
@@ -70,6 +71,7 @@ def main() -> int:
             failures.append({"file": str(path), "kind": "analysis", "error": str(error)})
             continue
         by_index = {int(cell.get("index", -1)): cell for cell in analysis_cells if isinstance(cell, dict)}
+        ordered_operations: list[dict[str, object]] = []
         for index, cell in enumerate(notebook.get("cells", [])):
             summary["cells"] += 1
             if cell.get("cell_type") != "code":
@@ -79,6 +81,7 @@ def main() -> int:
             source = source_text(cell)
             result = by_index.get(index, {})
             operations = result.get("operations", []) if isinstance(result, dict) else []
+            ordered_operations.extend(operation for operation in operations if isinstance(operation, dict))
             summary["operations"] += len(operations)
             for operation in operations:
                 semantic = bool(operation.get("semantic"))
@@ -134,6 +137,45 @@ def main() -> int:
             except SyntaxError as error:
                 summary["syntax_cells"] += 1
                 failures.append({"file": str(path), "cell": index, "kind": "syntax", "error": error.msg})
+
+        producer: dict[str, int] = {}
+        function_definition_by_id: dict[str, int] = {}
+        linked: set[int] = set()
+        for operation_index, operation in enumerate(ordered_operations):
+            dependencies = {str(name) for name in [operation.get("inputVariable"), *(operation.get("uses") or [])] if isinstance(name, str) and name}
+            for dependency in dependencies:
+                source_index = producer.get(dependency)
+                if source_index is not None and source_index != operation_index:
+                    linked.update((source_index, operation_index))
+                    summary["dependency_links"] += 1
+            parameters = operation.get("parameters") if isinstance(operation.get("parameters"), dict) else {}
+            if operation.get("kind") == "FunctionDef":
+                raw_dependencies = parameters.get("workflowFunctionDependenciesJson")
+                if isinstance(raw_dependencies, str) and raw_dependencies:
+                    try:
+                        parsed_dependencies = json.loads(raw_dependencies)
+                    except (TypeError, ValueError):
+                        parsed_dependencies = []
+                    if isinstance(parsed_dependencies, list):
+                        for dependency in parsed_dependencies:
+                            if isinstance(dependency, str) and dependency in producer:
+                                linked.update((producer[dependency], operation_index))
+                                summary["dependency_links"] += 1
+                function_id = parameters.get("workflowFunctionId")
+                if isinstance(function_id, str) and function_id:
+                    function_definition_by_id[function_id] = operation_index
+            source_function_id = parameters.get("notebookSourceFunctionId") or parameters.get("functionId")
+            if isinstance(source_function_id, str) and source_function_id in function_definition_by_id:
+                linked.update((function_definition_by_id[source_function_id], operation_index))
+                summary["dependency_links"] += 1
+            definitions = {str(name) for name in [*(operation.get("defines") or []), operation.get("outputVariable")] if isinstance(name, str) and name}
+            for definition in definitions:
+                producer[definition] = operation_index
+        summary["linked_operations"] += len(linked)
+        summary["isolated_operations"] += max(0, len(ordered_operations) - len(linked))
+        for operation_index, operation in enumerate(ordered_operations):
+            if operation_index not in linked:
+                isolated_kinds[f"{operation.get('nodeType', 'unclassified')}|{operation.get('kind', '')}"] += 1
     summary["classified_operations"] = summary["semantic_operations"] + summary["carrier_operations"]
     summary["lossless_carrier_coverage"] = summary["classified_operations"]
     report = {
@@ -146,6 +188,7 @@ def main() -> int:
         "androidUnsupportedModules": android_unsupported_modules.most_common(),
         "statements": statements.most_common(),
         "calls": calls.most_common(100),
+        "isolatedOperationKinds": isolated_kinds.most_common(),
         "failures": failures,
     }
     if args.json:

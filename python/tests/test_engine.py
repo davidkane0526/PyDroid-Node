@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -879,6 +880,41 @@ def test_oscillating_pulse_ramp_amplitudes_grow_symmetrically():
     assert result["status"] == "success"
     port1 = [row[1] for row in result["preview"]["rows"] if row[1] != 0.0]
     assert port1 == [0.2, -0.2, 0.4, -0.4]
+
+
+def test_periodic_group_mean_supports_rows_and_stacked_layouts():
+    frame = pd.DataFrame({"a": [1, 3, 5, 7], "b": [2, 4, 6, 8]})
+    rows = _execute_node("table.periodic_group_mean", {"groupSize": 2, "startRow": 1, "endRow": 2, "layout": "rows"}, frame, "", [])[0]["output"]
+    stacked = _execute_node("table.periodic_group_mean", {"groupSize": 2, "startRow": 1, "endRow": 2, "layout": "stacked"}, frame, "", [])[0]["output"]
+    assert rows.to_dict(orient="list") == {"a": [2.0, 6.0], "b": [3.0, 7.0]}
+    assert stacked["mean"].tolist() == [2.0, 3.0, 6.0, 7.0]
+
+
+def test_row_chunks_to_columns_matches_numpy_split_then_horizontal_concat():
+    frame = pd.DataFrame({"a": [1, 2, 3, 4, 5], "b": [10, 20, 30, 40, 50]})
+    output = _execute_node("table.row_chunks_to_columns", {"chunks": 2}, frame, "", [])[0]["output"]
+    expected_parts = [
+        pd.DataFrame(part, columns=[f"{column}_{index + 1}" for column in frame.columns])
+        for index, part in enumerate(np.array_split(frame.to_numpy(), 2, axis=0))
+    ]
+    expected = pd.concat(expected_parts, axis=1)
+    pd.testing.assert_frame_equal(output, expected)
+
+
+def test_column_group_cv_returns_one_series_per_column_group():
+    frame = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 2.0], "c": [2.0, 4.0], "d": [2.0, 8.0]})
+    output = _execute_node("stats.column_group_cv", {"groupSize": 2}, frame, "", [])[0]["output"]
+    assert len(output) == 2
+    assert output[0].round(6).tolist() == [0.5, 0.0]
+    assert output[1].round(6).tolist() == [0.0, 0.333333]
+
+
+def test_sequence_nodes_extract_and_filter_consecutive_integer_segments():
+    values = [8, 2, 3, 4, 10, 11, 11, 1]
+    segments = _execute_node("sequence.consecutive_segments", {}, values, "", [])[0]["output"]
+    filtered = _execute_node("sequence.filter_short_segments", {"minLength": 3}, values, "", [])[0]["output"]
+    assert segments == [(1, 4, 4), (8, 8, 1), (10, 11, 2)]
+    assert filtered == [1, 2, 3, 4]
 
 
 def test_group_aggregate_resets_index_before_bucketing():

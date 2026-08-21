@@ -2514,6 +2514,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       report.promotedFunctionDefinitions ? `函数 ${report.promotedFunctionDefinitions}${report.typedFunctionDefinitions ? `（类型化 ${report.typedFunctionDefinitions}）` : ""}` : "",
       report.functionCalls ? `函数调用 ${report.functionCalls}` : "",
       report.functionMaps ? `函数映射 ${report.functionMaps}${report.functionConcatMaps ? `（其中循环合并 ${report.functionConcatMaps}）` : ""}` : "",
+      report.operations ? `依赖可追踪 ${report.linkedOperations}/${report.operations}${report.isolatedOperations ? `（独立 ${report.isolatedOperations}）` : ""}` : "",
       report.androidUnsupportedModules.length
         ? `Android 待确认依赖 ${report.androidUnsupportedModules.slice(0, 4).join(", ")}${report.androidUnsupportedModules.length > 4 ? "…" : ""}`
         : "",

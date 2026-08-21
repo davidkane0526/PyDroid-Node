@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from ..analysis_nodes import _filter_range, _group_aggregate
@@ -17,6 +18,9 @@ NODE_TYPES = {
     "table.reset_index",
     "table.periodic_window",
     "table.periodic_tail_mean",
+    "table.periodic_group_mean",
+    "table.row_chunks_to_columns",
+    "stats.column_group_cv",
     "table.sort_index",
     "table.difference",
     "table.filter_range",
@@ -86,6 +90,8 @@ def execute(
             raise ValueError("Periodic window sizes must be positive")
         position = str(params.get("position", "start"))
         offset = group_size - count if position == "end" else int(params.get("offset", 0)) if position == "offset" else 0
+        if offset < 0 or offset + count > group_size:
+            raise ValueError("Periodic window must stay inside each group")
         rows = [row for base in range(0, len(table), group_size) for row in range(base + offset, min(base + offset + count, len(table)))]
         value = table.iloc[rows].reset_index(drop=True)
     elif node_type == "table.periodic_tail_mean":
@@ -96,6 +102,52 @@ def execute(
             raise ValueError("Periodic mean sizes must be positive")
         chunks = [table.iloc[start:start + group_size].tail(tail_rows).mean(numeric_only=True) for start in range(0, len(table), group_size) if len(table.iloc[start:start + group_size])]
         value = pd.DataFrame(chunks).reindex(columns=table.select_dtypes(include="number").columns)
+    elif node_type == "table.periodic_group_mean":
+        table = _require_table(upstream, "Periodic group mean")
+        group_size = int(params.get("groupSize", 50))
+        start_row = int(params.get("startRow", 1))
+        end_row = int(params.get("endRow", group_size))
+        layout = str(params.get("layout", "rows"))
+        if group_size < 1 or start_row < 1 or end_row < start_row or end_row > group_size:
+            raise ValueError("Periodic group mean requires 1 <= startRow <= endRow <= groupSize")
+        numeric_columns = table.select_dtypes(include="number").columns
+        chunks = []
+        for start in range(0, len(table), group_size):
+            group = table.iloc[start:start + group_size]
+            if group.empty:
+                continue
+            window = group.iloc[start_row - 1:end_row]
+            if window.empty:
+                continue
+            chunks.append(window.mean(numeric_only=True).reindex(numeric_columns))
+        if layout == "rows":
+            value = pd.DataFrame(chunks).reindex(columns=numeric_columns).reset_index(drop=True)
+        elif layout == "stacked":
+            value = pd.DataFrame([item for chunk in chunks for item in chunk.tolist()], columns=["mean"])
+        else:
+            raise ValueError("Periodic group mean layout must be rows or stacked")
+    elif node_type == "table.row_chunks_to_columns":
+        table = _require_table(upstream, "Row chunks to columns")
+        chunks = int(params.get("chunks", 2))
+        if chunks < 1:
+            raise ValueError("Row chunks to columns requires chunks >= 1")
+        arrays = np.array_split(table.to_numpy(), chunks, axis=0)
+        frames = [
+            pd.DataFrame(array, columns=[f"{column}_{index + 1}" for column in table.columns])
+            for index, array in enumerate(arrays)
+        ]
+        value = pd.concat(frames, axis=1) if frames else table.iloc[0:0].copy()
+    elif node_type == "stats.column_group_cv":
+        table = _require_table(upstream, "Column group CV")
+        group_size = int(params.get("groupSize", 50))
+        if group_size < 1:
+            raise ValueError("Column group CV requires groupSize >= 1")
+        value = []
+        for start in range(0, len(table.columns), group_size):
+            group = table.iloc[:, start:start + group_size]
+            means = group.mean(axis=1)
+            stds = group.std(axis=1, ddof=0)
+            value.append(pd.Series(np.where(means != 0, stds / means, np.nan), index=table.index))
     elif node_type == "table.sort_index":
         value = _require_table(upstream, "Sort index").sort_index(axis=int(params.get("axis", 0)), ascending=_as_bool(params.get("ascending", True)))
     elif node_type == "table.difference":
@@ -201,4 +253,4 @@ def execute(
     else:
         raise ValueError(f"Unsupported table/pandas node type: {node_type}")
 
-    return {"output": value}, value, None, None
+    return {"output": value}, value if isinstance(value, pd.DataFrame) else None, None, None

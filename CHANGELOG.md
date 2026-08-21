@@ -1,3 +1,16 @@
+## 1.4.96 (119) — Notebook dataflow auto-connect + native helper lowering — 2026-08-21
+
+- Adds visible Notebook dependency/provenance edges so imported Jupyter graphs no longer appear as disconnected node clouds when data actually travels through the shared Python namespace. Native data edges remain executable; namespace-variable, dynamic-parameter and source/provenance edges are visual-only and are ignored by both Python and JavaScript runtime topology.
+- Aligns Python and JavaScript graph semantics for Notebook visual edges, preventing auto-connect metadata from creating false upstream values, false ordering or cycles.
+- Adds safe runtime binding of Notebook variables/expressions to native node inputs and parameters, allowing dynamic scientific scripts to remain native instead of falling back to `function.call`.
+- Lowers common helper functions by AST implementation semantics rather than function name. Existing periodic window/tail-mean nodes absorb compatible `Pick_*` / `Split_*` helpers, and new native nodes cover periodic group means, row-chunk horizontal reshaping, column-group row CV, consecutive integer segments and short-segment filtering.
+- Reduces direct `function.call` usage in the 186-notebook regression corpus from 105 to **3** while preserving the lossless-code fallback. The three retained direct calls are directory CSV merge, domain-specific `VthGet`, and image merge; they remain specialized instead of being disguised as generic table nodes.
+- Defines deterministic unique output columns for `table.row_chunks_to_columns` (`name_1`, `name_2`, ...), satisfying the cross-runtime Table contract while retaining validated positional behavior in the real corpus.
+- Extends conversion reporting with dependency connectivity. Current corpus: **5,418/5,418 operations classified, 0 failures, 6,150 dependency/provenance links, 5,242 linked operations, 176 independent operations**.
+- Adds parity golden workflows for all new JavaScript-capable native nodes. Final local validation: **136 passed / 1 skipped Python tests, 73/73 runtime parity workflows, 80/80 JS-capable NodeContract coverage**, plus Remote 8765/LAN and Phase 11 compatibility smokes.
+- Keeps arbitrary feedback cycles out of the production runtime. Future iterative flow support is planned as explicit Map / Reduce / Accumulator and then State / Delay / Feedback semantics, where feedback carries prior-iteration state rather than creating an ambiguous current-iteration cycle.
+- Build revision: `1.4.96-dev-r74-notebook-dataflow`.
+
 ## 1.4.95 (118) — Lossless Notebook → Workflow compiler foundation — 2026-08-21
 
 - Reworks Jupyter import into a **lossless hybrid compiler**: statements are converted to visual/native nodes only when an equivalent mapping is known; imports, function definitions and unsupported Python remain executable `notebook.code_cell` carriers instead of being silently dropped.

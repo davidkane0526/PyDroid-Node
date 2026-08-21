@@ -34,6 +34,7 @@ export type WorkflowEdge = {
   target: string;
   sourceHandle?: string | null;
   targetHandle?: string | null;
+  data?: Record<string, unknown>;
 };
 
 

@@ -1,9 +1,19 @@
 import { Table } from "../table";
 import type { Workflow, WorkflowEdge, WorkflowNode } from "./types";
 
+const NOTEBOOK_VISUAL_EDGE_ROLES = new Set(["notebook-order", "notebook-variable", "notebook-parameter", "notebook-provenance"]);
+
+export function isDataEdge(edge: WorkflowEdge): boolean {
+  return !NOTEBOOK_VISUAL_EDGE_ROLES.has(String(edge.data?.role ?? ""));
+}
+
+export function dataEdges(workflow: Workflow): WorkflowEdge[] {
+  return workflow.edges.filter(isDataEdge);
+}
+
 export function orderedNodes(workflow: Workflow): WorkflowNode[] {
   const nodes = workflow.nodes;
-  const edges = workflow.edges;
+  const edges = dataEdges(workflow);
   if (nodes.length && nodes.every((node) => typeof node.data.parameters.notebookCellIndex === "number" || node.data.parameters.notebookCellIndex !== undefined)) {
     const withIndex = nodes.map((node) => ({
       node,
@@ -49,14 +59,14 @@ export function edgeValue(edge: WorkflowEdge, values: Map<string, Record<string,
 }
 
 function upstreamValue(nodeId: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): unknown {
-  const incoming = workflow.edges.filter((edge) => edge.target === nodeId);
+  const incoming = dataEdges(workflow).filter((edge) => edge.target === nodeId);
   if (!incoming.length) return null;
   if (incoming.length > 1) throw new Error(`Node ${nodeId} currently accepts only one table input`);
   return edgeValue(incoming[0], values);
 }
 
 function upstreamTables(nodeId: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): Record<string, Table> {
-  const incoming = workflow.edges.filter((edge) => edge.target === nodeId);
+  const incoming = dataEdges(workflow).filter((edge) => edge.target === nodeId);
   const ports: Record<string, Table> = {};
   const fallback = ["left", "right"];
   let fallbackIndex = 0;
@@ -73,7 +83,7 @@ function upstreamTables(nodeId: string, workflow: Workflow, values: Map<string, 
 }
 
 function upstreamInputs(nodeId: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): Record<string, unknown> {
-  const incoming = workflow.edges.filter((edge) => edge.target === nodeId);
+  const incoming = dataEdges(workflow).filter((edge) => edge.target === nodeId);
   const inputs: Record<string, unknown> = {};
   for (const edge of incoming) {
     const port = edge.targetHandle || "input";
@@ -97,7 +107,7 @@ export function requireTable(value: unknown, operation: string): Table {
 }
 
 export function loopBody(workflow: Workflow, loopId: string): { bodyNodes: WorkflowNode[]; backEdge: WorkflowEdge } {
-  const edges = workflow.edges;
+  const edges = dataEdges(workflow);
   const startEdges = edges.filter((edge) => edge.source === loopId && edge.sourceHandle === "body");
   const backEdges = edges.filter((edge) => edge.target === loopId && edge.targetHandle === "continue");
   if (startEdges.length !== 1 || backEdges.length !== 1) {

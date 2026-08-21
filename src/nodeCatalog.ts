@@ -42,7 +42,7 @@ export type NodeSpec = {
   docsUrl?: string;
   pythonCallable?: string;
   excludedSignatureParameters?: string[];
-  category: "输入输出" | "表格处理" | "Pandas 常用" | "Python 内置" | "逻辑控制" | "统计" | "绘图" | "自定义";
+  category: "输入输出" | "表格处理" | "Pandas 常用" | "Python 内置" | "逻辑控制" | "统计" | "绘图" | "列表处理" | "自定义";
   defaults: Record<string, string | number | boolean | null>;
   parameters: ParameterSpec[];
   inputPorts: PortSpec[];
@@ -387,6 +387,41 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "groupSize", label: "周期行数", kind: "number", min: 1, step: 1 },
       { key: "tailRows", label: "末段参与均值的行数", kind: "number", min: 1, step: 1 },
     ],
+  },
+  {
+    nodeType: "table.periodic_group_mean", runtimeSupport: ["python", "javascript"],
+    label: "周期区间均值",
+    description: "按固定周期分组，对每组指定的 1 基行区间逐列求均值；可按组保留列结构或堆叠为单列。",
+    category: "统计",
+    defaults: { groupSize: 50, startRow: 1, endRow: 50, layout: "rows" },
+    inputPorts: TABLE_INPUT,
+    outputPorts: TABLE_OUTPUT,
+    parameters: [
+      { key: "groupSize", label: "周期行数", kind: "number", min: 1, step: 1 },
+      { key: "startRow", label: "组内起始行（从1）", kind: "number", min: 1, step: 1 },
+      { key: "endRow", label: "组内结束行（包含）", kind: "number", min: 1, step: 1 },
+      { key: "layout", label: "输出布局", kind: "select", options: [{ label: "每组一行", value: "rows" }, { label: "均值堆叠为单列", value: "stacked" }] },
+    ],
+  },
+  {
+    nodeType: "table.row_chunks_to_columns", runtimeSupport: ["python", "javascript"],
+    label: "行分块横向拼接",
+    description: "将表格沿行方向近似等分为 N 块，再按列横向拼接；对应 NumPy array_split(axis=0) + pandas.concat(axis=1) 的常见科研处理，并为每块列名追加序号以保持跨运行时列名唯一。",
+    category: "表格处理",
+    defaults: { chunks: 2 },
+    inputPorts: TABLE_INPUT,
+    outputPorts: TABLE_OUTPUT,
+    parameters: [{ key: "chunks", label: "分块数量", kind: "number", min: 1, step: 1 }],
+  },
+  {
+    nodeType: "stats.column_group_cv", runtimeSupport: ["python", "javascript"],
+    label: "列分组逐行变异系数",
+    description: "按固定列数分组，对每一组逐行计算总体标准差/均值（CV，ddof=0）；输出每组对应的 CV 数列。",
+    category: "统计",
+    defaults: { groupSize: 50 },
+    inputPorts: TABLE_INPUT,
+    outputPorts: [{ id: "output", label: "CV 分组列表", valueType: "list" }],
+    parameters: [{ key: "groupSize", label: "每组列数", kind: "number", min: 1, step: 1 }],
   },
   {
     nodeType: "table.sort_index", runtimeSupport: ["python", "javascript"],
@@ -1042,6 +1077,23 @@ export const NODE_CATALOG: NodeSpec[] = [
   {
     nodeType: "convert.table_to_records", runtimeSupport: ["python", "javascript"], label: "表格转记录列表", description: "将 DataFrame 转换为由字典组成的记录列表。", tags: ["转换", "records", "list", "dict"], pythonCallable: "pandas.DataFrame.to_dict", category: "Python 内置", defaults: {},
     inputPorts: TABLE_INPUT, outputPorts: [{ id: "output", label: "记录列表", valueType: "list" }], parameters: [],
+  },
+  {
+    nodeType: "sequence.consecutive_segments", runtimeSupport: ["python", "javascript"],
+    label: "连续整数区间",
+    description: "对整数列表排序去重后提取连续区间，输出 [起点, 终点, 长度] 列表。",
+    tags: ["列表", "连续区间", "segment", "sequence"], category: "列表处理", defaults: {},
+    inputPorts: [{ id: "input", label: "整数列表", valueType: "list", required: true }],
+    outputPorts: [{ id: "output", label: "连续区间", valueType: "list" }], parameters: [],
+  },
+  {
+    nodeType: "sequence.filter_short_segments", runtimeSupport: ["python", "javascript"],
+    label: "过滤短连续区间",
+    description: "对整数列表排序去重，将长度小于阈值的连续区间删除，并返回保留下来的整数。",
+    tags: ["列表", "连续区间", "过滤", "segment", "sequence"], category: "列表处理", defaults: { minLength: 3 },
+    inputPorts: [{ id: "input", label: "整数列表", valueType: "list", required: true }],
+    outputPorts: [{ id: "output", label: "过滤后列表", valueType: "list" }],
+    parameters: [{ key: "minLength", label: "最短区间长度", kind: "number", min: 1, step: 1 }],
   },
   {
     nodeType: "convert.table_to_csv", runtimeSupport: ["python", "javascript"], label: "表格转 CSV 文本", description: "将 DataFrame 转换为 CSV 字符串，不写入文件。", tags: ["转换", "csv", "文本"], pythonCallable: "pandas.DataFrame.to_csv", category: "Python 内置", defaults: { includeIndex: false },

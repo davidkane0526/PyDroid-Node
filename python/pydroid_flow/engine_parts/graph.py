@@ -7,9 +7,19 @@ import pandas as pd
 
 from .values import _require_table
 
+_NOTEBOOK_VISUAL_EDGE_ROLES = {"notebook-order", "notebook-variable", "notebook-parameter", "notebook-provenance"}
+
+def _is_data_edge(edge: dict[str, Any]) -> bool:
+    data = edge.get("data")
+    role = data.get("role") if isinstance(data, dict) else None
+    return role not in _NOTEBOOK_VISUAL_EDGE_ROLES
+
+def _data_edges(workflow: dict[str, Any]) -> list[dict[str, Any]]:
+    return [edge for edge in workflow.get("edges", []) if isinstance(edge, dict) and _is_data_edge(edge)]
+
 def _ordered_nodes(workflow: dict[str, Any]) -> list[dict[str, Any]]:
     nodes = workflow.get("nodes", [])
-    edges = workflow.get("edges", [])
+    edges = _data_edges(workflow)
     if nodes and all("notebookCellIndex" in node.get("data", {}).get("parameters", {}) for node in nodes):
         return sorted(nodes, key=lambda node: (
             int(node.get("data", {}).get("parameters", {}).get("notebookCellIndex", 0)),
@@ -54,7 +64,7 @@ def _edge_value(edge: dict[str, Any], values: dict[str, dict[str, Any]]) -> Any:
     return outputs[port]
 
 def _upstream_value(node_id: str, workflow: dict[str, Any], values: dict[str, dict[str, Any]]) -> Any:
-    incoming = [edge for edge in workflow.get("edges", []) if edge["target"] == node_id]
+    incoming = [edge for edge in _data_edges(workflow) if edge["target"] == node_id]
     if not incoming:
         return None
     if len(incoming) > 1:
@@ -62,7 +72,7 @@ def _upstream_value(node_id: str, workflow: dict[str, Any], values: dict[str, di
     return _edge_value(incoming[0], values)
 
 def _upstream_tables(node_id: str, workflow: dict[str, Any], values: dict[str, dict[str, Any]]) -> dict[str, pd.DataFrame]:
-    incoming = [edge for edge in workflow.get("edges", []) if edge["target"] == node_id]
+    incoming = [edge for edge in _data_edges(workflow) if edge["target"] == node_id]
     ports: dict[str, pd.DataFrame] = {}
     fallback_ports = iter(("left", "right"))
     for edge in incoming:
@@ -77,7 +87,7 @@ def _upstream_tables(node_id: str, workflow: dict[str, Any], values: dict[str, d
     return ports
 
 def _upstream_inputs(node_id: str, workflow: dict[str, Any], values: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    incoming = [edge for edge in workflow.get("edges", []) if edge["target"] == node_id]
+    incoming = [edge for edge in _data_edges(workflow) if edge["target"] == node_id]
     inputs: dict[str, Any] = {}
     for edge in incoming:
         port = edge.get("targetHandle") or "input"
@@ -87,7 +97,7 @@ def _upstream_inputs(node_id: str, workflow: dict[str, Any], values: dict[str, d
     return inputs
 
 def _loop_body(workflow: dict[str, Any], loop_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    edges = workflow.get("edges", [])
+    edges = _data_edges(workflow)
     start_edges = [edge for edge in edges if edge["source"] == loop_id and edge.get("sourceHandle") == "body"]
     back_edges = [edge for edge in edges if edge["target"] == loop_id and edge.get("targetHandle") == "continue"]
     if len(start_edges) != 1 or len(back_edges) != 1:

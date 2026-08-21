@@ -860,6 +860,401 @@ def _resolve_user_function_inputs(
     }
 
 
+def _function_has_periodic_iloc_listcomp(function: ast.FunctionDef) -> bool:
+    """Recognize the structural core used by Pick_Upper/Pick_Down helpers.
+
+    Names alone are not enough: notebooks are free to redefine a helper with the
+    same name.  Promotion is allowed only when the function actually performs an
+    ``Data.iloc[[... for ... for ...]]`` periodic row selection.
+    """
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Subscript) or not isinstance(node.slice, ast.ListComp):
+            continue
+        value = node.value
+        if not (isinstance(value, ast.Attribute) and value.attr == "iloc"):
+            continue
+        if len(node.slice.generators) == 2 and all(isinstance(generator.iter, ast.Call) for generator in node.slice.generators):
+            return True
+    return False
+
+
+def _function_has_tail_mean_pattern(function: ast.FunctionDef) -> bool:
+    """Recognize the legacy Split_count(group, tail) implementation.
+
+    The corpus contains several copies of the same helper.  We require the
+    characteristic nested loops, Data.iloc access and append(count / sumrow)
+    shape before replacing a user-function call with the native node.
+    """
+    parameters = [argument.arg for argument in function.args.args]
+    if len(parameters) != 3:
+        return False
+    _, group_name, tail_name = parameters
+    has_nested_for = any(isinstance(node, ast.For) and any(isinstance(child, ast.For) for child in ast.walk(node) if child is not node) for node in function.body)
+    has_iloc = any(isinstance(node, ast.Attribute) and node.attr == "iloc" for node in ast.walk(function))
+    has_tail_division = any(
+        isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div)
+        and isinstance(node.right, ast.Name) and node.right.id == tail_name
+        for node in ast.walk(function)
+    )
+    has_group_modulo = any(
+        isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod)
+        and isinstance(node.right, ast.Name) and node.right.id == group_name
+        for node in ast.walk(function)
+    )
+    return has_nested_for and has_iloc and has_tail_division and has_group_modulo
+
+
+def _function_has_periodic_group_mean_pattern(function: ast.FunctionDef) -> bool:
+    """Recognize Split_Mean/new Split_count style chunk -> iloc window -> mean."""
+    parameters = [argument.arg for argument in function.args.args]
+    if len(parameters) != 4:
+        return False
+    data_name, group_name, start_name, end_name = parameters
+    has_group_loop = any(
+        isinstance(node, ast.For)
+        and isinstance(node.iter, ast.Call)
+        and isinstance(node.iter.func, ast.Name) and node.iter.func.id == "range"
+        and len(node.iter.args) >= 3
+        and isinstance(node.iter.args[2], ast.Name) and node.iter.args[2].id == group_name
+        for node in ast.walk(function)
+    )
+    has_data_iloc = any(
+        isinstance(node, ast.Attribute) and node.attr == "iloc"
+        and isinstance(node.value, ast.Name) and node.value.id in {data_name, "group"}
+        for node in ast.walk(function)
+    )
+    has_mean = any(isinstance(node, ast.Attribute) and node.attr == "mean" for node in ast.walk(function))
+    names = {node.id for node in ast.walk(function) if isinstance(node, ast.Name)}
+    has_window_parameters = start_name in names and end_name in names
+    has_concat = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "concat"
+        for node in ast.walk(function)
+    )
+    return has_group_loop and has_data_iloc and has_mean and has_window_parameters and has_concat
+
+
+
+
+def _function_has_row_chunks_to_columns_pattern(function: ast.FunctionDef) -> bool:
+    """Recognize np.array_split(axis=0) followed by horizontal pd.concat."""
+    has_array_split = any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute) and node.func.attr == "array_split"
+        and any(keyword.arg == "axis" and isinstance(keyword.value, ast.Constant) and keyword.value.value == 0 for keyword in node.keywords)
+        for node in ast.walk(function)
+    )
+    has_horizontal_concat = any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute) and node.func.attr == "concat"
+        and any(keyword.arg == "axis" and isinstance(keyword.value, ast.Constant) and keyword.value.value == 1 for keyword in node.keywords)
+        for node in ast.walk(function)
+    )
+    return has_array_split and has_horizontal_concat
+
+
+def _function_has_column_group_cv_pattern(function: ast.FunctionDef) -> bool:
+    """Recognize column chunks whose per-row CV is std(ddof=0) / mean."""
+    has_column_iloc = any(
+        isinstance(node, ast.Subscript)
+        and isinstance(node.value, ast.Attribute) and node.value.attr == "iloc"
+        and isinstance(node.slice, ast.Tuple) and len(node.slice.elts) == 2
+        for node in ast.walk(function)
+    )
+    has_row_mean = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "mean"
+        and any(keyword.arg == "axis" and isinstance(keyword.value, ast.Constant) and keyword.value.value == 1 for keyword in node.keywords)
+        for node in ast.walk(function)
+    )
+    has_population_std = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "std"
+        and any(keyword.arg == "axis" and isinstance(keyword.value, ast.Constant) and keyword.value.value == 1 for keyword in node.keywords)
+        and any(keyword.arg == "ddof" and isinstance(keyword.value, ast.Constant) and keyword.value.value == 0 for keyword in node.keywords)
+        for node in ast.walk(function)
+    )
+    has_ratio = any(isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div) for node in ast.walk(function))
+    return has_column_iloc and has_row_mean and has_population_std and has_ratio
+
+
+def _function_has_consecutive_segments_pattern(function: ast.FunctionDef) -> bool:
+    has_sorted_set = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "sorted"
+        and node.args and isinstance(node.args[0], ast.Call) and isinstance(node.args[0].func, ast.Name) and node.args[0].func.id == "set"
+        for node in ast.walk(function)
+    )
+    has_segment_tuple = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "append"
+        and node.args and isinstance(node.args[0], ast.Tuple) and len(node.args[0].elts) == 3
+        for node in ast.walk(function)
+    )
+    has_plus_one = any(
+        isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add)
+        and isinstance(node.right, ast.Constant) and node.right.value == 1
+        for node in ast.walk(function)
+    )
+    return has_sorted_set and has_segment_tuple and has_plus_one
+
+
+def _function_has_filter_short_segments_pattern(function: ast.FunctionDef) -> bool:
+    has_sorted_set = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "sorted"
+        and node.args and isinstance(node.args[0], ast.Call) and isinstance(node.args[0].func, ast.Name) and node.args[0].func.id == "set"
+        for node in ast.walk(function)
+    )
+    has_extend_range = any(
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "extend"
+        and node.args and isinstance(node.args[0], ast.Call) and isinstance(node.args[0].func, ast.Name) and node.args[0].func.id == "range"
+        for node in ast.walk(function)
+    )
+    has_length_compare = any(isinstance(node, ast.Compare) and any(isinstance(op, ast.GtE) for op in node.ops) for node in ast.walk(function))
+    return has_sorted_set and has_extend_range and has_length_compare
+
+
+def _resolved_native_data_input(resolved: dict[str, Any], parameter_name: str) -> tuple[str | None, dict[str, Any]] | None:
+    """Translate one function argument into a native node's table input metadata."""
+    bindings = resolved.get("bindings", {})
+    expressions = resolved.get("expressions", {})
+    if parameter_name in bindings:
+        variable = bindings[parameter_name]
+        return variable, {"notebookInputBindingsJson": json.dumps({"input": variable}, ensure_ascii=False)}
+    if parameter_name in expressions:
+        expression = expressions[parameter_name]
+        return None, {
+            # An explicit empty binding map tells the workflow compiler not to
+            # infer data bindings from parameter-only dependencies.
+            "notebookInputBindingsJson": "{}",
+            "notebookExpressionInputsJson": json.dumps({"input": expression}, ensure_ascii=False),
+        }
+    return None
+
+
+def _resolved_parameter_expression(resolved: dict[str, Any], parameter_name: str) -> tuple[str, Any] | None:
+    """Return (kind, value) for one argument used as a native-node parameter."""
+    literals = resolved.get("literals", {})
+    bindings = resolved.get("bindings", {})
+    expressions = resolved.get("expressions", {})
+    if parameter_name in literals:
+        return "literal", literals[parameter_name]
+    if parameter_name in bindings:
+        return "binding", bindings[parameter_name]
+    if parameter_name in expressions:
+        return "expression", expressions[parameter_name]
+    return None
+
+
+def _native_parameter_metadata(
+    native_parameters: dict[str, Any],
+    assignments: dict[str, tuple[str, Any]],
+) -> dict[str, Any]:
+    """Attach runtime Notebook bindings without weakening ordinary NodeSpec params."""
+    bindings: dict[str, str] = {}
+    expressions: dict[str, str] = {}
+    for native_key, (kind, value) in assignments.items():
+        if kind == "literal":
+            native_parameters[native_key] = value
+        elif kind == "binding":
+            bindings[native_key] = str(value)
+        elif kind == "expression":
+            expressions[native_key] = str(value)
+    if bindings:
+        native_parameters["notebookParameterBindingsJson"] = json.dumps(bindings, ensure_ascii=False)
+    if expressions:
+        native_parameters["notebookParameterExpressionsJson"] = json.dumps(expressions, ensure_ascii=False)
+    return native_parameters
+
+
+def _parameter_as_expression(value: tuple[str, Any]) -> str:
+    kind, raw = value
+    if kind == "literal":
+        return repr(raw)
+    return str(raw)
+
+def _analyze_builtin_compatible_user_function_call(
+    call: ast.Call,
+    statement: ast.stmt,
+    base: dict[str, Any],
+    function_info: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Lower proven notebook helper implementations directly to native nodes.
+
+    The lowering is based on the helper body, not only its name. Literal,
+    variable and safe-expression arguments are all preserved: dynamic scalar
+    arguments become Notebook parameter bindings evaluated immediately before
+    the native node runs.
+    """
+    function = function_info.get("function")
+    if not isinstance(function, ast.FunctionDef):
+        return None
+    resolved = _resolve_user_function_inputs(call, function_info)
+    if resolved is None:
+        return None
+    parameters = [argument.arg for argument in function.args.args]
+    if not parameters:
+        return None
+    data_input = _resolved_native_data_input(resolved, parameters[0])
+    if data_input is None:
+        return None
+    input_name, input_metadata = data_input
+    targets = _assignment_target_names(statement)
+    if len(targets) > 1:
+        return None
+    output_name = targets[0] if targets else input_name
+    uses = list(resolved.get("uses", []))
+
+    def make_result(node_type: str, label: str, native_parameters: dict[str, Any]) -> dict[str, Any]:
+        return {
+            **base,
+            "recognized": True,
+            "semantic": True,
+            "kind": "BuiltinFunctionLowering",
+            "nodeType": node_type,
+            "label": output_name or label,
+            "parameters": {
+                **native_parameters,
+                **input_metadata,
+                "notebookSourceFunctionId": str(function_info.get("id", "")),
+                "notebookSourceFunctionName": function.name,
+            },
+            "inputVariable": input_name,
+            "outputVariable": output_name,
+            "defines": targets,
+            "uses": sorted(set(uses)),
+        }
+
+    if function.name in {"Pick_Upper", "Pick_Down"} and _function_has_periodic_iloc_listcomp(function):
+        if len(parameters) not in {3, 4}:
+            return None
+        group = _resolved_parameter_expression(resolved, parameters[1])
+        if group is None:
+            return None
+        if group[0] == "literal" and (not isinstance(group[1], int) or isinstance(group[1], bool) or group[1] <= 0):
+            return None
+
+        native_parameters: dict[str, Any] = {
+            "groupSize": 75,
+            "position": "start" if function.name == "Pick_Upper" else "end",
+            "offset": 0,
+            "count": 25,
+        }
+        assignments: dict[str, tuple[str, Any]] = {"groupSize": group}
+
+        if len(parameters) == 3:
+            count = _resolved_parameter_expression(resolved, parameters[2])
+            if count is None:
+                return None
+            if count[0] == "literal" and (not isinstance(count[1], int) or isinstance(count[1], bool) or count[1] < 1):
+                return None
+            assignments["count"] = count
+        else:
+            skip = _resolved_parameter_expression(resolved, parameters[2])
+            pick = _resolved_parameter_expression(resolved, parameters[3])
+            if skip is None or pick is None:
+                return None
+            if skip[0] == "literal" and (not isinstance(skip[1], int) or isinstance(skip[1], bool) or skip[1] < 0):
+                return None
+            if pick[0] == "literal" and (not isinstance(pick[1], int) or isinstance(pick[1], bool) or pick[1] < 1):
+                return None
+            if function.name == "Pick_Down":
+                # Historical Pick_Down selects ``pick + skip`` rows ending at
+                # each group boundary. Preserve the arithmetic at runtime when
+                # either argument is dynamic.
+                count_expression = f"({_parameter_as_expression(pick)}) + ({_parameter_as_expression(skip)})"
+                if pick[0] == skip[0] == "literal":
+                    assignments["count"] = ("literal", int(pick[1]) + int(skip[1]))
+                else:
+                    assignments["count"] = ("expression", count_expression)
+                native_parameters["position"] = "end"
+            else:
+                decrements_skip = any(
+                    isinstance(node, ast.Assign)
+                    and any(isinstance(target, ast.Name) and target.id == parameters[2] for target in node.targets)
+                    and isinstance(node.value, ast.BinOp) and isinstance(node.value.op, ast.Sub)
+                    and isinstance(node.value.left, ast.Name) and node.value.left.id == parameters[2]
+                    and isinstance(node.value.right, ast.Constant) and node.value.right.value == 1
+                    for node in function.body
+                )
+                if decrements_skip:
+                    if skip[0] == "literal":
+                        offset = int(skip[1]) - 1
+                        if offset < 0:
+                            return None
+                        assignments["offset"] = ("literal", offset)
+                    else:
+                        assignments["offset"] = ("expression", f"({_parameter_as_expression(skip)}) - 1")
+                else:
+                    assignments["offset"] = skip
+                assignments["count"] = pick
+                native_parameters["position"] = "offset"
+        return make_result(
+            "table.periodic_window",
+            "周期窗口抽取",
+            _native_parameter_metadata(native_parameters, assignments),
+        )
+
+    if function.name == "Split_count" and _function_has_tail_mean_pattern(function):
+        group = _resolved_parameter_expression(resolved, parameters[1])
+        tail = _resolved_parameter_expression(resolved, parameters[2])
+        if group is None or tail is None:
+            return None
+        if group[0] == "literal" and (not isinstance(group[1], int) or isinstance(group[1], bool) or group[1] < 1):
+            return None
+        if tail[0] == "literal" and (not isinstance(tail[1], int) or isinstance(tail[1], bool) or tail[1] < 1):
+            return None
+        if group[0] == tail[0] == "literal" and int(tail[1]) > int(group[1]):
+            return None
+        native_parameters = _native_parameter_metadata(
+            {"groupSize": 25, "tailRows": 10},
+            {"groupSize": group, "tailRows": tail},
+        )
+        return make_result("table.periodic_tail_mean", "周期末段均值", native_parameters)
+
+    if function.name in {"Split_count", "Split_Mean"} and _function_has_periodic_group_mean_pattern(function):
+        group = _resolved_parameter_expression(resolved, parameters[1])
+        start = _resolved_parameter_expression(resolved, parameters[2])
+        end = _resolved_parameter_expression(resolved, parameters[3])
+        if group is None or start is None or end is None:
+            return None
+        if all(value[0] == "literal" for value in (group, start, end)):
+            g, a, b = (int(value[1]) for value in (group, start, end))
+            if g < 1 or a < 1 or b < a or b > g:
+                return None
+        native_parameters = _native_parameter_metadata(
+            {"groupSize": 50, "startRow": 1, "endRow": 50, "layout": "stacked"},
+            {"groupSize": group, "startRow": start, "endRow": end},
+        )
+        return make_result("table.periodic_group_mean", "周期区间均值", native_parameters)
+
+    if function.name == "Splite" and len(parameters) == 2 and _function_has_row_chunks_to_columns_pattern(function):
+        chunks = _resolved_parameter_expression(resolved, parameters[1])
+        if chunks is None:
+            return None
+        if chunks[0] == "literal" and (not isinstance(chunks[1], int) or isinstance(chunks[1], bool) or chunks[1] < 1):
+            return None
+        native_parameters = _native_parameter_metadata({"chunks": 2}, {"chunks": chunks})
+        return make_result("table.row_chunks_to_columns", "行分块横向拼接", native_parameters)
+
+    if function.name == "get_cv_per_group" and len(parameters) == 2 and _function_has_column_group_cv_pattern(function):
+        group_size = _resolved_parameter_expression(resolved, parameters[1])
+        if group_size is None:
+            return None
+        if group_size[0] == "literal" and (not isinstance(group_size[1], int) or isinstance(group_size[1], bool) or group_size[1] < 1):
+            return None
+        native_parameters = _native_parameter_metadata({"groupSize": 50}, {"groupSize": group_size})
+        return make_result("stats.column_group_cv", "列分组逐行变异系数", native_parameters)
+
+    if function.name == "all_consecutive_segments" and len(parameters) == 1 and _function_has_consecutive_segments_pattern(function):
+        return make_result("sequence.consecutive_segments", "连续整数区间", {})
+
+    if function.name == "remove_short_segments" and len(parameters) == 2 and _function_has_filter_short_segments_pattern(function):
+        minimum = _resolved_parameter_expression(resolved, parameters[1])
+        if minimum is None:
+            return None
+        if minimum[0] == "literal" and (not isinstance(minimum[1], int) or isinstance(minimum[1], bool) or minimum[1] < 1):
+            return None
+        native_parameters = _native_parameter_metadata({"minLength": 3}, {"minLength": minimum})
+        return make_result("sequence.filter_short_segments", "过滤短连续区间", native_parameters)
+    return None
+
+
 def _analyze_user_function_call(
     call: ast.Call,
     statement: ast.stmt,
@@ -1140,6 +1535,9 @@ def _analyze_call(
 ) -> dict[str, Any]:
     """把调用语句映射到节点：内置函数、专用函数、pandas/numpy 方法与转换。"""
     if isinstance(call.func, ast.Name) and user_functions and call.func.id in user_functions:
+        lowered = _analyze_builtin_compatible_user_function_call(call, statement, base, user_functions[call.func.id])
+        if lowered is not None:
+            return lowered
         converted = _analyze_user_function_call(call, statement, base, user_functions[call.func.id])
         if converted is not None:
             return converted

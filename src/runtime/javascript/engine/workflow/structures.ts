@@ -1,6 +1,6 @@
 import { executeNode, type NodeOutput } from "../nodes";
 import { Table } from "../table";
-import { containerChildren, edgeValue, loopBody, nodeUpstream, orderedNodes, requireTable } from "./graph";
+import { containerChildren, dataEdges, edgeValue, loopBody, nodeUpstream, orderedNodes, requireTable } from "./graph";
 import type { Workflow, WorkflowInputFile, WorkflowNode } from "./types";
 
 function executeContainerGraph(
@@ -15,7 +15,7 @@ function executeContainerGraph(
   executeChild?: (node: WorkflowNode, upstream: unknown) => NodeOutput,
 ): unknown {
   const childIds = new Set(children.map((child) => child.id));
-  const internalEdges = workflow.edges.filter((edge) => childIds.has(edge.source) && childIds.has(edge.target));
+  const internalEdges = dataEdges(workflow).filter((edge) => childIds.has(edge.source) && childIds.has(edge.target));
   const internalWorkflow: Workflow = { nodes: children, edges: internalEdges };
   const values = new Map<string, Record<string, unknown>>();
   const ordered = orderedNodes(internalWorkflow);
@@ -107,7 +107,7 @@ export function executeLoopSubflow(
   const loopId = loopNode.id;
   const nodeType = loopNode.data.nodeType;
   const params = loopNode.data.parameters;
-  const entryEdges = workflow.edges.filter((edge) => edge.target === loopId && (edge.targetHandle === null || edge.targetHandle === undefined || edge.targetHandle === "input"));
+  const entryEdges = dataEdges(workflow).filter((edge) => edge.target === loopId && (edge.targetHandle === null || edge.targetHandle === undefined || edge.targetHandle === "input"));
   if (entryEdges.length !== 1) throw new Error("Loop subflow requires exactly one initial input connection");
   const initial = requireTable(edgeValue(entryEdges[0], values), "Loop initial input");
   const { bodyNodes, backEdge } = loopBody(workflow, loopId);

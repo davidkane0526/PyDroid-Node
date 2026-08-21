@@ -141,12 +141,54 @@ def test_analyzed_notebook_bridges_code_native_code_through_shared_namespace():
                 "notebookOperationIndex": 2,
             }),
         ],
-        "edges": [],
+        "edges": [
+            {"id": "visual-source", "source": "cell-source", "sourceHandle": "next", "target": "dropna", "targetHandle": "input", "data": {"role": "notebook-variable", "variable": "frame"}},
+            {"id": "visual-result", "source": "dropna", "sourceHandle": "output", "target": "cell-result", "targetHandle": "previous", "data": {"role": "notebook-variable", "variable": "clean"}},
+        ],
     }
     result = run(workflow)
     assert result["status"] == "success"
     assert result["nodeResults"]["cell-result"]["kind"] == "table"
     assert result["nodeResults"]["cell-result"]["preview"]["rows"] == [[4]]
+
+
+def test_native_notebook_node_resolves_dynamic_scalar_parameters_without_data_edges():
+    workflow = {
+        "schemaVersion": 2,
+        "nodes": [
+            node("cell-source", "notebook.code_cell", {
+                "source": "import pandas as pd\nframe = pd.DataFrame({'x': [0, 1, 2, 3, 4, 5]})\nRead_sample = 1\nSet_sample = 2",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 0,
+            }),
+            node("window", "table.periodic_window", {
+                "groupSize": 75,
+                "position": "offset",
+                "offset": 0,
+                "count": 25,
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 1,
+                "notebookInputBindingsJson": json.dumps({}),
+                "notebookExpressionInputsJson": json.dumps({"input": "frame.iloc[:, 0:1]"}),
+                "notebookParameterBindingsJson": json.dumps({"count": "Set_sample"}),
+                "notebookParameterExpressionsJson": json.dumps({"groupSize": "Read_sample + Set_sample", "offset": "Read_sample - 1"}),
+                "notebookOutputBindingsJson": json.dumps({"picked": "output"}),
+            }),
+            node("cell-result", "notebook.code_cell", {
+                "source": "check = pd.DataFrame({'sum': [int(picked['x'].sum())]})\ncheck",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 2,
+            }),
+        ],
+        "edges": [
+            {"id": "visual-data", "source": "cell-source", "sourceHandle": "next", "target": "window", "targetHandle": "input", "data": {"role": "notebook-variable", "variable": "frame"}},
+            {"id": "visual-param", "source": "cell-source", "sourceHandle": "next", "target": "window", "targetHandle": "input", "data": {"role": "notebook-parameter", "variable": "Set_sample"}},
+            {"id": "visual-result", "source": "window", "sourceHandle": "output", "target": "cell-result", "targetHandle": "previous", "data": {"role": "notebook-variable", "variable": "picked"}},
+        ],
+    }
+    result = run(workflow)
+    assert result["status"] == "success"
+    assert result["nodeResults"]["cell-result"]["preview"]["rows"] == [[8]]
 
 
 def test_promoted_notebook_function_call_uses_namespace_and_literal_bindings():

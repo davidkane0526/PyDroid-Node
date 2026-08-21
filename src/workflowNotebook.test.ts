@@ -178,6 +178,46 @@ describe("workflow notebook DSL", () => {
     expect(restored[0].executionCount).toBe(4);
   });
 
+  it("auto-connects notebook data and scalar parameter dependencies without turning parameter lines into data edges", () => {
+    const cells = [{ id: "links", cellType: "code" as const, source: "frame = make_frame()\ncount = 2\npicked = Pick(frame, count)\nanswer = use(picked)" }];
+    const workflow = analyzedNotebookToWorkflow("连线", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: false, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "frame", source: "frame = make_frame()", defines: ["frame"], uses: ["make_frame"], parameters: { source: "frame = make_frame()" } },
+      { index: 1, recognized: false, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "count", source: "count = 2", defines: ["count"], uses: [], parameters: { source: "count = 2" } },
+      { index: 2, recognized: true, semantic: true, kind: "BuiltinFunctionLowering", nodeType: "table.periodic_window", label: "picked", inputVariable: "frame", outputVariable: "picked", defines: ["picked"], uses: ["frame", "count"], parameters: { groupSize: 4, count: 1, position: "start", notebookInputBindingsJson: JSON.stringify({ input: "frame" }), notebookParameterBindingsJson: JSON.stringify({ count: "count" }) } },
+      { index: 3, recognized: false, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "answer", source: "answer = use(picked)", defines: ["answer"], uses: ["use", "picked"], parameters: { source: "answer = use(picked)" } },
+    ] }]);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-variable" && edge.data?.variable === "frame")).toBe(true);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-parameter" && edge.data?.variable === "count")).toBe(true);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-variable" && edge.data?.variable === "picked")).toBe(true);
+    const periodic = workflow.nodes.find((node) => node.data.nodeType === "table.periodic_window")!;
+    expect(JSON.parse(String(periodic.data.parameters.notebookInputBindingsJson))).toEqual({ input: "frame" });
+  });
+
+  it("shows provenance from an original function definition to a native lowered node without creating a data edge", () => {
+    const functionId = "notebook-fn-1-1-pick";
+    const cells = [{ id: "native-origin", cellType: "code" as const, source: "def pick(frame):\n    return frame\npicked = pick(frame)" }];
+    const workflow = analyzedNotebookToWorkflow("原生下沉", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · pick", source: "def pick(frame):\n    return frame", defines: ["pick"], uses: [], parameters: {
+        source: "def pick(frame):\n    return frame",
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def pick(frame: 'Any') -> 'Any':\n    return frame",
+        workflowFunctionInputsJson: JSON.stringify(["frame"]),
+        workflowFunctionInputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]),
+        workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionDependenciesJson: JSON.stringify([]),
+      } },
+      { index: 1, recognized: true, semantic: true, kind: "BuiltinFunctionLowering", nodeType: "table.periodic_window", label: "picked", inputVariable: "frame", outputVariable: "picked", defines: ["picked"], uses: ["frame"], parameters: {
+        groupSize: 4, count: 1, position: "start", notebookSourceFunctionId: functionId, notebookSourceFunctionName: "pick", notebookInputBindingsJson: JSON.stringify({ input: "frame" }),
+      } },
+    ] }]);
+    const definition = workflow.nodes.find((node) => node.data.nodeType === "notebook.code_cell")!;
+    const lowered = workflow.nodes.find((node) => node.data.nodeType === "table.periodic_window")!;
+    const provenance = workflow.edges.find((edge) => edge.data?.role === "notebook-provenance" && edge.data?.relation === "function-origin");
+    expect(provenance?.source).toBe(definition.id);
+    expect(provenance?.target).toBe(lowered.id);
+  });
+
   it("creates a document workflow function and typed call ports for promoted notebook calls", () => {
     const cells = [{ id: "fn", cellType: "code" as const, source: "def scale(frame, factor=2):\n    return frame * factor\nscaled = scale(frame, 3)" }];
     const functionId = "notebook-fn-1-1-scale";
@@ -208,6 +248,7 @@ describe("workflow notebook DSL", () => {
     const call = workflow.nodes.find((node) => node.data.nodeType === "function.call")!;
     expect(call.data.functionInputs?.map((port) => port.id)).toEqual(["frame", "factor"]);
     expect(call.data.functionOutputs?.map((port) => port.id)).toEqual(["output"]);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-provenance" && edge.data?.relation === "function-origin" && edge.target === call.id)).toBe(true);
   });
 
   it("creates a function.map node with function inputs and one collected table output", () => {
@@ -295,6 +336,8 @@ describe("workflow notebook DSL", () => {
     expect(report.functionCalls).toBe(1);
     expect(report.functionMaps).toBe(1);
     expect(report.functionConcatMaps).toBe(1);
+    expect(report.dependencyLinks).toBeGreaterThanOrEqual(0);
+    expect(report.linkedOperations + report.isolatedOperations).toBe(report.operations);
     expect(report.importedModules).toEqual(["PIL", "matplotlib", "numpy", "os", "pandas", "scipy"]);
     expect(report.androidUnsupportedModules).toEqual(["PIL", "scipy"]);
     expect(report.windowsPathCells).toBe(1);

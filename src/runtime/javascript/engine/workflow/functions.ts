@@ -2,7 +2,7 @@ import { executeJsCell } from "../notebook";
 import { executeNode, type ExecutionContext, type NodeOutput } from "../nodes";
 import { Table } from "../table";
 import type { PlotChart } from "../plots";
-import { allLoopBodyIds, edgeValue, flattenWorkflowGroups, orderedNodes } from "./graph";
+import { allLoopBodyIds, dataEdges, edgeValue, flattenWorkflowGroups, orderedNodes } from "./graph";
 import { executeLoopSubflow, executeVisualStructure } from "./structures";
 import type { Workflow, WorkflowFunctionDefinition, WorkflowInputFile, WorkflowNode } from "./types";
 
@@ -50,7 +50,7 @@ function upstreamForFunctionNode(
   externalInputs: Map<string, unknown>,
 ): unknown {
   const inputs: Record<string, unknown> = {};
-  for (const edge of workflow.edges.filter((item) => item.target === node.id)) {
+  for (const edge of dataEdges(workflow).filter((item) => item.target === node.id)) {
     const port = edge.targetHandle || "input";
     if (port in inputs) throw new Error(`Function node ${node.id} input ${port} has more than one connection`);
     inputs[port] = edgeValue(edge, values);
@@ -128,7 +128,7 @@ function executeFunctionGraph(
       } else {
         // Existing loop executor owns its back-edge topology. Function signature input is injected
         // as a synthetic value on the loop node only when the loop has no ordinary entry edge.
-        if ((externalByNode.get(node.id)?.size ?? 0) > 0 && !workflow.edges.some((edge) => edge.target === node.id && (edge.targetHandle ?? "input") === "input")) {
+        if ((externalByNode.get(node.id)?.size ?? 0) > 0 && !dataEdges(workflow).some((edge) => edge.target === node.id && (edge.targetHandle ?? "input") === "input")) {
           throw new Error("Loop subflow inside a function must receive its initial value from an internal edge");
         }
         const table = executeLoopSubflow(node, workflow, values, context.csvText, context.inputFiles, context.notebookNamespace, context.variables, context.workspaceVariables, childExecutor);
