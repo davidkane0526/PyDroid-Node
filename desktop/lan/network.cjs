@@ -1,4 +1,5 @@
 const os = require("node:os");
+const { execFileSync } = require("node:child_process");
 
 const VIRTUAL_INTERFACE = /(^|\b)(vEthernet|vmware|virtualbox|virtual|hyper-v|wsl|docker|tailscale|zerotier|loopback|bluetooth)(\b|$)/i;
 
@@ -20,7 +21,23 @@ function isUsableIpv4(address) {
   return ipv4ToInt(address) != null && !address.startsWith("127.") && !address.startsWith("169.254.") && address !== "0.0.0.0";
 }
 
+function windowsDefaultRouteAddress() {
+  if (process.platform !== "win32") return null;
+  const script = "$c=Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null -and $_.IPv4Address -ne $null } | Sort-Object { $_.NetIPv4Interface.InterfaceMetric } | Select-Object -First 1; if($c){ @($c.IPv4Address)[0].IPAddress }";
+  try {
+    const output = execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script], {
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 3500,
+    }).trim();
+    return isUsableIpv4(output) ? output : null;
+  } catch {
+    return null;
+  }
+}
+
 function getLanInterfaces() {
+  const preferredAddress = windowsDefaultRouteAddress();
   const candidates = [];
   for (const [name, entries] of Object.entries(os.networkInterfaces())) {
     for (const entry of entries ?? []) {
@@ -31,6 +48,7 @@ function getLanInterfaces() {
         netmask: entry.netmask || "255.255.255.0",
         private: isPrivateIpv4(entry.address),
         virtual: VIRTUAL_INTERFACE.test(name),
+        defaultRoute: entry.address === preferredAddress,
       });
     }
   }
@@ -51,6 +69,7 @@ function subnetKey(item) {
 
 function interfaceScore(item) {
   let score = 0;
+  if (item.defaultRoute) score += 250;
   if (item.private) score += 100;
   if (!item.virtual) score += 50;
   if (/wi-?fi|wlan|wireless/i.test(item.name)) score += 20;
@@ -76,7 +95,8 @@ function sameSubnet(addressA, addressB, netmask) {
 }
 
 function selectInterfaceForRemote(interfaces, remoteAddress) {
-  return interfaces.find((item) => sameSubnet(item.address, remoteAddress, item.netmask)) ?? interfaces[0] ?? null;
+  const subnetMatches = interfaces.filter((item) => sameSubnet(item.address, remoteAddress, item.netmask));
+  return subnetMatches.find((item) => item.defaultRoute) ?? subnetMatches[0] ?? interfaces.find((item) => item.defaultRoute) ?? interfaces[0] ?? null;
 }
 
-module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet };
+module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet, windowsDefaultRouteAddress };

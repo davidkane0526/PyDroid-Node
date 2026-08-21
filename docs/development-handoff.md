@@ -1,13 +1,13 @@
-# Development handoff — PyDroid Node 1.4.83
+# Development handoff — PyDroid Node 1.4.85
 
 Updated: 2026-08-21
-Branch: `refactor/1.4.83-deterministic-core`
-Version: **1.4.83**, Android versionCode **106**
-Build revision: `1.4.83-dev-r60-deterministic-core`
+Branch: `fix/1.4.85-lan-entrypoint`
+Version: **1.4.85**, Android versionCode **108**
+Build revision: `1.4.85-dev-r62-lan-entrypoint-fix`
 
 ## 当前基线
 
-1.4.83 是对 1.4.82 的纠偏版本。1.4.82 的 packaged smoke 可以在没有证明真实 8765 HTTP 服务可用的情况下通过，因为测试检查了 host-status bridge，而不是实际监听端口和浏览器资源。
+1.4.85 延续 1.4.83 的确定性核心，并修复 1.4.83/1.4.84 清理过度设计时误删的默认路由入口选择。1.4.82 的 packaged smoke 可以在没有证明真实 8765 HTTP 服务可用的情况下通过，因为测试检查了 host-status bridge，而不是实际监听端口和浏览器资源。
 
 **1.4.73 是用户实机确认 Remote Web / LAN Discovery 可用的行为基线。** 1.4.83 不回退整个项目，而是恢复该简单网络生产路径，并保留之后已经完成且有价值的 Workflow/Runtime/Editor 架构。
 
@@ -19,8 +19,8 @@ Build revision: `1.4.83-dev-r60-deterministic-core`
 - lifecycle generation / start-stop barrier 之外的 Remote 状态机；
 - React 定时 reconciliation；
 - network-change 自动恢复；
-- firewall/UAC/network-profile 自动管理；
-- 默认路由 PowerShell 探测；
+- firewall 网络类别检查、持续管理、readiness 门禁或重试；
+- 默认路由轮询、网络变化 watcher 或 route-based readiness gate；
 - 自动环境发现、自动安装、重试/backoff；
 - packaging degradation/fallback；
 - Gradle 自动切换模式；
@@ -44,9 +44,9 @@ Stop
   → close HTTP listener
 ```
 
-发现协议失败不会关闭或拒绝已经成功 bind 的 HTTP 服务。固定端口仍为 8765。
+固定端口仍为 8765。Desktop 在用户显式启动时先确保三条固定 Windows 入站规则存在（TCP 8765、UDP 1900、UDP 5353）；规则已存在时不提权，缺失时只申请一次管理员授权创建，不检查 Public/Private 类别，不做轮询、readiness 或恢复。随后只查询一次 Windows 默认 IPv4 路由，以便主 URL 指向当前实际出口网卡。发现协议本身失败仍不会关闭已经 bind 的 HTTP 服务。
 
-已删除：RemoteAccessGuard、remote-security service/policy、PIN cooldown、token TTL/IP binding、API rate-limit、Host lifecycle/readiness/reconciliation/recovery 机制、firewall compatibility shim、Phase 9/10/11 production freeze audits。
+已删除：RemoteAccessGuard、remote-security service/policy、PIN cooldown、token TTL/IP binding、API rate-limit、Host lifecycle/readiness/reconciliation/recovery 机制、旧版 firewall profile/readiness compatibility subsystem、Phase 9/10/11 production freeze audits。保留的 `windows-firewall.cjs` 仅负责固定端口入站规则。
 
 ### Remote 验证原则
 

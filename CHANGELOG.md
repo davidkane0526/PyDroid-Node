@@ -1,3 +1,10 @@
+## 1.4.85 (108) — LAN advertised-entrypoint correction — 2026-08-21
+
+- Fix the remaining real cross-device regression after 1.4.84: the host bound `0.0.0.0:8765`, but 1.4.83 had removed 1.4.73 default-route preference and selected the banner/copy URL by adapter-name scoring. On multi-adapter Windows hosts this can produce an address that the host itself can open while another LAN device cannot route to it.
+- Restore the two missing host-network responsibilities evidenced by real history: one `Get-NetIPConfiguration` lookup when Remote Web is explicitly started so the default-route IPv4 is advertised first, plus fixed Windows inbound ownership for TCP 8765 / UDP 1900 / UDP 5353. Existing rules take the direct path; missing rules request one administrator authorization. No Public/Private profile classification, readiness self-probe, route polling, network watcher, retry, recovery, or firewall state machine is reintroduced.
+- Strengthen LAN regression coverage so same-subnet deduplication retains the default-route address, distinct-subnet hosts advertise the default-route network first, and production startup cannot lose ownership of the fixed Windows inbound ports.
+- Build revision: `1.4.85-dev-r62-lan-entrypoint-fix`.
+
 ## 1.4.84 (107) — Deterministic pnpm path correction — 2026-08-21
 
 - Fix Windows build bootstrap: Node remains fixed at `D:\Code\NodeJs\node.exe`, while pnpm now defaults to the actual user-level installation `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`.
@@ -8,7 +15,7 @@
 
 - Fixes the core validation defect behind 1.4.82: the packaged Desktop smoke had stopped proving a live Remote Web listener and could pass through a host-status bridge while TCP 8765 was unusable. The packaged smoke now starts the real server and fetches `/health`, `/`, and the actual packaged JS asset.
 - Replaces the Phase 10 Remote host state machine with a direct Desktop/Android path: bind `0.0.0.0:8765`, serve HTTP, start SSDP/UPnP/mDNS independently, and close directly. Removed lifecycle generations/futures, readiness self-probes, 3-second UI reconciliation, network-change recovery and recovery counters.
-- Removes runtime Windows firewall/profile management and PowerShell/default-route probing. Discovery remains best-effort and can never reject an otherwise valid HTTP start.
+- Removes runtime Windows firewall/profile management and continuous route/recovery logic. 1.4.85 restores one-shot default-route selection plus fixed Windows inbound ownership for the three Remote/LAN ports; the removed profile/readiness/recovery subsystem remains gone.
 - Removes Remote defensive access layers that were not required for the personal-use architecture: PIN cooldown, token TTL/client-address binding, API rate limits and their shared security-policy/freeze gates. Simple PIN/token pairing remains.
 - Removes automated-diagnostics control of Remote Web. In-app diagnostics now contain 20 editor/runtime/application cases; Remote availability is covered by separate real HTTP/JVM/package smokes.
 - Makes build/package paths deterministic: no automatic toolchain installation from the core builder, no Corepack pnpm acquisition, no OS proxy/PAC autodetection, no install retry/backoff, no Electron compatibility/signing/plain-EXE fallback, and no Gradle daemon recovery/mode switching.

@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
+const { ensureWindowsLanAccess } = require("../lan/windows-firewall.cjs");
 const LAN_WEB_PORT = 8765;
 
 function resolveRendererRoot() {
@@ -57,12 +58,13 @@ function createRemoteServerService({ pythonService, log }) {
     response.end(body);
   }
 
-  function start(requirePin) {
+  async function start(requirePin) {
     if (remoteServer) return Promise.resolve(remoteServer.__info);
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
     const rendererRoot = resolveRendererRoot();
     log(`[Remote Web] Renderer root: ${rendererRoot}`);
+    if (process.platform === "win32" && process.env.PYDROID_DESKTOP_SMOKE !== "1") await ensureWindowsLanAccess({ log });
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url, "http://localhost");

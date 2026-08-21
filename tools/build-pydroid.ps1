@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.84-dev-r61-pnpm-path-fix"
+$script:BuildScriptRevision = "1.4.85-dev-r62-lan-entrypoint-fix"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

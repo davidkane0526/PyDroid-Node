@@ -27,7 +27,7 @@ class LanDiscoveryService {
       return this.getStatus();
     }
 
-    for (const item of this.interfaces) this.log(`[LAN] Interface ${item.name} / ${item.address}`);
+    for (const item of this.interfaces) this.log(`[LAN] Interface ${item.name} / ${item.address}${item.defaultRoute ? " (default route)" : ""}`);
     const config = this.config();
 
     this.ssdp = new SsdpService(this.log);
@@ -47,14 +47,14 @@ class LanDiscoveryService {
     return this.getStatus();
   }
 
-  primaryAddress() { return this.interfaces[0]?.address ?? "127.0.0.1"; }
+  primaryAddress() { return this.interfaces.find((item) => item.defaultRoute)?.address ?? this.interfaces[0]?.address ?? "127.0.0.1"; }
   presentationUrl(ip = this.primaryAddress()) { return `http://${ip}:${this.port}/`; }
   localUrl() { return `http://${this.identity.hostname}.local:${this.port}/`; }
   deviceXml(ip = this.primaryAddress()) { return makeUpnpDeviceXml({ ...this.config(), ip }); }
 
   getStatus() {
     return {
-      interfaces: this.interfaces.map((item) => ({ name: item.name, address: item.address })),
+      interfaces: this.interfaces.map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
       ssdp: this.status.ssdp,
       mdns: this.status.mdns,
       localUrl: this.port ? this.localUrl() : null,

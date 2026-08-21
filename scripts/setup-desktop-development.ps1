@@ -1,6 +1,6 @@
 ﻿<#
 .SYNOPSIS
-Prepare the Windows desktop development environment on the deterministic 1.4.84 toolchain.
+Prepare the Windows desktop development environment on the deterministic 1.4.85 toolchain.
 #>
 
 [CmdletBinding()]
