@@ -1,6 +1,6 @@
 import { useCallback, useSyncExternalStore, type Dispatch, type SetStateAction } from "react";
 import { applyEdgeChanges, applyNodeChanges, type Edge, type EdgeChange, type NodeChange } from "@xyflow/react";
-import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
+import type { WorkflowEnvironment, WorkflowFunctionDefinition, WorkflowNode, WorkflowParameterDefinition } from "../workflow";
 import type { WorkspaceRuntimeInputState } from "../workflow-core";
 import type { EditorWorkspaceSession } from "./session";
 
@@ -24,6 +24,12 @@ export function useEditorWorkspaceSession(session: EditorWorkspaceSession) {
   }, [session]);
   const setRequirements: Dispatch<SetStateAction<string[]>> = useCallback((next) => {
     session.updateSnapshot((current) => ({ ...current, requirements: resolveState(next, current.requirements ?? []) }));
+  }, [session]);
+  const setEnvironment: Dispatch<SetStateAction<WorkflowEnvironment>> = useCallback((next) => {
+    session.updateSnapshot((current) => ({ ...current, environment: resolveState(next, current.environment ?? { pythonImports: [], pythonDefinitions: [] }) }));
+  }, [session]);
+  const setWorkflowParameters: Dispatch<SetStateAction<WorkflowParameterDefinition[]>> = useCallback((next) => {
+    session.updateSnapshot((current) => ({ ...current, parameters: resolveState(next, current.parameters ?? []) }));
   }, [session]);
   const setInput: Dispatch<SetStateAction<WorkspaceRuntimeInputState | undefined>> = useCallback((next) => {
     session.replaceInput(resolveState(next, session.getRuntimeState().input));
@@ -80,6 +86,8 @@ export function useEditorWorkspaceSession(session: EditorWorkspaceSession) {
     edges: snapshot.edges,
     functions: snapshot.functions ?? [],
     requirements: snapshot.requirements ?? [],
+    environment: snapshot.environment ?? { pythonImports: [], pythonDefinitions: [] },
+    workflowParameters: snapshot.parameters ?? [],
     input: normalizedInput,
     setFileName,
     setCsvText,
@@ -89,6 +97,8 @@ export function useEditorWorkspaceSession(session: EditorWorkspaceSession) {
     setEdges,
     setFunctions,
     setRequirements,
+    setEnvironment,
+    setWorkflowParameters,
     setInput,
     onNodesChange,
     onEdgesChange,

@@ -749,15 +749,39 @@ def _analyze_assignment(statement: ast.stmt, source: str, base: dict[str, Any]) 
     if isinstance(value, ast.Attribute) and value.attr == "T":
         root = _root_name(value.value)
         if root: return {**base, "semantic": True, "kind": "call", "nodeType": "table.transpose", "label": target or "转置", "parameters": {}, "inputVariable": root, "outputVariable": target or root}
-    # 配置/准备代码：给出明确分类，而非笼统的"Assign 未映射"
+    # 配置/准备代码：静态 JSON-compatible 值可以由 Workflow Parameters 承载。
+    # 这里只标注候选，不在 AST 层擅自上提；Notebook 编译器会结合全局
+    # 执行顺序，只提升位于计算步骤之前且尚未被使用的前置配置。
+    if target and isinstance(value, (ast.Constant, ast.List, ast.Dict)):
+        try:
+            literal_value = ast.literal_eval(value)
+            encoded = json.dumps(literal_value, ensure_ascii=False)
+        except (ValueError, TypeError, OverflowError):
+            encoded = ""
+        if encoded:
+            parameters = {
+                **base.get("parameters", {}),
+                "notebookParameterName": target,
+                "notebookParameterExpression": ast.unparse(value),
+                "notebookParameterValueJson": encoded,
+            }
+            if isinstance(value, ast.Constant) and isinstance(value.value, str) and ("\\" in value.value or "/" in value.value):
+                reason = "路径常量：前置静态配置可提升到 Workflow Parameters；跨平台运行时仍需检查路径可用性"
+            elif isinstance(value, (ast.List, ast.Dict)):
+                reason = "参数列表：前置静态配置可提升到 Workflow Parameters；否则保留原始 Python"
+            else:
+                reason = "常量赋值：前置静态配置可提升到 Workflow Parameters；否则保留原始 Python"
+            return {
+                **base, "recognized": True, "semantic": False, "parameters": parameters,
+                "label": f"参数 · {target}",
+                "reason": reason,
+            }
     if isinstance(value, ast.ListComp):
         return {**base, "recognized": False, "reason": "列表推导（参数或文件路径准备，建议用变量节点承载）"}
     if isinstance(value, (ast.List, ast.Tuple, ast.Dict)):
-        return {**base, "recognized": False, "reason": "参数列表/字典（配置准备，可用变量节点承载）"}
+        return {**base, "recognized": False, "reason": "动态参数列表/字典保留原始 Python"}
     if isinstance(value, ast.Constant):
-        if isinstance(value.value, str) and ("\\" in value.value or "/" in value.value):
-            return {**base, "recognized": False, "reason": "路径常量（运行时环境不可用，建议用运行时文件选择）"}
-        return {**base, "recognized": False, "reason": "常量赋值（配置准备，可用变量节点承载）"}
+        return {**base, "recognized": False, "reason": "无法安全提升的常量赋值保留原始 Python"}
     return None
 
 

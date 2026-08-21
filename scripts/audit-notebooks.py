@@ -72,6 +72,8 @@ def main() -> int:
             continue
         by_index = {int(cell.get("index", -1)): cell for cell in analysis_cells if isinstance(cell, dict)}
         ordered_operations: list[dict[str, object]] = []
+        ordered_entries: list[tuple[int, int, dict[str, object]]] = []
+        cell_operation_counts: dict[int, int] = {}
         for index, cell in enumerate(notebook.get("cells", [])):
             summary["cells"] += 1
             if cell.get("cell_type") != "code":
@@ -84,7 +86,10 @@ def main() -> int:
             source = source_text(cell)
             result = by_index.get(index, {})
             operations = result.get("operations", []) if isinstance(result, dict) else []
-            ordered_operations.extend(operation for operation in operations if isinstance(operation, dict))
+            valid_operations = [operation for operation in operations if isinstance(operation, dict)]
+            ordered_operations.extend(valid_operations)
+            cell_operation_counts[index] = len(valid_operations)
+            ordered_entries.extend((index, operation_index * 1000, operation) for operation_index, operation in enumerate(valid_operations))
             summary["operations"] += len(operations)
             for operation in operations:
                 semantic = bool(operation.get("semantic"))
@@ -140,6 +145,32 @@ def main() -> int:
             except SyntaxError as error:
                 summary["syntax_cells"] += 1
                 failures.append({"file": str(path), "cell": index, "kind": "syntax", "error": error.msg})
+
+        setup_open = True
+        context_keys: set[tuple[int, int]] = set()
+        context_cells: Counter[int] = Counter()
+        for cell_index, operation_index, operation in ordered_entries:
+            if not setup_open:
+                break
+            parameters = operation.get("parameters") if isinstance(operation.get("parameters"), dict) else {}
+            kind = operation.get("kind")
+            if kind in {"Import", "ImportFrom"}:
+                summary["managed_environment_imports"] += 1
+            elif isinstance(parameters.get("notebookParameterName"), str) and isinstance(parameters.get("notebookParameterValueJson"), str):
+                summary["managed_workflow_parameters"] += 1
+            elif kind == "FunctionDef" and isinstance(parameters.get("workflowFunctionId"), str):
+                summary["managed_workflow_definitions"] += 1
+            else:
+                setup_open = False
+                break
+            context_keys.add((cell_index, operation_index))
+            context_cells[cell_index] += 1
+        summary["managed_context_operations"] += len(context_keys)
+        summary["canvas_operations_after_context"] += max(0, len(ordered_operations) - len(context_keys))
+        summary["context_only_code_cells"] += sum(
+            1 for cell_index, count in context_cells.items()
+            if count > 0 and count == cell_operation_counts.get(cell_index, 0)
+        )
 
         producer: dict[str, int] = {}
         function_definition_by_id: dict[str, int] = {}

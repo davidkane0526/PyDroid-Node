@@ -41,14 +41,14 @@ export class EditorWorkspaceLifecycleService {
   serializeSnapshot(snapshot: WorkflowSnapshot, name: string): string {
     const persistent = workflowSnapshotForPersistence(snapshot);
     return JSON.stringify(
-      serializeWorkflow(name, persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? []),
+      serializeWorkflow(name, persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? [], persistent.environment, persistent.parameters),
     );
   }
 
   serializeSnapshotPretty(snapshot: WorkflowSnapshot, name: string): string {
     const persistent = workflowSnapshotForPersistence(snapshot);
     return JSON.stringify(
-      serializeWorkflow(name, persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? []),
+      serializeWorkflow(name, persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? [], persistent.environment, persistent.parameters),
       null,
       2,
     );

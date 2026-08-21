@@ -76,7 +76,7 @@ describe("EditorResourceLibraryService", () => {
     const preservedFuture = service.getState().flows.find((entry) => entry.id === "future-flow")!;
     expect(migratedNode.resourceSchemaVersion).toBe(2);
     expect(migratedNode.node.data.nodeVersion).toBe(1);
-    expect(migratedFlow.document).toContain('"schemaVersion": 3');
+    expect(migratedFlow.document).toContain('"schemaVersion": 4');
     expect(preservedFuture.compatibility).toBe("future");
     expect(preservedFuture.document).toBe(futureFlow);
     const persistedFlows = JSON.parse(storage.values.get(RESOURCE_LIBRARY_STORAGE_KEYS.flows) ?? "[]") as Array<{ id: string; document: string }>;
@@ -107,7 +107,7 @@ describe("EditorResourceLibraryService", () => {
     const service = new EditorResourceLibraryService(storage, [], (path, content) => mirrored.set(path, content));
     const legacy = JSON.stringify({ schemaVersion: 1, name: "Legacy", nodes: [], edges: [] });
     const added = service.addFlowDocument("Legacy", legacy, { id: "legacy-mirror", savedAt: "now" });
-    expect(added.document).toContain('"schemaVersion": 3');
+    expect(added.document).toContain('"schemaVersion": 4');
     expect(mirrored.get("workflows/legacy-mirror.workflow.json")).toBe(added.document);
   });
 

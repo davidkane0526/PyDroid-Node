@@ -1,11 +1,13 @@
 import type { Edge } from "@xyflow/react";
-import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
+import type { WorkflowEnvironment, WorkflowFunctionDefinition, WorkflowNode, WorkflowParameterDefinition } from "../workflow";
 
 export type WorkflowSnapshot = {
   nodes: WorkflowNode[];
   edges: Edge[];
   functions?: WorkflowFunctionDefinition[];
   requirements?: string[];
+  environment?: WorkflowEnvironment;
+  parameters?: WorkflowParameterDefinition[];
 };
 
 export type WorkspaceRuntimeInputState = {
@@ -38,6 +40,8 @@ export function workflowSnapshotForPersistence(snapshot: WorkflowSnapshot): Work
     }),
     functions: structuredClone(snapshot.functions ?? []),
     requirements: [...(snapshot.requirements ?? [])],
+    environment: structuredClone(snapshot.environment ?? { pythonImports: [], pythonDefinitions: [] }),
+    parameters: structuredClone(snapshot.parameters ?? []),
   };
 }
 
@@ -46,11 +50,11 @@ export function workflowSnapshotSignature(snapshot: WorkflowSnapshot): string {
 }
 
 export function workflowHasContent(snapshot: WorkflowSnapshot): boolean {
-  return snapshot.nodes.length > 0 || snapshot.edges.length > 0 || Boolean(snapshot.functions?.length) || Boolean(snapshot.requirements?.length);
+  return snapshot.nodes.length > 0 || snapshot.edges.length > 0 || Boolean(snapshot.functions?.length) || Boolean(snapshot.requirements?.length) || Boolean(snapshot.environment?.pythonImports.length) || Boolean(snapshot.environment?.pythonDefinitions.length) || Boolean(snapshot.parameters?.length);
 }
 
 export function emptyWorkflowSnapshot(): WorkflowSnapshot {
-  return { nodes: [], edges: [], functions: [], requirements: [] };
+  return { nodes: [], edges: [], functions: [], requirements: [], environment: { pythonImports: [], pythonDefinitions: [] }, parameters: [] };
 }
 
 export function createWorkspaceRuntimeState(snapshot: WorkflowSnapshot = emptyWorkflowSnapshot(), savedSignature?: string): WorkspaceRuntimeState {

@@ -3,7 +3,7 @@ import { workflowSnapshotForPersistence, workflowSnapshotSignature, type Workflo
 
 export function serializeWorkflowSnapshot(name: string, snapshot: WorkflowSnapshot): WorkflowDocument {
   const persistent = workflowSnapshotForPersistence(snapshot);
-  return serializeWorkflow(name, persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? []);
+  return serializeWorkflow(name, persistent.nodes, persistent.edges, persistent.requirements ?? [], persistent.functions ?? [], persistent.environment, persistent.parameters);
 }
 
 export function stringifyWorkflowSnapshot(name: string, snapshot: WorkflowSnapshot, pretty = true): string {
@@ -12,7 +12,7 @@ export function stringifyWorkflowSnapshot(name: string, snapshot: WorkflowSnapsh
 
 export function parseWorkflowSnapshot(text: string, fallbackRequirements: string[] = []): WorkflowSnapshot {
   const document = parseWorkflow(text);
-  return { nodes: document.nodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? fallbackRequirements };
+  return { nodes: document.nodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? fallbackRequirements, environment: document.environment ?? { pythonImports: [], pythonDefinitions: [] }, parameters: document.parameters ?? [] };
 }
 
 export { workflowSnapshotSignature };

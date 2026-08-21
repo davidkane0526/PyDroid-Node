@@ -102,5 +102,5 @@ export function migrateFlowEntry(entry: FlowLibraryEntry): FlowLibraryEntry {
 
 export function canonicalFlowDocument(name: string, document: string): string {
   const parsed = parseWorkflow(document);
-  return JSON.stringify(serializeWorkflow(name || parsed.name, parsed.nodes, parsed.edges, parsed.requirements, parsed.functions), null, 2);
+  return JSON.stringify(serializeWorkflow(name || parsed.name, parsed.nodes, parsed.edges, parsed.requirements, parsed.functions, parsed.environment, parsed.parameters), null, 2);
 }

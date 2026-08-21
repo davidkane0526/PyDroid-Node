@@ -55,6 +55,7 @@ import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWo
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings, type AgentTransport } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
+import { WorkflowEnvironmentOverlay } from "./WorkflowEnvironmentOverlay";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, nodeExecutionSubgraph, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
 import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, isEditorResourceUsable, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
@@ -97,6 +98,40 @@ function NotebookEditor({ value, rows, onChange }: { value: string; rows: number
 }
 type SmbSettings = Omit<SmbConnection, "password"> & { rememberPassword: boolean; guest: boolean };
 type AppSettings = { themeMode: ThemeMode; runtimePreference: RuntimePreference; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; automatedDiagnosticsEnabled: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
+
+
+function parseWorkflowParameterExpression(expression: string, previousValue: unknown): { value: unknown; valueType: ValueType } {
+  const text = expression.trim();
+  const typeOf = (value: unknown): ValueType => {
+    if (typeof value === "number") return "number";
+    if (typeof value === "string") return "text";
+    if (typeof value === "boolean") return "boolean";
+    if (Array.isArray(value)) return "list";
+    if (value && typeof value === "object") return "object";
+    return "any";
+  };
+  if (!text) return { value: previousValue, valueType: typeOf(previousValue) };
+  if (text === "True" || text === "true") return { value: true, valueType: "boolean" };
+  if (text === "False" || text === "false") return { value: false, valueType: "boolean" };
+  if (text === "None" || text === "null") return { value: null, valueType: "any" };
+  if (/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(text)) return { value: Number(text), valueType: "number" };
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    if (text.startsWith('"')) {
+      try { const value = JSON.parse(text) as unknown; return { value, valueType: typeOf(value) }; } catch { /* preserve as text below */ }
+    }
+    const value = text.slice(1, -1).replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+    return { value, valueType: "text" };
+  }
+  try {
+    const value = JSON.parse(text) as unknown;
+    return { value, valueType: typeOf(value) };
+  } catch {
+    // Python literals such as ['a', 'b'] remain authoritative through the
+    // expression field.  Preserve the last parsed value for document preview;
+    // Python Notebook workflows are runtime-locked to Python semantics.
+    return { value: previousValue, valueType: typeOf(previousValue) };
+  }
+}
 
 function readableError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message && error.message !== "[object Object]") return error.message;
@@ -415,7 +450,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   return (
     <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node direction-${direction} ${isStructure ? "workflow-structure" : ""} ${data.nodeType === "logic.if_subflow" ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
-      <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游上下文" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}>▶</button>
+      <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}>▶</button>
       {isStructure && <NodeResizer minWidth={360} minHeight={220} isVisible={selected} />}
       <Handle className="notebook-order-handle" id="__notebook_order_in" type="target" position={direction === "horizontal" ? Position.Left : Position.Top} isConnectable={false} />
       <Handle className="notebook-order-handle" id="__notebook_order_out" type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} isConnectable={false} />
@@ -572,21 +607,20 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
   }
 }
 
-
 function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; resourceLibrary: EditorResourceLibraryService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
   const tabId = session.id;
   const workspaceIdentity = session.identity;
   const executionClientId = workspaceIdentity.clientId;
   const remoteBrowser = workspaceIdentity.source === "remote";
   const initialRuntimeState = session.getRuntimeState();
-  const startingSnapshot = initialRuntimeState.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [] };
+  const startingSnapshot = initialRuntimeState.snapshot ?? { nodes: initialNodes, edges: initialEdges, functions: [], requirements: [], environment: { pythonImports: [], pythonDefinitions: [] }, parameters: [] };
   const restoredExecutionStatus = getExecutionStatus(workspaceIdentity);
   const restoredExecutionResult = getWorkspaceExecutionResult(workspaceIdentity);
   const restoredCompletedNodes = new Set(restoredExecutionResult?.executionOrder ?? (restoredExecutionResult ? startingSnapshot.nodes.map((node) => node.id) : []));
   const reactFlow = useReactFlow<WorkflowNode, Edge>();
   const updateNodeInternals = useUpdateNodeInternals();
   const {
-    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, requirements,
+    nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, functions, requirements, environment, workflowParameters, setEnvironment, setWorkflowParameters,
     input, setFileName, setCsvText, setCsvBytes, setCsvFiles,
     primaryNodeId: selectedId, setPrimaryNodeId: setSelectedId,
     selectedNodeIds: selectedIds, setSelectedNodeIds: setSelectedIds,
@@ -988,6 +1022,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       edges: document.edges,
       functions: document.functions ?? [],
       requirements: document.requirements ?? [],
+      environment: document.environment ?? { pythonImports: [], pythonDefinitions: [] },
+      parameters: document.parameters ?? [],
     };
   };
 
@@ -1004,7 +1040,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       }
     }, 400);
     return () => window.clearTimeout(timer);
-  }, [lifecycle, session, tabId, nodes, edges, functions, requirements]);
+  }, [lifecycle, session, tabId, nodes, edges, functions, requirements, environment, workflowParameters]);
 
 
   useEffect(() => {
@@ -2448,7 +2484,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const openNotebookView = () => {
-    if (!nodes.length) {
+    const hasStoredNotebook = Boolean(environment.notebookCells?.length);
+    if (!nodes.length && !hasStoredNotebook) {
       setNotebookCells([]);
       setNotebookMetadata({});
       setNotebookError(null);
@@ -2457,23 +2494,31 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       return;
     }
     const expanded = flattenWorkflowGroups(nodes, edges);
-    setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements));
+    setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements, environment));
     setNotebookCellResults({});
-    setNotebookMetadata(workflowNotebookMetadata(nodes));
+    setNotebookMetadata(workflowNotebookMetadata(nodes, environment));
     setNotebookError(null);
     setViewMode("notebook");
-    setMessage("已按 setup、节点和连线拆分为 Jupyter 单元格；每个节点可独立编辑");
+    setMessage(hasStoredNotebook ? "已恢复原始 Jupyter 单元格；Notebook 交互运行以当前源码为准" : "已按 setup、节点和连线拆分为 Jupyter 单元格；每个节点可独立编辑");
   };
 
-  const applyNotebook = () => {
+  const applyNotebook = async () => {
     try {
       const source = joinNotebookCells(notebookCells);
-      const document = source.includes("# %% [node]")
-        ? parseWorkflowNotebook(source)
-        : notebookCellsToWorkflow("Jupyter 单元格工作流", notebookCells, notebookMetadata);
+      let document: ReturnType<typeof parseWorkflow>;
+      let report: NotebookConversionReport | null = null;
+      if (source.includes("# %% [node]")) {
+        document = parseWorkflowNotebook(source);
+      } else {
+        const analyses = await analyzeNotebook(serializeJupyterNotebookCells("Jupyter 单元格工作流", notebookCells, notebookMetadata));
+        document = analyses.some((analysis) => analysis.recognized)
+          ? analyzedNotebookToWorkflow("Jupyter 单元格工作流", notebookCells, analyses, notebookMetadata)
+          : notebookCellsToWorkflow("Jupyter 单元格工作流", notebookCells, notebookMetadata);
+        report = summarizeNotebookConversion(notebookCells, analyses);
+      }
       replaceWorkflowContent(prepareImportedWorkflow(document));
       setNotebookError(null);
-      setMessage(`已从 Notebook 应用 ${document.nodes.length} 个节点和 ${document.edges.length} 条连线；未识别代码以无损单元格节点保留`);
+      setMessage(report ? notebookConversionMessage(report) : `已从 Notebook 应用 ${document.nodes.length} 个节点和 ${document.edges.length} 条连线`);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Notebook 解析失败";
       setNotebookError(message);
@@ -2493,7 +2538,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     try {
       const document = notebookCellsToWorkflow("Notebook 交互运行", cells, notebookMetadata);
       const inputFiles = csvFiles.map((file) => ({ name: file.name, text: new TextDecoder("utf-8").decode(file.bytes) }));
-      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
+      const nextResult = await executeWorkflow(document.nodes, document.edges, csvText, inputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions: document.functions, environment: document.environment, parameters: document.parameters });
       setResult(nextResult);
       setNotebookCellResults((current) => ({ ...current, ...Object.fromEntries(cells.map((cell, index) => [cell.id, nextResult.nodeResults[`notebook-cell-${index + 1}`]]).filter((entry): entry is [string, NodeExecutionPreview] => Boolean(entry[1]))) }));
       setNotebookCells((current) => current.map((cell, index) => index <= lastIndex && cell.cellType === "code" ? { ...cell, executionCount: (cell.executionCount ?? 0) + 1 } : cell));
@@ -2528,7 +2573,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       report.promotedFunctionDefinitions ? `函数 ${report.promotedFunctionDefinitions}${report.typedFunctionDefinitions ? `（类型化 ${report.typedFunctionDefinitions}）` : ""}` : "",
       report.functionCalls ? `函数调用 ${report.functionCalls}` : "",
       report.functionMaps ? `函数映射 ${report.functionMaps}${report.functionConcatMaps ? `（其中循环合并 ${report.functionConcatMaps}）` : ""}` : "",
-      report.operations ? `依赖可追踪 ${report.linkedOperations}/${report.operations}${report.isolatedOperations ? `（独立 ${report.isolatedOperations}）` : ""}` : "",
+      report.managedContextOperations ? `环境收纳 ${report.managedContextOperations} 步（import ${report.managedEnvironmentImports} · 参数 ${report.managedWorkflowParameters} · 函数定义 ${report.managedWorkflowDefinitions}）` : "",
+      report.operations ? `画布保留 ${report.canvasOperations}/${report.operations} 步；依赖可追踪 ${report.linkedOperations}/${report.operations}${report.isolatedOperations ? `（独立 ${report.isolatedOperations}）` : ""}` : "",
       report.androidUnsupportedModules.length
         ? `Android 待确认依赖 ${report.androidUnsupportedModules.slice(0, 4).join(", ")}${report.androidUnsupportedModules.length > 4 ? "…" : ""}`
         : "",
@@ -2672,7 +2718,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           const hydrated = hydrateNodeDefaults(node);
           return { ...hydrated, type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrated.data, status: "idle" as const } };
         }), document.edges);
-        return { nodes: nextNodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [] };
+        return { nodes: nextNodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [], environment: document.environment ?? { pythonImports: [], pythonDefinitions: [] }, parameters: document.parameters ?? [] };
       });
       clearExecutionResult();
       window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
@@ -3026,7 +3072,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     }
     setMessage(`正在准备“${alertNode.data.label}”的当前内容…`);
     const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(slice.nodes);
-    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
+    const previewResult = await executeWorkflow(slice.nodes, slice.edges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions, environment, parameters: workflowParameters });
     return previewResult.nodeResults[contentEdge.source] ?? (previewResult.preview.totalRows || previewResult.preview.totalColumns ? { kind: "table", preview: previewResult.preview } : undefined);
   };
 
@@ -3124,16 +3170,16 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       return;
     }
     const runStartedAt = performance.now();
-    const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes, functions);
+    const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes, functions, environment);
     setMessage(runIntent?.focusNodeId
-      ? `正在运行“${runIntent.focusLabel ?? runIntent.focusNodeId}” · 自动补齐 ${Math.max(0, workflowNodes.length - 1)} 个上游上下文节点…`
+      ? `正在运行“${runIntent.focusLabel ?? runIntent.focusNodeId}” · 自动补齐 ${Math.max(0, workflowNodes.length - 1)} 个上游依赖节点…`
       : `正在执行 ${selectedRuntime.label} 工作流…`);
     setExecutionError(null);
     setErrorDetailOpen(false);
     setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? { ...node, data: { ...node.data, status: "running" } } : node));
     try {
       const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(workflowNodes);
-      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
+      const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions, environment, parameters: workflowParameters });
       setResult(nextResult);
       // Workspace variables live outside React state. Refresh their resource view explicitly
       // after every successful execution instead of relying on result identity as an indirect trigger.
@@ -3143,7 +3189,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       setMessage(stopAt
         ? `调试已暂停在 ${nodes.find((node) => node.id === stopAt)?.data.label ?? stopAt}`
         : runIntent?.focusNodeId
-          ? `“${runIntent.focusLabel ?? runIntent.focusNodeId}”运行完成 · 已自动执行所需上游上下文`
+          ? `“${runIntent.focusLabel ?? runIntent.focusNodeId}”运行完成 · 已自动执行所需上游依赖`
           : `执行完成 · ${nextResult.runtimeId === "javascript" ? "JS" : "Python"}：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
       const completed = new Set(nextResult.executionOrder ?? workflowNodes.map((node) => node.id));
       setNodes((current) => current.map((node) => scopedNodeIds.has(node.id)
@@ -3192,7 +3238,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     if (!target) return;
     const slice = nodeExecutionSubgraph(nodes, edges, nodeId);
     if (!slice.nodes.length) {
-      setMessage(`无法构建“${target.data.label}”的执行上下文`);
+      setMessage(`无法构建“${target.data.label}”的执行依赖`);
       return;
     }
     await runPrototype(slice.nodes, slice.edges, new Set(), undefined, { focusNodeId: nodeId, focusLabel: target.data.label });
@@ -3396,6 +3442,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     "--edge-width": `${edgeWidth}px`,
   } as CSSProperties;
 
+
   return (
     <div className={`app-shell ${isNativePlatform() ? "native-platform" : ""} ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme}
       onDragOver={(event) => {
@@ -3472,7 +3519,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           <div className="palette-fixed">
             <div className="palette-heading"><h2>{ui("资源", "Resources")}</h2><button className="download-link" title="隐藏节点列表" onClick={() => setPaletteCollapsed(true)}>{ui("收起", "Collapse")}</button></div>
             <nav className="palette-tabs" aria-label="资源分类"><button className={paletteTab === "nodes" ? "active" : ""} onClick={() => setPaletteTab("nodes")}><span className="palette-tabs__icon" aria-hidden="true">◆</span><span className="palette-tabs__label">{ui("节点", "Nodes")}</span></button><button className={paletteTab === "functions" ? "active" : ""} onClick={() => setPaletteTab("functions")}><span className="palette-tabs__icon" aria-hidden="true">ƒ</span><span className="palette-tabs__label">{ui("函数", "Functions")}</span></button><button className={paletteTab === "groups" ? "active" : ""} onClick={() => setPaletteTab("groups")}><span className="palette-tabs__icon" aria-hidden="true">⧉</span><span className="palette-tabs__label">{ui("组合", "Groups")}</span></button><button className={paletteTab === "flows" ? "active" : ""} onClick={() => setPaletteTab("flows")}><span className="palette-tabs__icon" aria-hidden="true">◇</span><span className="palette-tabs__label">{ui("流程", "Flows")}</span></button></nav>
-            <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={ui("搜索内置或导入节点", "Search built-in or imported nodes")} /><span>{matchedCatalog.length}</span></label>
+            {paletteTab === "nodes" && <label className="node-search"><input value={nodeSearch} onChange={(event) => setNodeSearch(event.target.value)} placeholder={ui("搜索内置或导入节点", "Search built-in or imported nodes")} /><span>{matchedCatalog.length}</span></label>}
           </div>
           <div className="palette-content">
             {paletteTab === "nodes" && <>{savedNodeLibrary.length > 0 && <section className="palette-group palette-group--custom"><h3>我的节点<small>{savedNodeLibrary.length} · 可拖拽排序</small></h3>{savedNodeLibrary.map((entry) => { const descriptor = describeSavedNode(entry); const resource = resourceRef(descriptor); return <button draggable={finePointer && descriptor.capabilities.draggable} key={entry.id} className={savedNodeDragOverId === entry.id ? "palette-sort-target" : ""} onDragStart={(event) => onPaletteDragStart(event, resource)} onDrag={updatePaletteDragPreview} onDragOver={(event) => { if (event.dataTransfer.types.includes("application/pydroid-resource")) { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setSavedNodeDragOverId(entry.id); } }} onDragLeave={() => setSavedNodeDragOverId((current) => current === entry.id ? null : current)} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); setSavedNodeDragOverId(null); const data = event.dataTransfer.getData("application/pydroid-resource"); if (data) { try { const dragged = JSON.parse(data) as PaletteResource; if (dragged.kind === "saved-node") reorderSavedNodes(dragged.id, entry.id); } catch { /* 忽略无效拖拽数据 */ } } }} onDragEnd={clearPaletteDrag} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => { if (event.pointerType !== "mouse") onPalettePointerDown(event, resource); }} onPointerMove={(event) => { if (event.pointerType !== "mouse") onPalettePointerMove(event); }} onPointerUp={(event) => { if (event.pointerType !== "mouse") onPalettePointerUp(event); }} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onClick={() => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } insertSavedNode(entry); }} title="加入保存的节点与参数 · 长按管理"><strong>◇ {entry.name}</strong><small>{entry.node.data.nodeType} · 已保存参数</small></button>; })}</section>}
@@ -3485,9 +3532,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             {nodeSearch && matchedCatalog.length === 0 && <p className="muted">没有匹配节点。可添加“Python 函数”并粘贴带类型标注的函数签名。</p>}</>}
             {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const descriptor = describeGroup(entry); const resource = resourceRef(descriptor); return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`拖动添加 · 静止长按约 0.7 秒或双击打开菜单 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
             {paletteTab === "functions" && <>
-              <section className="palette-group palette-group--custom workflow-language-state"><h3>{ui("工作区变量", "Workspace variables")}<small>{workspaceVariableNames.length} · {ui("当前标签页", "current tab")}</small></h3>{workspaceVariableNames.length ? <div className="workflow-variable-list">{workspaceVariableNames.map((name) => <code key={name}>{name}</code>)}</div> : <p className="muted">{ui("尚未写入工作区变量。使用“设置工作区变量”节点后会显示在这里。", "No workspace variables yet. Use a Set Workspace Variable node to create one.")}</p>}<button className="secondary" disabled={!workspaceVariableNames.length} onClick={clearWorkspaceVariables}>{ui("清空当前标签变量", "Clear tab variables")}</button></section>
+              <p className="muted workflow-functions-purpose">{ui("函数是带明确输入/输出契约的可复用子流程：同一段节点逻辑可在当前工作流中多次调用，并在更新函数版本后同步调用点。", "Functions are reusable subflows with explicit input/output contracts. Call the same node logic multiple times and update its call sites through function versions.")}</p>
               {functions.map((definition) => { const resource = describeFunction(definition); return <section className="palette-group palette-group--custom workflow-function-card" key={resource.id}><h3>{resource.label}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{resource.description && <p className="muted">{resource.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button><button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>; })}
-              {!functions.length && <p className="muted">{ui("先将节点组合，然后在组合检查器中选择“保存为函数”。函数会随工作流一起保存。", "Group nodes first, then choose Save as function in the group inspector. Functions are stored with the workflow.")}</p>}
+              {!functions.length && <p className="muted">{ui("当前没有可复用函数。将一组已经验证的节点保存为函数后，可通过“调用”在多个位置重复使用同一套逻辑。", "No reusable functions yet. Save a verified node group as a function to call the same logic from multiple places.")}</p>}
             </>}
             {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const descriptor = describeFlow(entry); const resource = resourceRef(descriptor); return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
@@ -3575,9 +3622,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
                 <button onClick={() => notebookInput.current?.click()}>导入 .ipynb</button>
                 <button onClick={() => setNotebookCells((current) => [...current, { id: `cell-${Date.now()}`, cellType: "code", source: "# 新代码单元格\n" }])}>＋代码</button>
                 <button onClick={() => setNotebookCells((current) => [...current, { id: `cell-${Date.now()}`, cellType: "markdown", source: "## 新说明\n" }])}>＋文本</button>
-                <button onClick={() => { const expanded = flattenWorkflowGroups(nodes, edges); setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements)); setNotebookMetadata({}); }}>从节点刷新</button>
+                <button onClick={() => { const expanded = flattenWorkflowGroups(nodes, edges); setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements, environment)); setNotebookMetadata({}); }}>从节点刷新</button>
                 <button onClick={() => downloadText(serializeJupyterNotebookCells("PyDroid Flow 工作流", notebookCells, notebookMetadata), "pydroid-flow.ipynb", "application/x-ipynb+json")}>导出 .ipynb</button>
-                <button className="primary" onClick={applyNotebook}>应用到节点视图</button>
+                <button className="primary" onClick={() => void applyNotebook()}>应用到节点视图</button>
               </div>
             </header>
             {notebookError && <p className="notebook-error">{notebookError}</p>}
@@ -3610,6 +3657,20 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           {viewMode === "nodes" && currentCanvasId && <nav className="canvas-breadcrumb" aria-label="画布层级"><button onClick={() => leaveSubflowGroup(null)}>← 返回主流程</button>{canvasTrail.map((group, index) => <span key={group.id}>› <button className={index === canvasTrail.length - 1 ? "active" : ""} onClick={() => leaveSubflowGroup(group.id)}>{group.data.label}</button></span>)}</nav>}
           {paletteDragPreview && <div className={`palette-drag-preview palette-drag-preview--${paletteDragPreview.kind} ${paletteDragPreview.overCanvas ? "over-canvas" : ""}`} style={{ left: paletteDragPreview.x, top: paletteDragPreview.y }}><span>{paletteDragPreview.kind === "group" ? "⧉" : paletteDragPreview.kind === "flow" ? "◇" : "◆"}</span><div><strong>{paletteDragPreview.label}</strong><small>{paletteDragPreview.overCanvas ? "松开放置" : "拖到画布"}</small></div></div>}
           {viewMode === "nodes" && currentCanvasId && (() => { const group = nodes.find((node) => node.id === currentCanvasId); return group ? <aside className="group-interface"><span><i>输入</i><span className="group-interface__ports">{(group.data.groupInputs ?? []).map((port) => <b key={port.id}>{port.label} → {nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId}</b>)}</span></span><span><i>输出</i><span className="group-interface__ports">{(group.data.groupOutputs ?? []).map((port) => <b key={port.id}>{nodes.find((node) => node.id === port.internalNodeId)?.data.label ?? port.internalNodeId} → {port.label}</b>)}</span></span></aside> : null; })()}
+          <WorkflowEnvironmentOverlay
+            tabName={tabName}
+            environment={environment}
+            parameters={workflowParameters}
+            requirements={requirements}
+            workspaceVariableNames={workspaceVariableNames}
+            layoutRevision={`${viewMode}:${currentCanvasId ?? "root"}:${showMiniMap}:${selectionMode}:${selectedIds.length}:${paletteCollapsed}:${inspectorCollapsed}:${inspectorDock}:${resultDock}:${viewportWidth}`}
+            onRemoveImport={(index) => setEnvironment((current) => ({ ...current, pythonImports: current.pythonImports.filter((_, itemIndex) => itemIndex !== index) }))}
+            onParameterExpressionChange={(index, expression) => setWorkflowParameters((current) => current.map((item, itemIndex) => { if (itemIndex !== index) return item; const parsed = parseWorkflowParameterExpression(expression, item.value); return { ...item, expression, ...parsed }; }))}
+            onRemoveParameter={(index) => setWorkflowParameters((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+            onClearWorkspaceVariables={clearWorkspaceVariables}
+            onOpenPackageManager={() => void openPackageManager()}
+            ui={ui}
+          />
           {paletteCollapsed && <button className="palette-toggle" onClick={() => setPaletteCollapsed(false)}>{ui("显示节点", "Show resources")}</button>}
           {inspectorCollapsed && <button className="inspector-toggle" onClick={() => setInspectorCollapsed(false)}>{ui("显示参数", "Show parameters")}</button>}
           {contextMenu && (
@@ -3786,7 +3847,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           <button className="statusbar-history" title="历史记录" aria-label="历史记录" onClick={() => setHistoryOpen(true)}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5M12 7v5l3 2" /></svg></button>
         </div>
       </footer>
-      {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements, functions), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
+      {debugOpen && <DebugDialog open={debugOpen} nodes={nodes} order={nodesInExecutionOrder(nodes, edges)} result={result} breakpoints={debugBreakpoints} pausedAt={debugPausedAt} executionError={executionError} onClose={() => setDebugOpen(false)} onRunFirst={() => void runPrototype(nodes, edges, new Set(), nodesInExecutionOrder(nodes, edges)[0]?.id)} onRunNext={() => { const order = nodesInExecutionOrder(nodes, edges); const index = order.findIndex((node) => node.id === debugPausedAt); const next = order[index + 1]; if (next) void runPrototype(nodes, edges, new Set(), next.id); else setMessage("已到达工作流末尾"); }} onClearBreakpoints={() => { setDebugBreakpoints(new Set()); setDebugPausedAt(null); }} onToggleBreakpoint={(nodeId) => setDebugBreakpoints((current) => { const next = new Set(current); if (next.has(nodeId)) next.delete(nodeId); else next.add(nodeId); return next; })} onRunTo={(nodeId) => void runPrototype(nodes, edges, new Set(), nodeId)} onCopyWorkflowJson={() => void navigator.clipboard.writeText(JSON.stringify(serializeWorkflow("调试快照", nodes, edges, requirements, functions, environment, workflowParameters), null, 2))} onCopySnapshotJson={() => void navigator.clipboard.writeText(JSON.stringify({ result, executionError, breakpoints: [...debugBreakpoints], pausedAt: debugPausedAt }, null, 2))} />}
       {historyOpen && <HistoryDialog entries={session.history.entries} futureCount={session.history.futureCount} onClose={() => setHistoryOpen(false)} onUndo={undo} onRedo={redo} onClear={clearHistory} onRestore={restoreHistoryAt} />}
       {smbOpen && <SmbDialog open={smbOpen} language={language} servers={smbServers} connection={smbConnection} guest={smbGuest} rememberPassword={smbRememberPassword} passwordVisible={smbPasswordVisible} loading={smbLoading} error={smbError} path={smbPath} entries={smbEntries} selected={smbSelected} scannedShares={smbScannedShares} onClose={() => setSmbOpen(false)} onDiscover={() => void discoverConfiguredSmb()} onSelectServer={(address, shares) => { setSmbConnection((current) => ({ ...current, server: address, share: shares?.length === 1 ? shares[0] : "" })); setSmbScannedShares(shares ?? []); setSmbEntries([]); setSmbPath(""); }} onConnectionChange={(patch) => setSmbConnection((current) => ({ ...current, ...patch }))} onGuestChange={(checked) => { setSmbGuest(checked); if (checked) setSmbRememberPassword(false); }} onRememberPasswordChange={setSmbRememberPassword} onPasswordVisibleChange={() => setSmbPasswordVisible((current) => !current)} onScanShares={() => void scanConfiguredSmb()} onSelectShare={(share) => void selectSmbShare(share)} onBrowse={(nextPath) => void browseSmb(nextPath)} onImportSelection={(importAll) => void importSmbSelection(importAll)} onToggleSelected={(path, checked) => setSmbSelected((current) => checked ? [...current, path] : current.filter((item) => item !== path))} />}
       {remoteAccessDialog && <RemoteAccessDialog open={remoteAccessDialog} requirePin={remoteRequirePin} onRequirePin={setRemoteRequirePin} onClose={() => setRemoteAccessDialog(false)} onStart={() => void startConfiguredRemoteServer()} />}

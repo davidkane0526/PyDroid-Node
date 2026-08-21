@@ -1,5 +1,5 @@
 import type { Edge } from "@xyflow/react";
-import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
+import type { WorkflowEnvironment, WorkflowFunctionDefinition, WorkflowNode, WorkflowParameterDefinition } from "../workflow";
 import type { ExecutionControl } from "../execution-controller";
 
 export type RuntimeId = "python" | "javascript";
@@ -30,6 +30,8 @@ export type RuntimeExecutionRequest = {
   inputFiles?: WorkflowInputFile[];
   workspaceState?: Record<string, unknown>;
   functions?: WorkflowFunctionDefinition[];
+  environment?: WorkflowEnvironment;
+  parameters?: WorkflowParameterDefinition[];
   control?: ExecutionControl;
 };
 

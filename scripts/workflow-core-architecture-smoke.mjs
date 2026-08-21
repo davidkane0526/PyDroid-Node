@@ -32,7 +32,7 @@ assert.match(app, /upstreamSubgraph\(/, "interactive alert preflight should reus
 assert.match(workflow, /migrateWorkflowDocumentWithReport/, "workflow parsing should pass through versioned migration infrastructure");
 assert.match(workflow, /migrateWorkflowNodeContracts/, "workflow parsing should pass through NodeSpec migration infrastructure");
 assert.match(migrations, /future-schema-version/, "Workflow Core should distinguish future schema versions from corrupt documents");
-assert.match(schemaMigrations, /CURRENT_WORKFLOW_SCHEMA_VERSION = 3/, "Workflow Core should own the current schema version");
+assert.match(schemaMigrations, /CURRENT_WORKFLOW_SCHEMA_VERSION = 4/, "Workflow Core should own the current schema version");
 assert.match(schemaMigrations, /registerWorkflowMigration\(1/, "Workflow Core should own v1 migration registration");
 assert.match(schemaMigrations, /registerWorkflowMigration\(2/, "Workflow Core should own v2 migration registration");
 assert.match(nodeMigrations, /inputHandleRenames/, "Node migrations should own input-port rename compatibility");

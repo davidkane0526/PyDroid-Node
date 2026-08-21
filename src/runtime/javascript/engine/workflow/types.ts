@@ -62,4 +62,9 @@ export type Workflow = {
   edges: WorkflowEdge[];
   workspaceState?: Record<string, unknown>;
   functions?: WorkflowFunctionDefinition[];
+  environment?: {
+    pythonImports?: Array<{ source: string; cellIndex?: number; operationIndex?: number }>;
+    pythonDefinitions?: Array<{ name: string; source: string; cellIndex?: number; operationIndex?: number }>;
+  };
+  parameters?: Array<{ name: string; expression: string; value: unknown; valueType?: string; cellIndex?: number; operationIndex?: number }>;
 };

@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const app = readFileSync(path.join(root, "src/App.tsx"), "utf8");
+const environmentOverlay = readFileSync(path.join(root, "src/WorkflowEnvironmentOverlay.tsx"), "utf8");
 const css = readFileSync(path.join(root, "src/styles.css"), "utf8");
 const uiFixes = readFileSync(path.join(root, "src/ui-fixes.css"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
@@ -62,6 +63,12 @@ assert.match(app, /resourceLibraryState\.flows\.filter\(isEditorResourceUsable\)
 assert.doesNotMatch(app, /compatibility === "future"[\s\S]{0,180}setMessage\(/, "Phase 11 compatibility protection must not add new user-visible copy");
 
 assert.match(app, /palette-tabs[\s\S]*paletteTab === "nodes"[\s\S]*paletteTab === "functions"[\s\S]*paletteTab === "groups"[\s\S]*paletteTab === "flows"/, "resource tabs must stay ordered Nodes → Functions → Groups → Flows");
+assert.doesNotMatch(app, /setPaletteTab\("context"\)|paletteTab === "context"/, "workflow environment must not return as a resource-palette Context tab");
+assert.match(environmentOverlay, /resolveCanvasFloatingAnchor[\s\S]*react-flow__minimap[\s\S]*canvas-breadcrumb/, "floating Environment control must calculate against visible-canvas occluders instead of using a fixed bottom-right offset");
+assert.match(environmentOverlay, /environment-float-button[\s\S]*anchor\.left[\s\S]*anchor\.top[\s\S]*当前标签/, "the Environment control must follow the active tab and its dynamically resolved visible-canvas anchor");
+assert.match(environmentOverlay, /environment-floating-panel[\s\S]*Python 环境[\s\S]*工作流参数[\s\S]*工作区变量[\s\S]*依赖包/, "the floating Environment panel must own imports, parameters, per-tab runtime variables and requirements");
+assert.match(app, /WorkflowEnvironmentOverlay[\s\S]*tabName=\{tabName\}[\s\S]*environment=\{environment\}/, "the floating Environment panel must receive the active tab's workflow environment from its Editor session");
+assert.match(css, /\.palette-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/, "resource palette should return to four primary resource classes after Environment moves onto the canvas");
 assert.match(app, /const PALETTE_MIN_WIDTH = 216/, "resource palette must enforce the wider Phase 8 minimum width");
 assert.match(css, /minmax\(216px, min\(var\(--palette-width, 216px\)/, "responsive workspace CSS must preserve the 216px resource palette floor");
 assert.match(css, /\.palette-tabs__label \{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/, "resource tab labels must not be ellipsized or compressed");
@@ -69,7 +76,7 @@ assert.match(app, /exportTextFile\(fileName,[\s\S]*application\/json/, "automate
 assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must surface save/cancel/failure status inside the dialog");
 assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefinition, requestedPosition\?: \{ x: number; y: number \}\)/, "function resource drop must keep an optional explicit position in the UI helper contract");
 assert.match(app, /const position = requestedPosition \?\? fallbackPosition;/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
-assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游上下文/, "every canvas node/group should expose the compact node-scoped run action");
+assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游依赖/, "every canvas node/group should expose the compact node-scoped run action");
 assert.match(app, /nodeExecutionSubgraph\(nodes, edges, nodeId\)/, "node-scoped execution must derive its upstream context from the graph instead of running the whole workspace");
 assert.match(app, /maxPortCount[\s\S]*nodeMinHeight[\s\S]*horizontalPortLabelWidth/, "node geometry should adapt to endpoint count and endpoint-label width");
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");

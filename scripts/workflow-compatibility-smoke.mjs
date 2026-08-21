@@ -76,6 +76,7 @@ try {
 
   migrations.registerWorkflowMigration(1, (document) => ({ ...document, schemaVersion: 2, functions: Array.isArray(document.functions) ? document.functions : [] }));
   migrations.registerWorkflowMigration(2, (document) => ({ ...document, schemaVersion: 3, functions: Array.isArray(document.functions) ? document.functions : [], requirements: Array.isArray(document.requirements) ? document.requirements : [] }));
+  migrations.registerWorkflowMigration(3, (document) => ({ ...document, schemaVersion: 4, environment: document.environment && typeof document.environment === "object" && !Array.isArray(document.environment) ? document.environment : { pythonImports: [], pythonDefinitions: [] }, parameters: Array.isArray(document.parameters) ? document.parameters : [] }));
   assert.throws(() => migrations.registerWorkflowMigration(1, (document) => ({ ...document, schemaVersion: 2 })), /already registered/, "historical schema migration steps must be immutable once registered");
   assert.throws(() => migrations.migrateWorkflowDocumentWithReport({ schemaVersion: 70 }, 71), (error) => error?.code === "missing-schema-migration", "missing schema steps must fail closed");
   migrations.registerWorkflowMigration(80, (document) => ({ ...document, schemaVersion: 82 }));
@@ -88,15 +89,15 @@ try {
     const raw = JSON.parse(rawText);
     assert.equal(raw.schemaVersion, fixture.schemaVersion, `${fixture.file}: manifest schema mismatch`);
     if (!fixture.expectedCurrent) {
-      assert.throws(() => migrations.migrateWorkflowDocumentWithReport(raw, 3), (error) => error?.code === "future-schema-version", `${fixture.file}: future schema must be rejected without rewrite`);
+      assert.throws(() => migrations.migrateWorkflowDocumentWithReport(raw, 4), (error) => error?.code === "future-schema-version", `${fixture.file}: future schema must be rejected without rewrite`);
       assert.equal(fs.readFileSync(path.join(fixtureRoot, fixture.file), "utf8"), rawText, `${fixture.file}: source fixture changed`);
       continue;
     }
-    const migrated = migrations.migrateWorkflowDocumentWithReport(raw, 3);
-    assert.equal(migrated.document.schemaVersion, 3, `${fixture.file}: did not reach schema v3`);
+    const migrated = migrations.migrateWorkflowDocumentWithReport(raw, 4);
+    assert.equal(migrated.document.schemaVersion, 4, `${fixture.file}: did not reach schema v4`);
     assert.ok(Array.isArray(migrated.document.functions), `${fixture.file}: missing functions canonical array`);
     assert.ok(Array.isArray(migrated.document.requirements), `${fixture.file}: missing requirements canonical array`);
-    assert.equal(migrated.steps.length, 3 - fixture.schemaVersion, `${fixture.file}: incorrect migration trace`);
+    assert.equal(migrated.steps.length, 4 - fixture.schemaVersion, `${fixture.file}: incorrect migration trace`);
     const normalized = migrations.normalizeWorkflowNodeVersions(migrated.document);
     for (const node of normalized.nodes ?? []) assert.ok(Number.isInteger(Number(node?.data?.nodeVersion)), `${fixture.file}: root node version missing`);
     for (const fn of normalized.functions ?? []) for (const node of fn?.nodes ?? []) assert.ok(Number.isInteger(Number(node?.data?.nodeVersion)), `${fixture.file}: function node version missing`);
@@ -261,9 +262,10 @@ try {
 
   const workflowSource = fs.readFileSync(path.join(root, "src/workflow.ts"), "utf8");
   const schemaSource = fs.readFileSync(path.join(root, "src/workflow-core/schema-migrations.ts"), "utf8");
-  assert.match(schemaSource, /CURRENT_WORKFLOW_SCHEMA_VERSION = 3/);
+  assert.match(schemaSource, /CURRENT_WORKFLOW_SCHEMA_VERSION = 4/);
   assert.match(schemaSource, /registerWorkflowMigration\(1/);
   assert.match(schemaSource, /registerWorkflowMigration\(2/);
+  assert.match(schemaSource, /registerWorkflowMigration\(3/);
   assert.match(workflowSource, /ensureBuiltInWorkflowMigrationsRegistered/);
   assert.match(workflowSource, /migrateWorkflowNodeContracts/);
   assert.match(workflowSource, /parseWorkflowWithReport/);

@@ -1,3 +1,16 @@
+## 1.4.98 (121) — Workflow Environment + clean computation canvas — 2026-08-22
+
+- Compiles the leading static Python Notebook setup prelude out of the computation canvas and into persistent per-workflow environment state. Top-level static imports, safe leading constants and safely promoted function definitions remain serialized and executable instead of appearing as ordinary dataflow nodes.
+- Adds explicit Python-source semantics to the workflow environment so Auto runtime cannot silently switch a Notebook-derived workflow to JavaScript merely because the remaining canvas nodes are cross-runtime native nodes.
+- Moves environment management out of the resource palette. The palette returns to **Nodes → Functions → Groups → Flows**; the active tab owns a floating **Environment** control inside the visible canvas area.
+- The Environment control dynamically measures the actual canvas rectangle and avoids visible overlays such as the toolbar, minimap, breadcrumb, group interface and collapsed-panel toggles. Right/bottom inspector or result docking therefore changes its placement through the canvas geometry instead of relying on a fixed screen corner.
+- The floating Environment panel owns Python imports, editable workflow parameters, per-tab runtime workspace variables and package requirements. Switching tabs naturally switches the environment because each tab's Editor session remains the source of truth.
+- Clarifies Functions as reusable subflows with explicit input/output contracts. Runtime workspace variables no longer appear under Functions; Groups remain primarily organizational, while Functions support repeated calls and versioned reusable logic.
+- Notebook interactive execution remains source-authoritative, while node-view execution uses Workflow Environment. This avoids double-running hoisted setup and prevents environment edits from being overwritten by a second hidden setup pass.
+- Real corpus safety rule remains conservative: only the leading static setup region is hoisted. Imports/assignments/definitions that appear after executable computation stay at their original code position so Python execution order is not changed for visual cleanliness.
+- Final local validation: **138 passed / 1 skipped Python tests, 73/73 runtime parity workflows, 80/80 JS-capable NodeContract coverage**, 186/186 Notebook corpus analysis with 0 failures, plus UI/Editor ownership, Remote HTTP 8765/LAN and Phase 11 compatibility gates.
+- Build revision: `1.4.98-dev-r76-workflow-environment`.
+
 ## 1.4.97 (120) — Notebook context links + node-scoped execution — 2026-08-22
 
 - Stops pure-comment Python cells such as `# Python` from becoming executable canvas nodes or exposing fake input/output ports. Comment-only cells remain preserved in Notebook round-trip metadata instead of polluting the workflow graph.

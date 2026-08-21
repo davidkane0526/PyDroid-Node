@@ -219,6 +219,38 @@ function validateFunctionDefinitions(functions: FunctionMap): void {
   for (const functionId of functions.keys()) visit(functionId);
 }
 
+
+function validateWorkflowContext(document: Record<string, unknown>): void {
+  const environment = document.environment;
+  if (environment !== undefined) {
+    if (!environment || typeof environment !== "object" || Array.isArray(environment)) throw new Error("工作流 environment 必须是对象");
+    const value = environment as Record<string, unknown>;
+    if (value.sourceLanguage !== undefined && !new Set(["python", "javascript", "portable"]).has(String(value.sourceLanguage))) {
+      throw new Error("工作流 environment.sourceLanguage 无效");
+    }
+    for (const key of ["pythonImports", "pythonDefinitions"] as const) {
+      if (value[key] !== undefined && !Array.isArray(value[key])) throw new Error(`工作流 environment.${key} 必须是数组`);
+    }
+    for (const item of (value.pythonImports as unknown[] | undefined) ?? []) {
+      if (!item || typeof item !== "object" || typeof (item as Record<string, unknown>).source !== "string") throw new Error("工作流包含无效 Python import 环境项");
+    }
+    for (const item of (value.pythonDefinitions as unknown[] | undefined) ?? []) {
+      const raw = item as Record<string, unknown> | null;
+      if (!raw || typeof raw.name !== "string" || typeof raw.source !== "string") throw new Error("工作流包含无效 Python 函数环境项");
+    }
+  }
+  if (document.parameters !== undefined) {
+    if (!Array.isArray(document.parameters)) throw new Error("工作流 parameters 必须是数组");
+    const names = new Set<string>();
+    for (const item of document.parameters) {
+      const raw = item as Record<string, unknown> | null;
+      if (!raw || typeof raw.name !== "string" || !raw.name.trim() || typeof raw.expression !== "string" || !isValueType(raw.valueType)) throw new Error("工作流包含无效参数定义");
+      if (names.has(raw.name)) throw new Error(`工作流参数重复：${raw.name}`);
+      names.add(raw.name);
+    }
+  }
+}
+
 export function validateWorkflowDocument(document: Record<string, unknown>): asserts document is WorkflowDocument {
   if (typeof document.name !== "string" || !Array.isArray(document.nodes) || !Array.isArray(document.edges)) {
     throw new Error("工作流缺少name、nodes或edges");
@@ -226,6 +258,7 @@ export function validateWorkflowDocument(document: Record<string, unknown>): ass
   if (document.requirements !== undefined && (!Array.isArray(document.requirements) || document.requirements.some((item) => typeof item !== "string"))) {
     throw new Error("工作流 requirements 必须是字符串数组");
   }
+  validateWorkflowContext(document);
   const functions = parseFunctions(document.functions);
   validateFunctionDefinitions(functions);
   validateGraph(document.nodes, document.edges, functions, "工作流");

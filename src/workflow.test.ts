@@ -13,12 +13,14 @@ describe("serializeWorkflow", () => {
     expect(parseWorkflow(JSON.stringify(workflow))).toEqual(workflow);
   });
 
-  it("migrates schema v1 workflows through v2 to v3 and canonicalizes optional collections", () => {
+  it("migrates schema v1 workflows through v4 and canonicalizes document collections", () => {
     const migrated = parseWorkflowWithReport(JSON.stringify({ schemaVersion: 1, name: "legacy", nodes: [], edges: [] }));
-    expect(migrated.document.schemaVersion).toBe(3);
+    expect(migrated.document.schemaVersion).toBe(4);
     expect(migrated.document.functions).toEqual([]);
     expect(migrated.document.requirements).toEqual([]);
-    expect(migrated.report.schemaSteps).toEqual([{ fromVersion: 1, toVersion: 2 }, { fromVersion: 2, toVersion: 3 }]);
+    expect(migrated.document.environment).toEqual({ pythonImports: [], pythonDefinitions: [] });
+    expect(migrated.document.parameters).toEqual([]);
+    expect(migrated.report.schemaSteps).toEqual([{ fromVersion: 1, toVersion: 2 }, { fromVersion: 2, toVersion: 3 }, { fromVersion: 3, toVersion: 4 }]);
   });
 
   it("collects only function bodies reachable from root calls", () => {
@@ -38,8 +40,8 @@ describe("serializeWorkflow", () => {
   });
 
   it("rejects string-encoded node and function versions instead of normalizing corrupted version fields", () => {
-    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 3, name: "bad-node-version", nodes: [{ id: "n", data: { nodeType: "table.absolute", nodeVersion: "1", parameters: {} } }], edges: [], functions: [], requirements: [] }))).toThrow(/节点版本无效/);
-    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 3, name: "bad-function-version", nodes: [], edges: [], functions: [{ id: "fn", name: "fn", version: "1", inputs: [], outputs: [], nodes: [], edges: [] }], requirements: [] }))).toThrow(/版本无效/);
+    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 4, name: "bad-node-version", nodes: [{ id: "n", data: { nodeType: "table.absolute", nodeVersion: "1", parameters: {} } }], edges: [], functions: [], requirements: [], environment: { pythonImports: [], pythonDefinitions: [] }, parameters: [] }))).toThrow(/节点版本无效/);
+    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 4, name: "bad-function-version", nodes: [], edges: [], functions: [{ id: "fn", name: "fn", version: "1", inputs: [], outputs: [], nodes: [], edges: [] }], requirements: [], environment: { pythonImports: [], pythonDefinitions: [] }, parameters: [] }))).toThrow(/版本无效/);
   });
 
   it("rejects malformed supported-version structure before migration", () => {

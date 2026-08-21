@@ -69,6 +69,12 @@ export function validateWorkflowMigrationEnvelope(value: unknown): asserts value
   if (document.functions !== undefined && !Array.isArray(document.functions)) {
     throw new WorkflowCompatibilityError("invalid-document", "工作流 functions 必须是数组");
   }
+  if (document.environment !== undefined && (!document.environment || typeof document.environment !== "object" || Array.isArray(document.environment))) {
+    throw new WorkflowCompatibilityError("invalid-document", "工作流 environment 必须是对象");
+  }
+  if (document.parameters !== undefined && !Array.isArray(document.parameters)) {
+    throw new WorkflowCompatibilityError("invalid-document", "工作流 parameters 必须是数组");
+  }
 }
 
 export function migrateWorkflowDocumentWithReport(value: unknown, currentVersion: number): WorkflowSchemaMigrationResult {

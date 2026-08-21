@@ -1152,3 +1152,19 @@ def test_android_notebook_cancel_trace_interrupts_pure_python(monkeypatch):
 
     with pytest.raises(KeyboardInterrupt, match="cancelled"):
         engine_module._run_with_cancel_trace("exec-cancel", busy_python)
+
+
+def test_workflow_context_initializes_imports_parameters_and_functions_before_canvas_nodes():
+    workflow = {
+        "nodes": [node("use", "notebook.code_cell", {"source": "answer = helper([1, 3]) + offset\nanswer"})],
+        "edges": [],
+        "environment": {
+            "pythonImports": [{"source": "import statistics as stats", "cellIndex": 0, "operationIndex": 0}],
+            "pythonDefinitions": [{"name": "helper", "source": "def helper(values):\n    return stats.mean(values)", "cellIndex": 2, "operationIndex": 0}],
+        },
+        "parameters": [{"name": "offset", "expression": "40", "value": 40, "valueType": "number", "cellIndex": 1, "operationIndex": 0}],
+    }
+    result = json.loads(execute_workflow(json.dumps(workflow), ""))
+    assert result["status"] == "success"
+    assert result["nodeResults"]["use"]["kind"] == "value"
+    assert result["nodeResults"]["use"]["value"] == 42.0

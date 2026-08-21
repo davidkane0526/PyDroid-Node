@@ -8,6 +8,23 @@ import { executeLoopSubflow, executeVisualStructure } from "./structures";
 import { decodeWorkspaceState, encodeWorkspaceState } from "./state";
 import { createFunctionExecutionContext, executeFunctionCall } from "./functions";
 
+
+function initializeNotebookContext(workflow: ReturnType<typeof flattenWorkflowGroups>, namespace: Record<string, unknown>): void {
+  for (const parameter of workflow.parameters ?? []) {
+    if (parameter && typeof parameter.name === "string") namespace[parameter.name] = parameter.value;
+  }
+  for (const item of workflow.environment?.pythonImports ?? []) {
+    const source = String(item.source ?? "").trim();
+    const direct = source.match(/^import\s+(pandas|numpy|matplotlib\.pyplot|math)(?:\s+as\s+([A-Za-z_]\w*))?$/);
+    if (direct) {
+      const module = direct[1];
+      const alias = direct[2] || module.split(".").pop()!;
+      const known = module === "pandas" ? namespace.pd : module === "numpy" ? namespace.np : module === "matplotlib.pyplot" ? namespace.plt : namespace.math;
+      if (known !== undefined) namespace[alias] = known;
+    }
+  }
+}
+
 export function executeWorkflowJson(workflowJson: string, csvText: string, inputFilesJson = "[]"): string {
   try {
     const { workflow, inputFiles } = parseWorkflowInputs(workflowJson, csvText, inputFilesJson);
@@ -26,6 +43,7 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
     const containedNodeIds = new Set(flattened.nodes.filter((node) => node.parentId).map((node) => node.id));
 
     const notebookNamespace = createNotebookNamespace(csvText, inputFiles);
+    initializeNotebookContext(flattened, notebookNamespace);
     const variables = new Map<string, unknown>();
     const workspaceVariables = decodeWorkspaceState(workflow.workspaceState);
     const functionContext = createFunctionExecutionContext(workflow, csvText, inputFiles, notebookNamespace, variables, workspaceVariables);

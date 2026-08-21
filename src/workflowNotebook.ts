@@ -1,5 +1,5 @@
 import type { Edge } from "@xyflow/react";
-import { parseWorkflow, type WorkflowDocument, type WorkflowFunctionDefinition, type WorkflowNode } from "./workflow";
+import { parseWorkflow, type WorkflowDocument, type WorkflowEnvironment, type WorkflowFunctionDefinition, type WorkflowNode, type WorkflowParameterDefinition } from "./workflow";
 import { getNodeSpec, type ValueType } from "./nodeCatalog";
 import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
 
@@ -37,6 +37,11 @@ export type NotebookConversionReport = {
   functionCalls: number;
   functionMaps: number;
   functionConcatMaps: number;
+  managedEnvironmentImports: number;
+  managedWorkflowParameters: number;
+  managedWorkflowDefinitions: number;
+  managedContextOperations: number;
+  canvasOperations: number;
   dependencyLinks: number;
   linkedOperations: number;
   isolatedOperations: number;
@@ -79,6 +84,18 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
   const commentOnlyCodeCells = cells.filter((cell) => cell.cellType === "code" && isPythonCommentOnly(cell.source)).length;
   const functionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef").length;
   const promotedFunctionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string").length;
+  let setupOpen = true;
+  let managedEnvironmentImports = 0;
+  let managedWorkflowParameters = 0;
+  let managedWorkflowDefinitions = 0;
+  for (const operation of operations) {
+    if (!setupOpen) break;
+    if (operation.kind === "Import" || operation.kind === "ImportFrom") { managedEnvironmentImports += 1; continue; }
+    if (typeof operation.parameters?.notebookParameterName === "string" && typeof operation.parameters?.notebookParameterValueJson === "string") { managedWorkflowParameters += 1; continue; }
+    if (operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string") { managedWorkflowDefinitions += 1; continue; }
+    setupOpen = false;
+  }
+  const managedContextOperations = managedEnvironmentImports + managedWorkflowParameters + managedWorkflowDefinitions;
   const producer = new Map<string, number>();
   const functionDefinitionById = new Map<string, number>();
   const linked = new Set<number>();
@@ -132,6 +149,11 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
     functionCalls: operations.filter((operation) => operation.nodeType === "function.call" && operation.semantic).length,
     functionMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic).length,
     functionConcatMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic && operation.parameters?.collectMode === "concat_columns").length,
+    managedEnvironmentImports,
+    managedWorkflowParameters,
+    managedWorkflowDefinitions,
+    managedContextOperations,
+    canvasOperations: Math.max(0, operations.length - managedContextOperations),
     dependencyLinks,
     linkedOperations: linked.size,
     isolatedOperations: Math.max(0, operations.length - linked.size),
@@ -232,12 +254,80 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     reason: operation?.reason,
   });
   const skippedCommentCells = cells.flatMap((cell, index) => cell.cellType === "code" && isPythonCommentOnly(cell.source) ? [{ index, cell }] : []);
+  const analysisEntries: Entry[] = cells.flatMap<Entry>((cell, index) => {
+    if (cell.cellType !== "code") return [];
+    const analysis = byIndex.get(index);
+    const operations = analysis?.operations?.length ? analysis.operations : analysis?.nodeType ? [analysis as Operation] : [];
+    return operations.map((operation, operationIndex) => ({
+      cell, cellIndex: index, operation: operation as Operation, operationIndex: operationIndex * 1000,
+    }));
+  });
+  const contextKeys = new Set<string>();
+  const environment: WorkflowEnvironment = {
+    sourceLanguage: "python",
+    pythonImports: [],
+    pythonDefinitions: [],
+    notebookCells: cells.map((cell, index) => ({ index, cell })),
+    notebookMetadata,
+  };
+  const workflowParameters: WorkflowParameterDefinition[] = [];
+  const parameterNames = new Set<string>();
+  let setupOpen = true;
+  const contextKey = (cellIndex: number, operationIndex: number) => `${cellIndex}:${operationIndex}`;
+  const valueTypeFor = (value: unknown): ValueType => {
+    if (typeof value === "number") return "number";
+    if (typeof value === "string") return "text";
+    if (typeof value === "boolean") return "boolean";
+    if (Array.isArray(value)) return "list";
+    if (value && typeof value === "object") return "object";
+    return "any";
+  };
+  for (const entry of analysisEntries) {
+    const operation = entry.operation;
+    if (!operation) continue;
+    const key = contextKey(entry.cellIndex, entry.operationIndex);
+    const source = operation.source ?? String(operation.parameters?.source ?? "");
+    const isImport = operation.kind === "Import" || operation.kind === "ImportFrom";
+    const promotedFunction = operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string";
+    const parameterName = typeof operation.parameters?.notebookParameterName === "string" ? operation.parameters.notebookParameterName : "";
+    const parameterValueJson = typeof operation.parameters?.notebookParameterValueJson === "string" ? operation.parameters.notebookParameterValueJson : "";
+    const parameterCandidate = Boolean(parameterName && parameterValueJson && (operation.defines ?? []).length === 1 && !(operation.uses ?? []).length);
+    if (setupOpen && isImport && source) {
+      environment.pythonImports.push({
+        source, moduleRoots: importedModuleRoots(source), defines: operation.defines ?? [],
+        cellIndex: entry.cellIndex, operationIndex: entry.operationIndex,
+      });
+      contextKeys.add(key);
+      continue;
+    }
+    if (setupOpen && parameterCandidate && !parameterNames.has(parameterName)) {
+      try {
+        const value = JSON.parse(parameterValueJson) as unknown;
+        workflowParameters.push({
+          name: parameterName,
+          expression: String(operation.parameters?.notebookParameterExpression ?? parameterValueJson),
+          value, valueType: valueTypeFor(value), cellIndex: entry.cellIndex, operationIndex: entry.operationIndex,
+        });
+        parameterNames.add(parameterName);
+        contextKeys.add(key);
+        continue;
+      } catch { /* malformed analyzer metadata stays as executable Python */ }
+    }
+    if (setupOpen && promotedFunction && source) {
+      environment.pythonDefinitions.push({
+        name: (operation.defines ?? [])[0] ?? operation.label ?? "function", source,
+        cellIndex: entry.cellIndex, operationIndex: entry.operationIndex,
+      });
+      contextKeys.add(key);
+      continue;
+    }
+    // Markdown/comments do not appear in analysisEntries.  The first remaining
+    // executable statement closes the setup prelude; later imports/assignments
+    // retain their original canvas/code position so execution semantics cannot
+    // be changed by eager context hoisting.
+    setupOpen = false;
+  }
   const entries: Entry[] = cells.flatMap<Entry>((cell, index) => {
-    // Pure Python comments are Notebook annotations, not executable workflow
-    // steps.  Rendering them as ``notebook.code_cell`` previously gave labels
-    // such as ``# Python`` fake input/output ports and made the graph look as if
-    // comments participated in dataflow.  Keep them in round-trip metadata,
-    // but do not manufacture canvas nodes for them.
     if (cell.cellType === "code" && isPythonCommentOnly(cell.source)) return [];
     const analysis = byIndex.get(index);
     if (cell.cellType === "markdown") {
@@ -246,21 +336,15 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     if (cell.cellType === "code" && analysis?.operations?.length) {
       return analysis.operations
         .flatMap((operation, operationIndex) => {
-          // Reserve a deterministic range per top-level statement.  Child
-          // operations previously used `operationIndex * 100 + child`, which
-          // collided with the next top-level statement for the first block.
           const topLevelOrder = operationIndex * 1000;
+          if (contextKeys.has(contextKey(index, topLevelOrder))) return [];
           const executable = operation.semantic && operation.nodeType && !operation.nodeType.startsWith("notebook.")
             ? operation
             : fallbackOperation(cell, topLevelOrder, operation);
           const children = executable.semantic
             ? (operation.children ?? []).filter((child) => child.semantic && child.nodeType).map((child, childIndex) => ({
-              cell,
-              cellIndex: index,
-              operation: { ...child, index: topLevelOrder + childIndex + 1 } as Operation,
-              operationIndex: topLevelOrder + childIndex + 1,
-              parentOperationIndex: topLevelOrder,
-              branch: child.branch,
+              cell, cellIndex: index, operation: { ...child, index: topLevelOrder + childIndex + 1 } as Operation,
+              operationIndex: topLevelOrder + childIndex + 1, parentOperationIndex: topLevelOrder, branch: child.branch,
             }))
             : [];
           return [{ cell, cellIndex: index, operation: executable as Operation, operationIndex: topLevelOrder }, ...children];
@@ -284,7 +368,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
   };
   const functionDefinitions: WorkflowFunctionDefinition[] = [];
   const functionDefinitionMap = new Map<string, WorkflowFunctionDefinition>();
-  for (const entry of entries) {
+  for (const entry of analysisEntries) {
     if (entry.operation?.kind !== "FunctionDef") continue;
     const params = entry.operation.parameters ?? {};
     const id = typeof params.workflowFunctionId === "string" ? params.workflowFunctionId : "";
@@ -653,16 +737,23 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
       return edge;
     }));
   }
-  return parseWorkflow(JSON.stringify({ schemaVersion: 1, name, nodes: groupedNodes, edges: groupedEdges, functions: functionDefinitions }));
+  return parseWorkflow(JSON.stringify({ schemaVersion: 4, name, nodes: groupedNodes, edges: groupedEdges, functions: functionDefinitions, requirements: conversionReport.androidUnsupportedModules, environment, parameters: workflowParameters }));
 }
 
-export function workflowNotebookMetadata(nodes: WorkflowNode[]): Record<string, unknown> {
+export function workflowNotebookMetadata(nodes: WorkflowNode[], environment?: WorkflowEnvironment): Record<string, unknown> {
+  if (environment?.notebookMetadata && typeof environment.notebookMetadata === "object") return environment.notebookMetadata;
   const raw = nodes.find((node) => typeof node.data.parameters.notebookMetadataJson === "string")?.data.parameters.notebookMetadataJson;
   if (typeof raw !== "string" || !raw) return {};
   try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; }
 }
 
-export function workflowNotebookCells(nodes: WorkflowNode[], edges: Edge[], requirements: string[] = []): NotebookCell[] {
+export function workflowNotebookCells(nodes: WorkflowNode[], edges: Edge[], requirements: string[] = [], environment?: WorkflowEnvironment): NotebookCell[] {
+  if (environment?.notebookCells?.length) {
+    return [...environment.notebookCells]
+      .filter((entry): entry is { index: number; cell: NotebookCell } => typeof entry.index === "number" && Boolean(entry.cell && typeof entry.cell === "object"))
+      .sort((left, right) => left.index - right.index)
+      .map((entry) => entry.cell);
+  }
   if (!nodes.length) return [];
   if (nodes.some((node) => typeof node.data.parameters.notebookCellJson === "string")) {
     const originals = nodes.filter((node) => typeof node.data.parameters.notebookCellJson === "string");

@@ -39,6 +39,38 @@ export type WorkflowGroupPort = {
 };
 
 export type WorkflowNode = Node<WorkflowNodeData>;
+export type WorkflowEnvironmentImport = {
+  source: string;
+  moduleRoots: string[];
+  defines: string[];
+  cellIndex?: number;
+  operationIndex?: number;
+};
+
+export type WorkflowEnvironmentDefinition = {
+  name: string;
+  source: string;
+  cellIndex?: number;
+  operationIndex?: number;
+};
+
+export type WorkflowEnvironment = {
+  sourceLanguage?: "python" | "javascript" | "portable";
+  pythonImports: WorkflowEnvironmentImport[];
+  pythonDefinitions: WorkflowEnvironmentDefinition[];
+  notebookCells?: Array<{ index: number; cell: unknown }>;
+  notebookMetadata?: Record<string, unknown>;
+};
+
+export type WorkflowParameterDefinition = {
+  name: string;
+  expression: string;
+  value: unknown;
+  valueType: ValueType;
+  cellIndex?: number;
+  operationIndex?: number;
+};
+
 export type WorkflowFunctionDefinition = {
   id: string;
   name: string;
@@ -57,6 +89,8 @@ export type WorkflowDocument = {
   edges: Edge[];
   functions: WorkflowFunctionDefinition[];
   requirements: string[];
+  environment: WorkflowEnvironment;
+  parameters: WorkflowParameterDefinition[];
 };
 
 export function normalizeNodePositions(nodes: WorkflowNode[]): WorkflowNode[] {
@@ -214,6 +248,8 @@ export function serializeWorkflow(
   edges: Edge[],
   requirements: string[] = [],
   functions: WorkflowFunctionDefinition[] = [],
+  environment: WorkflowEnvironment = { pythonImports: [], pythonDefinitions: [] },
+  parameters: WorkflowParameterDefinition[] = [],
 ): WorkflowDocument {
   return {
     schemaVersion: WORKFLOW_SCHEMA_VERSION,
@@ -222,6 +258,8 @@ export function serializeWorkflow(
     edges,
     functions,
     requirements,
+    environment,
+    parameters,
   };
 }
 

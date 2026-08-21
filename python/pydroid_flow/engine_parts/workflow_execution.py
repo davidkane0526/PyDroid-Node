@@ -37,6 +37,32 @@ def _new_notebook_namespace(csv_text: str, input_files: list[dict[str, Any]]) ->
     notebook_inputs = [io.StringIO(item.get("text", "")) for item in input_files] or ([io.StringIO(csv_text)] if csv_text else [])
     return {"__builtins__": builtins.__dict__, "pd": pd, "np": np, "plt": plt, "math": math, "csv_text": csv_text, "input_files": notebook_inputs}
 
+
+def _initialize_notebook_context(workflow: dict[str, Any], namespace: dict[str, Any]) -> None:
+    """Execute hoisted Notebook setup in original source order.
+
+    Context entries are deliberately restricted by the compiler to the leading
+    setup region.  Imports and safe function definitions are executed exactly as
+    Python source; workflow parameters are assigned from their original literal
+    expression so tuple/list/string semantics are preserved.
+    """
+    environment = workflow.get("environment") if isinstance(workflow.get("environment"), dict) else {}
+    steps: list[tuple[int, int, int, str, str]] = []
+    for item in environment.get("pythonImports", []) if isinstance(environment.get("pythonImports"), list) else []:
+        if isinstance(item, dict) and isinstance(item.get("source"), str):
+            steps.append((int(item.get("cellIndex", 0)), int(item.get("operationIndex", 0)), 0, "source", item["source"]))
+    for item in workflow.get("parameters", []) if isinstance(workflow.get("parameters"), list) else []:
+        if isinstance(item, dict) and isinstance(item.get("name"), str):
+            expression = item.get("expression")
+            if not isinstance(expression, str) or not expression.strip():
+                expression = repr(_decode_json_compatible(item.get("value")))
+            steps.append((int(item.get("cellIndex", 0)), int(item.get("operationIndex", 0)), 1, "source", f"{item['name']} = {expression}"))
+    for item in environment.get("pythonDefinitions", []) if isinstance(environment.get("pythonDefinitions"), list) else []:
+        if isinstance(item, dict) and isinstance(item.get("source"), str):
+            steps.append((int(item.get("cellIndex", 0)), int(item.get("operationIndex", 0)), 2, "source", item["source"]))
+    for _cell, _operation, _kind, _mode, source in sorted(steps):
+        _execute_notebook_cell(source, namespace)
+
 def _execute_container_graph(
     workflow: dict[str, Any], children: list[dict[str, Any]], seed: Any, csv_text: str,
     input_files: list[dict[str, Any]], variables: dict[str, Any] | None = None,
@@ -690,6 +716,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
     execution_order: list[str] = []
     loop_body_ids = _all_loop_body_ids(workflow) | _contained_node_ids(workflow)
     notebook_namespace = _new_notebook_namespace(csv_text, input_files)
+    _initialize_notebook_context(workflow, notebook_namespace)
     workspace_variables = decode_workspace_state(workflow.get("workspaceState"))
     variables: dict[str, Any] = {"__execution__": {}, "__workspace__": workspace_variables}
 

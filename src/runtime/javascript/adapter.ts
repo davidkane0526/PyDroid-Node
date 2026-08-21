@@ -79,7 +79,7 @@ export const javascriptRuntime: RuntimeAdapter = {
       );
     }
 
-    const document = { ...serializeWorkflow("JavaScript 工作流", request.nodes, request.edges, [], request.functions ?? []), workspaceState: request.workspaceState ?? {} };
+    const document = { ...serializeWorkflow("JavaScript 工作流", request.nodes, request.edges, [], request.functions ?? [], request.environment, request.parameters), workspaceState: request.workspaceState ?? {} };
     const raw = JSON.parse(executeWorkflowJson(
       JSON.stringify(document),
       request.csvText,

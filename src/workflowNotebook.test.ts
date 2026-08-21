@@ -195,6 +195,40 @@ describe("workflow notebook DSL", () => {
     expect(workflowNotebookCells(workflow.nodes, workflow.edges).map((cell) => cell.source)).toEqual(["# Python\n# experiment setup", "value = 1"]);
   });
 
+  it("hoists a leading Python setup prelude into persisted Workflow Context and preserves Notebook round-trip", () => {
+    const source = "import pandas as pd\nthreshold = 3\ndef helper(frame):\n    return frame.head(threshold)\nresult = helper(frame)";
+    const functionId = "notebook-fn-1-1-helper";
+    const cells = [{ id: "context", cellType: "code" as const, source }];
+    const workflow = analyzedNotebookToWorkflow("上下文", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "Import", nodeType: "notebook.code_cell", label: "导入模块", source: "import pandas as pd", defines: ["pd"], uses: [], parameters: { source: "import pandas as pd" } },
+      { index: 1, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "参数 · threshold", source: "threshold = 3", defines: ["threshold"], uses: [], parameters: { source: "threshold = 3", notebookParameterName: "threshold", notebookParameterExpression: "3", notebookParameterValueJson: "3" } },
+      { index: 2, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · helper", source: "def helper(frame):\n    return frame.head(threshold)", defines: ["helper"], uses: [], parameters: {
+        source: "def helper(frame):\n    return frame.head(threshold)",
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def helper(frame: 'table', *, threshold: 'Any') -> 'table':\n    return frame.head(threshold)",
+        workflowFunctionInputsJson: JSON.stringify(["frame", "threshold"]),
+        workflowFunctionInputTypesJson: JSON.stringify(["table", "any"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]),
+        workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionDependenciesJson: JSON.stringify(["threshold"]),
+      } },
+      { index: 3, recognized: true, semantic: true, kind: "UserFunctionCall", nodeType: "function.call", label: "helper", inputVariable: "frame", outputVariable: "result", defines: ["result"], uses: ["frame", "threshold"], parameters: {
+        functionId, functionVersion: 1,
+        notebookInputBindingsJson: JSON.stringify({ frame: "frame", threshold: "threshold" }),
+        notebookLiteralInputsJson: JSON.stringify({}),
+        notebookExpressionInputsJson: JSON.stringify({}),
+        notebookFunctionInputsJson: JSON.stringify(["frame", "threshold"]),
+        notebookFunctionOutputsJson: JSON.stringify(["output"]),
+      } },
+    ] }]);
+    expect(workflow.environment.sourceLanguage).toBe("python");
+    expect(workflow.environment.pythonImports.map((item) => item.source)).toEqual(["import pandas as pd"]);
+    expect(workflow.parameters).toMatchObject([{ name: "threshold", expression: "3", value: 3, valueType: "number" }]);
+    expect(workflow.environment.pythonDefinitions.map((item) => item.name)).toEqual(["helper"]);
+    expect(workflow.nodes.map((node) => node.data.nodeType)).toEqual(["function.call"]);
+    expect(workflowNotebookCells(workflow.nodes, workflow.edges, workflow.requirements, workflow.environment).map((cell) => cell.source)).toEqual([source]);
+  });
+
   it("adds visual-only execution order links when adjacent notebook operations have no data dependency", () => {
     const cells = [{ id: "order", cellType: "code" as const, source: "import pandas as pd\nvalue = 1\nprint(value)" }];
     const workflow = analyzedNotebookToWorkflow("顺序", cells, [{ index: 0, recognized: true, semantic: false, operations: [
@@ -208,17 +242,17 @@ describe("workflow notebook DSL", () => {
   });
 
   it("does not expose visual notebook dependencies as public workflow-group data ports", () => {
-    const cells = [{ id: "group-visual", cellType: "code" as const, source: "import pandas as pd\nvalue = 1\nprint(value)" }];
+    const cells = [{ id: "group-visual", cellType: "code" as const, source: "frame = make()\nvalue = use(frame)\nprint(value)" }];
     const workflow = analyzedNotebookToWorkflow("组合端口", cells, [{ index: 0, recognized: true, semantic: false, operations: [
-      { index: 0, recognized: true, semantic: false, kind: "Import", nodeType: "notebook.code_cell", label: "导入", source: "import pandas as pd", defines: ["pd"], uses: [], parameters: { source: "import pandas as pd" } },
-      { index: 1, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = 1", defines: ["value"], uses: [], parameters: { source: "value = 1" } },
+      { index: 0, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "frame", source: "frame = make()", defines: ["frame"], uses: ["make"], parameters: { source: "frame = make()" } },
+      { index: 1, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = use(frame)", defines: ["value"], uses: ["use", "frame"], parameters: { source: "value = use(frame)" } },
       { index: 2, recognized: true, semantic: false, kind: "Expr", nodeType: "notebook.code_cell", label: "打印", source: "print(value)", defines: [], uses: ["print", "value"], parameters: { source: "print(value)" } },
     ] }]);
     const group = workflow.nodes.find((node) => node.data.nodeType === "workflow.group")!;
     expect(group).toBeTruthy();
     expect(group.data.groupInputs).toEqual([]);
     expect(group.data.groupOutputs).toEqual([]);
-    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-order")).toBe(true);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-variable")).toBe(true);
   });
 
   it("auto-connects notebook data and scalar parameter dependencies without turning parameter lines into data edges", () => {
@@ -236,7 +270,7 @@ describe("workflow notebook DSL", () => {
     expect(JSON.parse(String(periodic.data.parameters.notebookInputBindingsJson))).toEqual({ input: "frame" });
   });
 
-  it("shows provenance from an original function definition to a native lowered node without creating a data edge", () => {
+  it("moves a leading promoted function definition into Workflow Functions instead of keeping a provenance-only canvas node", () => {
     const functionId = "notebook-fn-1-1-pick";
     const cells = [{ id: "native-origin", cellType: "code" as const, source: "def pick(frame):\n    return frame\npicked = pick(frame)" }];
     const workflow = analyzedNotebookToWorkflow("原生下沉", cells, [{ index: 0, recognized: true, semantic: true, operations: [
@@ -254,11 +288,12 @@ describe("workflow notebook DSL", () => {
         groupSize: 4, count: 1, position: "start", notebookSourceFunctionId: functionId, notebookSourceFunctionName: "pick", notebookInputBindingsJson: JSON.stringify({ input: "frame" }),
       } },
     ] }]);
-    const definition = workflow.nodes.find((node) => node.data.nodeType === "notebook.code_cell")!;
-    const lowered = workflow.nodes.find((node) => node.data.nodeType === "table.periodic_window")!;
-    const provenance = workflow.edges.find((edge) => edge.data?.role === "notebook-provenance" && edge.data?.relation === "function-origin");
-    expect(provenance?.source).toBe(definition.id);
-    expect(provenance?.target).toBe(lowered.id);
+    expect(workflow.environment.sourceLanguage).toBe("python");
+    expect(workflow.environment.pythonDefinitions.map((definition) => definition.name)).toEqual(["pick"]);
+    expect(workflow.functions.map((definition) => definition.id)).toEqual([functionId]);
+    expect(workflow.nodes.some((node) => node.data.nodeType === "notebook.code_cell" && node.data.parameters.astKind === "FunctionDef")).toBe(false);
+    expect(workflow.nodes.some((node) => node.data.nodeType === "table.periodic_window")).toBe(true);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-provenance" && edge.data?.relation === "function-origin")).toBe(false);
   });
 
   it("creates a document workflow function and typed call ports for promoted notebook calls", () => {
@@ -291,7 +326,8 @@ describe("workflow notebook DSL", () => {
     const call = workflow.nodes.find((node) => node.data.nodeType === "function.call")!;
     expect(call.data.functionInputs?.map((port) => port.id)).toEqual(["frame", "factor"]);
     expect(call.data.functionOutputs?.map((port) => port.id)).toEqual(["output"]);
-    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-provenance" && edge.data?.relation === "function-origin" && edge.target === call.id)).toBe(true);
+    expect(workflow.environment.pythonDefinitions.map((definition) => definition.name)).toEqual(["scale"]);
+    expect(workflow.nodes.some((node) => node.data.nodeType === "notebook.code_cell" && node.data.parameters.astKind === "FunctionDef")).toBe(false);
   });
 
   it("creates a function.map node with function inputs and one collected table output", () => {
@@ -379,6 +415,9 @@ describe("workflow notebook DSL", () => {
     expect(report.functionCalls).toBe(1);
     expect(report.functionMaps).toBe(1);
     expect(report.functionConcatMaps).toBe(1);
+    expect(report.managedWorkflowDefinitions).toBe(1);
+    expect(report.managedContextOperations).toBe(1);
+    expect(report.canvasOperations).toBe(3);
     expect(report.dependencyLinks).toBeGreaterThanOrEqual(0);
     expect(report.linkedOperations + report.isolatedOperations).toBe(report.operations);
     expect(report.importedModules).toEqual(["PIL", "matplotlib", "numpy", "os", "pandas", "scipy"]);
