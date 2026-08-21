@@ -107,6 +107,8 @@ try {
   assert.equal(firstStart, secondStart, "concurrent Remote Web starts must share one in-flight transaction");
   const info = await firstStart;
   assert.equal(info.port, 8765, "Remote Web must use the stable LAN port from the proven LAN demo contract");
+  assert.equal(info.readiness?.networkBoundaryReady, true, "non-Windows E2E must still expose a ready network-boundary contract");
+  assert.equal(info.readiness?.externalClientObserved, false, "same-host E2E probes must not masquerade as an external physical client");
   assert.equal(info.readiness?.loopback, true, "loopback readiness must be verified");
   assert.equal(info.readiness?.allLanHttpReady, true, `every advertised LAN IPv4 must answer /health: ${JSON.stringify(info.readiness?.lanHttp ?? [])}`);
   assert.equal(info.readiness?.discoveryReady, true, "SSDP and mDNS must finish real bind/join before startup is considered ready");

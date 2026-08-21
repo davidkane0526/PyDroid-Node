@@ -21,11 +21,14 @@ export type RemoteDiscoveryStatus = {
 };
 export type RemoteFirewallStatus = {
   applicable: boolean;
+  inspectionComplete?: boolean;
+  firewallEnabled?: boolean;
   rulesReady: boolean;
+  networkBoundaryReady?: boolean;
   privateNetworkActive: boolean;
   activeProfiles: string[];
-  profiles?: Array<{ interface: string; category: string; ipv4: string }>;
-  rules?: Array<{ name: string; protocol: string; port: number; present: boolean }>;
+  profiles?: Array<{ interface?: string; category?: string; ipv4?: string; name?: string; enabled?: boolean; defaultInboundAction?: string }>;
+  rules?: Array<{ name: string; protocol: string; port: number; present: boolean; profile?: string; remoteAddress?: string[] }>;
   reason?: string | null;
   error?: string | null;
   elevationAttempted?: boolean;
@@ -36,6 +39,9 @@ export type RemoteServerReadiness = {
   lanHttp: Array<{ address: string; ok: boolean; error?: string }>;
   allLanHttpReady: boolean;
   discoveryReady: boolean;
+  networkBoundaryReady?: boolean;
+  externalClientObserved?: boolean;
+  externalClient?: { address: string; observedAt: string } | null;
   firewall?: RemoteFirewallStatus;
 };
 export type RemoteServerInfo = {

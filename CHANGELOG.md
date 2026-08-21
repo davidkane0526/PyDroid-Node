@@ -1,3 +1,13 @@
+## 1.4.79 (102) — Phase 11 Desktop LAN boundary verification correction — 2026-08-21
+
+- Corrects the real packaged 1.4.78 Desktop false-positive: `remote-host-e2e` passed in about 135 ms on `192.168.3.185:8765` even though another LAN device could not reach the service. The old case proved same-host socket/resource/discovery readiness, not the Windows inbound boundary.
+- Keeps the accepted network surface unchanged: TCP 8765, SSDP 1900, mDNS 5353, UPnP identity, PIN/token behavior, startup controls and all existing UI copy. No new user-visible text is introduced.
+- Adds versioned Windows inbound ownership for TCP 8765/UDP 1900/UDP 5353 restricted to `LocalSubnet`, using profile selector `Any` so reachability does not depend on mutable/unknown Public-vs-Private categorization. Provisioning is single-flight; existing v2 rules take the fast path, and a rejected elevation is not repeatedly requested in the same process.
+- Separates host self-readiness from external reachability. Loopback and host-local interface addresses never count as external clients; observation expires after ten minutes and is invalidated when the host LAN-address set changes.
+- Desktop `remote-host-e2e` now fails when the Windows network boundary is invalid and skips when no real non-local client has yet been observed. Full 22/22 therefore cannot be produced by same-host probes alone.
+- Leaves all Phase 11 Workflow schema v3, NodeSpec/function migration, Editor Resource schema v2 and future-version protection semantics unchanged. The Phase 11 freeze audit permits only the evidence-backed Desktop LAN implementation exception and continues to reject unauthorized UI copy.
+- Build script revision: `1.4.79-dev-r55-phase11-lan-boundary-verification`.
+
 ## 1.4.78 (101) — Phase 11 final TypeScript build-gate hotfix — 2026-08-21
 
 - Fixes the real Windows dependency-backed production build failure reported for the 1.4.77 Phase 11 completion candidate: `src/diagnostics/automated-debug.ts` called a nonexistent `EditorWorkspaceSession.captureSnapshot()` method and failed strict TypeScript with `TS2339`.

@@ -80,3 +80,19 @@ The built-in `remote-host-e2e` report exposes host-side checks under `readiness`
 ## 1.4.75 host-state reconciliation
 
 1.4.75 does not change SSDP, UPnP, mDNS, TCP 8765, interface selection or discovery retry behavior. It adds a read-only native host-status contract used by the existing UI while the service is already active. After the 5-second network watcher changes the advertised interface set or a protocol recovers, the current banner/status state can refresh to the new canonical URL/discovery snapshot without calling `start()` again. If the native host has actually stopped, the stale running indicator is cleared. This reconciliation path adds no user-visible text and never starts/stops the host by itself.
+
+
+## 1.4.79 Windows inbound-boundary correction
+
+Real 1.4.78 Desktop use again showed that same-host `http://<LAN-IP>:8765/` probes can pass while another physical LAN device cannot connect. The failed environment was `192.168.3.185`; the in-app case completed in about 135 ms and therefore certified only local socket/bundle/discovery state, not the Windows inbound path.
+
+1.4.79 keeps the accepted network protocol surface unchanged: fixed TCP 8765, SSDP 1900, mDNS 5353, UPnP identity, PIN/token behavior and all existing UI copy remain unchanged. The correction is limited to the Windows inbound boundary and its evidence model:
+
+- When the user explicitly starts LAN service, Desktop ensures versioned inbound rules for TCP 8765, UDP 1900 and UDP 5353. Rules are restricted to `LocalSubnet`; they use the Windows `Any` profile selector so connectivity does not depend on mutable/unknown Public-vs-Private categorization.
+- Rule provisioning is single-flight. Existing v2 rules take the fast path; missing rules can request one system UAC elevation. A rejected/failed elevation is not repeatedly retriggered in the same app process. No application UI explanation text is added.
+- Legacy/private-profile PyDroid rules are removed when the elevated v2 rule set is installed, avoiding competing stale rules.
+- Host connection info separates `networkBoundaryReady` from `externalClientObserved`. Loopback and the host's own interface addresses never count as external evidence.
+- External-client evidence expires after 10 minutes and is invalidated when the host LAN-address set changes, so evidence from another network cannot make the current network pass.
+- `remote-host-e2e` no longer treats a same-host LAN-IP HTTP request as proof of LAN reachability. On Desktop, it passes only after the Windows boundary is ready and a real non-local client has reached the service; otherwise it fails for a boundary defect or skips for missing external evidence.
+
+This supersedes the 1.4.72 Private-profile startup experiment. 1.4.79 does **not** reintroduce Private-profile gating, synchronous profile checks, repeated application dialogs or any new UI copy.

@@ -185,3 +185,12 @@ Phase 11 is complete only when all of the following hold:
 - Phase 1-10 architecture/runtime/host/UI regression gates still pass;
 - Remote Web/LAN frozen files and current UI copy remain unchanged;
 - final user-host dependency-backed build is the last production build gate.
+
+
+## 1.4.79 final real-host correction
+
+The first packaged 1.4.78 Phase 11 verification compiled successfully and its Workflow compatibility diagnostics passed, but real Desktop LAN access failed again while `remote-host-e2e` reported pass. The report showed a same-host `192.168.3.185:8765` probe completing in about 135 ms; it did not contain evidence from another physical client. This invalidated the remaining assumption that a host self-request through its LAN address can certify the Windows inbound boundary.
+
+The Workflow Compatibility & Migration implementation itself is unchanged. 1.4.79 adds an evidence-backed exception to the Phase 11 Remote/LAN freeze for only `desktop/lan/firewall.cjs` and `desktop/services/remote-server.cjs`, plus the platform/diagnostics contract needed to report the result. Windows rule provisioning is single-flight, `LocalSubnet`-scoped and profile-category-independent; no Remote UI text, port, discovery protocol or PIN/token semantic changes. Diagnostics now separate same-host readiness from a real non-local client observation, so a self-only run cannot produce a false 22/22 Desktop result.
+
+The Phase 11 freeze audit explicitly permits only these defect-backed network files and continues to reject other Remote/LAN changes or new `setMessage()` UI copy.

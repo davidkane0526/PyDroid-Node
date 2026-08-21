@@ -57,6 +57,7 @@ const files = [
   "src/editor-core/resource-contract.ts",
   "src/editor-core/resource-migrations.ts",
   "src/diagnostics/automated-debug.ts",
+  "src/platform/types.ts",
 ].map((file) => resolve(root, file));
 
 writeFileSync(configPath, JSON.stringify({

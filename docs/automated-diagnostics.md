@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.78
+Current behavior: 1.4.79
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -46,7 +46,7 @@ The report records only application/runtime diagnostics and the names/counts of 
 21. Python workspace variable write -> second-run read when a Python host exists.
 22. Python reusable function signature/handles + absolute-value execution when a Python host exists.
 
-A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host is externally reachable. A fully capable local host reports **22/22**. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
+A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host is externally reachable. On Desktop 1.4.79, `remote-host-e2e` distinguishes same-host readiness from external reachability: Windows LAN-boundary readiness must be valid and a non-local LAN client must have actually reached the current host/network within the evidence window before this case can pass. If no external client has yet been observed, the case is skipped rather than falsely passing; a boundary failure is a test failure. Therefore **22/22 is only a valid Desktop full-host result after a real second device has reached the service**. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
 
 Phase 11 strengthens the existing 22 cases without adding new user-visible diagnostic rows: document lifecycle now verifies schema-v1 migration plus future-workflow/autosave non-destructive rejection; resource persistence verifies legacy resource migration plus opaque future-resource preservation; and each existing workspace-persistence runtime case additionally executes a migrated schema-v1 workflow. The separate repository compatibility corpus provides the exhaustive historical migration gate.
 

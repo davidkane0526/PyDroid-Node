@@ -2,9 +2,10 @@ const { app, BrowserWindow } = require("electron");
 const crypto = require("node:crypto");
 const fs = require("node:fs");
 const http = require("node:http");
+const os = require("node:os");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
-const { LAN_WEB_PORT } = require("../lan/firewall.cjs");
+const { LAN_WEB_PORT, ensureWindowsLanFirewall, inspectWindowsLanFirewall } = require("../lan/firewall.cjs");
 const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
 
 const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
@@ -69,6 +70,12 @@ function normalizeClientAddress(request) {
   return String(request.socket?.remoteAddress ?? "unknown").replace(/^::ffff:/, "").replace(/^\[|\]$/g, "") || "unknown";
 }
 
+function isExternalClientAddress(address, localAddresses = []) {
+  const normalized = String(address ?? "").replace(/^::ffff:/, "").replace(/^\[|\]$/g, "");
+  if (!normalized || normalized === "unknown" || normalized === "::1" || normalized.startsWith("127.")) return false;
+  return !localAddresses.includes(normalized);
+}
+
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
   let remoteStartPromise = null;
@@ -76,6 +83,7 @@ function createRemoteServerService({ pythonService, log }) {
   let remoteLifecycleGeneration = 0;
   let remotePin = null;
   let lanDiscovery = null;
+  let lastExternalClient = null;
   const accessGuard = new RemoteAccessGuard();
   const remoteTokens = new RemoteTokenStore();
   const remoteExecutionIds = new Set();
@@ -108,6 +116,25 @@ function createRemoteServerService({ pythonService, log }) {
     return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
   }
 
+  function recordExternalClient(request) {
+    const address = normalizeClientAddress(request);
+    const discovered = lanDiscovery?.getStatus?.().interfaces ?? [];
+    const localAddresses = discovered.length
+      ? discovered.map((item) => item.address)
+      : Object.values(os.networkInterfaces()).flatMap((entries) => (entries ?? []).filter((entry) => !entry.internal).map((entry) => entry.address));
+    if (!isExternalClientAddress(address, localAddresses)) return;
+    lastExternalClient = { address, observedAt: new Date().toISOString(), observedAtMs: Date.now(), hostAddresses: [...localAddresses].sort() };
+  }
+
+  function recentExternalClient(currentLocalAddresses = []) {
+    if (!lastExternalClient) return null;
+    if (Date.now() - Number(lastExternalClient.observedAtMs ?? 0) > 10 * 60 * 1000) return null;
+    const observedHostAddresses = Array.isArray(lastExternalClient.hostAddresses) ? [...lastExternalClient.hostAddresses].sort() : [];
+    const currentHostAddresses = [...currentLocalAddresses].sort();
+    if (JSON.stringify(observedHostAddresses) !== JSON.stringify(currentHostAddresses)) return null;
+    return { address: lastExternalClient.address, observedAt: lastExternalClient.observedAt };
+  }
+
   function currentConnectionSnapshot(server, port = LAN_WEB_PORT) {
     const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
     const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
@@ -125,7 +152,7 @@ function createRemoteServerService({ pythonService, log }) {
     return info;
   }
 
-  async function currentConnectionInfo(server, port = LAN_WEB_PORT) {
+  async function currentConnectionInfo(server, port = LAN_WEB_PORT, firewallOverride = null) {
     const snapshot = currentConnectionSnapshot(server, port);
     const discoveryState = snapshot.discovery ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
     let loopback = false;
@@ -142,11 +169,20 @@ function createRemoteServerService({ pythonService, log }) {
         lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
       }
     }
+    const firewall = firewallOverride ?? await inspectWindowsLanFirewall();
+    const externalClient = recentExternalClient((discoveryState.interfaces ?? []).map((item) => item.address));
     const readiness = {
       loopback,
       lanHttp: lanHealth,
       allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
       discoveryReady: discoveryState.ssdp === "running" && discoveryState.mdns === "running",
+      // A verified named firewall rule is the proactive boundary proof. A real
+      // non-local client reaching this exact interface set is stronger empirical
+      // proof and also covers machines managed by broader enterprise/app rules.
+      networkBoundaryReady: Boolean(firewall?.networkBoundaryReady) || Boolean(externalClient),
+      externalClientObserved: Boolean(externalClient),
+      externalClient,
+      firewall,
     };
     const info = { ...snapshot, readiness };
     if (server) server.__info = info;
@@ -174,6 +210,7 @@ function createRemoteServerService({ pythonService, log }) {
       try {
         const url = new URL(request.url, "http://localhost");
         const clientKey = normalizeClientAddress(request);
+        recordExternalClient(request);
         if (url.pathname === "/upnp/device.xml" && request.method === "GET") {
           const address = request.socket.localAddress && request.socket.localAddress !== "0.0.0.0" ? request.socket.localAddress.replace(/^::ffff:/, "") : undefined;
           const xml = lanDiscovery?.deviceXml(address) ?? "";
@@ -297,6 +334,7 @@ function createRemoteServerService({ pythonService, log }) {
           return reject(error);
         }
         if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
+        const firewallSetupPromise = ensureWindowsLanFirewall({ log });
         try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
           const discovery = lanDiscovery.start({ port });
@@ -308,7 +346,9 @@ function createRemoteServerService({ pythonService, log }) {
           log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
         }
         if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
-        const info = await currentConnectionInfo(server, port);
+        const firewallSetup = await firewallSetupPromise;
+        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
+        const info = await currentConnectionInfo(server, port, firewallSetup);
         if (!info.readiness.loopback) {
           try { server.close(); } catch {}
           return reject(new Error("Remote Web /health readiness check failed"));
@@ -381,4 +421,4 @@ function createRemoteServerService({ pythonService, log }) {
   return { start, stop, status, lifecycleState };
 }
 
-module.exports = { createRemoteServerService, normalizeClientAddress, REMOTE_SECURITY_POLICY };
+module.exports = { createRemoteServerService, normalizeClientAddress, isExternalClientAddress, REMOTE_SECURITY_POLICY };

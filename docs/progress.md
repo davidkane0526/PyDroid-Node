@@ -1,4 +1,15 @@
-# Phase 11 progress — 1.4.78 (101)
+# Phase 11 progress — 1.4.79 (102)
+
+## 1.4.79 final LAN-boundary verification correction
+
+The packaged 1.4.78 build compiled and its Phase 11 compatibility rows passed, but Desktop LAN access again failed on `192.168.3.185` while `remote-host-e2e` passed in only ~135 ms. That result was a same-host LAN-IP self-request, not evidence that another physical client could traverse the Windows inbound boundary.
+
+- Preserve fixed TCP 8765, SSDP 1900, mDNS 5353, UPnP/PIN/token semantics and all existing UI copy.
+- Windows LAN-start now owns versioned `LocalSubnet` inbound rules with profile selector `Any`, avoiding the rejected 1.4.72 Public/Private startup gate. Provisioning is single-flight and existing rules use a fast path.
+- Host readiness separately exposes `networkBoundaryReady` and `externalClientObserved`; loopback and host-local interface addresses cannot satisfy external evidence. Evidence is network-address-set bound and expires after ten minutes.
+- Desktop `remote-host-e2e` fails on an invalid Windows boundary and skips when no real external client has yet been observed. It can no longer produce a full 22/22 result from self-probes alone.
+- Phase 11 migration/resource/runtime behavior remains unchanged; the freeze audit permits only the two evidence-backed Desktop LAN implementation files plus diagnostics/platform contract updates and still forbids new UI copy.
+
 
 ## Workflow Compatibility & Migration complete candidate
 
@@ -9,10 +20,10 @@
 - Autosave distinguishes corruption from future incompatibility and prevents a current version from overwriting a valid future document.
 - Complete Git-history corpus: 8 unique committed historical workflow files (schema v1/v2) + future-v99 guard.
 - Real parser migration → validation → canonical save/reopen and migrated-v1 JavaScript/Python execution parity are dependency-light executable gates.
-- Strict Phase 11 TypeScript smoke covers eight production modules, including `src/diagnostics/automated-debug.ts`, before the final dependency-backed build.
+- Strict Phase 11 TypeScript smoke covers nine production modules, including `src/diagnostics/automated-debug.ts` and the platform readiness types, before the final dependency-backed build.
 - Existing visible host diagnostics remain 22 cases; compatibility checks are embedded without new UI labels/copy.
-- `phase11-freeze-audit` protects the 1.4.76 accepted Remote/LAN implementation and forbids new `setMessage()` UI calls in `App.tsx`.
-- Build script revision: `1.4.78-dev-r54-phase11-final-typecheck-hotfix`.
+- `phase11-freeze-audit` protects the 1.4.76 accepted Remote/LAN implementation except the two evidence-backed Desktop boundary hotfix files and forbids new `setMessage()` UI calls in `App.tsx`.
+- Build script revision: `1.4.79-dev-r55-phase11-lan-boundary-verification`.
 
 ---
 

@@ -664,10 +664,23 @@ async function runtimeInteractionIsolationCase(): Promise<DiagnosticCase> {
 
 
 async function remoteHostE2ECase(deps: AutomatedDiagnosticsDependencies): Promise<DiagnosticCase> {
-  return runCase("remote-host-e2e", "Remote Web 宿主真实启动/HTTP/局域网发现", undefined, async () => {
-    if (!deps.testRemoteHost) throw new Error("当前运行环境不能启动局域网宿主服务");
-    return deps.testRemoteHost();
-  });
+  const started = performance.now();
+  const label = "Remote Web 宿主真实启动/HTTP/局域网发现";
+  if (!deps.testRemoteHost) return { id: "remote-host-e2e", label, status: "skip", durationMs: 0, details: {} };
+  try {
+    const details = await deps.testRemoteHost();
+    const readiness = details.readiness as { networkBoundaryReady?: boolean; externalClientObserved?: boolean } | undefined;
+    const durationMs = Math.round((performance.now() - started) * 100) / 100;
+    if (readiness?.networkBoundaryReady === false) {
+      return { id: "remote-host-e2e", label, status: "fail", durationMs, details, error: "LAN_EXTERNAL_BOUNDARY_UNVERIFIED" };
+    }
+    if (readiness?.externalClientObserved === false) {
+      return { id: "remote-host-e2e", label, status: "skip", durationMs, details };
+    }
+    return { id: "remote-host-e2e", label, status: "pass", durationMs, details };
+  } catch (error) {
+    return { id: "remote-host-e2e", label, status: "fail", durationMs: Math.round((performance.now() - started) * 100) / 100, details: {}, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 async function remoteSecurityPolicyCase(): Promise<DiagnosticCase> {

@@ -33,7 +33,9 @@ const frozenNetworkFiles = new Set([
   "android/app/src/main/java/com/dk/pydroidflow/host/AndroidRemoteService.java",
 ]);
 const networkChanges = changed.filter((file) => frozenNetworkFiles.has(file));
-if (networkChanges.length) throw new Error(`Phase 11 modified frozen Remote/LAN files:\n${networkChanges.join("\n")}`);
+const approvedFinalBoundaryHotfix = new Set(["desktop/lan/firewall.cjs", "desktop/services/remote-server.cjs"]);
+const unauthorizedNetworkChanges = networkChanges.filter((file) => !approvedFinalBoundaryHotfix.has(file));
+if (unauthorizedNetworkChanges.length) throw new Error(`Phase 11 modified frozen Remote/LAN files outside the evidence-backed final boundary hotfix:\n${unauthorizedNetworkChanges.join("\n")}`);
 
 const appDiff = git(["diff", "-U0", PHASE11_BASE, "--", "src/App.tsx"]);
 const addedAppLines = appDiff.split(/\r?\n/).filter((line) => line.startsWith("+") && !line.startsWith("+++"));
@@ -57,4 +59,4 @@ if (!/CURRENT_WORKFLOW_SCHEMA_VERSION\s*=\s*3\b/.test(schema)) throw new Error("
 const resourceMigration = readFileSync("src/editor-core/resource-migrations.ts", "utf8");
 if (!/EDITOR_RESOURCE_SCHEMA_VERSION\s*=\s*2\b/.test(resourceMigration)) throw new Error("Phase 11 must freeze Editor resource schema v2");
 
-console.log(`Phase 11 freeze audit passed (${changed.length} changed paths; Remote/LAN frozen; no new App UI messages).`);
+console.log(`Phase 11 freeze audit passed (${changed.length} changed paths; Remote/LAN frozen except the evidence-backed desktop boundary hotfix; no new App UI messages).`);

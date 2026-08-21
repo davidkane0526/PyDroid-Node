@@ -47,4 +47,6 @@ assert.match(docs, /22\s*\/\s*22|22\s*项/, "diagnostics documentation must desc
 
 const fullHostTotal = expectedCases.length + 4;
 assert.equal(fullHostTotal, 22, "full-host automated diagnostic contract must contain 22 cases");
+assert.match(source, /networkBoundaryReady === false[\s\S]*LAN_EXTERNAL_BOUNDARY_UNVERIFIED/, "host diagnostics must fail rather than pass when the Windows inbound boundary is unverified");
+assert.match(source, /externalClientObserved === false[\s\S]*status: "skip"/, "host diagnostics must not claim external LAN reachability until a real peer has been observed");
 console.log(`Automated diagnostics contract smoke passed (${fullHostTotal} full-host cases, Phase 11 coverage embedded without new UI cases).`);
