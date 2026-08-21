@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.89 (112) · stable Desktop output + passive Remote runtime logging**。Remote Web 只有一条生产路径：直接绑定 `0.0.0.0:8765` 并立即完成启动。LAN 地址只来自 Node `os.networkInterfaces()`，不启动 PowerShell、`route.exe` 或其它外部进程，不申请 UAC，不检查或修改 Windows 防火墙/网络类别，也没有 lifecycle/readiness/recovery 状态机。SSDP/UPnP/mDNS 是独立 best-effort 发现能力，绝不能阻塞 HTTP。Windows 当前桌面版无论是否启用“保留版本归档”都固定输出到 `PyDroid-Flow-Desktop`；历史版本仅作为额外归档。Remote 运行时只旁路写入现有 `desktop.log`，记录监听地址、候选 URL 与前 20 个 HTTP 请求，不参与成功/失败判断。
+> **当前开发版本：1.4.90 (113) · deterministic runtime log + repeatable stable Desktop output**。Remote Web 仍只有一条生产路径：直接绑定 `0.0.0.0:8765` 并立即完成启动，不使用 PowerShell/UAC/防火墙管理/readiness/recovery。Windows 当前桌面版固定输出到 `PyDroid-Flow-Desktop`；重复构建使用一次 `robocopy /MIR` 原位更新，不先递归删除旧 Electron 目录。打包版运行日志固定写到 EXE 同级 `logs/desktop.log`，只记录真实监听、候选 URL 与收到的请求，不参与服务控制。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

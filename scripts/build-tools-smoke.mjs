@@ -27,6 +27,8 @@ assert.match(androidModule, /Join-Path \$ToolRoot 'Android\\Sdk'/);
 assert.match(build, /Invoke-Pnpm \$installArgs/);
 assert.match(build, /Invoke-Pnpm @\("desktop:package"\)/);
 assert.match(build, /Join-Path \$OutputRoot "\$outputBaseName-Desktop"/, "default Desktop output must use a stable executable path across versions");
+assert.match(build, /@\(\$unpacked, \$desktopDest, '\/MIR'/, "stable Desktop output must be replaced by one robocopy mirror operation");
+assert.doesNotMatch(build, /Remove-BuildDirectory -Path \$desktopDest/, "stable Desktop output must not be recursively deleted before replacement");
 assert.doesNotMatch(build, /Corepack|COREPACK_HOME|Install-Node|Install-Jdk|Install-AndroidSdk|Install-Python|SearchRoots|DeferredCleanup|compatibility package|PLAIN_EXE_FALLBACK/i);
 
 assert.match(nodeModule, /Join-Path \$env:LOCALAPPDATA 'pnpm\\bin\\pnpm\.cmd'/);

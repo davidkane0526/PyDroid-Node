@@ -1,15 +1,17 @@
-# Current handoff — 1.4.89 stable Desktop output and Remote runtime observability
+# Current handoff — 1.4.90 deterministic runtime evidence and repeatable Desktop output
 
 Updated: 2026-08-21
-Branch: `fix/1.4.89-stable-output-runtime-log`
-Version: **1.4.89**, Android versionCode **112**
-Build revision: `1.4.89-dev-r66-stable-output`
+Branch: `fix/1.4.90-deterministic-runtime-log`
+Version: **1.4.90**, Android versionCode **113**
+Build revision: `1.4.90-dev-r67-runtime-log-mirror-output`
 
-Remote Web remains a direct listener: `0.0.0.0:8765` is the production truth, and SSDP/mDNS never gate HTTP startup. The user-validated behavior reference remains 1.4.73 (`fea874f`).
+Remote Web remains a direct `0.0.0.0:8765` listener. SSDP/mDNS are best-effort and never gate HTTP. No PowerShell/UAC/firewall/readiness/recovery logic is part of the Remote production path.
 
-Windows Remote/LAN runtime now uses only Node `os.networkInterfaces()` for address enumeration. It launches no PowerShell, `route.exe`, UAC/firewall helper, UDP route probe or other external network process. The selected primary address is a deterministic local-interface ordering only; all discovered interface URLs are still returned by the host. Passive logging records the actual listener and advertised URL candidates without influencing startup.
+Packaged Windows runtime logging is now deterministic and user-visible: `<exe-dir>\logs\desktop.log`. For the standard build output this is `D:\PyDroidTemp\PyDroid-Flow-Desktop\logs\desktop.log`. It records the executable/userData paths, Remote start/stop requests, renderer root, actual listener, advertised URLs and the first incoming HTTP requests. Logging is observational only.
 
-Default Windows build output is always the stable `<OutputRoot>\PyDroid-Flow-Desktop` path. Do not return to version-specific current Desktop directories. `-KeepHistory` may create an additional versioned archive, but it must never change the current executable path. The build must not auto-launch Remote Web from the stable final executable path; the first network-listen decision for that path belongs to the user’s explicit service start. Package smoke remains evidence for packaging only, not cross-device reachability.
+The current Windows build output is always `<OutputRoot>\PyDroid-Flow-Desktop`. Repeat builds do not recursively pre-delete that Electron tree; one `robocopy /MIR` operation replaces it. `KeepHistory` only creates a versioned mirror archive.
+
+The user-validated Remote behavior reference remains 1.4.73 (`fea874f`). Same-host package/E2E tests do not prove cross-device reachability; the runtime log is the evidence used to distinguish listener, advertised-address, network-boundary and HTTP-resource failures on a real host.
 
 Phase 11 Workflow Compatibility & Migration remains retained independently of Remote Web.
 

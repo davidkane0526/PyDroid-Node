@@ -60,6 +60,7 @@ function createRemoteServerService({ pythonService, log }) {
   }
 
   function start(requirePin) {
+    log(`[Remote Web] Start requested; requirePin=${Boolean(requirePin)}`);
     if (remoteServer) return Promise.resolve(remoteServer.__info);
     if (remoteStartPromise) return remoteStartPromise;
     remoteStartPromise = startOnce(requirePin).finally(() => { remoteStartPromise = null; });
@@ -194,6 +195,7 @@ function createRemoteServerService({ pythonService, log }) {
   }
 
   function stop() {
+    log("[Remote Web] Stop requested");
     for (const executionId of remoteExecutionIds) pythonService.cancel(executionId);
     remoteExecutionIds.clear();
     lanDiscovery?.stop();

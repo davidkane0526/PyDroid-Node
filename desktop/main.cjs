@@ -23,6 +23,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  log(`[Desktop] Ready; exe=${process.execPath}; userData=${app.getPath("userData")}; log=${log.filePath}`);
   Menu.setApplicationMenu(null);
   ensureUserProfile(app);
   registerDesktopIpc({ pythonService, remoteService, smbService, secretStore });

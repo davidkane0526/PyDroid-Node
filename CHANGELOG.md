@@ -1,3 +1,12 @@
+## 1.4.90 (113) — deterministic runtime log path + repeatable stable Desktop replacement — 2026-08-21
+
+- Fix the runtime-log path mistake from 1.4.89. Packaged Windows Desktop now writes `logs\desktop.log` beside the executable, so the fixed build output uses `D:\PyDroidTemp\PyDroid-Flow-Desktop\logs\desktop.log`. The log remains passive and never controls Remote Web startup.
+- Add explicit startup facts to that log: executable path, Electron userData path, Remote Web start/stop requests, renderer root, actual `0.0.0.0:8765` listener, advertised URLs, and the first incoming requests.
+- Fix repeat builds of the stable Desktop output. The build no longer recursively deletes `PyDroid-Flow-Desktop` with Windows PowerShell 5.1; one `robocopy /MIR` operation replaces the existing tree, avoiding the deep Capacitor/Gradle path deletion failure seen on the second 1.4.89 build.
+- `KeepHistory` still creates a version archive, also by one mirror operation, and never changes the stable current executable path.
+- Remote Web control flow is unchanged: direct `0.0.0.0:8765`, no PowerShell/UAC/firewall management/readiness/recovery.
+- Build revision: `1.4.90-dev-r67-runtime-log-mirror-output`.
+
 ## 1.4.89 (112) — stable current Desktop path + passive Remote runtime logging — 2026-08-21
 
 - Fixed the 1.4.88 output-path bug: `KeepHistory` no longer changes the current runnable Desktop directory. The current Windows build always lands in `PyDroid-Flow-Desktop`; versioned directories are optional archives only.

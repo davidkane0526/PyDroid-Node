@@ -16,6 +16,7 @@ const smb = read("desktop/services/smb-service.cjs");
 const secrets = read("desktop/services/secret-service.cjs");
 const profile = read("desktop/services/profile-service.cjs");
 const windowHost = read("desktop/window/create-window.cjs");
+const logging = read("desktop/services/logging-service.cjs");
 const desktopRendererExecution = read("desktop/renderer/execution.ts");
 const ipc = [ipcRegister, runtimeIpc, remoteIpc, smbIpc, fileIpc].join("\n");
 
@@ -49,6 +50,8 @@ assert.match(smb, /discoverSmbServers/, "SMB service must own LAN SMB discovery"
 assert.match(smb, /shutdownSmbSessions/, "SMB service must own Windows session cleanup");
 assert.match(secrets, /safeStorage/, "Secret service must own encrypted safeStorage access");
 assert.match(profile, /ensureUserProfile/, "Profile module must own user profile directory initialization");
+assert.match(logging, /app\.isPackaged \? path\.dirname\(process\.execPath\)/, "packaged desktop runtime log must live beside the executable");
+assert.match(logging, /path\.join\(root, "logs", "desktop\.log"\)/, "packaged desktop runtime log must have one deterministic path");
 assert.match(windowHost, /new BrowserWindow/, "Window host must own BrowserWindow construction");
 assert.ok(pkg.build.files.includes("desktop/services/**/*"), "Packaged desktop must include desktop service modules");
 assert.ok(pkg.build.files.includes("desktop/ipc/**/*"), "Packaged desktop must include desktop IPC modules");

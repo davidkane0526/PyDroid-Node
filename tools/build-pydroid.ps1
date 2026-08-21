@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.89-dev-r66-stable-output"
+$script:BuildScriptRevision = "1.4.90-dev-r67-runtime-log-mirror-output"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -677,22 +677,17 @@ function Copy-Outputs {
         $desktopArchive = if ($KeepHistory) { Join-Path $OutputRoot "$outputBaseName-$version-Desktop" } else { $null }
         $unpacked = Join-Path $workspace 'release\win-unpacked'
         if (-not (Test-Path -LiteralPath $unpacked -PathType Container)) { throw "未找到 Windows Desktop 打包目录：$unpacked" }
-        if (Test-Path -LiteralPath $desktopDest) { Remove-BuildDirectory -Path $desktopDest }
-
-        $sourceRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $unpacked))
-        $destRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $OutputRoot))
-        if ($sourceRoot -and $destRoot -and $sourceRoot.Equals($destRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            Move-Item -LiteralPath $unpacked -Destination $desktopDest -ErrorAction Stop
-        } else {
-            $robocopyArgs = @($unpacked, $desktopDest, '/E', '/MT:16', '/J', '/R:0', '/W:0', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
-            & robocopy @robocopyArgs
-            if ($LASTEXITCODE -ge 8) { throw "桌面版复制失败，robocopy 退出码 $LASTEXITCODE。" }
-            $global:LASTEXITCODE = 0
-        }
+        # Mirror the new package directly onto the stable output. Do not recursively
+        # delete the old Electron tree first: Windows PowerShell 5.1 is unreliable on
+        # deeply nested Capacitor/Gradle paths. robocopy /MIR is the one deterministic
+        # replacement operation; a non-success exit code fails the build immediately.
+        $robocopyArgs = @($unpacked, $desktopDest, '/MIR', '/MT:16', '/J', '/R:0', '/W:0', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
+        & robocopy @robocopyArgs
+        if ($LASTEXITCODE -ge 8) { throw "桌面版镜像更新失败，robocopy 退出码 $LASTEXITCODE。" }
+        $global:LASTEXITCODE = 0
 
         if ($desktopArchive) {
-            if (Test-Path -LiteralPath $desktopArchive) { Remove-BuildDirectory -Path $desktopArchive }
-            $archiveArgs = @($desktopDest, $desktopArchive, '/E', '/MT:16', '/J', '/R:0', '/W:0', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
+            $archiveArgs = @($desktopDest, $desktopArchive, '/MIR', '/MT:16', '/J', '/R:0', '/W:0', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
             & robocopy @archiveArgs
             if ($LASTEXITCODE -ge 8) { throw "桌面版历史归档失败，robocopy 退出码 $LASTEXITCODE。" }
             $global:LASTEXITCODE = 0
@@ -701,6 +696,7 @@ function Copy-Outputs {
 
         Write-BuildArtifact -Platform "windows" -Path $desktopDest
         Write-Host "Windows 当前输出（固定路径）：$desktopDest" -ForegroundColor Yellow
+        Write-Host "Windows 运行日志（启动应用后生成）：$(Join-Path $desktopDest 'logs\desktop.log')" -ForegroundColor DarkGray
     }
 
     Write-BuildStage -Percent 96 -Message "最终产物已就位"
