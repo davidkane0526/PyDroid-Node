@@ -13,13 +13,17 @@ assert.match(remoteServerSource, /const LAN_WEB_PORT = 8765;/,
   "Remote Web production port must remain an explicit fixed constant");
 assert.match(remoteServerSource, /listen\(LAN_WEB_PORT, "0\.0\.0\.0"/,
   "Remote Web production startup must bind the fixed port directly");
+assert.match(remoteServerSource, /const discovery = lanDiscovery\.start\(\{ port \}\);/,
+  "HTTP startup must not await LAN discovery before returning the service URL");
+assert.doesNotMatch(remoteServerSource, /await\s+lanDiscovery\.start/,
+  "LAN discovery must never block Remote Web startup");
 assert.equal(existsSync(legacyFirewallPath), false,
   "Remote/LAN runtime must not own or provision Windows firewall rules");
-assert.doesNotMatch(runtimeLanSource, /powershell|Start-Process|runas|Get-NetFirewallRule|New-NetFirewallRule|Get-NetConnectionProfile|Get-NetIPConfiguration|child_process/i,
-  "Remote/LAN runtime must not launch PowerShell, elevate, manage firewall/profile state, or shell out for route discovery");
-assert.match(networkSource, /dgram\.createSocket\("udp4"\)[\s\S]*socket\.connect\(9, "192\.0\.2\.1"/,
-  "Primary LAN address should be derived from the OS socket routing decision without shelling out");
-assert.match(discoverySource, /await resolvePreferredLanAddress\(\)/,
-  "Discovery must use the native preferred LAN source address when available");
+assert.doesNotMatch(runtimeLanSource, /powershell|Start-Process|runas|Get-NetFirewallRule|New-NetFirewallRule|Get-NetConnectionProfile|Get-NetIPConfiguration|child_process|dgram\.createSocket|socket\.connect/i,
+  "Remote/LAN startup must not shell out, elevate, manage firewall/profile state, or probe external routes");
+assert.match(networkSource, /os\.networkInterfaces\(\)/,
+  "LAN address enumeration must use the local OS interface table directly");
+assert.doesNotMatch(discoverySource, /\bawait\b/,
+  "LAN discovery startup must remain synchronous from the Remote Web startup path");
 
-console.log("LAN runtime boundary smoke passed: direct 8765 bind, no PowerShell/UAC/firewall automation, native socket route selection.");
+console.log("LAN runtime boundary smoke passed: direct 8765 bind, synchronous interface enumeration, non-blocking discovery, no PowerShell/UAC/firewall/route probe.");

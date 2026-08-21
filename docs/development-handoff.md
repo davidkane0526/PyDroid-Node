@@ -1,3 +1,11 @@
+# Current handoff — 1.4.87 Remote startup baseline restore
+
+The current Remote Web production rule is intentionally narrow: preserve the 1.4.73 direct-bind + single-flight baseline, bind `0.0.0.0:8765`, return the service info immediately after bind, enumerate LAN IPv4 addresses synchronously from `os.networkInterfaces()`, and start SSDP/mDNS as non-blocking best-effort discovery. Do not add route probes, PowerShell, firewall/UAC automation, readiness gates, lifecycle reconciliation, network watchers, recovery loops, or in-app diagnostic control around this path.
+
+The user-validated behavioral reference remains 1.4.73 (`fea874f`). Phase 11 Workflow Compatibility & Migration remains retained independently of Remote Web.
+
+---
+
 # Development handoff — PyDroid Node 1.4.86
 
 Updated: 2026-08-21

@@ -1,3 +1,12 @@
+# Current progress — 1.4.87 (110)
+
+- Restored the 1.4.73 direct-bind + single-flight Remote Web baseline while simplifying the post-bind path: TCP 8765 bind is the service transaction; LAN discovery never gates it.
+- Removed the 1.4.86 UDP default-route probe that could leave Electron IPC waiting indefinitely on Windows.
+- Desktop Remote/LAN now uses synchronous `os.networkInterfaces()` only; no PowerShell, UAC, firewall/profile management, `child_process`, external route probe, readiness/recovery/lifecycle state machine, or diagnostic ownership.
+- Available regression validation: Desktop real HTTP 8765 E2E, Android JVM HTTP E2E, Host Contract 31, UI regression, Workflow compatibility 9 fixtures, runtime parity 68/68, JS NodeContract 75/75, Python 111 passed / 1 skipped.
+
+---
+
 ## 1.4.83 Deterministic Core / Remote false-green repair
 
 - Root cause of the 1.4.82 false green: the packaged Desktop smoke only exercised the Remote host-status bridge and never proved that TCP 8765 was listening or that packaged Remote Web assets were reachable. A fully green report could therefore coexist with a dead network service.

@@ -1,3 +1,12 @@
+## 1.4.87 (110) — restore non-blocking Remote Web startup baseline — 2026-08-21
+
+- Fix the remaining 1.4.86 startup regression: Remote Web bound TCP 8765 and then awaited a UDP default-route probe with no timeout before resolving the Electron IPC start request. On Windows this could leave the UI in a permanent "正在开启计算服务…"/unusable state even though the HTTP listener had already been created.
+- Restore the 1.4.73 direct-bind + single-flight baseline without restoring its later Phase 10 state machinery, while removing post-bind discovery waits: HTTP binds directly to `0.0.0.0:8765`; LAN interface enumeration is synchronous via Node `os.networkInterfaces()`; SSDP/mDNS start as independent best-effort work and are never awaited by HTTP startup.
+- Remove the UDP route-probe socket entirely. Desktop Remote/LAN runtime now has zero PowerShell, zero `child_process`, zero UAC/firewall ownership, zero external route probe and zero readiness/recovery/lifecycle gate.
+- Restore the simple single-flight guard from the user-validated 1.4.73 startup path so a double-click cannot create two simultaneous listeners, while stop remains a direct server close.
+- Strengthen `test:lan-discovery` so any future `await lanDiscovery.start`, route-probe socket, PowerShell, firewall/UAC or shell execution in the Remote Web startup path fails immediately.
+- Build revision: `1.4.87-dev-r64-remote-startup-baseline`.
+
 ## 1.4.86 (109) — remove runtime PowerShell/firewall gate — 2026-08-21
 
 - Revert the 1.4.85 Windows firewall/UAC prerequisite. It was a regression against the deterministic-core requirement and could prevent the HTTP listener from starting at all. `desktop/lan/windows-firewall.cjs` and its production call are removed.

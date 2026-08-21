@@ -28,6 +28,7 @@ function safeStaticPath(rendererRoot, pathname) {
 
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
+  let remoteStartPromise = null;
   let remotePin = null;
   let lanDiscovery = null;
   const remoteTokens = new Set();
@@ -57,8 +58,14 @@ function createRemoteServerService({ pythonService, log }) {
     response.end(body);
   }
 
-  async function start(requirePin) {
+  function start(requirePin) {
     if (remoteServer) return Promise.resolve(remoteServer.__info);
+    if (remoteStartPromise) return remoteStartPromise;
+    remoteStartPromise = startOnce(requirePin).finally(() => { remoteStartPromise = null; });
+    return remoteStartPromise;
+  }
+
+  function startOnce(requirePin) {
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
     const rendererRoot = resolveRendererRoot();
@@ -151,12 +158,12 @@ function createRemoteServerService({ pythonService, log }) {
         if (error?.code === "EADDRINUSE") reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用`));
         else reject(error);
       };
-      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", async () => {
+      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", () => {
         server.removeListener("error", onError);
         const port = LAN_WEB_PORT;
         try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
-          const discovery = await lanDiscovery.start({ port });
+          const discovery = lanDiscovery.start({ port });
           log(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
           log(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
         } catch (error) {

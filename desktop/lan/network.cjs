@@ -1,5 +1,4 @@
 const os = require("node:os");
-const dgram = require("node:dgram");
 
 const VIRTUAL_INTERFACE = /(^|\b)(vEthernet|vmware|virtualbox|virtual|hyper-v|wsl|docker|tailscale|zerotier|loopback|bluetooth)(\b|$)/i;
 
@@ -21,48 +20,6 @@ function isUsableIpv4(address) {
   return ipv4ToInt(address) != null && !address.startsWith("127.") && !address.startsWith("169.254.") && address !== "0.0.0.0";
 }
 
-function resolvePreferredLanAddress() {
-  return new Promise((resolve) => {
-    const socket = dgram.createSocket("udp4");
-    let settled = false;
-    const finish = (address = null) => {
-      if (settled) return;
-      settled = true;
-      try { socket.close(); } catch {}
-      resolve(isUsableIpv4(address) ? address : null);
-    };
-    socket.once("error", () => finish(null));
-    // connect() selects the OS route/source address but sends no packet.
-    socket.connect(9, "192.0.2.1", () => {
-      try { finish(socket.address().address); }
-      catch { finish(null); }
-    });
-  });
-}
-
-function getLanInterfaces(preferredAddress = null) {
-  const candidates = [];
-  for (const [name, entries] of Object.entries(os.networkInterfaces())) {
-    for (const entry of entries ?? []) {
-      if (entry.family !== "IPv4" || entry.internal || !isUsableIpv4(entry.address)) continue;
-      candidates.push({
-        name,
-        address: entry.address,
-        netmask: entry.netmask || "255.255.255.0",
-        private: isPrivateIpv4(entry.address),
-        virtual: VIRTUAL_INTERFACE.test(name),
-        defaultRoute: entry.address === preferredAddress,
-      });
-    }
-  }
-
-  const privatePhysical = candidates.filter((item) => item.private && !item.virtual);
-  const privateAny = candidates.filter((item) => item.private);
-  const physicalAny = candidates.filter((item) => !item.virtual);
-  const selected = privatePhysical.length ? privatePhysical : privateAny.length ? privateAny : physicalAny.length ? physicalAny : candidates;
-  return dedupeInterfacesBySubnet(selected);
-}
-
 function subnetKey(item) {
   const address = ipv4ToInt(item.address);
   const mask = ipv4ToInt(item.netmask);
@@ -72,7 +29,6 @@ function subnetKey(item) {
 
 function interfaceScore(item) {
   let score = 0;
-  if (item.defaultRoute) score += 250;
   if (item.private) score += 100;
   if (!item.virtual) score += 50;
   if (/wi-?fi|wlan|wireless/i.test(item.name)) score += 20;
@@ -90,6 +46,29 @@ function dedupeInterfacesBySubnet(interfaces) {
   return [...subnets.values()];
 }
 
+function getLanInterfaces() {
+  const candidates = [];
+  for (const [name, entries] of Object.entries(os.networkInterfaces())) {
+    for (const entry of entries ?? []) {
+      if (entry.family !== "IPv4" || entry.internal || !isUsableIpv4(entry.address)) continue;
+      candidates.push({
+        name,
+        address: entry.address,
+        netmask: entry.netmask || "255.255.255.0",
+        private: isPrivateIpv4(entry.address),
+        virtual: VIRTUAL_INTERFACE.test(name),
+        defaultRoute: false,
+      });
+    }
+  }
+
+  const privatePhysical = candidates.filter((item) => item.private && !item.virtual);
+  const privateAny = candidates.filter((item) => item.private);
+  const physicalAny = candidates.filter((item) => !item.virtual);
+  const selected = privatePhysical.length ? privatePhysical : privateAny.length ? privateAny : physicalAny.length ? physicalAny : candidates;
+  return dedupeInterfacesBySubnet(selected);
+}
+
 function sameSubnet(addressA, addressB, netmask) {
   const a = ipv4ToInt(addressA);
   const b = ipv4ToInt(addressB);
@@ -99,7 +78,7 @@ function sameSubnet(addressA, addressB, netmask) {
 
 function selectInterfaceForRemote(interfaces, remoteAddress) {
   const subnetMatches = interfaces.filter((item) => sameSubnet(item.address, remoteAddress, item.netmask));
-  return subnetMatches.find((item) => item.defaultRoute) ?? subnetMatches[0] ?? interfaces.find((item) => item.defaultRoute) ?? interfaces[0] ?? null;
+  return subnetMatches[0] ?? interfaces[0] ?? null;
 }
 
-module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet, resolvePreferredLanAddress };
+module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet };
