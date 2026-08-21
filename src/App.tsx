@@ -58,7 +58,7 @@ import { PlotPreview } from "./ui/PlotPreview";
 import { useRemoteHostReconciliation } from "./ui/useRemoteHostReconciliation";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
-import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
+import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, isEditorResourceUsable, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
@@ -665,9 +665,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const [nodeSearch, setNodeSearch] = useState("");
   const [paletteTab, setPaletteTab] = useState<"nodes" | "groups" | "functions" | "flows">("nodes");
   const resourceLibraryState = useSyncExternalStore(resourceLibrary.subscribe, resourceLibrary.getState, resourceLibrary.getState);
-  const groupLibrary = resourceLibraryState.groups;
-  const savedNodeLibrary = resourceLibraryState.savedNodes;
-  const flowLibrary = resourceLibraryState.flows;
+  const groupLibrary = resourceLibraryState.groups.filter(isEditorResourceUsable);
+  const savedNodeLibrary = resourceLibraryState.savedNodes.filter(isEditorResourceUsable);
+  const flowLibrary = resourceLibraryState.flows.filter(isEditorResourceUsable);
   const [savedNodeDragOverId, setSavedNodeDragOverId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfileInfo | null>(null);
   const [showNodeInsights, setShowNodeInsights] = useState(() => loadAppSettings().showNodeInsights);
@@ -983,6 +983,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     const timer = window.setTimeout(() => {
       const saved = lifecycle.writeAutosave(tabId, session.getRuntimeState().snapshot);
       if (saved.ok === false) {
+        if (saved.reason === "protected") return;
         const message = saved.reason === "quota" ? "自动保存空间不足，请导出工作流后清理浏览器存储" : `自动保存失败：${saved.message}`;
         if (autosaveErrorRef.current !== message) { autosaveErrorRef.current = message; setMessage(message); }
       } else {
@@ -2072,6 +2073,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const insertSavedNode = (template: SavedNodeEntry) => {
+    if (!isEditorResourceUsable(template)) return;
     const id = `${template.node.data.nodeType.replaceAll(".", "-")}-${Date.now()}-${nextNodeNumber.current++}`;
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
     const position = resolvedLayoutDirection === "vertical"
@@ -2087,6 +2089,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const insertGroupTemplate = (template: GroupLibraryEntry, dropPosition?: { x: number; y: number }) => {
+    if (!isEditorResourceUsable(template)) return;
     try {
       const sourceGroup = template.nodes.find((node) => node.data.nodeType === "workflow.group");
       if (!sourceGroup) { setMessage("该组合资源已损坏"); return; }

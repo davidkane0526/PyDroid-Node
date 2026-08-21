@@ -3,8 +3,11 @@ import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 
 export type EditorResourceKind = "node" | "saved-node" | "function" | "group" | "flow";
 export type EditorResourcePrimaryAction = "insert" | "call" | "open";
+export type EditorResourceCompatibility = "current" | "migrated" | "future" | "invalid";
 
 export type FlowLibraryEntry = {
+  resourceSchemaVersion?: number;
+  compatibility?: EditorResourceCompatibility;
   id: string;
   name: string;
   savedAt: string;
@@ -15,6 +18,8 @@ export type FlowLibraryEntry = {
 };
 
 export type GroupLibraryEntry = {
+  resourceSchemaVersion?: number;
+  compatibility?: EditorResourceCompatibility;
   id: string;
   name: string;
   description: string;
@@ -25,6 +30,8 @@ export type GroupLibraryEntry = {
 };
 
 export type SavedNodeEntry = {
+  resourceSchemaVersion?: number;
+  compatibility?: EditorResourceCompatibility;
   id: string;
   name: string;
   node: WorkflowNode;
@@ -53,6 +60,11 @@ export type EditorResourceDescriptor = EditorResourceRef & {
   capabilities: EditorResourceCapabilities;
 };
 
+
+export function isEditorResourceUsable(entry: { compatibility?: EditorResourceCompatibility }): boolean {
+  return entry.compatibility !== "future" && entry.compatibility !== "invalid";
+}
+
 const CAPABILITIES: Record<EditorResourceKind, EditorResourceCapabilities> = {
   node: { primaryAction: "insert", draggable: true, rename: false, remove: false, lock: false },
   "saved-node": { primaryAction: "insert", draggable: true, rename: true, remove: true, lock: true },
@@ -74,7 +86,8 @@ export function describeCatalogNode(id: string, label: string): EditorResourceDe
 }
 
 export function describeSavedNode(entry: SavedNodeEntry): EditorResourceDescriptor {
-  return { kind: "saved-node", id: entry.id, label: entry.name, locked: entry.locked, capabilities: resourceCapabilities("saved-node", { locked: entry.locked }) };
+  const capabilities = resourceCapabilities("saved-node", { locked: entry.locked });
+  return { kind: "saved-node", id: entry.id, label: entry.name, locked: entry.locked, capabilities: isEditorResourceUsable(entry) ? capabilities : { ...capabilities, draggable: false, rename: false, remove: false, lock: false } };
 }
 
 export function describeFunction(definition: WorkflowFunctionDefinition): EditorResourceDescriptor {
@@ -88,6 +101,7 @@ export function describeFunction(definition: WorkflowFunctionDefinition): Editor
 }
 
 export function describeGroup(entry: GroupLibraryEntry): EditorResourceDescriptor {
+  const capabilities = resourceCapabilities("group", { builtIn: entry.builtIn, locked: entry.locked });
   return {
     kind: "group",
     id: entry.id,
@@ -95,17 +109,18 @@ export function describeGroup(entry: GroupLibraryEntry): EditorResourceDescripto
     description: entry.description,
     builtIn: entry.builtIn,
     locked: entry.locked,
-    capabilities: resourceCapabilities("group", { builtIn: entry.builtIn, locked: entry.locked }),
+    capabilities: isEditorResourceUsable(entry) ? capabilities : { ...capabilities, draggable: false, rename: false, remove: false, lock: false },
   };
 }
 
 export function describeFlow(entry: FlowLibraryEntry): EditorResourceDescriptor {
+  const capabilities = resourceCapabilities("flow", { external: entry.external, locked: entry.locked });
   return {
     kind: "flow",
     id: entry.id,
     label: entry.name,
     locked: entry.locked,
-    capabilities: resourceCapabilities("flow", { external: entry.external, locked: entry.locked }),
+    capabilities: isEditorResourceUsable(entry) ? capabilities : { ...capabilities, draggable: false, rename: false, remove: false, lock: false },
   };
 }
 

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "name": "Phase 8 · 可复用函数",
+  "nodes": [
+    {"id":"read","position":{"x":80,"y":120},"data":{"label":"读取 CSV","nodeType":"io.read_csv","nodeVersion":1,"parameters":{"header":"infer"},"status":"idle"}},
+    {"id":"call","position":{"x":380,"y":120},"data":{"label":"绝对值函数","nodeType":"function.call","nodeVersion":1,"parameters":{"functionId":"phase8-fn-absolute","functionVersion":1},"status":"idle","functionInputs":[{"id":"table","label":"表格","valueType":"table","required":true}],"functionOutputs":[{"id":"result","label":"结果","valueType":"table"}]}},
+    {"id":"print","position":{"x":680,"y":120},"data":{"label":"打印输出","nodeType":"python.print","nodeVersion":1,"parameters":{"prefix":"函数结果"},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"read","target":"call","sourceHandle":"output","targetHandle":"table"},
+    {"id":"e2","source":"call","target":"print","sourceHandle":"result","targetHandle":"input"}
+  ],
+  "functions": [
+    {
+      "id":"phase8-fn-absolute",
+      "name":"绝对值函数",
+      "version":1,
+      "description":"Phase 8 测试函数：将表格数值取绝对值。",
+      "inputs":[{"id":"table","label":"表格","valueType":"table","internalNodeId":"abs","internalHandle":"input"}],
+      "outputs":[{"id":"result","label":"结果","valueType":"table","internalNodeId":"abs","internalHandle":"output"}],
+      "nodes":[{"id":"abs","position":{"x":80,"y":100},"data":{"label":"绝对值","nodeType":"table.absolute","nodeVersion":1,"parameters":{},"status":"idle"}}],
+      "edges":[]
+    }
+  ]
+}

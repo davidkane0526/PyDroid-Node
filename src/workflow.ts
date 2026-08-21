@@ -1,11 +1,16 @@
 import type { Edge, Node } from "@xyflow/react";
 import type { PortSpec, ValueType } from "./nodeCatalog";
-import { migrateWorkflowDocument, normalizeWorkflowNodeVersions, registerWorkflowMigration } from "./workflow-core/migrations";
+import { migrateWorkflowDocumentWithReport, normalizeWorkflowNodeVersions, validateWorkflowMigrationEnvelope, workflowSchemaVersionOf, type WorkflowSchemaMigrationStep } from "./workflow-core/migrations";
+import { CURRENT_WORKFLOW_SCHEMA_VERSION, ensureBuiltInWorkflowMigrationsRegistered } from "./workflow-core/schema-migrations";
+import { migrateWorkflowNodeContracts, type NodeMigrationStep } from "./workflow-core/node-migrations";
+import { reconcileWorkflowFunctionCalls, type FunctionCallMigrationStep } from "./workflow-core/function-migrations";
+import { getNodeContract } from "./nodeContract";
+import { getNodeSpec } from "./nodeCatalog";
 import { validateWorkflowDocument } from "./workflow-core/validation";
 
-export const WORKFLOW_SCHEMA_VERSION = 2;
+export const WORKFLOW_SCHEMA_VERSION = CURRENT_WORKFLOW_SCHEMA_VERSION;
 
-registerWorkflowMigration(1, (document) => ({ ...document, schemaVersion: 2, functions: Array.isArray(document.functions) ? document.functions : [] }));
+ensureBuiltInWorkflowMigrationsRegistered();
 
 export type NodeStatus = "idle" | "running" | "success" | "error";
 
@@ -50,8 +55,8 @@ export type WorkflowDocument = {
   name: string;
   nodes: WorkflowNode[];
   edges: Edge[];
-  functions?: WorkflowFunctionDefinition[];
-  requirements?: string[];
+  functions: WorkflowFunctionDefinition[];
+  requirements: string[];
 };
 
 export function normalizeNodePositions(nodes: WorkflowNode[]): WorkflowNode[] {
@@ -215,15 +220,49 @@ export function serializeWorkflow(
     name,
     nodes,
     edges,
-    ...(functions.length ? { functions } : {}),
-    ...(requirements.length ? { requirements } : {}),
+    functions,
+    requirements,
+  };
+}
+
+export type WorkflowCompatibilityReport = {
+  schemaFromVersion: number;
+  schemaToVersion: number;
+  schemaSteps: WorkflowSchemaMigrationStep[];
+  nodeSteps: NodeMigrationStep[];
+  functionCallSteps: FunctionCallMigrationStep[];
+};
+
+export function parseWorkflowWithReport(text: string): { document: WorkflowDocument; report: WorkflowCompatibilityReport } {
+  const parsed: unknown = JSON.parse(text);
+  const sourceVersion = workflowSchemaVersionOf(parsed);
+  // Future documents are rejected by version before this build interprets their shape.
+  // Supported historical documents receive a minimal structural check before any
+  // migration is allowed to transform them, then full semantic validation runs after
+  // schema/NodeSpec/function reconciliation.
+  if (sourceVersion <= WORKFLOW_SCHEMA_VERSION) validateWorkflowMigrationEnvelope(parsed);
+  const schema = migrateWorkflowDocumentWithReport(parsed, WORKFLOW_SCHEMA_VERSION);
+  const normalized = normalizeWorkflowNodeVersions(schema.document);
+  const nodes = migrateWorkflowNodeContracts(
+    normalized,
+    (nodeType) => getNodeContract(nodeType)?.version,
+    (nodeType) => getNodeSpec(nodeType)?.defaults,
+  );
+  const functions = reconcileWorkflowFunctionCalls(nodes.document);
+  const document = functions.document;
+  validateWorkflowDocument(document);
+  return {
+    document,
+    report: {
+      schemaFromVersion: schema.fromVersion,
+      schemaToVersion: schema.toVersion,
+      schemaSteps: schema.steps,
+      nodeSteps: nodes.report.steps,
+      functionCallSteps: functions.steps,
+    },
   };
 }
 
 export function parseWorkflow(text: string): WorkflowDocument {
-  const parsed: unknown = JSON.parse(text);
-  const migrated = migrateWorkflowDocument(parsed, WORKFLOW_SCHEMA_VERSION);
-  const normalized = normalizeWorkflowNodeVersions(migrated);
-  validateWorkflowDocument(normalized);
-  return normalized;
+  return parseWorkflowWithReport(text).document;
 }

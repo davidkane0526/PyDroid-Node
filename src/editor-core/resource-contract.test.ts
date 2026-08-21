@@ -20,4 +20,14 @@ describe("resource contract", () => {
     expect(locked.capabilities.lock).toBe(true);
     expect(resourceContractKey(saved)).toBe("saved-node:saved");
   });
+
+  it("makes future and invalid resources non-actionable", () => {
+    const future = describeSavedNode({ id: "future", name: "Future", node, savedAt: "now", compatibility: "future" });
+    const invalid = describeGroup({ id: "invalid", name: "Invalid", description: "", nodes: [], edges: [], compatibility: "invalid" });
+    const flow = describeFlow({ id: "future-flow", name: "Future Flow", savedAt: "now", document: "{}", compatibility: "future" });
+    expect(future.capabilities).toMatchObject({ draggable: false, rename: false, remove: false, lock: false });
+    expect(invalid.capabilities).toMatchObject({ draggable: false, rename: false, remove: false, lock: false });
+    expect(flow.capabilities).toMatchObject({ draggable: false, rename: false, remove: false, lock: false });
+  });
+
 });

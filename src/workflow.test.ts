@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { collectReachableFunctionNodes, compactNodeLayout, flattenWorkflowGroups, normalizeNodePositions, parseWorkflow, serializeWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowFunctionDefinition, type WorkflowNode } from "./workflow";
+import { collectReachableFunctionNodes, compactNodeLayout, flattenWorkflowGroups, normalizeNodePositions, parseWorkflow, parseWorkflowWithReport, serializeWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowFunctionDefinition, type WorkflowNode } from "./workflow";
 
 describe("serializeWorkflow", () => {
   it("uses the current schema version", () => {
@@ -13,10 +13,12 @@ describe("serializeWorkflow", () => {
     expect(parseWorkflow(JSON.stringify(workflow))).toEqual(workflow);
   });
 
-  it("migrates schema v1 workflows to schema v2 without inventing function resources", () => {
-    const parsed = parseWorkflow(JSON.stringify({ schemaVersion: 1, name: "legacy", nodes: [], edges: [] }));
-    expect(parsed.schemaVersion).toBe(2);
-    expect(parsed.functions).toEqual([]);
+  it("migrates schema v1 workflows through v2 to v3 and canonicalizes optional collections", () => {
+    const migrated = parseWorkflowWithReport(JSON.stringify({ schemaVersion: 1, name: "legacy", nodes: [], edges: [] }));
+    expect(migrated.document.schemaVersion).toBe(3);
+    expect(migrated.document.functions).toEqual([]);
+    expect(migrated.document.requirements).toEqual([]);
+    expect(migrated.report.schemaSteps).toEqual([{ fromVersion: 1, toVersion: 2 }, { fromVersion: 2, toVersion: 3 }]);
   });
 
   it("collects only function bodies reachable from root calls", () => {
@@ -35,9 +37,19 @@ describe("serializeWorkflow", () => {
     expect(normalizeNodePositions([node])[0].position).toEqual({ x: 45, y: 55 });
   });
 
+  it("rejects string-encoded node and function versions instead of normalizing corrupted version fields", () => {
+    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 3, name: "bad-node-version", nodes: [{ id: "n", data: { nodeType: "table.absolute", nodeVersion: "1", parameters: {} } }], edges: [], functions: [], requirements: [] }))).toThrow(/节点版本无效/);
+    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 3, name: "bad-function-version", nodes: [], edges: [], functions: [{ id: "fn", name: "fn", version: "1", inputs: [], outputs: [], nodes: [], edges: [] }], requirements: [] }))).toThrow(/版本无效/);
+  });
+
+  it("rejects malformed supported-version structure before migration", () => {
+    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 1, name: "broken", nodes: "not-an-array", edges: [] }))).toThrow(/缺少name、nodes或edges/);
+    expect(() => parseWorkflow(JSON.stringify({ schemaVersion: 2, name: "broken", nodes: [], edges: [], requirements: "numpy" }))).toThrow(/requirements 必须是字符串数组/);
+  });
+
   it("rejects an unsupported schema version", () => {
     expect(() => parseWorkflow('{"schemaVersion":99,"name":"x","nodes":[],"edges":[]}')).toThrow(
-      "不支持的工作流版本",
+      "高于当前支持",
     );
   });
 

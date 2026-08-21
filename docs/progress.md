@@ -1,3 +1,21 @@
+# Phase 11 progress — 1.4.77 (100)
+
+## Workflow Compatibility & Migration complete candidate
+
+- Workflow schema v3 with explicit immutable v1→v2→v3 chain and typed fail-closed compatibility errors.
+- NodeSpec migration registry supports parameter/default/type/port evolution and propagates handle renames through edges, group ports and reusable-function boundaries while preserving stable node IDs.
+- Reusable function calls upgrade only with signature evidence; future/ambiguous signatures are refused.
+- Editor Resource schema v2 migrates Saved Node/Group/Flow and preserves future/invalid raw payloads non-destructively.
+- Autosave distinguishes corruption from future incompatibility and prevents a current version from overwriting a valid future document.
+- Complete Git-history corpus: 8 unique committed historical workflow files (schema v1/v2) + future-v99 guard.
+- Real parser migration → validation → canonical save/reopen and migrated-v1 JavaScript/Python execution parity are dependency-light executable gates.
+- Strict Phase 11 TypeScript smoke covers seven production compatibility modules before the final dependency-backed build.
+- Existing visible host diagnostics remain 22 cases; compatibility checks are embedded without new UI labels/copy.
+- `phase11-freeze-audit` protects the 1.4.76 accepted Remote/LAN implementation and forbids new `setMessage()` UI calls in `App.tsx`.
+- Build script revision: `1.4.77-dev-r53-phase11-workflow-compatibility-migration`.
+
+---
+
 # Phase 10 progress — 1.4.76 (99)
 
 ## 1.4.76 Host state TypeScript build hotfix

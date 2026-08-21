@@ -1,7 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import type { ExecutionResult, RuntimeId } from "../runtime";
 import { clearWorkspaceVariableState, getWorkspaceVariableState, listWorkspaceVariableNames, setWorkspaceVariableState } from "../execution-workspace";
-import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
+import { parseWorkflowWithReport, serializeWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowFunctionDefinition, type WorkflowNode } from "../workflow";
 import { createFunctionCallNode } from "../workflow-functions";
 import { EditorSessionStore } from "../editor-core/session";
 import { applyRuntimeNodeParameterOverride } from "../editor-core/runtime-interaction";
@@ -129,6 +129,26 @@ async function workspacePersistenceCase(runtime: RuntimeId, deps: AutomatedDiagn
       const read = await deps.executeWithRuntime(runtime, readNodes, readEdges, "", { workspaceId, workspaceLabel: `自动诊断 ${runtime}` });
       const finalState = getWorkspaceVariableState(identity);
       if (finalState.phase8_rows !== 3) throw new Error("第二次运行没有保留 phase8_rows");
+
+      const legacy = JSON.stringify({
+        schemaVersion: 1,
+        name: `legacy-runtime-${runtime}`,
+        nodes: [
+          { id: "legacy-read", type: "workflow", position: { x: 0, y: 0 }, data: { label: "读取 CSV", nodeType: "io.read_csv", nodeVersion: 1, parameters: { separator: ",", header: "infer" }, status: "idle" } },
+          { id: "legacy-abs", type: "workflow", position: { x: 260, y: 0 }, data: { label: "绝对值", nodeType: "table.absolute", nodeVersion: 1, parameters: {}, status: "idle" } },
+        ],
+        edges: [{ id: "legacy-edge", source: "legacy-read", target: "legacy-abs", sourceHandle: "output", targetHandle: "input" }],
+      });
+      const migrated = parseWorkflowWithReport(legacy);
+      const migratedRun = await deps.executeWithRuntime(runtime, migrated.document.nodes, migrated.document.edges, "value\n-2\n3\n-4", {
+        workspaceId: `${workspaceId}-migration`,
+        workspaceLabel: `自动诊断 ${runtime}`,
+        functions: migrated.document.functions,
+      });
+      const migratedValueIndex = migratedRun.preview.columns.indexOf("value");
+      const migratedValues = migratedValueIndex < 0 ? [] : migratedRun.preview.rows.map((row) => Number(row[migratedValueIndex]));
+      if (migratedValues.length !== 3 || migratedValues.some((value) => !Number.isFinite(value) || value < 0)) throw new Error(`历史工作流迁移后执行异常：${JSON.stringify(migratedValues)}`);
+
       return {
         writeRuntime: written.runtimeId ?? runtime,
         readRuntime: read.runtimeId ?? runtime,
@@ -136,6 +156,7 @@ async function workspacePersistenceCase(runtime: RuntimeId, deps: AutomatedDiagn
         variableNames: listWorkspaceVariableNames(identity),
         executionOrder: read.executionOrder ?? [],
         printResult: read.nodeResults.print ?? null,
+        compatibility: { schemaFromVersion: migrated.report.schemaFromVersion, schemaToVersion: migrated.report.schemaToVersion, values: migratedValues },
       };
     } finally {
       clearWorkspaceVariableState(identity);
@@ -433,12 +454,26 @@ async function editorDocumentLifecycleCase(): Promise<DiagnosticCase> {
     const restore = lifecycle.restoreAutosave(recovered);
     if (restore.status !== "ok" || !recovered.isDirty() || recovered.getRuntimeState().snapshot.requirements?.[0] !== "recovered>=2") throw new Error("autosave restore 没有恢复为可继续编辑的 dirty session");
 
+    const legacy = JSON.stringify({ schemaVersion: 1, name: "legacy", nodes: [], edges: [] });
+    const migrated = parseWorkflowWithReport(legacy);
+    if (migrated.report.schemaFromVersion !== 1 || migrated.document.schemaVersion !== WORKFLOW_SCHEMA_VERSION || migrated.report.schemaSteps.length !== 2) throw new Error("历史工作流 schema 迁移链不完整");
+    const futureKey = lifecycle.autosaveKey("future");
+    const future = JSON.stringify({ schemaVersion: WORKFLOW_SCHEMA_VERSION + 10, name: "future", nodes: [], edges: [], functions: [], requirements: [] });
+    values.set(futureKey, future);
+    const futureRead = lifecycle.readAutosave("future");
+    if (futureRead.status !== "incompatible" || values.get(futureKey) !== future) throw new Error("未来版本 autosave 没有原样保留");
+    if (lifecycle.writeAutosave("future", emptyWorkflowSnapshot()).ok !== false || values.get(futureKey) !== future) throw new Error("未来版本 autosave 被当前版本覆盖");
+    const beforeFutureOpen = opened.captureSnapshot();
+    try { lifecycle.openSerialized(opened, future); throw new Error("未来版本工作流没有拒绝打开"); } catch (error) { if (error instanceof Error && error.message === "未来版本工作流没有拒绝打开") throw error; }
+    if (JSON.stringify(opened.captureSnapshot()) !== JSON.stringify(beforeFutureOpen)) throw new Error("拒绝未来工作流时污染了当前 Editor Session");
+
     return {
       saveMarkedClean: !source.isDirty(),
       openedMarkedClean: openedInitiallyClean,
       closeRequiresSaveAfterEdit: lifecycle.needsSaveBeforeClose(opened),
       autosaveRestoredDirty: recovered.isDirty(),
       restoredNodeCount: recovered.getRuntimeState().snapshot.nodes.length,
+      compatibility: { schemaFromVersion: 1, schemaToVersion: WORKFLOW_SCHEMA_VERSION, futureAutosavePreserved: true, futureOpenAtomic: true },
     };
   });
 }
@@ -499,16 +534,32 @@ async function resourceLibraryPersistenceCase(): Promise<DiagnosticCase> {
     service.saveNode({ id: "diagnostic-node-b", name: "B", node: node("saved-b", "table.absolute"), savedAt: "now" });
     if (!service.renameNode("diagnostic-node-a", "A2") || !service.reorderNodes("diagnostic-node-a", "diagnostic-node-b")) throw new Error("保存节点资源改名/排序失败");
     if (service.renameGroup("diagnostic-built-in", "不应成功")) throw new Error("内置组合保护失效");
-    const flow = service.addFlowDocument("诊断流程", "{}", { id: "diagnostic-flow", savedAt: "now" });
+    const flow = service.addFlowDocument("诊断流程", JSON.stringify(serializeWorkflow("诊断流程", [], [])), { id: "diagnostic-flow", savedAt: "now" });
     if (!service.toggleFlowLock(flow.id)?.locked || service.removeFlow(flow.id)) throw new Error("流程锁定没有阻止删除");
     service.toggleFlowLock(flow.id);
     if (!service.removeFlow(flow.id)) throw new Error("解锁后的流程无法删除");
     if (!mirrored.has("nodes/saved-nodes.json") || !mirrored.has("workflows/library.json")) throw new Error("资源镜像没有经过 Resource Service");
+
+    const legacyNode = node("legacy-resource", "table.absolute");
+    delete (legacyNode.data as { nodeVersion?: number }).nodeVersion;
+    const futureFlow = { id: "future-resource", name: "Future", savedAt: "future", resourceSchemaVersion: 99, futureMetadata: { keep: true }, document: JSON.stringify({ schemaVersion: 99, name: "future", nodes: [], edges: [] }) };
+    values.set("pydroid-flow.saved-node-library.v1", JSON.stringify([{ id: "legacy-resource", name: "Legacy", node: legacyNode, savedAt: "old" }]));
+    values.set("pydroid-flow.workflow-library.v1", JSON.stringify([futureFlow]));
+    values.set("pydroid-flow.group-library.v1", JSON.stringify([]));
+    const migratedResources = new EditorResourceLibraryService(storage);
+    const migratedNode = migratedResources.getState().savedNodes.find((entry) => entry.id === "legacy-resource");
+    const protectedFlow = migratedResources.getState().flows.find((entry) => entry.id === "future-resource");
+    if (migratedNode?.resourceSchemaVersion !== 2 || migratedNode.node.data.nodeVersion !== 1) throw new Error("旧保存节点资源没有升级");
+    if (protectedFlow?.compatibility !== "future" || migratedResources.removeFlow("future-resource")) throw new Error("未来资源没有进入只读保护");
+    const persistedFuture = JSON.parse(values.get("pydroid-flow.workflow-library.v1") ?? "[]")[0];
+    if (JSON.stringify(persistedFuture) !== JSON.stringify(futureFlow)) throw new Error("未来资源 payload 被当前版本改写");
+
     return {
       savedNodeCount: service.getState().savedNodes.length,
       builtInGroupProtected: service.getState().groups.some((entry) => entry.id === "diagnostic-built-in" && entry.builtIn),
       flowLockProtectedDelete: true,
       mirroredPaths: [...mirrored.keys()].sort(),
+      compatibility: { legacyResourceMigrated: true, futureResourcePreserved: true },
     };
   });
 }
@@ -604,6 +655,7 @@ async function runtimeInteractionIsolationCase(): Promise<DiagnosticCase> {
     return { editorInputValue: "default", runtimeInputValue: "runtime-only", runtimeAlertResponse: true, editorStayedClean: true };
   });
 }
+
 
 async function remoteHostE2ECase(deps: AutomatedDiagnosticsDependencies): Promise<DiagnosticCase> {
   return runCase("remote-host-e2e", "Remote Web 宿主真实启动/HTTP/局域网发现", undefined, async () => {

@@ -9,6 +9,10 @@ const session = readFileSync(fileURLToPath(new URL("../src/workflow-core/session
 const persistence = readFileSync(fileURLToPath(new URL("../src/workflow-core/persistence.ts", import.meta.url)), "utf8");
 const commands = readFileSync(fileURLToPath(new URL("../src/workflow-core/commands.ts", import.meta.url)), "utf8");
 const editorLifecycle = readFileSync(fileURLToPath(new URL("../src/editor-core/lifecycle.ts", import.meta.url)), "utf8");
+const migrations = readFileSync(fileURLToPath(new URL("../src/workflow-core/migrations.ts", import.meta.url)), "utf8");
+const schemaMigrations = readFileSync(fileURLToPath(new URL("../src/workflow-core/schema-migrations.ts", import.meta.url)), "utf8");
+const nodeMigrations = readFileSync(fileURLToPath(new URL("../src/workflow-core/node-migrations.ts", import.meta.url)), "utf8");
+const resourceMigrations = readFileSync(fileURLToPath(new URL("../src/editor-core/resource-migrations.ts", import.meta.url)), "utf8");
 
 
 const remoteBrowserDeclaration = app.indexOf('const remoteBrowser = workspaceIdentity.source === "remote";');
@@ -25,7 +29,16 @@ assert.doesNotMatch(app, /const historyRef\s*=\s*useRef/, "App should not recrea
 assert.match(app, /lifecycle\.writeAutosave\(/, "autosave should delegate to Editor Workspace Lifecycle");
 assert.match(editorLifecycle, /writeStorage\(this\.storage/, "Editor Workspace Lifecycle should still use the guarded Workflow Core persistence wrapper");
 assert.match(app, /upstreamSubgraph\(/, "interactive alert preflight should reuse Workflow Core graph slicing");
-assert.match(workflow, /migrateWorkflowDocument/, "workflow parsing should pass through migration infrastructure");
+assert.match(workflow, /migrateWorkflowDocumentWithReport/, "workflow parsing should pass through versioned migration infrastructure");
+assert.match(workflow, /migrateWorkflowNodeContracts/, "workflow parsing should pass through NodeSpec migration infrastructure");
+assert.match(migrations, /future-schema-version/, "Workflow Core should distinguish future schema versions from corrupt documents");
+assert.match(schemaMigrations, /CURRENT_WORKFLOW_SCHEMA_VERSION = 3/, "Workflow Core should own the current schema version");
+assert.match(schemaMigrations, /registerWorkflowMigration\(1/, "Workflow Core should own v1 migration registration");
+assert.match(schemaMigrations, /registerWorkflowMigration\(2/, "Workflow Core should own v2 migration registration");
+assert.match(nodeMigrations, /inputHandleRenames/, "Node migrations should own input-port rename compatibility");
+assert.match(nodeMigrations, /outputHandleRenames/, "Node migrations should own output-port rename compatibility");
+assert.match(resourceMigrations, /EDITOR_RESOURCE_SCHEMA_VERSION/, "resource compatibility should be versioned outside App.tsx");
+assert.doesNotMatch(app, /registerWorkflowMigration|registerNodeMigration/, "App.tsx must not own compatibility migrations");
 assert.match(workflow, /validateWorkflowDocument/, "workflow parsing should pass through structural validation");
 assert.match(history, /class WorkflowHistory/, "Workflow Core should own history behavior");
 assert.match(session, /class WorkspaceSessionStore/, "Workflow Core should own workspace dirty-state sessions");

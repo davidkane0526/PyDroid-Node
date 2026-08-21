@@ -37,8 +37,14 @@ assert.match(runner, /reusableFunctionCase\("javascript", deps\)/, "JavaScript r
 assert.match(runner, /workspacePersistenceCase\("python", deps\)/, "Python workspace persistence diagnostic must remain enabled for capable hosts");
 assert.match(runner, /reusableFunctionCase\("python", deps\)/, "Python reusable-function diagnostic must remain enabled for capable hosts");
 assert.match(runner, /platformId === "browser" && !deps\.remote/, "plain-browser Python diagnostics must remain explicitly skippable");
-assert.match(docs, /22\s*\/\s*22|22\s*项/, "diagnostics documentation must describe the 22-case Phase 10 host contract");
+
+// Phase 11 strengthens existing cases rather than adding new user-visible diagnostic labels.
+assert.match(source, /compatibility:\s*\{\s*schemaFromVersion:\s*migrated\.report\.schemaFromVersion/, "workspace persistence diagnostics must embed migrated-workflow runtime coverage");
+assert.match(source, /futureAutosavePreserved:\s*true/, "document lifecycle diagnostics must embed future-version preservation coverage");
+assert.match(source, /futureResourcePreserved:\s*true/, "resource persistence diagnostics must embed future-resource preservation coverage");
+assert.doesNotMatch(source, /workflow-compatibility-migration|workflow-compatibility-runtime-/, "Phase 11 must not add new user-visible diagnostic cases without UI approval");
+assert.match(docs, /22\s*\/\s*22|22\s*项/, "diagnostics documentation must describe the 22-case full-host contract");
 
 const fullHostTotal = expectedCases.length + 4;
-assert.equal(fullHostTotal, 22, "Phase 10 full-host automated diagnostic contract must contain 22 cases");
-console.log(`Automated diagnostics contract smoke passed (${fullHostTotal} full-host cases).`);
+assert.equal(fullHostTotal, 22, "full-host automated diagnostic contract must contain 22 cases");
+console.log(`Automated diagnostics contract smoke passed (${fullHostTotal} full-host cases, Phase 11 coverage embedded without new UI cases).`);

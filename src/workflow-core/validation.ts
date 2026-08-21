@@ -82,11 +82,11 @@ function declaredPort(node: RawWorkflowNode, direction: "input" | "output", hand
 function validateCallReference(node: RawWorkflowNode, functions: FunctionMap): void {
   if (node.data.nodeType !== "function.call") return;
   const functionId = node.data.parameters?.functionId;
-  const functionVersion = Number(node.data.parameters?.functionVersion);
+  const functionVersion = node.data.parameters?.functionVersion;
   if (typeof functionId !== "string" || !functionId.trim()) throw new Error(`函数调用 ${node.id} 缺少 functionId`);
   const definition = functions.get(functionId);
   if (!definition) throw new Error(`函数调用 ${node.id} 引用了不存在的函数：${functionId}`);
-  if (!Number.isInteger(functionVersion) || functionVersion < 1) throw new Error(`函数调用 ${node.id} 的版本无效`);
+  if (typeof functionVersion !== "number" || !Number.isInteger(functionVersion) || functionVersion < 1) throw new Error(`函数调用 ${node.id} 的版本无效`);
   if (functionVersion !== definition.version) {
     throw new Error(`函数调用 ${node.id} 使用 v${functionVersion}，但当前定义为 v${definition.version}；请更新调用节点`);
   }
@@ -101,8 +101,8 @@ function validateGraph(rawNodes: unknown[], rawEdges: unknown[], functions: Func
     if (typeof node.id !== "string" || !node.data || typeof node.data.nodeType !== "string") throw new Error(`${label}包含无效节点`);
     const contract = getNodeContract(node.data.nodeType);
     if (!contract || node.data.nodeType === "function.definition") throw new Error(`未知节点类型：${node.data.nodeType}`);
-    const nodeVersion = node.data.nodeVersion === undefined ? 1 : Number(node.data.nodeVersion);
-    if (!Number.isInteger(nodeVersion) || nodeVersion < 1) throw new Error(`节点版本无效：${node.id}`);
+    const nodeVersion = node.data.nodeVersion === undefined ? 1 : node.data.nodeVersion;
+    if (typeof nodeVersion !== "number" || !Number.isInteger(nodeVersion) || nodeVersion < 1) throw new Error(`节点版本无效：${node.id}`);
     if (nodeVersion > contract.version) throw new Error(`节点 ${node.id} 的版本 ${nodeVersion} 高于当前支持版本 ${contract.version}`);
     if (ids.has(node.id)) throw new Error(`节点ID重复：${node.id}`);
     ids.add(node.id);
@@ -143,8 +143,8 @@ function parseFunctions(raw: unknown): FunctionMap {
     if (!item || typeof item !== "object") throw new Error("工作流包含无效函数定义");
     const value = item as Partial<RawFunctionDefinition>;
     if (typeof value.id !== "string" || !value.id.trim() || typeof value.name !== "string" || !value.name.trim()) throw new Error("函数定义缺少 id 或 name");
-    const version = Number(value.version);
-    if (!Number.isInteger(version) || version < 1) throw new Error(`函数 ${value.name} 的版本无效`);
+    const version = value.version;
+    if (typeof version !== "number" || !Number.isInteger(version) || version < 1) throw new Error(`函数 ${value.name} 的版本无效`);
     if (functions.has(value.id)) throw new Error(`函数ID重复：${value.id}`);
     if (!Array.isArray(value.inputs) || !Array.isArray(value.outputs) || !Array.isArray(value.nodes) || !Array.isArray(value.edges)) {
       throw new Error(`函数 ${value.name} 缺少 inputs、outputs、nodes 或 edges`);

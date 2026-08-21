@@ -62,6 +62,10 @@ assert.doesNotMatch(remoteReconciliation, /setRemoteServer\(\(current\) => \{[\s
 assert.match(remoteReconciliation, /setInterval\(\(\) => void reconcile\(\), 3000\)/, "Remote host reconciliation should stay lightweight and bounded");
 assert.doesNotMatch(remoteReconciliation, /setMessage\(/, "read-only Remote host reconciliation must not add user-visible copy or notifications");
 assert.doesNotMatch(app, /readiness\?\.firewall|readiness\.firewall/, "Remote Web UI and in-app diagnostics must not block startup on brittle Windows firewall/profile probing");
+assert.match(app, /resourceLibraryState\.groups\.filter\(isEditorResourceUsable\)/, "future/invalid group resources must stay out of the interactive palette without adding UI copy");
+assert.match(app, /resourceLibraryState\.savedNodes\.filter\(isEditorResourceUsable\)/, "future/invalid saved-node resources must stay out of the interactive palette without adding UI copy");
+assert.match(app, /resourceLibraryState\.flows\.filter\(isEditorResourceUsable\)/, "future/invalid flow resources must stay out of the interactive palette without adding UI copy");
+assert.doesNotMatch(app, /compatibility === "future"[\s\S]{0,180}setMessage\(/, "Phase 11 compatibility protection must not add new user-visible copy");
 
 assert.match(app, /palette-tabs[\s\S]*paletteTab === "nodes"[\s\S]*paletteTab === "functions"[\s\S]*paletteTab === "groups"[\s\S]*paletteTab === "flows"/, "resource tabs must stay ordered Nodes → Functions → Groups → Flows");
 assert.match(app, /const PALETTE_MIN_WIDTH = 216/, "resource palette must enforce the wider Phase 8 minimum width");

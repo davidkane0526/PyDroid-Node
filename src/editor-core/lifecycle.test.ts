@@ -43,6 +43,21 @@ describe("EditorWorkspaceLifecycleService", () => {
     expect(lifecycle.readAutosave("good").status).toBe("ok");
   });
 
+
+  it("preserves future-version autosaves instead of deleting them", () => {
+    const { storage, values } = memoryStorage();
+    const lifecycle = new EditorWorkspaceLifecycleService(storage, "test.autosave");
+    const key = lifecycle.autosaveKey("future");
+    const raw = JSON.stringify({ schemaVersion: 999, name: "future", nodes: [], edges: [], functions: [], requirements: [] });
+    values.set(key, raw);
+    const result = lifecycle.readAutosave("future");
+    expect(result.status).toBe("incompatible");
+    expect(values.get(key)).toBe(raw);
+    const write = lifecycle.writeAutosave("future", snapshotWithRequirements("current"));
+    expect(write).toMatchObject({ ok: false, reason: "protected" });
+    expect(values.get(key)).toBe(raw);
+  });
+
   it("marks the owning session saved without changing its input state", () => {
     const { storage } = memoryStorage();
     const lifecycle = new EditorWorkspaceLifecycleService(storage);
@@ -76,6 +91,19 @@ describe("EditorWorkspaceLifecycleService", () => {
     expect(opened.getRuntimeState().snapshot.requirements).toEqual(["after"]);
     expect(opened.isDirty()).toBe(false);
   });
+
+
+  it("rejects future workflow opens before mutating the active editor session", () => {
+    const { storage } = memoryStorage();
+    const lifecycle = new EditorWorkspaceLifecycleService(storage);
+    const session = new EditorSessionStore("future-open", snapshotWithRequirements("keep-current")).get("future-open")!;
+    const before = session.captureSnapshot();
+    const future = JSON.stringify({ schemaVersion: 999, name: "future", nodes: [], edges: [], functions: [], requirements: [] });
+    expect(() => lifecycle.openSerialized(session, future)).toThrow(/高于当前支持/);
+    expect(session.captureSnapshot()).toEqual(before);
+    expect(session.isDirty()).toBe(false);
+  });
+
 
   it("restores autosave into a dirty recoverable session without changing startup policy", () => {
     const { storage } = memoryStorage();

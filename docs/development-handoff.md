@@ -1,10 +1,10 @@
-# Current handoff — 1.4.76 / Phase 10 Host state TypeScript build hotfix
+# Current handoff — 1.4.77 / Phase 11 Workflow Compatibility & Migration
 
-The user physically validated 1.4.73 Desktop Remote Web/LAN access. Treat **1.4.73 as the frozen accepted network baseline**: fixed TCP 8765, the current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not be changed without a concrete defect and user approval for any UI text change.
+The user physically validated the 1.4.73 Desktop Remote Web/LAN path, reported no regression in 1.4.74, and then completed a real Windows dependency-backed build plus **22/22** diagnostics on 1.4.76. Treat **1.4.76 as the frozen Phase 10 boundary** and **1.4.73 as the accepted network-behavior baseline**: fixed TCP 8765, current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not change without a concrete defect. Any new UI text still requires explicit user approval.
 
-1.4.74 hardened start/stop lifecycle ownership and transient discovery recovery without changing the accepted network contract. The user reported no issue with that build. 1.4.75 added read-only cross-platform lifecycle/status reconciliation, but the real Windows build exposed a strict-null TypeScript error in that new hook. 1.4.76 is a build-only hotfix: it preserves the narrowed host info in a local constant before the React updater callback. It does not call start/stop, rotate PIN/session state, change the network protocol, layout, or UI text.
+1.4.77 completes Phase 11 Workflow Compatibility & Migration. It introduces Workflow schema v3, explicit schema/NodeSpec/function migration chains, Editor Resource schema v2, future-version autosave/resource protection, a complete Git-history workflow corpus, migrated-workflow Python/JavaScript execution parity, a focused strict TypeScript compatibility gate and a Phase 11 freeze audit. It does not change the frozen Remote/LAN implementation or add UI copy.
 
-Version: **1.4.76**, Android versionCode **99**. Build revision: `1.4.76-dev-r52-phase10-host-state-typecheck`.
+Version: **1.4.77**, Android versionCode **100**. Build revision: `1.4.77-dev-r53-phase11-workflow-compatibility-migration`.
 
 # Development handoff
 
@@ -12,7 +12,7 @@ Updated: 2026-08-21
 
 ## Current repository state
 
-This delivery is a **single local Git repository** whose current Phase 10 work continues from the user-accepted/frozen `PyDroid Node 1.4.67` Phase 9 boundary; the repository ultimately derives from the user-provided clean `PyDroid Node 1.4.55.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
+This delivery is a **single local Git repository** whose current Phase 11 work continues from the user-accepted/frozen `PyDroid Node 1.4.76` Phase 10 boundary; the repository ultimately derives from the user-provided clean `PyDroid Node 1.4.55.zip`. Do not use GitHub as a development baseline unless the user explicitly asks for a GitHub operation.
 
 Long-lived branches in this repository:
 
@@ -35,9 +35,10 @@ Long-lived branches in this repository:
 - `fix/phase10-remote-startup-single-flight`: `1.4.73 (96)` user-accepted Remote Web/LAN baseline.
 - `phase10/host-lifecycle-recovery`: `1.4.74 (97)` accepted-without-observed-regression host lifecycle/recovery milestone.
 - `phase10/host-state-reconciliation`: `1.4.75 (98)` read-only native-host/UI state reconciliation milestone (real Windows build later exposed TS18047).
-- `fix/phase10-host-state-typecheck`: `1.4.76 (99)` current TypeScript production-build hotfix; behavior unchanged.
+- `fix/phase10-host-state-typecheck`: `1.4.76 (99)` accepted Phase 10 TypeScript production-build hotfix/freeze boundary.
+- `phase11/workflow-compatibility-migration`: `1.4.77 (100)` current Phase 11 Workflow Compatibility & Migration completion candidate.
 
-Current working branch: `fix/phase10-host-state-typecheck`.
+Current working branch: `phase11/workflow-compatibility-migration`.
 
 The repository must stay as one project directory with `.git` intact. Do not create parallel `dev`, `js`, Android, desktop or rewritten project copies.
 
@@ -116,7 +117,7 @@ The current user-visible UI, Electron preload method names and Android Capacitor
 
 ## Validation completed in the cloud
 
-### Current Phase 10 / 1.4.76 validation
+### Frozen Phase 10 / 1.4.76 validation
 
 - Python suite: **111 passed, 1 skipped**.
 - Runtime parity: **68/68** golden workflows and **75/75** JavaScript-capable NodeContracts.
@@ -183,6 +184,12 @@ The user should only need to confirm real-host behavior:
 
 Do not ask the user to perform routine unit/static/protocol tests that can be automated in the cloud.
 
+## Phase 11 status — Workflow Compatibility & Migration
+
+**Implemented in 1.4.77 (100) from the accepted 1.4.76 Phase 10 freeze boundary.** Workflow schema is v3 and migrates through immutable explicit steps. NodeSpec evolution has a registered per-node version chain with parameter/type/port migration, stable-id protection and edge/group/function-handle reconciliation. Reusable function calls only advance when saved signature evidence proves compatibility. Saved Node/Group/Flow resources use resource schema v2; future/invalid payloads are retained as opaque protected raw records rather than normalized or overwritten. Future autosave/workflow open is non-destructive and atomic.
+
+The compatibility corpus is derived from the repository's complete local Git history: all 8 unique committed historical `.workflow.json` documents (schemas v1/v2) are fixtures, plus a future-v99 protection fixture. `test:workflow-compatibility` runs the Git corpus audit, the real parser/migration + canonical save/reopen + migrated-v1 Python/JavaScript execution smoke, a strict TypeScript no-emit subset, and the Phase 11 freeze audit. The full-host diagnostic UI remains 22 cases; Phase 11 checks are embedded into existing rows with no new visible labels. See `docs/phase11-workflow-compatibility-migration.md`.
+
 ## Phase 2 status — ExecutionController
 
 **Complete, user-tested and frozen.** Phase 2 established execution IDs, timeout/cancel semantics and real host-release barriers. Do not reintroduce global UI booleans as an execution authority. Windows Python can hard-terminate child process trees; Android Chaquopy remains cooperative for native C/NumPy work.
@@ -218,7 +225,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Validate/freeze Phase 10 on packaged Desktop and Android.** 1.4.73 is the accepted network-behavior baseline, 1.4.74 closes native lifecycle/recovery races, and 1.4.75 closes stale native-host/UI state. Do not add more Remote Web/LAN behavior merely to extend the phase. First verify 1.4.75 on the real Desktop build and, when available, Android; if both remain clean, freeze Phase 10 before defining the next architecture stage. Any future UI copy change still requires explicit user approval.
+**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Development scope for Workflow Compatibility & Migration is complete in 1.4.77. The next user action should be a single dependency-backed build plus the existing 22-case diagnostics/normal workflow-open check; do not ask for intermediate Phase 11 tests. If that final feedback is clean, mark Phase 11 frozen before defining any Phase 12 scope. Do not modify the frozen Remote Web/LAN path or add UI copy without a concrete defect and explicit user approval.
 
 ### Production TypeScript vs test TypeScript
 

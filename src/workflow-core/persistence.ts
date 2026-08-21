@@ -1,5 +1,5 @@
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
-export type StorageWriteResult = { ok: true } | { ok: false; reason: "quota" | "unavailable"; message: string };
+export type StorageWriteResult = { ok: true } | { ok: false; reason: "quota" | "unavailable" | "protected"; message: string };
 
 function storageError(error: unknown): StorageWriteResult {
   const name = error instanceof DOMException ? error.name : error instanceof Error ? error.name : "";

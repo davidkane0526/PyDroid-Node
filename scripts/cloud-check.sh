@@ -7,6 +7,7 @@ cd "$project_root"
 corepack enable
 pnpm install --frozen-lockfile
 python3.13 -m pip install --user -r requirements-dev.txt
+pnpm test:workflow-compatibility
 pnpm test
 python3.13 -m pytest -q
 pnpm build

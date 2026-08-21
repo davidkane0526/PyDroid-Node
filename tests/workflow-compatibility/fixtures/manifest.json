@@ -1,0 +1,58 @@
+{
+  "fixtures": [
+    {
+      "file": "1.4.27-ter-matrix.workflow.json",
+      "origin": "git 398327d / PyDroid 1.4.27 examples/ter-matrix.workflow.json",
+      "schemaVersion": 1,
+      "expectedCurrent": true
+    },
+    {
+      "file": "1.4.27-logic-control.workflow.json",
+      "origin": "git 398327d / PyDroid 1.4.27 examples/logic-control-demo.workflow.json",
+      "schemaVersion": 1,
+      "expectedCurrent": true
+    },
+    {
+      "file": "phase7-v1-basic.workflow.json",
+      "origin": "tests/manual/phase8/00-legacy-v1.workflow.json",
+      "schemaVersion": 1,
+      "expectedCurrent": true
+    },
+    {
+      "file": "phase8-v2-function.workflow.json",
+      "origin": "tests/manual/phase8/03-reusable-function.workflow.json",
+      "schemaVersion": 2,
+      "expectedCurrent": true
+    },
+    {
+      "file": "1.4.27-periodic-oscillating-pulse.workflow.json",
+      "origin": "git e33b93a / PyDroid 1.4.27 examples/periodic-oscillating-pulse.workflow.json",
+      "schemaVersion": 1,
+      "expectedCurrent": true
+    },
+    {
+      "file": "phase8-v2-workspace-write.workflow.json",
+      "origin": "tests/manual/phase8/01-workspace-write.workflow.json",
+      "schemaVersion": 2,
+      "expectedCurrent": true
+    },
+    {
+      "file": "phase8-v2-workspace-read.workflow.json",
+      "origin": "tests/manual/phase8/02-workspace-read.workflow.json",
+      "schemaVersion": 2,
+      "expectedCurrent": true
+    },
+    {
+      "file": "phase8-v2-python-fallback-function.workflow.json",
+      "origin": "tests/manual/phase8/04-python-fallback-function.workflow.json",
+      "schemaVersion": 2,
+      "expectedCurrent": true
+    },
+    {
+      "file": "future-v99.workflow.json",
+      "origin": "Phase 11 future-version guard",
+      "schemaVersion": 99,
+      "expectedCurrent": false
+    }
+  ]
+}

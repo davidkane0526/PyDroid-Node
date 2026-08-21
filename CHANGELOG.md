@@ -1,3 +1,17 @@
+## 1.4.77 (100) — Phase 11 Workflow Compatibility & Migration — 2026-08-21
+
+- Freezes Phase 10 after the real 1.4.76 Windows build and 22/22 host diagnostics, and leaves the accepted Remote Web/LAN implementation and UI copy unchanged.
+- Advances Workflow document schema to v3 with immutable, stepwise v1→v2→v3 migration registration, typed compatibility errors, source cloning, migration reports and fail-closed missing/invalid/future-version handling.
+- Adds versioned NodeSpec migration infrastructure for parameter rename/removal/defaults, node replacement and input/output handle renames propagated through graph edges, groups and reusable-function boundaries. Stable node IDs cannot change and future/missing node-version steps fail closed.
+- Adds safe reusable function-call reconciliation. Older calls advance only when their saved input/output signatures prove compatibility; future or ambiguous/incompatible calls are rejected instead of guessed.
+- Adds Editor Resource schema v2 migration for Saved Node, Group and Flow resources. Future/invalid resource payloads are retained byte-semantically through persistence, excluded from interactive use and protected against current-version rename/remove mutation without adding UI copy.
+- Makes future/incompatible autosave documents non-destructive: syntactically valid future data is preserved and protected from overwrite, while malformed JSON remains isolatable as corruption. Future workflow open is atomic and cannot mutate the active Editor Session.
+- Adds a complete local-Git history corpus audit: all 8 unique committed historical `.workflow.json` documents (schemas v1/v2) are fixtures, plus a future-v99 guard. The real current parser migrates, validates, canonical-saves and reopens them.
+- Executes a migrated real v1 workflow through both current JavaScript and Python engines and requires equal results. Adds dependency-light resource/failure guards and a strict TypeScript no-emit smoke for seven Phase 11 production compatibility modules.
+- Keeps the visible full-host diagnostics at 22 cases. Phase 11 coverage is embedded in existing document/resource/JavaScript/Python cases instead of adding user-visible diagnostic labels.
+- Adds `phase11-freeze-audit` to forbid changes to the accepted Desktop/Android Remote/LAN files, migration ownership in `App.tsx`, and new `setMessage()` UI calls during this phase.
+- Build script revision: `1.4.77-dev-r53-phase11-workflow-compatibility-migration`.
+
 ## 1.4.76 (99) — Phase 10 Host state TypeScript build hotfix — 2026-08-21
 
 - Fixes the dependency-backed production TypeScript failure in `src/ui/useRemoteHostReconciliation.ts` reported by the real Windows build: `TS18047: status.info is possibly null`.
