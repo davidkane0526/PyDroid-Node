@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.77 (100) · Phase 11 Workflow Compatibility & Migration**。1.4.76 已通过用户真实 Windows 构建与 22/22 宿主诊断，Phase 10 冻结；1.4.77 建立 Workflow schema v3、NodeSpec/函数迁移链、Editor Resource schema v2、future-version 非破坏保护和完整 Git 历史兼容 corpus。Phase 11 不修改已验收的 Remote Web/LAN 路径，也不新增 UI 文案。详见 [docs/phase11-workflow-compatibility-migration.md](docs/phase11-workflow-compatibility-migration.md)。
+> **当前开发版本：1.4.78 (101) · Phase 11 Workflow Compatibility & Migration**。1.4.76 已通过用户真实 Windows 构建与 22/22 宿主诊断，Phase 10 冻结；1.4.78 保留 1.4.77 建立的 Workflow schema v3、NodeSpec/函数迁移链、Editor Resource schema v2、future-version 非破坏保护和完整 Git 历史兼容 corpus。Phase 11 不修改已验收的 Remote Web/LAN 路径，也不新增 UI 文案。详见 [docs/phase11-workflow-compatibility-migration.md](docs/phase11-workflow-compatibility-migration.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

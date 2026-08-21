@@ -1,4 +1,4 @@
-# Phase 11 progress — 1.4.77 (100)
+# Phase 11 progress — 1.4.78 (101)
 
 ## Workflow Compatibility & Migration complete candidate
 
@@ -9,10 +9,10 @@
 - Autosave distinguishes corruption from future incompatibility and prevents a current version from overwriting a valid future document.
 - Complete Git-history corpus: 8 unique committed historical workflow files (schema v1/v2) + future-v99 guard.
 - Real parser migration → validation → canonical save/reopen and migrated-v1 JavaScript/Python execution parity are dependency-light executable gates.
-- Strict Phase 11 TypeScript smoke covers seven production compatibility modules before the final dependency-backed build.
+- Strict Phase 11 TypeScript smoke covers eight production modules, including `src/diagnostics/automated-debug.ts`, before the final dependency-backed build.
 - Existing visible host diagnostics remain 22 cases; compatibility checks are embedded without new UI labels/copy.
 - `phase11-freeze-audit` protects the 1.4.76 accepted Remote/LAN implementation and forbids new `setMessage()` UI calls in `App.tsx`.
-- Build script revision: `1.4.77-dev-r53-phase11-workflow-compatibility-migration`.
+- Build script revision: `1.4.78-dev-r54-phase11-final-typecheck-hotfix`.
 
 ---
 

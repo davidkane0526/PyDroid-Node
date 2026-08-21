@@ -13,18 +13,38 @@ const localTsc = process.platform === "win32"
 const tsc = existsSync(localTsc) ? localTsc : "tsc";
 
 writeFileSync(xyflowStub, `declare module "@xyflow/react" {
-  export type Edge = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; [key: string]: unknown };
+  export type Edge = {
+    id: string;
+    source: string;
+    target: string;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+    [key: string]: any;
+  };
+  export type Connection = {
+    source: string | null;
+    target: string | null;
+    sourceHandle?: string | null;
+    targetHandle?: string | null;
+  };
   export type Node<T = Record<string, unknown>> = {
     id: string;
     position: { x: number; y: number };
     data: T;
     type?: string;
+    parentId?: string;
+    selected?: boolean;
+    className?: string;
+    extent?: any;
+    expandParent?: boolean;
     measured?: { width?: number; height?: number };
     width?: number;
     height?: number;
-    style?: { width?: number | string; height?: number | string; [key: string]: unknown };
-    [key: string]: unknown;
+    style?: { width?: number | string; height?: number | string; [key: string]: any };
+    [key: string]: any;
   };
+  export function addEdge(connection: Connection | Edge, edges: Edge[]): Edge[];
+  export function reconnectEdge(oldEdge: Edge, connection: Connection, edges: Edge[]): Edge[];
 }
 `);
 
@@ -36,6 +56,7 @@ const files = [
   "src/workflow.ts",
   "src/editor-core/resource-contract.ts",
   "src/editor-core/resource-migrations.ts",
+  "src/diagnostics/automated-debug.ts",
 ].map((file) => resolve(root, file));
 
 writeFileSync(configPath, JSON.stringify({

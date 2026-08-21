@@ -2,7 +2,7 @@
 
 更新时间：2026-08-21
 当前架构开发分支：`phase11/workflow-compatibility-migration`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.77 (100)`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.78 (101)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -580,7 +580,7 @@ desktop/
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
 10. Phase 9 Editor Core & Workspace Session：1.4.60 开始，1.4.67 经真实宿主依赖构建与 19/19 自动诊断验收后冻结。Desktop/Mobile 与 Node/Group 手势保持独立策略。
 11. Phase 10 Remote Access Security & Host Reliability：1.4.68 开始；已完成安全策略、LAN discovery 生命周期、真实宿主 E2E、固定 8765、start/stop 生命周期恢复及 read-only Host/UI 状态对齐；1.4.76 经真实 Windows 构建与 22/22 诊断后冻结。
-12. Phase 11 Workflow Compatibility & Migration：1.4.77 完成 Workflow schema v3、NodeSpec/函数迁移、Editor Resource schema v2、future-version 非破坏保护、完整 Git 历史 corpus 与迁移后 Python/JavaScript 执行门禁。
+12. Phase 11 Workflow Compatibility & Migration：1.4.78 完成 Workflow schema v3、NodeSpec/函数迁移、Editor Resource schema v2、future-version 非破坏保护、完整 Git 历史 corpus 与迁移后 Python/JavaScript 执行门禁。
 
 核心原则始终是：
 
@@ -651,10 +651,10 @@ After the accepted 1.4.73 network baseline, 1.4.74 fixes stale start resurrectio
 
 ## 15. Phase 11 — Workflow Compatibility & Migration
 
-状态：**1.4.77 (100) 完整开发完成候选，等待最终一次用户真实依赖构建/宿主反馈后冻结。**
+状态：**1.4.78 (101) 完整开发完成候选，等待最终一次用户真实依赖构建/宿主反馈后冻结。1.4.77 首次真实 Windows 构建暴露 diagnostics 层 TS2339，已在 1.4.78 修复并纳入严格类型门禁。**
 
 Phase 11 将“工作流能否长期演进”从零散兼容代码提升为独立契约。Workflow schema 固定为 v3，并通过不可覆盖的逐版本 migration chain 从历史 v1/v2 升级；NodeSpec 迁移负责参数、类型、端口及边界 handle 演进，同时禁止修改稳定 node id；Reusable Function 调用只有在保存签名能够证明兼容时才自动升级。Editor Saved Node/Group/Flow 使用独立 resource schema v2，future/invalid payload 作为 opaque raw data 原样保护，当前版本不得通过普通持久化、重命名或删除破坏它们。未来版本 autosave 同样受到覆盖保护，未来工作流打开失败时不得污染当前 Editor Session。
 
-兼容门禁不依赖人工挑选样本：`workflow-history-corpus-audit` 扫描完整本地 `.git`，当前历史中 8 个唯一 `.workflow.json`（schema v1/v2）全部进入 fixture corpus；真实 parser 完成 migration → semantic validation → canonical save → reopen，并将迁移后的真实 v1 工作流分别交给 Python/JavaScript 引擎执行，结果必须一致。额外 strict TypeScript smoke 针对 Phase 11 七个生产模块执行 `--strict --noEmit`，`phase11-freeze-audit` 则阻止本阶段修改已冻结 Remote/LAN 文件、把 migration 注册塞回 `App.tsx` 或新增未授权 `setMessage()` UI 文案。
+兼容门禁不依赖人工挑选样本：`workflow-history-corpus-audit` 扫描完整本地 `.git`，当前历史中 8 个唯一 `.workflow.json`（schema v1/v2）全部进入 fixture corpus；真实 parser 完成 migration → semantic validation → canonical save → reopen，并将迁移后的真实 v1 工作流分别交给 Python/JavaScript 引擎执行，结果必须一致。额外 strict TypeScript smoke 针对 Phase 11 八个生产模块（含 `src/diagnostics/automated-debug.ts`）执行 `--strict --noEmit`，`phase11-freeze-audit` 则阻止本阶段修改已冻结 Remote/LAN 文件、把 migration 注册塞回 `App.tsx` 或新增未授权 `setMessage()` UI 文案。
 
 完整规则与后续增加 schema/NodeSpec migration 的操作步骤见 `docs/phase11-workflow-compatibility-migration.md`。

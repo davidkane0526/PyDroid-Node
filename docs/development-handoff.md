@@ -1,10 +1,10 @@
-# Current handoff — 1.4.77 / Phase 11 Workflow Compatibility & Migration
+# Current handoff — 1.4.78 / Phase 11 Workflow Compatibility & Migration
 
 The user physically validated the 1.4.73 Desktop Remote Web/LAN path, reported no regression in 1.4.74, and then completed a real Windows dependency-backed build plus **22/22** diagnostics on 1.4.76. Treat **1.4.76 as the frozen Phase 10 boundary** and **1.4.73 as the accepted network-behavior baseline**: fixed TCP 8765, current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not change without a concrete defect. Any new UI text still requires explicit user approval.
 
-1.4.77 completes Phase 11 Workflow Compatibility & Migration. It introduces Workflow schema v3, explicit schema/NodeSpec/function migration chains, Editor Resource schema v2, future-version autosave/resource protection, a complete Git-history workflow corpus, migrated-workflow Python/JavaScript execution parity, a focused strict TypeScript compatibility gate and a Phase 11 freeze audit. It does not change the frozen Remote/LAN implementation or add UI copy.
+1.4.78 is the corrected Phase 11 completion candidate. 1.4.77 completed the migration architecture but failed the first real dependency-backed Windows build because `src/diagnostics/automated-debug.ts` referenced a nonexistent `EditorWorkspaceSession.captureSnapshot()` API; 1.4.78 fixes that diagnostic-only error and brings the diagnostics module into the strict TypeScript gate. It introduces Workflow schema v3, explicit schema/NodeSpec/function migration chains, Editor Resource schema v2, future-version autosave/resource protection, a complete Git-history workflow corpus, migrated-workflow Python/JavaScript execution parity, a focused strict TypeScript compatibility gate and a Phase 11 freeze audit. It does not change the frozen Remote/LAN implementation or add UI copy.
 
-Version: **1.4.77**, Android versionCode **100**. Build revision: `1.4.77-dev-r53-phase11-workflow-compatibility-migration`.
+Version: **1.4.78**, Android versionCode **101**. Build revision: `1.4.78-dev-r54-phase11-final-typecheck-hotfix`.
 
 # Development handoff
 
@@ -36,7 +36,8 @@ Long-lived branches in this repository:
 - `phase10/host-lifecycle-recovery`: `1.4.74 (97)` accepted-without-observed-regression host lifecycle/recovery milestone.
 - `phase10/host-state-reconciliation`: `1.4.75 (98)` read-only native-host/UI state reconciliation milestone (real Windows build later exposed TS18047).
 - `fix/phase10-host-state-typecheck`: `1.4.76 (99)` accepted Phase 10 TypeScript production-build hotfix/freeze boundary.
-- `phase11/workflow-compatibility-migration`: `1.4.77 (100)` current Phase 11 Workflow Compatibility & Migration completion candidate.
+- `phase11/workflow-compatibility-migration`: `1.4.77 (100)` rejected completion candidate due to diagnostics TS2339 in the first real Windows build.
+- `fix/phase11-final-typecheck-hotfix`: `1.4.78 (101)` corrected Phase 11 completion candidate.
 
 Current working branch: `phase11/workflow-compatibility-migration`.
 
@@ -186,9 +187,9 @@ Do not ask the user to perform routine unit/static/protocol tests that can be au
 
 ## Phase 11 status — Workflow Compatibility & Migration
 
-**Implemented in 1.4.77 (100) from the accepted 1.4.76 Phase 10 freeze boundary.** Workflow schema is v3 and migrates through immutable explicit steps. NodeSpec evolution has a registered per-node version chain with parameter/type/port migration, stable-id protection and edge/group/function-handle reconciliation. Reusable function calls only advance when saved signature evidence proves compatibility. Saved Node/Group/Flow resources use resource schema v2; future/invalid payloads are retained as opaque protected raw records rather than normalized or overwritten. Future autosave/workflow open is non-destructive and atomic.
+**Implemented in 1.4.78 (101) from the accepted 1.4.76 Phase 10 freeze boundary.** Workflow schema is v3 and migrates through immutable explicit steps. NodeSpec evolution has a registered per-node version chain with parameter/type/port migration, stable-id protection and edge/group/function-handle reconciliation. Reusable function calls only advance when saved signature evidence proves compatibility. Saved Node/Group/Flow resources use resource schema v2; future/invalid payloads are retained as opaque protected raw records rather than normalized or overwritten. Future autosave/workflow open is non-destructive and atomic.
 
-The compatibility corpus is derived from the repository's complete local Git history: all 8 unique committed historical `.workflow.json` documents (schemas v1/v2) are fixtures, plus a future-v99 protection fixture. `test:workflow-compatibility` runs the Git corpus audit, the real parser/migration + canonical save/reopen + migrated-v1 Python/JavaScript execution smoke, a strict TypeScript no-emit subset, and the Phase 11 freeze audit. The full-host diagnostic UI remains 22 cases; Phase 11 checks are embedded into existing rows with no new visible labels. See `docs/phase11-workflow-compatibility-migration.md`.
+The compatibility corpus is derived from the repository's complete local Git history: all 8 unique committed historical `.workflow.json` documents (schemas v1/v2) are fixtures, plus a future-v99 protection fixture. `test:workflow-compatibility` runs the Git corpus audit, the real parser/migration + canonical save/reopen + migrated-v1 Python/JavaScript execution smoke, a strict TypeScript no-emit subset covering eight production modules including the diagnostics module, and the Phase 11 freeze audit. The full-host diagnostic UI remains 22 cases; Phase 11 checks are embedded into existing rows with no new visible labels. See `docs/phase11-workflow-compatibility-migration.md`.
 
 ## Phase 2 status — ExecutionController
 
@@ -225,7 +226,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Development scope for Workflow Compatibility & Migration is complete in 1.4.77. The next user action should be a single dependency-backed build plus the existing 22-case diagnostics/normal workflow-open check; do not ask for intermediate Phase 11 tests. If that final feedback is clean, mark Phase 11 frozen before defining any Phase 12 scope. Do not modify the frozen Remote Web/LAN path or add UI copy without a concrete defect and explicit user approval.
+**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Development scope for Workflow Compatibility & Migration is complete in the corrected 1.4.78 candidate; 1.4.77 is not an accepted build candidate. The next user action should be a single dependency-backed build plus the existing 22-case diagnostics/normal workflow-open check; do not ask for intermediate Phase 11 tests. If that final feedback is clean, mark Phase 11 frozen before defining any Phase 12 scope. Do not modify the frozen Remote Web/LAN path or add UI copy without a concrete defect and explicit user approval.
 
 ### Production TypeScript vs test TypeScript
 

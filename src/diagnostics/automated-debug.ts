@@ -463,9 +463,15 @@ async function editorDocumentLifecycleCase(): Promise<DiagnosticCase> {
     const futureRead = lifecycle.readAutosave("future");
     if (futureRead.status !== "incompatible" || values.get(futureKey) !== future) throw new Error("未来版本 autosave 没有原样保留");
     if (lifecycle.writeAutosave("future", emptyWorkflowSnapshot()).ok !== false || values.get(futureKey) !== future) throw new Error("未来版本 autosave 被当前版本覆盖");
-    const beforeFutureOpen = opened.captureSnapshot();
+    const captureObservableSessionState = () => JSON.stringify({
+      state: opened.getState(),
+      dirty: opened.isDirty(),
+      history: { canUndo: opened.history.canUndo, canRedo: opened.history.canRedo, entries: opened.history.entries },
+    });
+    const beforeFutureOpen = captureObservableSessionState();
     try { lifecycle.openSerialized(opened, future); throw new Error("未来版本工作流没有拒绝打开"); } catch (error) { if (error instanceof Error && error.message === "未来版本工作流没有拒绝打开") throw error; }
-    if (JSON.stringify(opened.captureSnapshot()) !== JSON.stringify(beforeFutureOpen)) throw new Error("拒绝未来工作流时污染了当前 Editor Session");
+    const afterFutureOpen = captureObservableSessionState();
+    if (afterFutureOpen !== beforeFutureOpen) throw new Error("拒绝未来工作流时污染了当前 Editor Session");
 
     return {
       saveMarkedClean: !source.isDirty(),

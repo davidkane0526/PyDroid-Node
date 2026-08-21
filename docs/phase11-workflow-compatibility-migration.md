@@ -138,7 +138,7 @@ It also executes a migrated real schema-v1 workflow through both current JavaScr
 
 ## Strict TypeScript gate
 
-`scripts/workflow-compatibility-typecheck-smoke.mjs` performs a strict no-emit TypeScript compile of the Phase 11 production compatibility modules. It uses the repository TypeScript compiler when dependencies are installed and a minimal `@xyflow/react` type shim only for the dependency-light environment.
+`scripts/workflow-compatibility-typecheck-smoke.mjs` performs a strict no-emit TypeScript compile of eight Phase 11 production modules, including the full-host diagnostics module that embeds migration checks. It uses the repository TypeScript compiler when dependencies are installed and a minimal `@xyflow/react` type shim only for the dependency-light environment.
 
 This does not replace the real production `tsc --noEmit -p tsconfig.json` in `pnpm build`; it exists to catch strict-null/inference regressions before the final user-host build even when the cloud environment has no installed frontend dependencies.
 
@@ -165,6 +165,11 @@ Compatibility coverage is embedded into existing cases:
 - JavaScript/Python workspace cases: migration and execution of a real v1 workflow.
 
 This strengthens the final real-host report without changing UI copy.
+
+
+### 1.4.77 final-candidate build correction
+
+The first dependency-backed Windows build of the 1.4.77 completion candidate exposed a diagnostics-layer TypeScript error: `automated-debug.ts` referenced a nonexistent `EditorWorkspaceSession.captureSnapshot()` API. 1.4.78 replaces that check with the session's public runtime/view/dirty APIs and adds `automated-debug.ts` to the strict Phase 11 TypeScript smoke. No migration, resource, runtime, Remote/LAN or UI behavior changes in this correction.
 
 ## Phase 11 freeze criteria
 

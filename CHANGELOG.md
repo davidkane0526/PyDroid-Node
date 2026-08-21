@@ -1,3 +1,12 @@
+## 1.4.78 (101) — Phase 11 final TypeScript build-gate hotfix — 2026-08-21
+
+- Fixes the real Windows dependency-backed production build failure reported for the 1.4.77 Phase 11 completion candidate: `src/diagnostics/automated-debug.ts` called a nonexistent `EditorWorkspaceSession.captureSnapshot()` method and failed strict TypeScript with `TS2339`.
+- Replaces that invalid diagnostic-only call with a public-API atomicity snapshot over `getRuntimeState()`, `getViewState()` and `isDirty()`, preserving the intended future-workflow rejection test without changing migration semantics or Editor behavior.
+- Expands `workflow-compatibility-typecheck-smoke` from seven to eight Phase 11 production modules and now compiles `src/diagnostics/automated-debug.ts` itself under strict no-emit TypeScript, so the exact class of 1.4.77 diagnostic-layer API mismatch is blocked before delivery.
+- Re-runs the historical corpus, real parser/migration + canonical save/reopen, migrated-v1 Python/JavaScript execution, Desktop/Android host, LAN discovery, Remote security, UI, Editor/Workflow architecture, Runtime parity 68/68, JS NodeContract 75/75 and Python 111 passed / 1 skipped gates.
+- Keeps Workflow schema v3, Editor Resource schema v2, all Phase 11 migration behavior, the frozen 1.4.76 Phase 10 boundary, Remote Web/LAN implementation and current UI copy unchanged.
+- Build script revision: `1.4.78-dev-r54-phase11-final-typecheck-hotfix`.
+
 ## 1.4.77 (100) — Phase 11 Workflow Compatibility & Migration — 2026-08-21
 
 - Freezes Phase 10 after the real 1.4.76 Windows build and 22/22 host diagnostics, and leaves the accepted Remote Web/LAN implementation and UI copy unchanged.
