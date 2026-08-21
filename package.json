@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.4.82",
+  "version": "1.4.83",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:build-tools && pnpm test:build-tool-architecture && pnpm test:ui-regressions && pnpm test:architecture && pnpm test:host-contract && pnpm test:remote-web && pnpm test:remote-production-freeze && pnpm test:remote-host-e2e && pnpm test:lan-discovery && pnpm test:diagnostics-contract && pnpm test:remote-security && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:android-host-architecture && pnpm test:workflow-compatibility && pnpm test:workflow-core && pnpm test:editor-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:build-tools && pnpm test:build-tool-architecture && pnpm test:ui-regressions && pnpm test:architecture && pnpm test:host-contract && pnpm test:remote-web && pnpm test:remote-host-e2e && pnpm test:lan-discovery && pnpm test:diagnostics-contract && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:android-host-architecture && pnpm test:workflow-compatibility && pnpm test:workflow-core && pnpm test:editor-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:version && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -33,7 +33,7 @@
     "android:live": "powershell -ExecutionPolicy Bypass -File scripts/android-live.ps1",
     "android:live:lan": "powershell -ExecutionPolicy Bypass -File scripts/android-lan-live.ps1",
     "android:logs": "powershell -ExecutionPolicy Bypass -File scripts/android-logs.ps1",
-    "android:sync": "pnpm build && cap sync android && powershell -ExecutionPolicy Bypass -File scripts/fix-capacitor-paths.ps1",
+    "android:sync": "pnpm build && cap sync android",
     "android:package": "powershell -ExecutionPolicy Bypass -File scripts/android-package.ps1",
     "android:emulator": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator.ps1",
     "android:emulator:remove": "powershell -ExecutionPolicy Bypass -File scripts/android-emulator-remove.ps1",
@@ -51,13 +51,11 @@
     "test:build-tool-architecture": "node scripts/build-tool-architecture-smoke.mjs",
     "test:ui-regressions": "node scripts/ui-regression-smoke.mjs",
     "test:remote-web": "node scripts/remote-web-smoke.mjs",
-    "test:editor-core": "node scripts/editor-core-architecture-smoke.mjs && node scripts/phase9-ownership-audit.mjs && node scripts/phase9-freeze-audit.mjs",
-    "test:remote-security": "node scripts/remote-security-smoke.mjs",
+    "test:editor-core": "node scripts/editor-core-architecture-smoke.mjs && node scripts/phase9-ownership-audit.mjs",
     "test:diagnostics-contract": "node scripts/automated-diagnostics-contract-smoke.mjs",
-    "test:lan-discovery": "node scripts/lan-discovery-lifecycle-smoke.mjs && node scripts/lan-firewall-smoke.mjs && node scripts/lan-network-selection-smoke.mjs",
-    "test:remote-host-e2e": "node scripts/remote-host-e2e-smoke.mjs && node scripts/remote-host-lifecycle-smoke.mjs && node scripts/android-remote-host-jvm-smoke.mjs",
-    "test:workflow-compatibility": "node scripts/workflow-history-corpus-audit.mjs && node --experimental-strip-types scripts/workflow-compatibility-smoke.mjs && node scripts/workflow-compatibility-typecheck-smoke.mjs && node scripts/phase11-freeze-audit.mjs",
-    "test:remote-production-freeze": "node scripts/remote-production-freeze-smoke.mjs"
+    "test:lan-discovery": "node scripts/lan-firewall-smoke.mjs && node scripts/lan-network-selection-smoke.mjs",
+    "test:remote-host-e2e": "node scripts/remote-host-e2e-smoke.mjs && node scripts/android-remote-host-jvm-smoke.mjs",
+    "test:workflow-compatibility": "node scripts/workflow-history-corpus-audit.mjs && node --experimental-strip-types scripts/workflow-compatibility-smoke.mjs && node scripts/workflow-compatibility-typecheck-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

@@ -1,7 +1,7 @@
 # Temporary Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.82
+Current behavior: 1.4.83
 
 This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
 
@@ -23,36 +23,32 @@ The report records only application/runtime diagnostics and the names/counts of 
 
 ## Current automated cases
 
-1. Editor Workspace Session isolation: graph/input/history/view/dirty state from one diagnostic tab must not leak into another.
-2. Editor Command transaction: group/function structural changes must atomically update graph, selection and history.
-3. Editor node mutations: insertion/duplication, parameter history coalescing and layout execute through Session transactions.
-4. Editor connection/metadata transaction: connect/reconnect, node replacement, tags, group labels/ports and code-template application execute through Editor Core.
-5. Editor drag history: live pointer movement must collapse to one history transaction, including structure-container/branch assignment and undo restoration.
-6. Editor lifecycle autosave: write/read preserves workflow state and corrupt autosaves are quarantined/deleted.
-7. Workspace document lifecycle: save/open/close dirty decisions and explicit autosave restore preserve the saved baseline.
-8. Unified Resource Contract: node/saved-node/function/group/flow capabilities and built-in/locked protection.
-9. Workspace Session identity: same workspace ID remains isolated by client and Local/Remote source; host execution matching uses workspace + client + source.
-10. Resource Service persistence: saved-node/group/flow mutation, lock protection and profile mirroring stay behind the Resource Library Service.
-11. Session/Execution lifecycle: equal workspace IDs from different client/source identities own independent local execution controllers.
-12. AI Agent batch transaction: a valid plan commits once/undoes once and an invalid plan cannot partially mutate the Session.
-13. Workflow requirement ownership: add/update/remove executes through Editor Commands and remains undoable.
-14. Runtime interaction isolation: `ui.input_dialog` and `ui.alert` responses affect only the current execution and do not mutate/dirty the Editor Session.
-15. Remote Web host E2E: a real Desktop/Android host service must start on stable TCP 8765, pass native HTTP `/health` + shell + JS-resource readiness, expose a non-loopback LAN URL, and report live SSDP/mDNS state. Desktop additionally requires every advertised LAN IPv4 to answer `/health` and requires SSDP/mDNS to finish real bind + multicast membership. Firewall/profile traversal from another physical device is intentionally outside this same-process diagnostic.
-16. Remote Web security policy: PIN lock/cooldown, token TTL and normal/expensive API limits match the Phase 10 contract.
-17. Remote Agent proxy boundary: Agent transport can run without a browser-held raw API key.
-18. Gesture-policy contract: desktop/mobile and node/group semantics remain intentionally distinct, including mobile canvas pan/marquee behavior.
-19. JavaScript workspace variable write -> second-run read.
-20. JavaScript reusable function signature/handles + absolute-value execution.
-21. Python workspace variable write -> second-run read when a Python host exists.
-22. Python reusable function signature/handles + absolute-value execution when a Python host exists.
+The in-app runner contains **20 application/editor/runtime cases**. It intentionally does **not** start, stop, reconcile, or certify Remote Web. Remote-host availability is tested by separate live HTTP/JVM/package smokes so diagnostics cannot influence the production network path.
 
-A plain local browser has no Python host, so its two Python cases are reported as skipped. The Phase 9 Editor/session contracts and the Phase 10 security/Agent-proxy contracts remain useful independent checks, but they are not evidence that a packaged host is externally reachable. Starting with Desktop 1.4.82, `remote-host-e2e` still executes real same-host HTTP shell/asset, LAN-address health and discovery checks, but a successful same-host result is reported as **skipped rather than passed** because one machine cannot prove that another physical device can cross the LAN/OS boundary. A real host error still fails the case. Cross-device browser access remains the manual acceptance check. Paired Remote Web cannot itself host another server, so the host-E2E case is skipped there.
+1. Editor Workspace Session isolation.
+2. Editor Command group/function transaction and undo/redo.
+3. Editor node mutation ownership and history coalescing.
+4. Editor connection/reconnect and metadata transaction.
+5. Editor drag-history transaction.
+6. Editor lifecycle autosave persistence/quarantine.
+7. Workspace document save/open/close/restore lifecycle, including schema migration and future-version rejection.
+8. Unified Resource Contract.
+9. Resource Service persistence, including legacy migration and opaque future-resource preservation.
+10. Workspace Session identity isolation.
+11. Session/Execution lifecycle isolation.
+12. AI Agent batch transaction atomicity.
+13. Workflow requirement ownership.
+14. Runtime interaction isolation for `ui.input_dialog` / `ui.alert`.
+15. Remote Agent proxy boundary.
+16. Desktop/mobile gesture-policy contract.
+17. JavaScript workspace-variable write -> second-run read, including migrated-v1 execution.
+18. JavaScript reusable function signature/handles + execution.
+19. Python workspace-variable write -> second-run read when a Python host exists, including migrated-v1 execution.
+20. Python reusable function signature/handles + execution when a Python host exists.
 
-Phase 11 strengthens the existing 22 cases without adding new user-visible diagnostic rows: document lifecycle now verifies schema-v1 migration plus future-workflow/autosave non-destructive rejection; resource persistence verifies legacy resource migration plus opaque future-resource preservation; and each existing workspace-persistence runtime case additionally executes a migrated schema-v1 workflow. The separate repository compatibility corpus provides the exhaustive historical migration gate.
+A plain local browser has no Python host, so cases 19-20 are skipped there. No result from this runner should be interpreted as proof that TCP 8765 is reachable. Remote Web is instead covered by `test:remote-host-e2e`, the Android JVM host E2E, and the packaged Desktop live-HTTP smoke.
 
-Phase 10 host behavior remains frozen at the user-validated 1.4.73+ contract: fixed TCP 8765, real LAN HTTP readiness and real SSDP/mDNS readiness. Phase 11 diagnostics consume that contract but do not modify Remote Web/LAN startup behavior.
-
-Repository gate `scripts/automated-diagnostics-contract-smoke.mjs` pins this **22-case** full-host contract so the diagnostic runner and documentation cannot silently drift apart.
+Repository gate `scripts/automated-diagnostics-contract-smoke.mjs` pins the **20-case** contract and also checks that `App.tsx` does not start or stop Remote Web as part of diagnostics.
 
 ## Output
 

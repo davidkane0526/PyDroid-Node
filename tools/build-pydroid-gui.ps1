@@ -37,25 +37,17 @@ if (-not (Test-Path -LiteralPath $coreScript)) {
 
 function Default-WorkRoot {
     if ($env:PYDROID_BUILD_HOME) { return $env:PYDROID_BUILD_HOME }
-    if (Test-Path -LiteralPath "D:\PyDroidTemp") { return "D:\PyDroidTemp" }
-    $local = [Environment]::GetFolderPath("LocalApplicationData")
-    return (Join-Path $local "PyDroidBuild")
+    return "D:\PyDroidTemp"
 }
 
-function Default-ToolRoot([string]$workRoot) {
+function Default-ToolRoot {
     if ($env:DK_TOOL_ROOT) { return $env:DK_TOOL_ROOT }
-    if ($env:PYDROID_TOOL_ROOT -and $env:PYDROID_TOOL_ROOT -ine "D:\Code\Language") { return $env:PYDROID_TOOL_ROOT }
-    if (Test-Path -LiteralPath "D:\Code\NodeJs\node.exe") { return "D:\Code" }
-    if ($env:PYDROID_TOOL_ROOT) { return $env:PYDROID_TOOL_ROOT }
-    if (Test-Path -LiteralPath "D:\Code") { return "D:\Code" }
-    if (Test-Path -LiteralPath "D:\Code\Language") { return "D:\Code\Language" }
-    return (Join-Path $workRoot "tools")
+    return "D:\Code"
 }
 
-function Default-CacheRoot([string]$toolRoot) {
+function Default-CacheRoot([string]$workRoot) {
     if ($env:DK_CACHE_ROOT) { return $env:DK_CACHE_ROOT }
-    if ($toolRoot) { return (Join-Path $toolRoot "BuildCache") }
-    return ""
+    return (Join-Path $workRoot "cache")
 }
 
 function Resolve-InitialProjectRoot {
@@ -111,16 +103,21 @@ function Select-Folder([string]$InitialPath) {
     return $null
 }
 
+function Select-File([string]$InitialPath, [string]$Filter = "Executable (*.exe)|*.exe|All files (*.*)|*.*") {
+    $dialog = New-Object System.Windows.Forms.OpenFileDialog
+    $dialog.Filter = $Filter
+    if ($InitialPath -and (Test-Path -LiteralPath $InitialPath -PathType Leaf)) {
+        $dialog.FileName = $InitialPath
+        $dialog.InitialDirectory = Split-Path $InitialPath -Parent
+    }
+    if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { return $dialog.FileName }
+    return $null
+}
+
 function Get-PowerShellExecutable {
-    try {
-        $current = (Get-Process -Id $PID).Path
-        if ($current -and ((Split-Path $current -Leaf) -match '^(powershell|pwsh)(\.exe)?$')) { return $current }
-    } catch {}
-    $pwsh = Get-Command pwsh.exe -ErrorAction SilentlyContinue
-    if ($pwsh) { return $pwsh.Source }
-    $ps = Get-Command powershell.exe -ErrorAction SilentlyContinue
-    if ($ps) { return $ps.Source }
-    throw "找不到 powershell.exe 或 pwsh.exe。"
+    $current = (Get-Process -Id $PID -ErrorAction Stop).Path
+    if (-not $current) { throw "无法读取当前 PowerShell 可执行文件路径。" }
+    return $current
 }
 
 function Quote-Argument([string]$value) {
@@ -131,18 +128,13 @@ function Quote-Argument([string]$value) {
 
 $workDefault = Default-WorkRoot
 $projectDefault = Resolve-InitialProjectRoot
-$toolDefault = Default-ToolRoot $workDefault
-$cacheDefault = Default-CacheRoot $toolDefault
+$toolDefault = Default-ToolRoot
+$cacheDefault = Default-CacheRoot $workDefault
 $outputDefault = $workDefault
-$jdkDefault = if ($env:PYDROID_JAVA_HOME) {
-    $env:PYDROID_JAVA_HOME
-} elseif ($env:JAVA_HOME) {
-    $env:JAVA_HOME
-} elseif (Test-Path -LiteralPath 'D:\Code\Language\Java') {
-    'D:\Code\Language\Java'
-} else {
-    ''
-}
+$jdkDefault = if ($env:PYDROID_JAVA_HOME) { $env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'D:\Code\Language\Java' }
+$androidSdkDefault = if ($env:PYDROID_ANDROID_SDK) { $env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { 'D:\Code\Android\Sdk' }
+$pythonDefault = if ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { 'D:\Code\Python\3.13\python.exe' }
+$desktopRuntimeDefault = if ($env:PYDROID_DESKTOP_PYTHON_RUNTIME) { $env:PYDROID_DESKTOP_PYTHON_RUNTIME } else { Join-Path $workDefault 'tools\pydroid-flow\Python\runtime-3.13' }
 $settingsDir = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "PyDroidBuild"
 $settingsFile = Join-Path $settingsDir "gui-settings.json"
 
@@ -152,44 +144,21 @@ if (Test-Path -LiteralPath $settingsFile) {
 }
 if ($stored) {
     if (-not $ProjectRoot -and $stored.ProjectRoot) { $projectDefault = [string]$stored.ProjectRoot }
-    if ($stored.WorkRoot -and -not $env:PYDROID_BUILD_HOME) { $workDefault = [string]$stored.WorkRoot }
-
-    # DK_* 环境变量是跨项目共享工具链的显式配置，应优先于旧 GUI 设置。
-    if (-not $env:DK_TOOL_ROOT) {
-        if ($stored.ToolRoot) {
-            $storedToolRoot = [string]$stored.ToolRoot
-            if ($storedToolRoot -ieq 'D:\Code\Language' -and (Test-Path -LiteralPath 'D:\Code\NodeJs\node.exe')) {
-                $toolDefault = 'D:\Code'
-            } else {
-                $toolDefault = $storedToolRoot
-            }
-        } else {
-            $toolDefault = Default-ToolRoot $workDefault
-        }
-    }
-
-    if ($env:DK_CACHE_ROOT) {
-        $cacheDefault = $env:DK_CACHE_ROOT
-    } elseif ($stored.CacheRoot) {
-        $storedCacheRoot = [string]$stored.CacheRoot
-        if ($storedCacheRoot -ieq 'D:\Code\Language\BuildCache' -and $toolDefault -ieq 'D:\Code') {
-            $cacheDefault = 'D:\Code\BuildCache'
-        } else {
-            $cacheDefault = $storedCacheRoot
-        }
-    } else {
-        $cacheDefault = Default-CacheRoot $toolDefault
-    }
-
-    if ($stored.OutputRoot) { $outputDefault = [string]$stored.OutputRoot } else { $outputDefault = $workDefault }
-    if ($stored.JdkHome) { $jdkDefault = [string]$stored.JdkHome }
+    if (-not $env:PYDROID_BUILD_HOME -and $stored.WorkRoot) { $workDefault = [string]$stored.WorkRoot }
+    if (-not $env:DK_TOOL_ROOT -and $stored.ToolRoot) { $toolDefault = [string]$stored.ToolRoot }
+    if (-not $env:DK_CACHE_ROOT -and $stored.CacheRoot) { $cacheDefault = [string]$stored.CacheRoot }
+    if ($stored.OutputRoot) { $outputDefault = [string]$stored.OutputRoot }
+    if (-not $env:PYDROID_JAVA_HOME -and -not $env:JAVA_HOME -and $stored.JdkHome) { $jdkDefault = [string]$stored.JdkHome }
+    if (-not $env:PYDROID_ANDROID_SDK -and -not $env:ANDROID_HOME -and $stored.AndroidSdkHome) { $androidSdkDefault = [string]$stored.AndroidSdkHome }
+    if (-not $env:PYDROID_PYTHON_EXECUTABLE -and $stored.PythonExecutable) { $pythonDefault = [string]$stored.PythonExecutable }
+    if (-not $env:PYDROID_DESKTOP_PYTHON_RUNTIME -and $stored.DesktopPythonRuntime) { $desktopRuntimeDefault = [string]$stored.DesktopPythonRuntime }
 }
 
 $form = New-Object System.Windows.Forms.Form
 $form.Text = "PyDroid Build GUI · Shared Toolchain"
 $form.StartPosition = "CenterScreen"
-$form.MinimumSize = New-Object System.Drawing.Size(940, 760)
-$form.Size = New-Object System.Drawing.Size(1120, 860)
+$form.MinimumSize = New-Object System.Drawing.Size(940, 860)
+$form.Size = New-Object System.Drawing.Size(1120, 960)
 $form.Font = New-Object System.Drawing.Font("Segoe UI", 9)
 
 
@@ -237,7 +206,7 @@ $pathsPanel.Dock = "Top"
 $pathsPanel.AutoSize = $true
 $pathsPanel.Padding = New-Object System.Windows.Forms.Padding(8)
 $pathsPanel.ColumnCount = 3
-$pathsPanel.RowCount = 6
+$pathsPanel.RowCount = 9
 [void]$pathsPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Absolute", 92)))
 [void]$pathsPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Percent", 100)))
 [void]$pathsPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle("Absolute", 76)))
@@ -250,6 +219,9 @@ $toolBox = $null
 $cacheBox = $null
 $outputBox = $null
 $jdkBox = $null
+$androidSdkBox = $null
+$pythonBox = $null
+$desktopRuntimeBox = $null
 $projectBox = Add-LabeledPathRow $pathsPanel 0 "项目目录" $projectDefault {
     $v = Select-Folder $projectBox.Text
     if ($v) { $projectBox.Text = $v }
@@ -260,10 +232,7 @@ $workBox = Add-LabeledPathRow $pathsPanel 1 "工作目录" $workDefault {
 }
 $toolBox = Add-LabeledPathRow $pathsPanel 2 "共享工具根目录" $toolDefault {
     $v = Select-Folder $toolBox.Text
-    if ($v) {
-        $toolBox.Text = $v
-        if (-not $cacheBox.Text -or $cacheBox.Text -like '*\BuildCache') { $cacheBox.Text = Join-Path $v 'BuildCache' }
-    }
+    if ($v) { $toolBox.Text = $v }
 }
 $cacheBox = Add-LabeledPathRow $pathsPanel 3 "共享缓存目录" $cacheDefault {
     $v = Select-Folder $cacheBox.Text
@@ -278,7 +247,19 @@ $jdkBox = Add-LabeledPathRow $pathsPanel 5 "JDK 目录" $jdkDefault {
     if ($v) { $jdkBox.Text = $v }
 }
 $jdkTip = New-Object System.Windows.Forms.ToolTip
-$jdkTip.SetToolTip($jdkBox, "可以填写真正的 JAVA_HOME，也可以填写包含 jdk-* 子目录的 Java 根目录，例如 D:\Code\Language\Java。填写后不会自动下载 JDK。")
+$jdkTip.SetToolTip($jdkBox, "填写实际 JDK 根目录（或其 bin/java.exe）。构建器只验证这个路径，不搜索其它安装位置。")
+$androidSdkBox = Add-LabeledPathRow $pathsPanel 6 "Android SDK" $androidSdkDefault {
+    $v = Select-Folder $androidSdkBox.Text
+    if ($v) { $androidSdkBox.Text = $v }
+}
+$pythonBox = Add-LabeledPathRow $pathsPanel 7 "Python 3.13" $pythonDefault {
+    $v = Select-File $pythonBox.Text
+    if ($v) { $pythonBox.Text = $v }
+}
+$desktopRuntimeBox = Add-LabeledPathRow $pathsPanel 8 "桌面 Python" $desktopRuntimeDefault {
+    $v = Select-Folder $desktopRuntimeBox.Text
+    if ($v) { $desktopRuntimeBox.Text = $v }
+}
 
 $optionsGroup = New-Object System.Windows.Forms.GroupBox
 $optionsGroup.Text = "构建选项"
@@ -300,35 +281,14 @@ $desktopCheck = New-Object System.Windows.Forms.CheckBox
 $desktopCheck.Text = "Windows Desktop"
 $desktopCheck.Checked = if ($stored -and $null -ne $stored.Desktop) { [bool]$stored.Desktop } else { $true }
 $desktopCheck.AutoSize = $true
-$installCheck = New-Object System.Windows.Forms.CheckBox
-$installCheck.Text = "自动补齐缺失工具"
-$installCheck.Checked = if ($stored -and $null -ne $stored.AutoInstall) { [bool]$stored.AutoInstall } else { $true }
-$installCheck.AutoSize = $true
 $historyCheck = New-Object System.Windows.Forms.CheckBox
 $historyCheck.Text = "保留旧构建"
 $historyCheck.Checked = if ($stored) { [bool]$stored.KeepHistory } else { $false }
 $historyCheck.AutoSize = $true
-$workspaceCheck = New-Object System.Windows.Forms.CheckBox
-$workspaceCheck.Text = "失败排查时保留工作区"
-$workspaceCheck.Checked = if ($stored) { [bool]$stored.KeepWorkspace } else { $false }
-$workspaceCheck.AutoSize = $true
-
-@($androidCheck, $desktopCheck, $installCheck, $historyCheck, $workspaceCheck) | ForEach-Object { [void]$optionsFlow.Controls.Add($_) }
-
-$retryLabel = New-Object System.Windows.Forms.Label
-$retryLabel.Text = "下载重试："
-$retryLabel.AutoSize = $true
-$retryLabel.Margin = New-Object System.Windows.Forms.Padding(18, 6, 0, 0)
-[void]$optionsFlow.Controls.Add($retryLabel)
-$retryBox = New-Object System.Windows.Forms.NumericUpDown
-$retryBox.Minimum = 1
-$retryBox.Maximum = 10
-$retryBox.Value = if ($stored -and $stored.Retries) { [decimal]$stored.Retries } else { 3 }
-$retryBox.Width = 48
-[void]$optionsFlow.Controls.Add($retryBox)
+@($androidCheck, $desktopCheck, $historyCheck) | ForEach-Object { [void]$optionsFlow.Controls.Add($_) }
 
 $advanced = New-Object System.Windows.Forms.GroupBox
-$advanced.Text = "兼容性参数（通常保持默认/自动即可）"
+$advanced.Text = "构建参数"
 $advanced.Dock = "Top"
 $advanced.AutoSize = $true
 $advancedPanel = New-Object System.Windows.Forms.TableLayoutPanel
@@ -372,28 +332,15 @@ function Add-AdvancedCombo([int]$row, [int]$labelCol, [string]$labelText, [strin
     return $cb
 }
 
-$nodeVersionBox = Add-AdvancedField 0 0 "Node 自动安装版本" $(if ($stored -and $stored.NodeVersion) { [string]$stored.NodeVersion } else { "24.19.0" })
-# Android/Chaquopy is fixed to Python 3.13. Do not revive a legacy saved value
-# such as 3.12 on another machine: normalize it during GUI load and save.
-$storedPythonSeries = "3.13"
-if ($stored -and $stored.PythonVersion -and ([string]$stored.PythonVersion).Trim() -ne $storedPythonSeries) {
-    try {
-        $stored.PythonVersion = $storedPythonSeries
-        $stored | ConvertTo-Json | Set-Content -LiteralPath $settingsFile -Encoding UTF8
-    } catch {
-        # Failure to rewrite settings must not prevent the GUI from opening.
-    }
-}
-$pythonVersionBox = Add-AdvancedField 0 2 "Android Python 系列" $storedPythonSeries
-$pythonVersionBox.ReadOnly = $true
+$nodeVersionBox = Add-AdvancedField 0 0 "Node 版本要求" $(if ($stored -and $stored.NodeVersion) { [string]$stored.NodeVersion } else { "24.19.0" })
 $androidApiBox = Add-AdvancedField 1 0 "Android API" $(if ($stored -and $null -ne $stored.AndroidApi) { [string]$stored.AndroidApi } else { "0" })
 $jdkMajorBox = Add-AdvancedField 1 2 "JDK 主版本（校验）" $(if ($stored -and $stored.JdkMajor) { [string]$stored.JdkMajor } else { "21" })
 $electronMirrorBox = Add-AdvancedField 2 0 "Electron 镜像" $(if ($stored -and $stored.ElectronMirror) { [string]$stored.ElectronMirror } else { "" })
 $builderMirrorBox = Add-AdvancedField 2 2 "Builder 镜像" $(if ($stored -and $stored.BuilderMirror) { [string]$stored.BuilderMirror } else { "" })
 
-$storedMode = if ($stored -and $stored.NetworkMode) { [string]$stored.NetworkMode } else { "Auto" }
-$modeIndex = switch ($storedMode) { "Direct" { 1 } "Manual" { 2 } default { 0 } }
-$networkModeBox = Add-AdvancedCombo 3 0 "网络模式" @("自动（环境/Windows代理）", "直连", "手动代理") $modeIndex
+$storedMode = if ($stored -and ([string]$stored.NetworkMode) -eq "Manual") { "Manual" } else { "Direct" }
+$modeIndex = if ($storedMode -eq "Manual") { 1 } else { 0 }
+$networkModeBox = Add-AdvancedCombo 3 0 "网络模式" @("直连", "手动代理") $modeIndex
 $proxyBox = Add-AdvancedField 3 2 "代理地址" $(if ($stored -and $stored.ProxyUrl) { [string]$stored.ProxyUrl } else { "" })
 $registryBox = Add-AdvancedField 4 0 "npm Registry" $(if ($stored -and $stored.RegistryUrl) { [string]$stored.RegistryUrl } else { "" })
 $fetchTimeoutBox = Add-AdvancedField 4 2 "请求超时(秒)" $(if ($stored -and $stored.FetchTimeoutSeconds) { [string]$stored.FetchTimeoutSeconds } else { "600" })
@@ -427,7 +374,7 @@ $progressBar.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 2)
 [void]$progressPanel.Controls.Add($progressBar, 0, 1)
 
 $progressHint = New-Object System.Windows.Forms.Label
-$progressHint.Text = "阶段进度用于说明当前正在做什么；依赖已缓存时不会下载，只有缺失工具/依赖时才会联网。"
+$progressHint.Text = "阶段进度用于说明当前正在做什么；构建器只使用界面中确定的工具路径，缺失或版本错误立即失败。"
 $progressHint.AutoSize = $true
 $progressHint.Dock = "Fill"
 $progressHint.ForeColor = [System.Drawing.SystemColors]::GrayText
@@ -685,83 +632,6 @@ $openButton.Add_Click({
     Start-Process explorer.exe -ArgumentList ('"{0}"' -f $path)
 })
 
-function Get-GuiProjectKey {
-    param([string]$Root)
-    $key = "pydroid-flow"
-    try {
-        $packagePath = Join-Path $Root "package.json"
-        if (Test-Path -LiteralPath $packagePath -PathType Leaf) {
-            $pkg = Get-Content -LiteralPath $packagePath -Raw | ConvertFrom-Json
-            if ($pkg.name) { $key = [string]$pkg.name }
-        }
-    } catch {}
-    $key = ($key -replace '[^A-Za-z0-9._-]', '-').Trim([char[]]'-')
-    if (-not $key) { $key = "pydroid-flow" }
-    return $key
-}
-
-function Stop-PyDroidGradleDaemons {
-    param([switch]$Quiet)
-
-    $project = $projectBox.Text.Trim()
-    $work = $workBox.Text.Trim()
-    $cache = $cacheBox.Text.Trim()
-    if (-not $project -or -not $cache) { return }
-
-    $projectKey = Get-GuiProjectKey $project
-    $gradleHome = Join-Path (Join-Path $cache "gradle") $projectKey
-    $workspaceAndroid = if ($work) { Join-Path $work ("builds\{0}\android" -f $projectKey) } else { "" }
-    $sourceAndroid = Join-Path $project "android"
-    $gradlew = $null
-    foreach ($candidateRoot in @($workspaceAndroid, $sourceAndroid)) {
-        if (-not $candidateRoot) { continue }
-        $candidate = Join-Path $candidateRoot "gradlew.bat"
-        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-            $gradlew = $candidate
-            break
-        }
-    }
-    if (-not $gradlew) { return }
-
-    $oldGradleHome = $env:GRADLE_USER_HOME
-    $oldJavaHome = $env:JAVA_HOME
-    try {
-        $env:GRADLE_USER_HOME = $gradleHome
-        $jdk = $jdkBox.Text.Trim()
-        if ($jdk -and (Test-Path -LiteralPath (Join-Path $jdk "bin\java.exe") -PathType Leaf)) {
-            $env:JAVA_HOME = $jdk
-        }
-
-        if (-not $Quiet) {
-            Append-BuildLogLine ("[GUI] 正在停止 PyDroid Gradle daemon：{0}" -f $gradleHome)
-        }
-
-        $psi = New-Object System.Diagnostics.ProcessStartInfo
-        $psi.FileName = $env:ComSpec
-        $psi.UseShellExecute = $false
-        $psi.CreateNoWindow = $true
-        $psi.WorkingDirectory = Split-Path $gradlew -Parent
-        $psi.Arguments = '/d /s /c ""' + $gradlew + '" --stop"'
-        # --stop 输出很少且这里不需要展示；不重定向管道，避免关闭 GUI 时
-        # 因无人读取的子进程输出管道而产生额外等待。
-        $stopProc = New-Object System.Diagnostics.Process
-        $stopProc.StartInfo = $psi
-        if ($stopProc.Start()) {
-            if (-not $stopProc.WaitForExit(3000)) {
-                try { & taskkill.exe /PID $stopProc.Id /T /F | Out-Null } catch {}
-            }
-            try { $stopProc.Dispose() } catch {}
-        }
-    } catch {
-        if (-not $Quiet) {
-            Append-BuildLogLine ("[GUI] 停止 Gradle daemon 时出现警告：{0}" -f $_.Exception.Message)
-        }
-    } finally {
-        $env:GRADLE_USER_HOME = $oldGradleHome
-        $env:JAVA_HOME = $oldJavaHome
-    }
-}
-
 function Dispose-BuildProcessHandles {
     try { if ($script:stdoutReader) { $script:stdoutReader.Dispose() } } catch {}
     try { if ($script:stderrReader) { $script:stderrReader.Dispose() } } catch {}
@@ -790,9 +660,6 @@ function Stop-CurrentBuildSession {
     }
 
     Dispose-BuildProcessHandles
-    # Gradle daemon 可能已经脱离父进程树，因此无论 buildProcess 是否仍存活，
-    # 都用 PyDroid 专属 GRADLE_USER_HOME 再执行一次 gradlew --stop。
-    Stop-PyDroidGradleDaemons -Quiet:$Quiet
     $startButton.Enabled = $true
     $cancelButton.Enabled = $false
 }
@@ -801,7 +668,7 @@ $cancelButton.Add_Click({
     if (-not $script:buildProcess) { return }
     try {
         Stop-CurrentBuildSession
-        $statusLabel.Text = "已取消；构建子进程与 PyDroid Gradle daemon 已关闭"
+        $statusLabel.Text = "已取消；本次构建进程已关闭"
         $stageLabel.Text = "当前步骤：已取消"
     } catch {
         [System.Windows.Forms.MessageBox]::Show("取消失败：$($_.Exception.Message)", "PyDroid Build", "OK", "Warning") | Out-Null
@@ -824,6 +691,9 @@ $startButton.Add_Click({
         $cache = $cacheBox.Text.Trim()
         $output = $outputBox.Text.Trim()
         $jdkHome = $jdkBox.Text.Trim()
+        $androidSdkHome = $androidSdkBox.Text.Trim()
+        $pythonExecutable = $pythonBox.Text.Trim()
+        $desktopPythonRuntime = $desktopRuntimeBox.Text.Trim()
         if (-not $work) { throw "工作目录不能为空。" }
         if (-not $tools) { throw "共享工具根目录不能为空。" }
         if (-not $cache) { throw "共享缓存目录不能为空。" }
@@ -846,7 +716,7 @@ $startButton.Add_Click({
         if (-not [int]::TryParse($concurrencyBox.Text.Trim(), [ref]$networkConcurrency) -or $networkConcurrency -lt 1 -or $networkConcurrency -gt 64) {
             throw "pnpm 网络并发应为 1-64。"
         }
-        $networkMode = switch ($networkModeBox.SelectedIndex) { 1 { "Direct" } 2 { "Manual" } default { "Auto" } }
+        $networkMode = if ($networkModeBox.SelectedIndex -eq 1) { "Manual" } else { "Direct" }
         if ($networkMode -eq "Manual" -and [string]::IsNullOrWhiteSpace($proxyBox.Text)) {
             throw "选择手动代理时必须填写代理地址，例如 http://127.0.0.1:7890。"
         }
@@ -860,15 +730,14 @@ $startButton.Add_Click({
             OutputRoot = $output
             Android = $androidCheck.Checked
             Desktop = $desktopCheck.Checked
-            AutoInstall = $installCheck.Checked
             KeepHistory = $historyCheck.Checked
-            KeepWorkspace = $workspaceCheck.Checked
-            Retries = [int]$retryBox.Value
             NodeVersion = $nodeVersionBox.Text.Trim()
-            PythonVersion = $pythonVersionBox.Text.Trim()
             AndroidApi = $androidApi
             JdkMajor = $jdkMajor
             JdkHome = $jdkHome
+            AndroidSdkHome = $androidSdkHome
+            PythonExecutable = $pythonExecutable
+            DesktopPythonRuntime = $desktopPythonRuntime
             ElectronMirror = $electronMirrorBox.Text.Trim()
             BuilderMirror = $builderMirrorBox.Text.Trim()
             NetworkMode = $networkMode
@@ -886,18 +755,19 @@ $startButton.Add_Click({
         [string[]]$launchArgs = @(
             "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $coreScript,
             "-ProjectRoot", $project, "-WorkRoot", $work, "-ToolRoot", $tools, "-CacheRoot", $cache,
-            "-OutputRoot", $output, "-DownloadRetryCount", ([string][int]$retryBox.Value),
-            "-NodeVersion", $nodeVersionBox.Text.Trim(), "-PythonVersion", $pythonVersionBox.Text.Trim(),
+            "-OutputRoot", $output,
+            "-NodeVersion", $nodeVersionBox.Text.Trim(),
             "-AndroidApiLevel", ([string]$androidApi), "-JdkMajor", ([string]$jdkMajor),
             "-NetworkMode", $networkMode, "-PnpmFetchTimeoutSeconds", ([string]$fetchTimeout),
             "-PnpmNetworkConcurrency", ([string]$networkConcurrency)
         )
         if ($jdkHome) { $launchArgs += @("-JavaHome", $jdkHome) }
+        if ($androidSdkHome) { $launchArgs += @("-AndroidSdkHome", $androidSdkHome) }
+        if ($pythonExecutable) { $launchArgs += @("-PythonExecutable", $pythonExecutable) }
+        if ($desktopPythonRuntime) { $launchArgs += @("-DesktopPythonRuntime", $desktopPythonRuntime) }
         if (-not $androidCheck.Checked) { $launchArgs += "-SkipAndroid" }
         if (-not $desktopCheck.Checked) { $launchArgs += "-SkipDesktop" }
-        if (-not $installCheck.Checked) { $launchArgs += "-SkipToolInstall" }
         if ($historyCheck.Checked) { $launchArgs += "-KeepHistory" }
-        if ($workspaceCheck.Checked) { $launchArgs += "-KeepWorkspace" }
         if ($electronMirrorBox.Text.Trim()) { $launchArgs += @("-ElectronMirror", $electronMirrorBox.Text.Trim()) }
         if ($builderMirrorBox.Text.Trim()) { $launchArgs += @("-ElectronBuilderMirror", $builderMirrorBox.Text.Trim()) }
         if ($proxyBox.Text.Trim()) { $launchArgs += @("-ProxyUrl", $proxyBox.Text.Trim()) }
@@ -916,6 +786,9 @@ Cache: $cache
 Output: $output
 JDK directory: $jdkHome
 JDK major: $jdkMajor
+Android SDK: $androidSdkHome
+Python: $pythonExecutable
+Desktop Python runtime: $desktopPythonRuntime
 Android: $($androidCheck.Checked)
 Desktop: $($desktopCheck.Checked)
 Network mode: $networkMode

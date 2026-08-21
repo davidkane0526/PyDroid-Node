@@ -1,12 +1,12 @@
 # PyDroid Node 架构与可靠性开发路线
 
 更新时间：2026-08-21
-当前架构开发分支：`fix/phase11-lan-boundary-verification`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.82 (105)`
+当前架构开发分支：`refactor/1.4.83-deterministic-core`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 11 迁移能力保留；当前纠偏基线：`1.4.83 (106)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
-> **Remote Web/LAN 行为基线仍以用户实机确认可用的 1.4.73/1.4.76 为准。** 1.4.78 在 `192.168.3.185` 再次暴露 Windows 入站边界与同机自测假阳性，因此 1.4.80 已纠正 1.4.79 的过度防御：Remote Web/LAN 生产路径冻结，打包/诊断 gate 不得启动、阻断或重写真实服务行为；固定 TCP 8765、现有启动交互/文案、PIN/Token、SSDP/UPnP/mDNS 协议保持不变，外部客户端证据只作为旁路诊断。未经用户明确允许，不新增 UI 说明文字。
+> **1.4.83 是新的确定性架构基线。** Remote Web/LAN 以固定 TCP 8765、直接 bind/stop、简单 PIN/Token 和独立 SSDP/UPnP/mDNS 为准。Phase 10 引入的 lifecycle generation、readiness 自检、Host/UI reconciliation、网络变化恢复、firewall/profile/route 探测、安全限流/TTL 与 freeze gate 均已判定为过度设计，不得重新进入生产路径。测试必须真实启动并访问服务，但只能作为旁路观察者，不能改变启动逻辑。构建器同样遵循“单一路径、明确失败”，不得自动安装工具、重试、降级或切换模式。详见 `docs/1.4.83-deterministic-core.md`。
 
 ## 1. 开发原则
 
@@ -537,33 +537,35 @@ desktop/
 
 ### Build Tool
 
-最后再把 Java、Android SDK、Python、Node/pnpm、Network、Packaging 拆成 `.psm1` 模块。必须保留已有真实 Windows 兼容行为和 smoke tests。
+Java、Android SDK、Python、Node/pnpm、Network、Packaging 已按模块边界组织。构建器只检查显式前提并执行用户选择的单一路径；不得以“兼容”为名自动安装、重试、探测系统代理或切换打包/Gradle 模式。
 
 ---
 
-## 11. 安全与可靠性长期项
+## 11. 可靠性原则：明确失败而不是恢复路径
 
 ### Remote Access
 
-1.4.68 已开始落实：
+Remote Access 的可靠性定义为“请求一次，结果明确”：
 
-- PIN 失败次数限制/冷却：已实现；
-- 请求 rate limit：已实现普通/重型 API 分级限流；
-- 不向 Remote Browser 返回原始 Agent API Key：Android/desktop configuration contract 已移除原始 key；
-- Host Agent Proxy：Android 已实现；Desktop 因 Agent key 仍为 renderer-session-only，当前明确报告 proxy unavailable，而不是复制/持久化密钥；
-- discovery 与敏感 API authentication 保持分离。
+- 直接绑定固定 TCP 8765；失败即返回原始错误；
+- 不在生产启动路径执行 loopback/LAN readiness 自检；
+- 不检查或修改 Windows firewall/profile；
+- 不使用 PowerShell/default-route 探测来决定能否启动；
+- 不维护 start/stop generation、recovery attempts、Host status reconciliation 或轮询；
+- SSDP/UPnP/mDNS 独立 best-effort，失败不影响 HTTP；
+- 保留简单 PIN/Token 认证与 Agent key 不泄露边界，但不再叠加 PIN cooldown、Token TTL/address binding、API rate limit。
 
-### LAN Discovery
+### Build Tool
 
-当前 LAN 模块划分已经合理，不应重新设计协议。后续主要补充自动化测试：
+- 缺 Node/pnpm/JDK/SDK/Python 时明确报错；
+- toolchain 安装只由用户显式运行 setup 脚本；
+- 网络只有 Direct 或用户明确填写的 Manual proxy；
+- 一次 `pnpm install`、一次 Desktop packaging、一次选定的 Gradle 模式；
+- 不自动 retry/backoff，不 compatibility package，不关闭签名降级，不 plain-EXE fallback，不 daemon recovery/switch。
 
-- SSDP `ssdp:all` 3 类响应；
-- CRLF、USN、LOCATION、ST；
-- device.xml UDN/friendlyName/presentationURL；
-- UUID persistence；
-- network restart；
-- stop/byebye；
-- mDNS A/PTR/SRV/TXT。
+### Validation
+
+自动化必须验证真实结果，而不是“状态看起来正确”。Remote host gate 必须打开真实 8765 并读取真实 shell/asset。若环境无法执行依赖型构建，则明确标记未执行，不得以静态 contract 替代后宣称构建通过。
 
 ---
 
@@ -579,8 +581,8 @@ desktop/
 8. Phase 7 Host modularization：已完成并通过真实 Windows/Android 验收后冻结。
 9. Phase 8 Workflow Language / State & Function System：1.4.59 已完成并通过真实宿主 + 4/4 自动诊断验收后冻结。
 10. Phase 9 Editor Core & Workspace Session：1.4.60 开始，1.4.67 经真实宿主依赖构建与 19/19 自动诊断验收后冻结。Desktop/Mobile 与 Node/Group 手势保持独立策略。
-11. Phase 10 Remote Access Security & Host Reliability：1.4.68 开始；已完成安全策略、LAN discovery 生命周期、真实宿主 E2E、固定 8765、start/stop 生命周期恢复及 read-only Host/UI 状态对齐；1.4.76 经真实 Windows 构建与 22/22 诊断后冻结。
-12. Phase 11 Workflow Compatibility & Migration：1.4.80 完成 Workflow schema v3、NodeSpec/函数迁移、Editor Resource schema v2、future-version 非破坏保护、完整 Git 历史 corpus 与迁移后 Python/JavaScript 执行门禁；并修正 1.4.78 实机暴露的 Desktop Windows LAN 入站边界/诊断假阳性。
+11. Phase 10 Remote Access Security & Host Reliability：作为历史实验保留在 Git 中；其 lifecycle/readiness/reconciliation/security/freeze 机制已由 1.4.83 明确废弃。
+12. Phase 11 Workflow Compatibility & Migration：Workflow schema v3、NodeSpec/函数迁移、Editor Resource schema v2、future-version 非破坏保护、完整 Git 历史 corpus 与迁移后 Python/JavaScript 执行门禁继续保留；1.4.83 移除与迁移本体无关的 production freeze gate。
 
 核心原则始终是：
 
@@ -613,48 +615,22 @@ Phase 9 的重点不是重新设计 UI，而是让 `EditorWorkspaceSession` 成�
 
 ---
 
-## 14. Phase 10 — Remote Access Security & Host Reliability
+## 14. Phase 10 — Remote Access Security & Host Reliability（历史，已废弃）
 
-状态：**1.4.76 (99) 冻结候选。1.4.75 的真实 Windows 构建暴露 TS18047；1.4.76 仅修复该 TypeScript build gate，等待真实 Desktop/Android 编译/验证。**
+状态：**1.4.83 已废弃 Phase 10 的过度设计实现，只保留 Git 历史用于追溯。**
 
-Phase 10 不重新设计已工作的 Remote Web/LAN UI，而是把第 11 节长期安全与可靠性项变成可测试契约。1.4.68 首先处理敏感边界：Desktop/Android 使用相同的 PIN 失败窗口与冷却策略、成功配对后签发客户端地址绑定且有 TTL/数量上限的 Session Token，并对普通与重型 Remote API 分级限流。Android 的 Remote Web 配置只返回 `agentProxyAvailable`，原始 Agent API Key 始终留在宿主 Keystore；网页通过 Host Agent Proxy 发起模型请求。代理的 provider/endpoint 由宿主设置决定，不接受网页任意改写，且禁止上游 redirect 后继续携带宿主凭据。
+Phase 10 曾引入 PIN 冷却/限流/Token TTL、readiness self-probe、Windows firewall/profile 边界、lifecycle generation/future、discovery recovery、`getHostStatus()` 和 React reconciliation polling。真实使用证明这些机制不断扩大生产控制路径，并且仍无法阻止“自动化全绿但网络服务不可用”。因此当前架构不再以这些机制为可靠性基础。
 
-Discovery (`SSDP/mDNS/device.xml`) 仍与认证 API 分离。健康检查和发现元数据保持公开，执行/配置/Agent 等 API 必须在配对 Session 后使用。Android Remote API 不再发布 wildcard CORS，以避免无关网页源通过浏览器驱动宿主 API。
+当前 Remote Web 契约见 `docs/1.4.83-deterministic-core.md`：固定 8765、直接启动/停止、简单 PIN/Token、discovery best-effort、真实 HTTP 旁路测试。以后若出现网络问题，应先定位实际 bind/asset/OS boundary 缺陷，禁止再添加一层 readiness/recovery/fallback 来掩盖失败。
 
-1.4.68 的正式安全回归由 `scripts/remote-security-smoke.mjs`、Desktop `RemoteAccessGuard/RemoteTokenStore`、Android pure-Java `RemoteAccessGuard` 与两项 in-app diagnostics 共同覆盖。完整宿主自动诊断目标从 19/19 提升到 **21/21**。具体策略见 `docs/phase10-remote-security-host-reliability.md`。
-
-1.4.69 修复 Desktop Vite alias 的平台导出漂移：`App.tsx` 使用的 `./platform` 命名导出现在必须同时存在于 shared facade 与 Desktop alias facade；该门禁纳入 platform architecture smoke。安全策略与 21/21 诊断契约不变。
-
-1.4.70 已将 LAN Discovery 生命周期纳入自动化门禁：SSDP `ssdp:all` 多目标响应、CRLF/USN/LOCATION/ST、device.xml 身份字段、UUID persistence、network restart、stop/byebye 以及 mDNS A/PTR/SRV/TXT 均有回归覆盖；后续不重新发明 discovery 协议。
-
-1.4.71 修正真实宿主验收缺口：旧 21 项诊断不再被视为 Remote Web 可用性证明。Desktop/Android 启动必须完成真实 loopback HTTP/SPA/JS readiness，Desktop 兼容打包必须包含 `package-remote`，成品 smoke 必须实际启动 Remote Web；in-app 完整宿主诊断提升到 **22/22** 并检查 LAN interface + SSDP/mDNS 运行状态。1.4.51 被确认是 host-readiness 自动化覆盖退化的边界；Android 功能回归的精确版本仍需真实 1.4.71 成品诊断确认。
-
-
-### 1.4.72 — LAN firewall / real readiness correction
-
-Real 1.4.71 Windows use demonstrated that 22/22 could still pass while LAN Web/discovery was unusable. 1.4.72 restores the proven demo contract: stable TCP 8765, Private+LocalSubnet firewall ownership, default-route interface preference, per-LAN-IP HTTP readiness, and SSDP/mDNS readiness only after real UDP bind plus multicast join. 1.4.51 remains the known validation-regression boundary; 1.4.72 does not attribute the functional root cause to 1.4.68 without evidence.
-
-
-### 1.4.73 — Remote startup reliability correction
-
-Real 1.4.72 Desktop/Android results invalidated the foreground firewall/profile gate: Desktop could stop on `NetworkCategory=Unknown` and Android could reject its own `HttpURLConnection` loopback probe under cleartext policy. 1.4.73 moves firewall provisioning out of the normal start/diagnostic transaction, adds Desktop single-flight startup, restores the accepted Remote Access dialog copy, and uses raw-socket Android readiness. The stable 8765 endpoint and real LAN/discovery readiness remain.
-
-
-### 1.4.74 — Host lifecycle recovery
-
-After the accepted 1.4.73 network baseline, 1.4.74 fixes stale start resurrection across stop, adds equivalent Android generation/future ownership, and independently retries a transient failed SSDP or mDNS protocol without restarting the healthy sibling. No UI copy or accepted network semantics change.
-
-### 1.4.75 — Host state reconciliation
-
-1.4.75 adds a read-only cross-platform `getHostStatus()` contract and a focused 3-second UI reconciliation hook that only runs while the local host is already active. It refreshes the existing address/discovery snapshot after network migration or recovery and clears a stale running indicator after native stop. The hook cannot start/stop the host, rotate PINs, or emit user-visible messages. Diagnostics also use native lifecycle state before/after their temporary-host transaction. After packaged Desktop/Android validation, Phase 10 should be frozen rather than extended without a concrete defect.
 ---
 
 ## 15. Phase 11 — Workflow Compatibility & Migration
 
-状态：**1.4.82 (105) 最终网络基线恢复候选。Phase 11 migration 本体保持完成；Desktop Remote Web 服务器恢复到用户实机确认可用的 1.4.76 生产实现，运行时 PowerShell/UAC/firewall 自动化被移除，单机 Remote Host 诊断成功时只记为 skip。等待一次真实 Windows + 第二物理 LAN 客户端验证后冻结 Phase 11。**
+状态：**迁移能力完成并在 1.4.83 保留。**
 
-Phase 11 将“工作流能否长期演进”从零散兼容代码提升为独立契约。Workflow schema 固定为 v3，并通过不可覆盖的逐版本 migration chain 从历史 v1/v2 升级；NodeSpec 迁移负责参数、类型、端口及边界 handle 演进，同时禁止修改稳定 node id；Reusable Function 调用只有在保存签名能够证明兼容时才自动升级。Editor Saved Node/Group/Flow 使用独立 resource schema v2，future/invalid payload 作为 opaque raw data 原样保护，当前版本不得通过普通持久化、重命名或删除破坏它们。未来版本 autosave 同样受到覆盖保护，未来工作流打开失败时不得污染当前 Editor Session。
+Workflow schema 固定为 v3，并通过显式逐版本 migration chain 从历史 v1/v2 升级；NodeSpec migration 负责参数、类型、端口和 handle 演进并保护稳定 node id；Reusable Function 只有在保存签名能够证明兼容时才自动升级。Editor Saved Node/Group/Flow 使用 resource schema v2，future/invalid payload 以 opaque raw data 保留，当前版本不得覆盖。Future autosave/workflow open 同样保持非破坏性。
 
-兼容门禁不依赖人工挑选样本：`workflow-history-corpus-audit` 扫描完整本地 `.git`，当前历史中 8 个唯一 `.workflow.json`（schema v1/v2）全部进入 fixture corpus；真实 parser 完成 migration → semantic validation → canonical save → reopen，并将迁移后的真实 v1 工作流分别交给 Python/JavaScript 引擎执行，结果必须一致。额外 strict TypeScript smoke 针对 Phase 11 八个生产模块（含 `src/diagnostics/automated-debug.ts`）执行 `--strict --noEmit`，`phase11-freeze-audit` 则阻止本阶段修改已冻结 Remote/LAN 文件、把 migration 注册塞回 `App.tsx` 或新增未授权 `setMessage()` UI 文案。
+兼容门禁继续扫描完整本地 `.git` 历史并运行真实 parser -> migration -> semantic validation -> canonical save/reopen；迁移后的历史工作流继续交给 Python/JavaScript 双引擎执行。旧 `phase11-freeze-audit` 已删除，因为按文件冻结 Remote/LAN 生产代码会把错误机制固化。以后只验证迁移行为和真实宿主结果。
 
-完整规则与后续增加 schema/NodeSpec migration 的操作步骤见 `docs/phase11-workflow-compatibility-migration.md`。
+完整规则见 `docs/phase11-workflow-compatibility-migration.md`。

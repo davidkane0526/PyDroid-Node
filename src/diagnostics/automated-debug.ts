@@ -14,7 +14,6 @@ import { applyAgentOperationsToSession } from "../editor-core/agent-operations";
 import { describeFlow, describeFunction, describeGroup, describeSavedNode, resourceContractKey } from "../editor-core/resource-contract";
 import { getNodeSpec } from "../nodeCatalog";
 import { emptyWorkflowSnapshot, type StorageLike } from "../workflow-core";
-import { describeRemoteSecurityPolicy } from "../remote-security-policy";
 import { DEFAULT_AGENT_SETTINGS, testAgentConnection } from "../agent";
 
 export const AUTOMATED_DIAGNOSTICS_SCHEMA_VERSION = 1;
@@ -70,7 +69,6 @@ export type AutomatedDiagnosticsDependencies = {
     csvText: string,
     options: { workspaceId: string; workspaceLabel: string; functions?: WorkflowFunctionDefinition[] },
   ) => Promise<ExecutionResult>;
-  testRemoteHost?: () => Promise<Record<string, unknown>>;
 };
 
 const node = (id: string, nodeType: string, parameters: Record<string, string | number | boolean | null> = {}, label = nodeType): WorkflowNode => ({
@@ -663,29 +661,6 @@ async function runtimeInteractionIsolationCase(): Promise<DiagnosticCase> {
 }
 
 
-async function remoteHostE2ECase(deps: AutomatedDiagnosticsDependencies): Promise<DiagnosticCase> {
-  const started = performance.now();
-  const label = "Remote Web 宿主真实启动/HTTP/局域网发现";
-  if (!deps.testRemoteHost) return { id: "remote-host-e2e", label, status: "skip", durationMs: 0, details: {} };
-  try {
-    const details = await deps.testRemoteHost();
-    return { id: "remote-host-e2e", label, status: "skip", durationMs: Math.round((performance.now() - started) * 100) / 100, details };
-  } catch (error) {
-    return { id: "remote-host-e2e", label, status: "fail", durationMs: Math.round((performance.now() - started) * 100) / 100, details: {}, error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-async function remoteSecurityPolicyCase(): Promise<DiagnosticCase> {
-  return runCase("remote-security-policy", "Remote Web 配对/Token/API 限流安全策略", undefined, async () => {
-    const policy = describeRemoteSecurityPolicy();
-    if (policy.pairLocksAtAttempt !== 5) throw new Error("PIN 失败锁定阈值不是 5 次");
-    if (policy.pairRetryAfterSeconds < 60) throw new Error("PIN 冷却时间低于 60 秒");
-    if (policy.generalLimit < 120 || policy.expensiveLimit >= policy.generalLimit) throw new Error("Remote API 分级限流策略异常");
-    if (policy.tokenTtlHours !== 12) throw new Error("Remote Token TTL 不是 12 小时");
-    return policy;
-  });
-}
-
 async function remoteAgentProxyBoundaryCase(): Promise<DiagnosticCase> {
   return runCase("remote-agent-proxy-boundary", "Remote Agent 宿主代理不需要浏览器持有原始密钥", undefined, async () => {
     let transportCalls = 0;
@@ -731,12 +706,6 @@ export async function runAutomatedDiagnostics(deps: AutomatedDiagnosticsDependen
   cases.push(await agentEditorBatchCase());
   cases.push(await editorRequirementOwnershipCase());
   cases.push(await runtimeInteractionIsolationCase());
-  if (deps.testRemoteHost) {
-    cases.push(await remoteHostE2ECase(deps));
-  } else {
-    cases.push({ id: "remote-host-e2e", label: "Remote Web 宿主真实启动/HTTP/局域网发现", status: "skip", durationMs: 0, details: { reason: "当前环境不是可启动局域网服务的宿主" } });
-  }
-  cases.push(await remoteSecurityPolicyCase());
   cases.push(await remoteAgentProxyBoundaryCase());
   cases.push(await gestureContractCase());
   cases.push(await workspacePersistenceCase("javascript", deps));

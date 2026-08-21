@@ -72,7 +72,7 @@ export const javascriptRuntime: RuntimeAdapter = {
     const unsupported = unsupportedTypes(request);
     if (unsupported.length) {
       throw new WorkflowExecutionError(
-        `JS 引擎暂不支持以下节点：${unsupported.join("、")}。可切换到 Python，或使用“自动选择”让软件自动回退。`,
+        `JS 引擎暂不支持以下节点：${unsupported.join("、")}。可切换到 Python，或使用“自动选择”让软件按节点兼容性预先选择运行时。`,
         "__workflow__",
         "runtime.javascript",
         { status: "error", nodeId: "__workflow__", nodeType: "runtime.javascript", message: `Unsupported nodes: ${unsupported.join(", ")}`, runtimeId: "javascript" },

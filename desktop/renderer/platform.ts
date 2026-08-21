@@ -97,11 +97,6 @@ export function getPlatformAdapter(): PlatformAdapter {
         if (!bridge?.startRemoteServer) throw new Error("桌面局域网服务不可用");
         return bridge.startRemoteServer(requirePin);
       },
-      async getHostStatus() {
-        const bridge = getDesktopBridge();
-        if (!bridge?.getRemoteHostStatus) return { state: "stopped", info: null };
-        return bridge.getRemoteHostStatus();
-      },
       async stopServer() { await getDesktopBridge()?.stopRemoteServer?.(); },
       request: remoteSession.request,
     },
@@ -129,7 +124,6 @@ export function pairRemoteRuntime(pin = "") { return getPlatformAdapter().remote
 export function getRemoteAppConfiguration() { return getPlatformAdapter().remote.getAppConfiguration(); }
 export function proxyRemoteAgentRequest(provider: string, body: unknown) { return getPlatformAdapter().remote.proxyAgentRequest(provider, body); }
 export function startRemoteServer(requirePin = true) { return getPlatformAdapter().remote.startServer(requirePin); }
-export function getRemoteHostStatus() { return getPlatformAdapter().remote.getHostStatus(); }
 export function stopRemoteServer() { return getPlatformAdapter().remote.stopServer(); }
 export function isNativePlatform(): boolean { return getPlatformAdapter().system.isNativePlatform(); }
 export function getWindowControls() { return getPlatformAdapter().system.getWindowControls(); }

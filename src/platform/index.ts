@@ -12,7 +12,6 @@ export type {
   RemoteAccessPolicy,
   RemoteDiscoveryStatus,
   RemoteAppConfiguration,
-  RemoteHostStatus,
   RemoteServerInfo,
   RuntimeStats,
   SmbConnection,
@@ -38,7 +37,6 @@ export function pairRemoteRuntime(pin = "") { return getPlatformAdapter().remote
 export function getRemoteAppConfiguration() { return getPlatformAdapter().remote.getAppConfiguration(); }
 export function proxyRemoteAgentRequest(provider: string, body: unknown) { return getPlatformAdapter().remote.proxyAgentRequest(provider, body); }
 export function startRemoteServer(requirePin = true) { return getPlatformAdapter().remote.startServer(requirePin); }
-export function getRemoteHostStatus() { return getPlatformAdapter().remote.getHostStatus(); }
 export function stopRemoteServer() { return getPlatformAdapter().remote.stopServer(); }
 export function isNativePlatform(): boolean { return getPlatformAdapter().system.isNativePlatform(); }
 export function getWindowControls() { return getPlatformAdapter().system.getWindowControls(); }

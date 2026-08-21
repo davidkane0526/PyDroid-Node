@@ -55,7 +55,6 @@ import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWo
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings, type AgentTransport } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
-import { useRemoteHostReconciliation } from "./ui/useRemoteHostReconciliation";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
 import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, isEditorResourceUsable, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
@@ -198,7 +197,7 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error
 
   render() {
     if (!this.state.error) return this.props.children;
-    return <main className="startup-recovery" role="alert"><section><strong>PyDroid Flow 未能加载画布</strong><p>{this.state.error.message || "界面发生异常"}</p><p>可清除本机画布缓存后重新启动；不会影响已导出的工作流文件。</p><button onClick={() => { localStorage.removeItem(AUTOSAVE_KEY); localStorage.removeItem(SETTINGS_KEY); window.location.reload(); }}>清除画布缓存并重试</button></section></main>;
+    return <main className="startup-recovery" role="alert"><section><strong>PyDroid Flow 未能加载画布</strong><p>{this.state.error.message || "界面发生异常"}</p></section></main>;
   }
 }
 
@@ -1174,9 +1173,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     const timer = window.setInterval(refresh, 1000);
     return () => { active = false; window.clearInterval(timer); };
   }, [remoteBrowser]);
-
-  const remoteServerActive = Boolean(remoteServer);
-  useRemoteHostReconciliation({ active: remoteServerActive, remoteBrowser, transitionRef: remoteServerTransitionRef, setRemoteServer, setRemoteBannerVisible });
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -3171,49 +3167,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         activeFunctions: functions,
         activeNodeCount: nodes.length,
         activeEdgeCount: edges.length,
-        testRemoteHost: canHostRemoteServer() ? async () => {
-          const beforeStatus = await platform.remote.getHostStatus();
-          const alreadyRunning = beforeStatus.state === "running";
-          const info = await startRemoteServer(true);
-          try {
-            const hostStatus = await platform.remote.getHostStatus();
-            if (hostStatus.state !== "running" || !hostStatus.info) throw new Error(`宿主启动后生命周期状态异常：${hostStatus.state}`);
-            if (!Number.isFinite(info.port) || info.port <= 0) throw new Error("宿主没有返回有效 HTTP 监听端口");
-            if (info.port !== 8765) throw new Error(`宿主没有使用固定 LAN Web 端口 8765：${info.port}`);
-            const parsed = new URL(info.url);
-            if (parsed.protocol !== "http:") throw new Error(`宿主返回了非 HTTP 地址：${info.url}`);
-            if (["127.0.0.1", "localhost", "::1"].includes(parsed.hostname)) throw new Error(`宿主只暴露了回环地址：${info.url}`);
-            const discovery = info.discovery;
-            if (!discovery) throw new Error("宿主没有返回 LAN Discovery 运行状态");
-            if (!discovery.interfaces.length) throw new Error("没有发现可用于局域网服务的 IPv4 网络接口");
-            if (discovery.ssdp !== "running") throw new Error(`SSDP 未运行：${discovery.ssdp}`);
-            if (discovery.mdns !== "running") throw new Error(`mDNS 未运行：${discovery.mdns}`);
-            if (!discovery.interfaces.some((item) => item.address === parsed.hostname)) throw new Error(`主访问地址 ${parsed.hostname} 不属于当前发现接口`);
-            if (platform.id === "desktop") {
-              const readiness = info.readiness;
-              if (!readiness) throw new Error("Desktop 宿主没有返回真实 LAN readiness 状态");
-              if (!readiness.allLanHttpReady) throw new Error(`至少一个 LAN IPv4 地址无法访问 /health：${JSON.stringify(readiness.lanHttp)}`);
-              if (!readiness.discoveryReady) throw new Error("SSDP/mDNS socket 尚未完成真实 bind/join");
-
-            }
-            return {
-              nativeHttpReadinessVerified: true,
-              url: info.url,
-              urls: info.urls ?? [],
-              port: info.port,
-              discovery,
-              readiness: info.readiness,
-              serviceWasAlreadyRunning: alreadyRunning,
-              hostLifecycleState: hostStatus.state,
-            };
-          } finally {
-            if (!alreadyRunning) {
-              await stopRemoteServer();
-              const stoppedStatus = await platform.remote.getHostStatus();
-              if (stoppedStatus.state !== "stopped") throw new Error(`宿主诊断清理后仍未停止：${stoppedStatus.state}`);
-            }
-          }
-        } : undefined,
         executeWithRuntime: (runtimeId, diagnosticNodes, diagnosticEdges, diagnosticCsvText, options) => executeWorkflowWithRuntime(runtimeId, diagnosticNodes, diagnosticEdges, diagnosticCsvText, [], { ...options, clientId: executionClientId }),
       });
       setAutomatedDiagnosticsReport(report);

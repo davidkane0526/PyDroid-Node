@@ -17,32 +17,6 @@ export type RemoteDiscoveryStatus = {
   interfaces: Array<{ name: string; address: string; defaultRoute?: boolean }>;
   ssdp: "running" | "failed" | "unavailable" | string;
   mdns: "running" | "failed" | "unavailable" | string;
-  recoveryAttempts?: number;
-};
-export type RemoteFirewallStatus = {
-  applicable: boolean;
-  inspectionComplete?: boolean;
-  firewallEnabled?: boolean;
-  rulesReady: boolean;
-  networkBoundaryReady?: boolean;
-  privateNetworkActive: boolean;
-  activeProfiles: string[];
-  profiles?: Array<{ interface?: string; category?: string; ipv4?: string; name?: string; enabled?: boolean; defaultInboundAction?: string }>;
-  rules?: Array<{ name: string; protocol: string; port: number; present: boolean; profile?: string; remoteAddress?: string[] }>;
-  reason?: string | null;
-  error?: string | null;
-  elevationAttempted?: boolean;
-  elevationSucceeded?: boolean;
-};
-export type RemoteServerReadiness = {
-  loopback: boolean;
-  lanHttp: Array<{ address: string; ok: boolean; error?: string }>;
-  allLanHttpReady: boolean;
-  discoveryReady: boolean;
-  networkBoundaryReady?: boolean;
-  externalClientObserved?: boolean;
-  externalClient?: { address: string; observedAt: string } | null;
-  firewall?: RemoteFirewallStatus;
 };
 export type RemoteServerInfo = {
   url: string;
@@ -51,11 +25,6 @@ export type RemoteServerInfo = {
   requiresPin: boolean;
   port: number;
   discovery?: RemoteDiscoveryStatus;
-  readiness?: RemoteServerReadiness;
-};
-export type RemoteHostStatus = {
-  state: "stopped" | "starting" | "running" | "stopping";
-  info: RemoteServerInfo | null;
 };
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
@@ -108,7 +77,6 @@ export interface RemotePlatformCapability {
   getAppConfiguration(): Promise<RemoteAppConfiguration>;
   proxyAgentRequest(provider: string, body: unknown): Promise<unknown>;
   startServer(requirePin?: boolean): Promise<RemoteServerInfo>;
-  getHostStatus(): Promise<RemoteHostStatus>;
   stopServer(): Promise<void>;
   request<T>(path: string, payload?: Record<string, unknown>, options?: RemoteRequestOptions): Promise<T>;
 }

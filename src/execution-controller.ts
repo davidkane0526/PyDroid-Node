@@ -250,5 +250,3 @@ export class ExecutionManager {
 }
 
 export const executionManager = new ExecutionManager();
-// Backward-compatible default controller for focused unit tests and older internal callers.
-export const executionController = executionManager.controller("default");

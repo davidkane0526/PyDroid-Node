@@ -9,26 +9,17 @@ import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 
 final class LanDiscoveryService {
     private static final String TAG = "PyDroid-LAN";
-    private static final long RECOVERY_RETRY_MS = 15_000L;
 
     private final Context context;
     private final int webPort;
     private final LanDeviceIdentity identity;
     private List<LanNetworkInterfaceManager.Entry> interfaces = new ArrayList<>();
-    private String networkKey = "";
     private SsdpService ssdp;
     private MdnsService mdns;
-    private ScheduledExecutorService monitor;
     private WifiManager.MulticastLock multicastLock;
-    private volatile boolean running;
-    private long lastRecoveryAtMs;
-    private int recoveryAttempts;
 
     LanDiscoveryService(Context context, int webPort) {
         this.context = context.getApplicationContext();
@@ -37,109 +28,76 @@ final class LanDiscoveryService {
     }
 
     synchronized void start() {
-        if (running) return;
-        running = true;
         acquireMulticastLock();
-        restartDiscovery(LanNetworkInterfaceManager.list());
-        monitor = Executors.newSingleThreadScheduledExecutor(r -> { Thread thread = new Thread(r, "pydroid-lan-network-watch"); thread.setDaemon(true); return thread; });
-        monitor.scheduleAtFixedRate(this::checkNetwork, 5, 5, TimeUnit.SECONDS);
+        startProtocols(LanNetworkInterfaceManager.list());
     }
 
     synchronized void stop() {
-        running = false;
-        if (monitor != null) monitor.shutdownNow();
-        monitor = null;
         stopProtocols();
         if (multicastLock != null) try { multicastLock.release(); } catch (Exception ignored) { }
         multicastLock = null;
         interfaces = new ArrayList<>();
-        networkKey = "";
-        lastRecoveryAtMs = 0L;
-        recoveryAttempts = 0;
     }
 
     synchronized String primaryAddress() { return interfaces.isEmpty() ? "127.0.0.1" : interfaces.get(0).address.getHostAddress(); }
-    synchronized java.util.List<String> urls() {
-        java.util.List<String> values = new java.util.ArrayList<>();
+
+    synchronized List<String> urls() {
+        List<String> values = new ArrayList<>();
         for (LanNetworkInterfaceManager.Entry entry : interfaces) values.add("http://" + entry.address.getHostAddress() + ":" + webPort + "/");
         values.add(localUrl());
         return values;
     }
+
     synchronized JSONObject status() {
         JSONObject result = new JSONObject();
         JSONArray values = new JSONArray();
         for (LanNetworkInterfaceManager.Entry entry : interfaces) {
             JSONObject item = new JSONObject();
-            try { item.put("name", entry.networkInterface.getName()); item.put("address", entry.address.getHostAddress()); } catch (Exception ignored) { }
+            try {
+                item.put("name", entry.networkInterface.getName());
+                item.put("address", entry.address.getHostAddress());
+            } catch (Exception ignored) { }
             values.put(item);
         }
         try {
             result.put("interfaces", values);
             result.put("ssdp", interfaces.isEmpty() ? "unavailable" : ssdp != null ? "running" : "failed");
             result.put("mdns", interfaces.isEmpty() ? "unavailable" : mdns != null ? "running" : "failed");
-            result.put("recoveryAttempts", recoveryAttempts);
         } catch (Exception ignored) { }
         return result;
     }
+
     String localUrl() { return "http://" + identity.hostname + ".local:" + webPort + "/"; }
+
     String deviceXml(String requestedAddress) {
         String ip = requestedAddress == null || requestedAddress.isBlank() || requestedAddress.contains(":") ? primaryAddress() : requestedAddress;
         return UpnpDeviceDescription.build(ip, webPort, identity);
     }
 
-    private void checkNetwork() {
-        if (!running) return;
-        List<LanNetworkInterfaceManager.Entry> next = LanNetworkInterfaceManager.list();
-        String nextKey = LanNetworkInterfaceManager.key(next);
-        synchronized (this) {
-            if (!running) return;
-            if (!nextKey.equals(networkKey)) {
-                Log.i(TAG, "[LAN] network changed: " + networkKey + " -> " + nextKey);
-                restartDiscovery(next);
-                return;
-            }
-            if (next.isEmpty() || (ssdp != null && mdns != null)) return;
-            long now = System.currentTimeMillis();
-            if (now - lastRecoveryAtMs < RECOVERY_RETRY_MS) return;
-            lastRecoveryAtMs = now;
-            recoveryAttempts += 1;
-            Log.i(TAG, "[LAN] discovery recovery attempt " + recoveryAttempts);
-            recoverProtocols();
-        }
-    }
-
-    private void restartDiscovery(List<LanNetworkInterfaceManager.Entry> next) {
+    private void startProtocols(List<LanNetworkInterfaceManager.Entry> next) {
         stopProtocols();
         interfaces = next;
-        networkKey = LanNetworkInterfaceManager.key(next);
         if (next.isEmpty()) {
-            lastRecoveryAtMs = 0L;
             Log.w(TAG, "[LAN] no usable IPv4 LAN interface; HTTP remains active");
             return;
         }
         for (LanNetworkInterfaceManager.Entry entry : next) Log.i(TAG, "[LAN] interface " + entry.key());
-        startSsdp();
-        startMdns();
-        lastRecoveryAtMs = ssdp != null && mdns != null ? 0L : System.currentTimeMillis();
+        try {
+            ssdp = new SsdpService(identity, webPort, next);
+            ssdp.start();
+        } catch (Exception exception) {
+            ssdp = null;
+            Log.w(TAG, "[SSDP] startup failed; HTTP remains active", exception);
+        }
+        try {
+            mdns = new MdnsService(identity, webPort, next);
+            mdns.start();
+        } catch (Exception exception) {
+            mdns = null;
+            Log.w(TAG, "[mDNS] startup failed; HTTP remains active", exception);
+        }
         Log.i(TAG, "[LAN] HTTP http://" + primaryAddress() + ":" + webPort + "/");
         Log.i(TAG, "[LAN] local " + localUrl());
-    }
-
-    private void recoverProtocols() {
-        if (!running || interfaces.isEmpty()) return;
-        if (ssdp == null) startSsdp();
-        if (mdns == null) startMdns();
-        if (ssdp != null && mdns != null) lastRecoveryAtMs = 0L;
-    }
-
-    private void startSsdp() {
-        try { ssdp = new SsdpService(identity, webPort, interfaces); ssdp.start(); }
-        catch (Exception exception) { ssdp = null; Log.w(TAG, "[SSDP] startup failed; HTTP/mDNS continue", exception); }
-    }
-
-    private void startMdns() {
-        try { mdns = new MdnsService(identity, webPort, interfaces); mdns.start(); }
-        catch (Exception exception) { mdns = null; Log.w(TAG, "[mDNS] startup failed; HTTP/SSDP continue", exception); }
     }
 
     private void stopProtocols() {
@@ -156,6 +114,8 @@ final class LanDiscoveryService {
             multicastLock = manager.createMulticastLock("pydroid-lan-discovery");
             multicastLock.setReferenceCounted(false);
             multicastLock.acquire();
-        } catch (Exception exception) { Log.w(TAG, "[LAN] unable to acquire Wi-Fi multicast lock", exception); }
+        } catch (Exception exception) {
+            Log.w(TAG, "[LAN] unable to acquire Wi-Fi multicast lock", exception);
+        }
     }
 }

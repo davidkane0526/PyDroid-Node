@@ -83,7 +83,6 @@ public class PythonExecutorPlugin extends Plugin {
     @PluginMethod public void analyzeSignature(PluginCall call) { host().python.analyzeSignature(call); }
 
     @PluginMethod public void startRemoteServer(PluginCall call) { host().remote.start(call); }
-    @PluginMethod public void getRemoteHostStatus(PluginCall call) { host().remote.status(call); }
     @PluginMethod public void stopRemoteServer(PluginCall call) { host().remote.stop(call); }
 
     @Override

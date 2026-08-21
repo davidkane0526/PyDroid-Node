@@ -28,6 +28,5 @@ contextBridge.exposeInMainWorld("pyDroidDesktop", {
   saveSmbSecret: (value) => ipcRenderer.invoke("pydroid:save-smb-secret", value),
   loadSmbSecret: () => ipcRenderer.invoke("pydroid:load-smb-secret"),
   startRemoteServer: (requirePin) => ipcRenderer.invoke("pydroid:start-remote-server", requirePin),
-  getRemoteHostStatus: () => ipcRenderer.invoke("pydroid:get-remote-host-status"),
   stopRemoteServer: () => ipcRenderer.invoke("pydroid:stop-remote-server"),
 });

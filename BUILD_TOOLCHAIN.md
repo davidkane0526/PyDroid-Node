@@ -1,92 +1,132 @@
-# Shared build toolchain baseline
+# PyDroid Node deterministic build toolchain
 
-Baseline: **RC10 unified shared toolchain** (2026-08-17).
+Baseline: **1.4.83 / Deterministic Core** (2026-08-21).
 
-Future build-tool changes should be based on this implementation rather than the older RC3-RC8 wrappers.
-The user-facing entry remains `Build PyDroid GUI.cmd`; PowerShell files under `tools/` are implementation details.
+正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
 
-### Phase 7 module layout
+## 核心原则
 
-The user-facing contract has not changed. `tools/build-pydroid.ps1` remains the orchestration root and imports focused Windows PowerShell 5.1 modules from `tools/modules/` for Network, Paths, Node, Java, Android, Python and Packaging helpers. Keep installation/build sequencing in the root script when it depends on mutable orchestration state; do not turn the module split into a wholesale rewrite. `scripts/build-tool-architecture-smoke.mjs` guards this boundary.
+构建器做一次明确操作，并以该操作的真实返回结果作为结果。**不自动搜索替代环境，不自动安装缺失工具，不重试，不降级，不恢复，不在成功后启动后台任务。**
 
-## Runtime baseline
+这条原则适用于：
 
-PyDroid Node development/build runtime is standardized on **Node.js 24**:
+- Node / pnpm / JDK / Android SDK / Python 解析；
+- 网络与代理；
+- `pnpm install`；
+- Electron packaging；
+- Android Gradle packaging；
+- 工作区清理和最终产物复制。
 
-- `.nvmrc`: `24.19.0`
-- `package.json` engines: `>=24.19.0 <25`
-- shared build tool default auto-install version: `24.19.0`
-- GitHub Actions build/test runtime: Node.js 24
-- pnpm: `11.21.0`
+## 固定工具布局
 
-This Node.js version controls development scripts, tests and packaging. Electron keeps its own embedded Node.js runtime as defined by the project's Electron version; upgrading the build host to Node.js 24 does not independently replace Electron's embedded runtime.
-
-## Shared layout
-
-Preferred environment variables:
+默认：
 
 ```text
-DK_TOOL_ROOT=D:\Code   # 只读工具来源
-DK_CACHE_ROOT=D:\PyDroidTemp
+WorkRoot   = PYDROID_BUILD_HOME 或 D:\PyDroidTemp
+ToolRoot   = DK_TOOL_ROOT       或 D:\Code
+CacheRoot  = DK_CACHE_ROOT      或 <WorkRoot>\cache
+OutputRoot = <WorkRoot>
 ```
 
-Recommended shared layout:
+`ToolRoot` 是只读工具来源。默认工具位置：
 
 ```text
 D:\Code\
   NodeJs\
-  Java\jdk-21\
+    node.exe
+    pnpm.cmd
+  Language\Java\
+    bin\java.exe
+    bin\javac.exe
   Android\Sdk\
+    platforms\android-<compileSdk>\android.jar
   Python\3.13\
-  # 不再由构建器向此处创建 Python runtime
-  BuildCache\
-    downloads\
-    pnpm-store\
-    npm\
-    corepack\
-    electron\
-    electron-builder\
-    gradle\
+    python.exe                 # 完整 CPython，含 venv/ensurepip
 ```
 
-Node/JDK/Android SDK/Python are reusable machine tools. Electron, electron-builder, Gradle wrapper and JS package versions remain project-controlled; only their download caches are shared.
+Desktop 便携 Python 默认位于：
 
-## Fixes that must be preserved
+```text
+D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13\python.exe
+```
 
-- CMD-only user entry; PowerShell runs with execution-policy bypass internally.
-- WinForms collection-return values are suppressed, so the launcher never prints `0 1 2 ...`.
-- GUI avoids PowerShell automatic `$args` mutation and uses Windows PowerShell 5.1-compatible process argument quoting.
-- Build output is streamed into the GUI and persisted under `<OutputRoot>\logs`.
-- A platform is considered usable as soon as its actual artifact exists: Desktop prints `release\win-unpacked` immediately after Electron packaging and Android prints `app-debug.apk` immediately after Gradle packaging. Final versioned outputs are then published, while large old Electron trees and `release`/`dist` cleanup are handed to `tools/deferred-cleanup.ps1` in a detached process. Cleanup must never block or retroactively fail an already successful build.
-- Auto/Direct/Manual network modes propagate proxy settings to pnpm, Electron and script downloads; Direct clears inherited proxy environment variables.
-- Persistent pnpm store with `--prefer-offline`, retry, timeout and concurrency controls.
-- Shared npm/Corepack/Electron/electron-builder/Gradle/download caches.
-- `desktop-package.mjs` compatibility guard handles native `pnpm.exe` correctly instead of passing it to `node.exe`.
-- JDK major version is validated and the selected JDK is activated before `sdkmanager` runs. The Build GUI exposes a dedicated **JDK directory** field. When filled, that path is authoritative: it may point to the actual `JAVA_HOME`, its `bin` directory / `java.exe` / `javac.exe`, or to a container such as `D:\Code\Language\Java`. If the selected directory itself contains `bin\java.exe` and `bin\javac.exe`, the builder accepts it directly; if vendor-specific version text cannot be parsed, an explicit complete JDK path is trusted instead of being misreported as missing. Container paths are searched up to three child levels, and both `where java` and `where javac` are used as fallbacks. An invalid manual path fails clearly and never downloads another JDK. When the field is blank, automatic JDK 21 discovery checks explicit environment variables, the shared toolchain, Windows Java/uninstall registry metadata, Microsoft/Temurin/Java/Corretto/Zulu common install folders, and all Java/Javac entries on PATH before any download is attempted.
-- Project source remains read-only; compatibility patches are applied only to the temporary workspace.
-- Android Chaquopy build Python auto-provisioning must use a **full** CPython 3.13 host with `venv` and `ensurepip`. Before downloading, the builder probes the private tool directory, shared tool roots, normal per-user/system CPython locations, `py.exe`, and PATH. The pinned python.org installer explicitly requests `exe/lib/pip/tools/dev`, starts from a clean private target, writes a bootstrapper `/log` file under `WorkRoot\logs`, validates `import venv, ensurepip` as the source of truth, and re-scans registered/default Python locations after installation in case the bootstrapper entered maintenance mode. Do not reduce this back to an opaque `Start-Process` + exit-code-only check.
-- Temporary output cleanup must be long-path safe on Windows PowerShell 5.1. `release`/Electron/Capacitor trees may contain descendants beyond 260 characters, so `tools/build-pydroid.ps1` uses normal `Remove-Item` first, then the `\\?\` extended-length namespace with `cmd rd`, and finally an empty-directory `robocopy /MIR` fallback. Do not replace this with a bare recursive `Remove-Item`, and do not silently ignore partial cleanup.
+每个路径均可通过 GUI 字段、对应 CLI 参数或专用环境变量显式覆盖。覆盖值就是权威值，验证失败直接报错。
 
-## Current PyDroid Electron policy
+## 明确不存在的行为
 
-`package.json` declares `electron: ^43.4.0` and `electron-builder: ^26.15.3`.
-`pnpm-lock.yaml` currently locks them to Electron **43.4.0** and electron-builder **26.15.3**. Because normal builds use `pnpm install --frozen-lockfile`, that lockfile is the effective reproducible version until it is intentionally updated.
+1. 不读取 Java/Python 注册表，不扫描 Program Files、用户目录、PATH 或厂商目录。
+2. 不调用 `where.exe`、`py.exe`、Corepack 去寻找或补齐工具。
+3. 不自动下载 Node、JDK、Android SDK 或完整 buildPython。
+4. 不读取 Windows 系统代理、PAC、默认路由或网络 Profile。
+5. 不对 `pnpm install`、Electron packaging、Gradle build 做第二次尝试。
+6. 不关闭签名/资源编辑后重新打 Electron 包，不生成 plain-EXE 替代品。
+7. 不在 Gradle daemon 失败后清状态、`--stop`、再切到 `--no-daemon`。
+8. 不依据“APK 已经出现”覆盖 Gradle 进程退出码。
+9. 不使用多级长路径清理器。一次 `Remove-Item -Recurse -Force` 失败即失败。
+10. 不启动 detached cleanup worker，最终产物就位后构建结束。
 
-Electron is therefore **not globally fixed by the shared toolchain**. Another project may use another Electron version and reuse the same `DK_CACHE_ROOT`; each project still installs/locks its own package version.
+## 网络
 
+只有两种模式：
 
-## Clean source archive
+- `Direct`：当前构建进程清除代理变量后直接联网。
+- `Manual`：使用用户明确填写的 `ProxyUrl`。
 
-Formal source ZIPs contain the project source tree and `.git`, but intentionally omit `node_modules`, `dist`, `release`, `.gradle`, `android/.gradle`, `android/build`, `android/app/build` and other generated caches/artifacts. The Windows build GUI restores JS dependencies from `pnpm-lock.yaml` and prefers the configured shared/local caches before network downloads.
+pnpm fetch retry 固定为 `0`。`RegistryUrl`、Electron mirror、electron-builder mirror 都只在用户填写时生效。
 
-## 共享工具根目录写入策略
+## 构建顺序
 
-`DK_TOOL_ROOT` / `ToolRoot` 只用于发现和复用已经安装好的 Node、JDK、Android SDK 与完整 Python，构建器不会向其中创建、覆盖、下载或补装任何文件。缺失工具统一安装到 `WorkRoot\tools\<project>`；缓存使用 `CacheRoot`，默认不再落入 ToolRoot。
+```text
+校验项目/版本
+  ↓
+解析并验证明确工具路径
+  ↓
+清理工作区可再生输出
+  ↓
+robocopy /MIR /R:0 /W:0 同步源码
+  ↓
+pnpm install --frozen-lockfile --prefer-offline   [一次]
+  ↓
+Desktop: desktop:package                           [一次]
+Android: android:sync → gradlew assembleDebug      [各一次]
+  ↓
+复制最终产物
+  ↓
+100% / 进程结束
+```
 
-Android 的 Chaquopy `buildPython` 必须是带 `venv`/`ensurepip` 的完整 Python 3.13。桌面 Electron 随包携带的 embeddable Python 3.13 没有 `venv`，两者不能混用。
+Android daemon 模式是**运行前的用户选择**。选择 daemon 就只运行 daemon；选择 no-daemon 就只运行 no-daemon。
 
-## Android 82% progress / cancellation
+## Desktop Python setup
 
-The top-level 82% marker means control has entered `pnpm android:package`; it is not one Gradle compile task. It includes the production Vite build and Capacitor sync, then Gradle startup, Chaquopy Python packaging, Java/resources, DEX merge and APK packaging. `scripts/android-package.ps1` emits nested 82/84/85/86/87 markers and a heartbeat every 20 seconds so a long first build no longer appears frozen.
+`scripts/setup-windows.ps1`（`pnpm env:windows`）是独立的、用户主动执行的准备命令。它下载并校验 Desktop embeddable Python 到指定 `RuntimeRoot`。核心 builder 不会自动调用它。
 
-The GUI Cancel button remains active during this stage. Cancellation terminates the current build PowerShell/pnpm/Gradle process tree and runs `gradlew --stop` for the isolated PyDroid Gradle home. If Gradle has already reported `BUILD SUCCESSFUL` and the APK exists but the short-lived command wrapper does not exit within its grace period, the wrapper is closed and the build proceeds.
+Android/Chaquopy 使用的是完整 CPython 3.13 build host，不能用 Desktop embeddable runtime 替代。
+
+## 模块边界
+
+```text
+tools/modules/
+  PyDroid.Build.Network.psm1
+  PyDroid.Build.Paths.psm1
+  PyDroid.Build.Node.psm1
+  PyDroid.Build.Java.psm1
+  PyDroid.Build.Android.psm1
+  PyDroid.Build.Python.psm1
+  PyDroid.Build.Packaging.psm1
+```
+
+模块之间不互相 import。`build-pydroid.ps1` 负责组合。
+
+## Source ZIP
+
+正式源码 ZIP 包含单一项目目录和完整 `.git`，不包含 `node_modules`、`dist*`、`release`、Gradle build 目录以及其他生成缓存。
+
+## 验证
+
+```text
+node scripts/build-tools-smoke.mjs
+node scripts/build-tool-architecture-smoke.mjs
+```
+
+这些测试只保护当前确定性架构，不再保护旧 RC/Phase 的自动发现、恢复、fallback 或 freeze 机制。

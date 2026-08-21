@@ -1,475 +1,64 @@
 import assert from "node:assert/strict";
-import { packageManagerInvocation } from "./desktop-package-invocation.mjs";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const buildScriptPath = fileURLToPath(new URL("../tools/build-pydroid.ps1", import.meta.url));
-const buildScript = readFileSync(buildScriptPath, "utf8");
-const buildModulesDir = path.resolve(path.dirname(buildScriptPath), "modules");
-const buildModules = readdirSync(buildModulesDir).filter((name) => name.endsWith(".psm1")).sort().map((name) => readFileSync(path.join(buildModulesDir, name), "utf8")).join("\n");
-const buildToolSources = `${buildScript}\n${buildModules}`;
-const packageJson = JSON.parse(readFileSync(path.resolve(fileURLToPath(new URL("..", import.meta.url)), "package.json"), "utf8"));
-assert.doesNotMatch(
-  buildToolSources,
-  /param\s*\([^)]*\$Home\b/i,
-  "PowerShell parameters must not shadow the read-only automatic $HOME variable",
-);
-assert.doesNotMatch(
-  buildToolSources,
-  /^\s*\$Home\s*=/im,
-  "PowerShell code must not assign to the read-only automatic $HOME variable",
-);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const read = (relative) => readFileSync(path.join(root, relative), "utf8");
+const build = read("tools/build-pydroid.ps1");
+const gui = read("tools/build-pydroid-gui.ps1");
+const network = read("tools/modules/PyDroid.Build.Network.psm1");
+const nodeModule = read("tools/modules/PyDroid.Build.Node.psm1");
+const javaModule = read("tools/modules/PyDroid.Build.Java.psm1");
+const androidModule = read("tools/modules/PyDroid.Build.Android.psm1");
+const pythonModule = read("tools/modules/PyDroid.Build.Python.psm1");
+const packagingModule = read("tools/modules/PyDroid.Build.Packaging.psm1");
+const androidPackage = read("scripts/android-package.ps1");
+const desktopPackage = read("scripts/desktop-package.mjs");
+const packageJson = JSON.parse(read("package.json"));
 
-assert.match(
-  buildToolSources,
-  /@@PYDROID_STAGE@@\|\{0\}\|\{1\}/,
-  "build script should emit machine-readable GUI stage events",
-);
-assert.match(
-  buildToolSources,
-  /@@PYDROID_ARTIFACT@@\|\{0\}\|\{1\}/,
-  "build script should emit machine-readable artifact events as soon as a platform output exists",
-);
-assert.match(
-  buildScript,
-  /\$androidPackageScript[\s\S]*& \$androidPackageScript/,
-  "Android packaging should be invoked directly instead of through an extra pnpm/PowerShell wrapper",
-);
-assert.match(
-  buildToolSources,
-  /& robocopy @robocopyArgs \| Out-Null/,
-  "source synchronization should suppress robocopy EXTRA-file spam",
-);
-assert.match(
-  buildToolSources,
-  /function Remove-BuildDirectoryRobust/,
-  "build output cleanup should use the robust long-path-aware directory remover",
-);
-assert.match(
-  buildToolSources,
-  /(?:Get-ExtendedLengthPath|ConvertTo-PyDroidExtendedLengthPath) -Path \$Path/,
-  "robust cleanup should retry through the Windows extended-length path namespace",
-);
-assert.match(
-  buildToolSources,
-  /cmd\.exe \/d \/c rd \/s \/q/,
-  "robust cleanup should use cmd rd for deep Windows directory trees",
-);
-assert.match(
-  buildToolSources,
-  /robocopy @cleanupArgs/,
-  "robust cleanup should retain an empty-mirror fallback for stubborn long paths",
-);
-assert.match(
-  buildToolSources,
-  /Remove-BuildDirectoryRobust -Path \$full -Quiet/,
-  "pre-sync stale output cleanup should use robust deletion instead of silently leaving partial release trees",
-);
-assert.match(
-  buildToolSources,
-  /Remove-BuildDirectoryRobust -Path \$full\r?\n\s*}/,
-  "stage-40 output cleanup should use robust deletion and fail only after all cleanup fallbacks are exhausted",
-);
-assert.match(
-  buildToolSources,
-  /Microsoft\\jdk-\*/,
-  "JDK discovery should scan Microsoft OpenJDK common install directories",
-);
-assert.match(
-  buildToolSources,
-  /Get-JavaHomesFromRegistry/,
-  "JDK discovery should inspect Windows registry/uninstall metadata",
-);
-assert.match(
-  buildToolSources,
-  /\[string\]\$JavaHome/,
-  "build script should accept an explicit JavaHome path from the GUI/CLI",
-);
-assert.match(
-  buildToolSources,
-  /function Resolve-JavaHomeCandidate/,
-  "manual JDK paths should be normalized through one resolver",
-);
-assert.match(
-  buildToolSources,
-  /\^\(java\|javac\)\\\.exe\$/,
-  "manual JDK selection should accept java.exe or javac.exe paths",
-);
-assert.match(
-  buildToolSources,
-  /\(Split-Path \$candidate -Leaf\) -ieq 'bin'/,
-  "manual JDK selection should accept a JDK bin directory",
-);
-assert.match(
-  buildToolSources,
-  /Find-JavaHomeInRoot -RootPath \$explicitRoot -MaxDepth 2/,
-  "manual JDK path should accept a Java container directory and search nested JDK folders",
-);
-assert.match(
-  buildToolSources,
-  /Join-Path \$resolved 'bin\\java\.exe'/,
-  "JDK validation should require bin/java.exe",
-);
-assert.match(
-  buildToolSources,
-  /Join-Path \$resolved 'bin\\javac\.exe'/,
-  "JDK validation should require bin/javac.exe",
-);
-assert.match(
-  buildToolSources,
-  /foreach \(\$name in @\('java', 'javac'\)\)/,
-  "JDK discovery should query both where java and where javac",
-);
-assert.match(
-  buildToolSources,
-  /Invoke-JavaVersionProbe/,
-  "JDK version probing should isolate native stdout and stderr for Windows PowerShell 5.1",
-);
-assert.match(
-  buildToolSources,
-  /脚本不会在你手动指定 Java 后擅自下载另一个 JDK/,
-  "an invalid manually-selected JDK path must fail instead of silently downloading another JDK",
-);
+assert.match(build, new RegExp(`BuildScriptRevision = "${packageJson.version.replaceAll(".", "\\.")}-`));
+assert.match(build, /return "D:\\PyDroidTemp"/);
+assert.match(build, /return "D:\\Code"/);
+assert.match(nodeModule, /Join-Path \$ToolRoot 'NodeJs\\node\.exe'/);
+assert.match(build, /Join-Path \$ToolRoot 'Language\\Java'/);
+assert.match(pythonModule, /Join-Path \$ToolRoot 'Python\\3\.13\\python\.exe'/);
+assert.match(androidModule, /Join-Path \$ToolRoot 'Android\\Sdk'/);
+assert.match(build, /Invoke-Pnpm \$installArgs/);
+assert.match(build, /Invoke-Pnpm @\("desktop:package"\)/);
+assert.doesNotMatch(build, /Corepack|COREPACK_HOME|Install-Node|Install-Jdk|Install-AndroidSdk|Install-Python|SearchRoots|DeferredCleanup|compatibility package|PLAIN_EXE_FALLBACK/i);
 
-assert.match(
-  buildToolSources,
-  /PYDROID_DISABLE_GRADLE_DAEMON/,
-  "core build script should pass the Gradle daemon selection to android-package.ps1 without regex-rewriting its commands",
-);
-assert.match(
-  buildToolSources,
-  /org\.gradle\.jvmargs=\$effectiveJvmArgs/,
-  "Gradle client and build JVM arguments should be synchronized for daemon/no-daemon compatibility",
-);
-assert.match(
-  buildToolSources,
-  /org\.gradle\.java\.home=\$gradleJavaHome/,
-  "Gradle daemon JVM should be pinned to the validated JAVA_HOME",
-);
-assert.match(
-  buildToolSources,
-  /org\.gradle\.daemon\.idletimeout=600000/,
-  "PyDroid Gradle daemons should have a bounded idle lifetime",
-);
-assert.match(
-  buildToolSources,
-  /Join-Path \(Join-Path \$CacheRoot "gradle"\) \$projectKey/,
-  "Gradle user home should be isolated per project to avoid stale daemon collisions",
-);
-assert.match(
-  buildToolSources,
-  /ProjectPropertiesPath/,
-  "Gradle network setup should patch the temporary project gradle.properties",
-);
+for (const [name, source] of [
+  ["Node", nodeModule], ["Java", javaModule], ["Android", androidModule], ["Python", pythonModule],
+]) {
+  assert.doesNotMatch(source, /Get-Command|Get-ItemProperty|Registry|CurrentVersion\\Uninstall|where\.exe|py\.exe|Program Files|LOCALAPPDATA|recursive|fallback/i,
+    `${name} build helper must not scan alternate machine locations`);
+}
+assert.match(packagingModule, /Remove-Item -LiteralPath \$Path -Recurse -Force -ErrorAction Stop/);
+assert.doesNotMatch(packagingModule, /cmd\.exe|robocopy|\\\\\?\\|fallback|retry/i);
+assert.equal(existsSync(path.join(root, "tools/deferred-cleanup.ps1")), false, "deferred cleanup worker must be removed");
 
+assert.match(network, /ValidateSet\('Direct','Manual'\)/);
+assert.match(network, /PNPM_CONFIG_FETCH_RETRIES = '0'/);
+assert.doesNotMatch(network, /Internet Settings|AutoConfigURL|Get-WindowsInternetProxy|Test-LocalProxyEndpoint|Get-ItemProperty/i);
 
-const revisionMatch = buildScript.match(/\$script:BuildScriptRevision = "([^"]+)"/);
-assert.ok(revisionMatch, "the build script should expose an explicit revision marker so stale-script runs are diagnosable");
-assert.ok(
-  revisionMatch[1].startsWith(`${packageJson.version}-`),
-  `build-script revision ${revisionMatch[1]} should start with package version ${packageJson.version}`,
-);
-assert.match(
-  buildToolSources,
-  /构建脚本修订：\$script:BuildScriptRevision[\s\S]*实际脚本路径：\$PSCommandPath/,
-  "stage 2 should log both the build-script revision and the actual script path",
-);
-assert.match(
-  buildToolSources,
-  /function Test-NodeCandidate[\s\S]*项目要求同一主版本且不低于/,
-  "shared Node candidates must be version-checked before reuse",
-);
-assert.match(
-  buildToolSources,
-  /最终选定的 Node 不满足项目版本要求/,
-  "the selected Node should be revalidated after discovery or installation",
-);
+assert.match(desktopPackage, /node_modules", "typescript", "bin", "tsc/);
+assert.match(desktopPackage, /node_modules", "vite", "bin", "vite\.js/);
+assert.match(desktopPackage, /node_modules", "electron-builder", "out", "cli", "cli\.js/);
+assert.doesNotMatch(desktopPackage, /packageManagerInvocation|npm_execpath|packageWithRetry|signExecutable=false|signAndEditExecutable=false|plain exe|compatibility fallback|retry/i);
+assert.equal(existsSync(path.join(root, "scripts/desktop-package-invocation.mjs")), false, "package-manager launcher fallback must be removed");
+assert.equal(existsSync(path.join(root, "scripts/local-storage.ps1")), false, "junction-based local-storage shim must be removed");
+assert.equal(existsSync(path.join(root, "scripts/fix-capacitor-paths.ps1")), false, "junction path rewrite shim must be removed");
+assert.equal(packageJson.scripts["android:sync"], "pnpm build && cap sync android");
+assert.match(androidPackage, /& "\.\\gradlew\.bat" @gradleArgs/);
+assert.match(androidPackage, /if \(\$disableGradleDaemon\) \{ \$gradleArgs \+= "--no-daemon" \} else \{ \$gradleArgs \+= "--daemon" \}/);
+assert.doesNotMatch(androidPackage, /gradlew\.bat --stop|Clear-PyDroidGradleDaemonState|Kill\(|BUILD SUCCESSFUL.*APK|py -3\.13|LOCALAPPDATA|\.tools\\jdk|retry|fallback|recovery/i);
 
-assert.match(
-  buildToolSources,
-  /function Test-PythonSeries/,
-  "Android build Python candidates should be version-validated before use",
-);
-assert.match(
-  buildToolSources,
-  /function Test-PythonBuildHost/,
-  "Android build Python should have a dedicated full-runtime capability check",
-);
-assert.match(
-  buildToolSources,
-  /import struct, venv, ensurepip/,
-  "Android build Python must provide venv/ensurepip rather than reusing the embeddable desktop runtime",
-);
-assert.doesNotMatch(
-  buildToolSources,
-  /Join-Path \$ToolRoot "Python\\runtime-3\.13"/,
-  "the desktop Python runtime must not be created inside the read-only shared ToolRoot",
-);
-assert.match(
-  buildToolSources,
-  /Join-Path \$privateToolsRoot "Python\\runtime-3\.13"/,
-  "the desktop Python runtime should live under the writable WorkRoot tools directory",
-);
-assert.match(
-  buildToolSources,
-  /移除旧桌面 Python 运行时联接/,
-  "legacy desktop-runtime junctions pointing into ToolRoot should be detached before reuse",
-);
-assert.match(
-  buildToolSources,
-  /忽略 PYDROID_PYTHON_EXECUTABLE=/,
-  "a stale PYDROID_PYTHON_EXECUTABLE must be diagnosed instead of accepted only because its file exists",
-);
-assert.match(
-  buildToolSources,
-  /缺少 venv\/ensurepip/,
-  "an embeddable Python without venv must be rejected as Android buildPython",
-);
-assert.match(
-  buildToolSources,
-  /预检 Android 完整 Python 3\.13/,
-  "Android Python compatibility should be checked before expensive packaging",
-);
-assert.match(
-  buildToolSources,
-  /\$pythonPinnedInstallerVersion = "3\.13\.14"/,
-  "Python 3.13 auto-install should pin an existing full python.org maintenance release",
-);
-assert.match(
-  buildToolSources,
-  /\$requiredPythonSeries = "3\.13"/,
-  "Android Python series should stay aligned with the Chaquopy Python 3.13 configuration",
-);
-assert.match(
-  buildToolSources,
-  /已自动迁移/,
-  "legacy PythonVersion values such as 3.12 should be normalized instead of aborting the build",
-);
-assert.doesNotMatch(
-  buildToolSources,
-  /当前 PyDroid Android\/Chaquopy 配置固定使用 Python 3\.13；收到 PythonVersion=.*throw/,
-  "legacy PythonVersion values must not hard-fail before the GUI can migrate them",
-);
-assert.match(
-  buildToolSources,
-  /python\/\{0\}\/python-\{0\}-amd64\.exe/,
-  "Python installer URL must include the full maintenance version directory and filename",
-);
-assert.doesNotMatch(
-  buildToolSources,
-  /ftp\/python\/\{0\}\/python-\{0\}-amd64\.exe" -f \$PythonVersion/,
-  "raw PythonVersion must not be used directly for auto-install URLs because persisted 3.13 values are valid series but invalid download directories",
-);
-assert.match(
-  buildToolSources,
-  /Include_exe=1[\s\S]*Include_lib=1[\s\S]*Include_pip=1[\s\S]*Include_tools=1[\s\S]*Include_dev=1/,
-  "Python auto-install must explicitly request the executable, stdlib, pip, tools, and development components required by Chaquopy",
-);
-assert.match(
-  buildToolSources,
-  /"\/log"[\s\S]*pythonInstallLog/,
-  "Python bootstrapper should emit an installer log so silent-install failures are diagnosable",
-);
-assert.match(
-  buildToolSources,
-  /Get-PythonBuildHostDiagnostic/,
-  "Python auto-install failures should report version and venv\/ensurepip capability diagnostics",
-);
-assert.match(
-  buildToolSources,
-  /if \(\$isUsable\)[\s\S]*\$proc\.ExitCode -ne 0[\s\S]*return \$pythonExe/,
-  "a validated full Python host should be accepted even when the bootstrapper returns a non-zero informational code",
-);
-assert.match(
-  buildToolSources,
-  /Remove-BuildDirectoryRobust -Path \$dest -Quiet/,
-  "a partial private Python installation should be removed robustly before retrying the official installer",
-);
+assert.match(gui, /@\("直连", "手动代理"\)/);
+assert.match(gui, /"Android SDK"/);
+assert.match(gui, /"Python 3\.13"/);
+assert.match(gui, /"桌面 Python"/);
+assert.doesNotMatch(gui, /KeepWorkspace|自动补齐缺失工具|DownloadRetryCount|AutoInstall|Retries|BuildCache'\)/i);
+assert.match(gui, /构建器只使用界面中确定的工具路径，缺失或版本错误立即失败/);
 
-
-assert.match(
-  buildToolSources,
-  /function Install-Python313FromNuGet/,
-  "Python 3.13 bootstrap should have an MSI-independent CPython NuGet fallback",
-);
-assert.match(
-  buildToolSources,
-  /python\.\{0\}\.nupkg[\s\S]*api\.nuget\.org\/v3-flatcontainer/,
-  "the fallback should download the official CPython NuGet package",
-);
-assert.match(
-  buildToolSources,
-  /\$proc\.ExitCode -eq 1601[\s\S]*Install-Python313FromNuGet/,
-  "Windows Installer error 1601 must fall back to CPython NuGet instead of aborting the build",
-);
-assert.match(
-  buildToolSources,
-  /Test-WindowsInstallerServiceAvailable[\s\S]*改用官方 CPython NuGet buildPython/,
-  "an unavailable Windows Installer service should bypass the EXE bootstrapper",
-);
-
-assert.match(
-  buildToolSources,
-  /共享工具目录（只读）：\$ToolRoot/,
-  "the build log should explicitly mark ToolRoot as read-only",
-);
-assert.doesNotMatch(
-  buildToolSources,
-  /foreach \(\$d in @\(\$ToolRoot,/,
-  "initialization must not create or touch the shared ToolRoot",
-);
-assert.match(
-  buildToolSources,
-  /\$privateToolsRoot = Join-Path \$WorkRoot "tools\\\$projectKey"/,
-  "missing tools should be installed into the WorkRoot-scoped private tools directory",
-);
-assert.match(
-  buildToolSources,
-  /New-TemporaryAndroidSdkOverlay/,
-  "an incomplete shared Android SDK should be overlaid into a writable temporary SDK instead of modified in place",
-);
-
-assert.match(
-  buildToolSources,
-  /同盘快速移动桌面版/,
-  "same-volume desktop finalization should use a directory move instead of copying the Electron/Python tree file-by-file",
-);
-assert.match(
-  buildToolSources,
-  /\/MT:16/,
-  "cross-volume desktop finalization should use multithreaded robocopy",
-);
-assert.match(
-  buildToolSources,
-  /Android APK 编译完成/,
-  "the GUI should leave the 82% compile stage immediately after Android packaging returns",
-);
-
-const androidPackagePath = fileURLToPath(new URL("../scripts/android-package.ps1", import.meta.url));
-const androidPackage = readFileSync(androidPackagePath, "utf8");
-assert.match(
-  androidPackage,
-  /PYDROID_DISABLE_GRADLE_DAEMON/,
-  "Android packaging should honor the explicit Gradle daemon mode from the core build script",
-);
-assert.match(
-  androidPackage,
-  /automatic recovery enabled/,
-  "Android packaging should enable daemon mode with automatic recovery by default",
-);
-assert.match(
-  androidPackage,
-  /Gradle daemon failed to start/,
-  "Android packaging should detect daemon startup failures and recover automatically",
-);
-assert.match(
-  androidPackage,
-  /gradlew\.bat --stop/,
-  "Android packaging should stop stale PyDroid daemons before daemon recovery",
-);
-assert.match(
-  androidPackage,
-  /Falling back to --no-daemon/,
-  "Android packaging should fall back to no-daemon mode if daemon recovery still fails",
-);
-
-assert.match(
-  androidPackage,
-  /gradle-run-last\.cmd/,
-  "Gradle output should be redirected through a short-lived cmd file so daemon-held stdout handles cannot stall the parent build",
-);
-assert.match(
-  androidPackage,
-  /Do not wait for descendants/,
-  "Android packaging should exit after the Gradle client finishes instead of waiting for the reusable daemon",
-);
-assert.match(
-  androidPackage,
-  /@@PYDROID_STAGE@@\|\{0\}\|\{1\}/,
-  "Android packaging should emit nested progress stages between 82% and 88%",
-);
-assert.match(
-  androidPackage,
-  /Android Gradle 仍在运行 · 已用时/,
-  "long Android builds should emit a heartbeat instead of appearing frozen at 82%",
-);
-assert.match(
-  androidPackage,
-  /BUILD SUCCESSFUL 且 APK 已生成/,
-  "Android packaging should recover if the short-lived Gradle wrapper lingers after a confirmed successful APK build",
-);
-assert.match(
-  androidPackage,
-  /sys\.version_info\[:2\] == \(3, 13\)/,
-  "android-package.ps1 should reject an incorrect PYDROID_PYTHON_EXECUTABLE before Gradle starts",
-);
-assert.match(
-  androidPackage,
-  /import venv, ensurepip/,
-  "android-package.ps1 should reject an embeddable Python without venv before Gradle starts",
-);
-
-const buildGuiPath = fileURLToPath(new URL("../tools/build-pydroid-gui.ps1", import.meta.url));
-const buildGui = readFileSync(buildGuiPath, "utf8");
-assert.match(buildGui, /ProgressBar/, "build GUI should expose a stage progress bar");
-assert.match(buildGui, /\$pythonVersionBox\.ReadOnly = \$true/, "Android Python series should be displayed as a fixed project constraint rather than an installer filename field");
-assert.match(buildGui, /\^@@PYDROID_STAGE@@/, "build GUI should consume stage events");
-assert.match(buildGui, /\^@@PYDROID_ARTIFACT@@/, "build GUI should consume immediate platform artifact events");
-assert.match(buildGui, /windowsArtifactLink/, "build GUI should show a clickable Windows output as soon as it exists");
-assert.match(buildGui, /androidArtifactLink/, "build GUI should show a clickable Android output as soon as it exists");
-assert.match(buildGui, /"JDK 目录"/, "build GUI should expose an editable JDK directory field");
-assert.match(buildGui, /@\("-JavaHome", \$jdkHome\)/, "build GUI should pass the selected JDK directory to the core build script");
-assert.match(buildGui, /JdkHome = \$jdkHome/, "build GUI should persist the selected JDK directory");
-assert.doesNotMatch(buildGui, /finishedProcess\.WaitForExit\(\)/, "build GUI must not block the UI thread waiting for daemon-held pipes after process exit");
-assert.match(buildGui, /Show-BuildMessage/, "build completion/failure dialogs should be owned by the GUI window");
-assert.match(buildGui, /Stop-CurrentBuildSession/, "build GUI should have one cleanup path for cancel and close");
-assert.match(buildGui, /taskkill\.exe \/PID \$script:buildProcess\.Id \/T \/F/, "closing/cancelling should terminate the build process tree");
-assert.match(buildGui, /gradlew\.bat/, "GUI cleanup should explicitly stop the PyDroid Gradle daemon");
-assert.match(buildGui, /--stop/, "GUI cleanup should run gradlew --stop for detached Gradle daemon processes");
-assert.match(buildGui, /Add_FormClosing/, "GUI close should always run build-session cleanup");
-
-
-const args = ["desktop:build"];
-const existsSync = () => true;
-
-assert.deepEqual(
-  packageManagerInvocation(args, {
-    env: { npm_execpath: "C:\\pnpm\\pnpm.exe", npm_node_execpath: "C:\\node\\node.exe" },
-    platform: "win32",
-    nodeExecPath: "fallback-node.exe",
-    existsSync,
-  }),
-  { command: "C:\\pnpm\\pnpm.exe", args, shell: false },
-  "native pnpm.exe must be executed directly instead of being loaded by node.exe",
-);
-
-assert.deepEqual(
-  packageManagerInvocation(args, {
-    env: { npm_execpath: "C:\\corepack\\pnpm.cjs", npm_node_execpath: "C:\\node\\node.exe" },
-    platform: "win32",
-    nodeExecPath: "fallback-node.exe",
-    existsSync,
-  }),
-  { command: "C:\\node\\node.exe", args: ["C:\\corepack\\pnpm.cjs", ...args], shell: false },
-  "JavaScript package-manager launchers should run through Node",
-);
-
-assert.deepEqual(
-  packageManagerInvocation(args, {
-    env: { npm_execpath: "C:\\pnpm\\pnpm.cmd" },
-    platform: "win32",
-    nodeExecPath: "node.exe",
-    existsSync,
-  }),
-  { command: "C:\\pnpm\\pnpm.cmd", args, shell: true },
-  "Windows cmd launchers require a shell",
-);
-
-assert.deepEqual(
-  packageManagerInvocation(args, { env: {}, platform: "win32", nodeExecPath: "node.exe", existsSync: () => false }),
-  { command: "pnpm.cmd", args, shell: true },
-  "Windows fallback should use pnpm.cmd through the shell",
-);
-
-console.log("build-tool package-manager invocation smoke passed");
+console.log("build-tool deterministic-path smoke passed");

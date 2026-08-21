@@ -14,7 +14,6 @@ Existing Remote Web Server
         +-- LanDiscoveryService
               +-- SSDP / UPnP Basic Device
               +-- mDNS / DNS-SD (_http._tcp.local)
-              +-- network-interface change watcher
               +-- persistent device identity
 ```
 
@@ -39,13 +38,13 @@ The UUID is generated once and reused. Android `.local` hostnames include the pe
 
 Discovery itself exposes only the device identity, IP, port and UPnP metadata. Existing `/api/*` execution and configuration paths remain protected by the current optional PIN plus browser session token. `/upnp/device.xml`, `/health`, static Web assets and `/api/health` remain intentionally reachable before pairing so a browser can discover and start the pairing flow.
 
-## Windows firewall and stable endpoint
+## Stable endpoint and OS boundary
 
-Desktop and Android use the stable LAN Web endpoint **TCP 8765**. The runtime host binds `0.0.0.0:8765`; SSDP uses UDP 1900 and mDNS uses UDP 5353.
+Desktop and Android bind the Remote Web host directly to **`0.0.0.0:8765`**. SSDP uses UDP 1900 and mDNS uses UDP 5353.
 
-1.4.72 attempted to synchronously inspect the active Windows network category and create Private/LocalSubnet firewall rules during every foreground service-start path. Real validation showed this was not a safe readiness gate: PowerShell could return `Unknown`, the service was then stopped even though the host stack could start, and repeated starts/diagnostics could trigger slow or repeated elevation flows.
+Starting with 1.4.83, the application does not inspect, modify or gate startup on Windows firewall/profile state and does not probe a default route through PowerShell. A successful `startServer()` means the application listener itself bound successfully; an OS or network policy that blocks a second physical client remains outside the process boundary and must be reported as such rather than hidden behind another readiness layer.
 
-Starting with 1.4.73, **firewall inspection/elevation is not part of the foreground Remote Web start transaction or in-app diagnostic pass criteria**. `desktop/lan/firewall.cjs` retains the narrow Private+LocalSubnet rule definitions for future installer/explicit provisioning, but the portable runtime does not block HTTP/discovery startup on that helper. A same-process diagnostic cannot prove that Windows Defender Firewall or enterprise policy permits a second physical device, so cross-device access remains a required manual acceptance test.
+Discovery is independent best-effort behavior. Failure to bind or publish SSDP/mDNS is reflected in discovery status but does not stop HTTP. There is no network-change recovery loop: if the host changes LAN interfaces while the service is running, stop/start the service to publish the new address set.
 
 ## Manual Windows acceptance test
 
@@ -57,13 +56,20 @@ Starting with 1.4.73, **firewall inspection/elevation is not part of the foregro
 6. Double-click it and verify the default browser opens the same remote UI.
 7. Resolve/open the published `.local` hostname.
 8. Restart the host and verify the UPnP UUID is unchanged.
-9. Change Wi-Fi/IP and verify the old discovery disappears and the new address is announced.
+9. After changing Wi-Fi/IP, stop and start Web access, then verify the new address is announced.
 10. Stop Web access and verify discovery stops.
 
-## Automated lifecycle regression gate
+## Automated Remote/LAN validation
 
-Phase 10 / 1.4.70 adds `pnpm test:lan-discovery`. The gate verifies Desktop packet/lifecycle behavior directly and audits Android parity; with JDK available it also compiles and runs the Android LAN protocol classes against minimal Android stubs. Covered contracts include `ssdp:all`, CRLF/ST/USN/LOCATION, UPnP identity fields, persistent UUID, network restart, SSDP byebye, and mDNS A/PTR/SRV/TXT live/goodbye records.
+1.4.83 no longer treats LAN lifecycle/recovery simulation as a production architecture contract. Current gates verify behavior directly:
 
+- `scripts/remote-host-e2e-smoke.mjs` starts the real Desktop service on 8765, performs live HTTP, pairing/authenticated API, UPnP and SSDP M-SEARCH.
+- `scripts/android-remote-host-jvm-smoke.mjs` compiles the real Android Remote server/service with minimal platform stubs, then requests the live health endpoint, shell and JS asset and verifies stop releases the port.
+- `scripts/lan-network-selection-smoke.mjs` verifies deterministic interface enumeration without route/PowerShell probing.
+- `scripts/lan-firewall-smoke.mjs` verifies that firewall/UAC automation cannot re-enter the production start path.
+- Packaged Desktop smoke must open the real listener and serve packaged resources before it can report success.
+
+The sections below describe historical Phase 10 experiments and are retained only for root-cause history. **They are superseded by the 1.4.83 deterministic contract and are not implementation requirements.**
 
 ## 1.4.73 readiness semantics
 
@@ -105,3 +111,8 @@ The 1.4.79 package-build failure showed that firewall/readiness verification mus
 ## 1.4.82 runtime simplification
 
 The personal-use Desktop runtime no longer launches PowerShell/UAC or manages Windows firewall rules. Remote Web startup is restored to the accepted 1.4.76 server behavior: fixed TCP 8765, loopback shell/asset readiness, LAN-address readiness and best-effort SSDP/mDNS discovery. OS/network reachability remains an external acceptance condition and does not participate in production startup.
+
+
+## 1.4.83 deterministic LAN contract
+
+1.4.83 removes the 1.4.74-1.4.82 lifecycle/recovery/readiness/freeze layers. Current behavior is direct bind/stop on fixed 8765 plus independent best-effort SSDP/UPnP/mDNS. No `getHostStatus()` reconciliation, `recoveryAttempts`, firewall/profile automation, external-client evidence state or production freeze hash is part of the active architecture.

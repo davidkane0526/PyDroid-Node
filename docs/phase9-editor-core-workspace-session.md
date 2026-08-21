@@ -1,5 +1,8 @@
 # Phase 9 — Editor Core & Workspace Session
 
+> **历史说明。** Phase 9 的 Editor Core/Workspace Session 架构继续有效；旧的按文件 freeze audit 已删除，不再作为后续开发门禁。当前项目以行为/架构测试而不是文件哈希冻结保护边界。
+
+
 Version started: **1.4.60 (83)**  
 Current branch: `phase9/final-freeze-audit`
 

@@ -5,32 +5,28 @@
 .DESCRIPTION
     - 项目源码目录保持只读，脚本只读取项目，不写入任何项目文件。
     - 脚本把源码同步到 $WorkRoot\builds\<项目名> 临时工作区，在外部完成构建。
-    - 自动探测已安装工具，并只读复用 DK_TOOL_ROOT/ToolRoot；缺失工具安装到 WorkRoot 下的 PyDroid 临时工具目录。
-    - JDK 探测兼容 Windows PowerShell 5.1：独立读取 java/javac 版本输出，并同时识别 JAVA_HOME、bin、java.exe、javac.exe 与 PATH。
+    - 工具路径来自显式参数/专用环境变量或固定 ToolRoot 布局；缺失即报错，不扫描系统安装位置。
+    - JDK 只验证一个选定路径，不读取注册表、不遍历厂商目录、不从 PATH 猜测。
     - 最终产物平铺到 $OutputRoot：
           <productName>-<版本>.apk
           <productName>-<版本>-Desktop\    （win-unpacked 未压缩桌面版）
-    - 构建完成后会清理 release/dist 等可再生打包产物；Android Gradle/增量构建缓存
-      默认保留以加速后续构建，使用 -CleanBuild 可执行完整清理。
+    - 每次构建开始前清理可再生打包产物；Android Gradle/增量构建缓存默认保留，
+      使用 -CleanBuild 时在构建开始前一并删除。
 
 .PARAMETER ProjectRoot
     项目源码根目录。缺省时使用当前目录（要求当前目录含 package.json）。
 
 .PARAMETER ToolRoot
-    跨项目共享工具根目录（只读）。优先 DK_TOOL_ROOT，其次 PYDROID_TOOL_ROOT；当前机器可自动复用 D:\Code。构建器不会向此目录写入、安装或更新任何文件。
+    跨项目共享工具根目录（只读）。默认 DK_TOOL_ROOT，否则固定 D:\Code。构建器不会向此目录写入、安装或更新任何文件。
 
 .PARAMETER CacheRoot
     构建缓存目录。默认读取 DK_CACHE_ROOT；否则使用 WorkRoot\cache。用于 pnpm store、npm、Electron、electron-builder、Gradle 与下载缓存；不会默认落到 ToolRoot。
 
 .PARAMETER WorkRoot
-    临时工作区目录。默认读取 PYDROID_BUILD_HOME；若已有 D:\PyDroidTemp 则复用，否则使用 LocalAppData\PyDroidBuild。
+    临时工作区目录。默认读取 PYDROID_BUILD_HOME，否则固定 D:\PyDroidTemp。
 
 .PARAMETER OutputRoot
     最终产物输出目录。默认等于 WorkRoot。
-
-.PARAMETER SearchRoots
-    未指定 -ProjectRoot 时，在这些目录中搜索含 package.json 的可编译项目。
-    默认搜索 WorkRoot、ToolRoot 和脚本所在目录。
 
 .PARAMETER SkipAndroid
     跳过 Android APK 构建。
@@ -42,12 +38,6 @@
     默认会先清理输出目录中旧的 PyDroid-Flow-*.apk 和 PyDroid-Flow-*-Desktop，
     只保留最新一份。加此参数则保留旧版本产物。
 
-.PARAMETER SkipToolInstall
-    只检测工具，缺失时报错并给出提示，不自动下载安装。
-
-.PARAMETER KeepWorkspace
-    构建结束后保留 release/dist 等临时打包产物，便于排查问题。
-    Android 的 Gradle/增量构建缓存默认跨构建保留，以提高后续编译速度。
 
 .PARAMETER CleanBuild
     执行完整清理构建。启用后会删除 android\.gradle、android\app\build、
@@ -58,8 +48,24 @@
     禁用 Gradle daemon。默认启用并复用 daemon；仅当安全软件或系统策略明确阻止
     Gradle daemon 启动时才建议使用此开关。
 
-.PARAMETER DownloadRetryCount
-    网络下载与旧版桌面打包的重试次数，默认 3。
+
+.PARAMETER NodeExecutable
+    可选 Node.js 可执行文件。留空时使用 PYDROID_NODE_EXECUTABLE，否则固定 ToolRoot\NodeJs\node.exe。
+
+.PARAMETER PnpmExecutable
+    可选 pnpm.cmd/pnpm.exe。留空时使用 PYDROID_PNPM_EXECUTABLE，否则与 Node 位于同一目录的 pnpm.cmd。
+
+.PARAMETER JavaHome
+    JDK 根目录、bin 目录或 java.exe/javac.exe。留空时依次使用 PYDROID_JAVA_HOME、JAVA_HOME、ToolRoot\Language\Java。仅验证该路径。
+
+.PARAMETER AndroidSdkHome
+    Android SDK 根目录。留空时使用 PYDROID_ANDROID_SDK、ANDROID_HOME，否则固定 ToolRoot\Android\Sdk。
+
+.PARAMETER PythonExecutable
+    Android/Chaquopy 构建用完整 Python 3.13。留空时使用 PYDROID_PYTHON_EXECUTABLE，否则固定 ToolRoot\Python\3.13\python.exe。
+
+.PARAMETER DesktopPythonRuntime
+    桌面打包用便携 Python 运行时目录。留空时使用 PYDROID_DESKTOP_PYTHON_RUNTIME，否则固定 WorkRoot\tools\<project>\Python\runtime-3.13。
 
 .PARAMETER AndroidApiLevel
     Android compile SDK；0 表示从 android/variables.gradle 自动读取。
@@ -71,7 +77,7 @@
     可选 electron-builder binaries 镜像地址。
 
 .PARAMETER NetworkMode
-    网络模式：Auto 自动复用环境变量或 Windows 系统代理；Direct 强制 pnpm 直连；Manual 使用 ProxyUrl。
+    网络模式：Direct 直连；Manual 使用显式 ProxyUrl。构建器不读取 Windows 系统代理。
 
 .PARAMETER ProxyUrl
     手动代理地址，例如 http://127.0.0.1:7890。
@@ -116,24 +122,24 @@ param(
     [string]$CacheRoot,
     [string]$WorkRoot,
     [string]$OutputRoot,
-    [string[]]$SearchRoots,
     [switch]$SkipAndroid,
     [switch]$SkipDesktop,
     [switch]$KeepHistory,
-    [switch]$SkipToolInstall,
-    [switch]$KeepWorkspace,
     [switch]$CleanBuild,
     [switch]$DisableGradleDaemon,
-    [int]$DownloadRetryCount = 3,
     [string]$NodeVersion,
-    [string]$PythonVersion,
     [int]$AndroidApiLevel = 0,
     [int]$JdkMajor = 21,
+    [string]$NodeExecutable,
+    [string]$PnpmExecutable,
     [string]$JavaHome,
+    [string]$AndroidSdkHome,
+    [string]$PythonExecutable,
+    [string]$DesktopPythonRuntime,
     [string]$ElectronMirror,
     [string]$ElectronBuilderMirror,
-    [ValidateSet("Auto", "Direct", "Manual")]
-    [string]$NetworkMode = "Auto",
+    [ValidateSet("Direct", "Manual")]
+    [string]$NetworkMode = "Direct",
     [string]$ProxyUrl,
     [string]$RegistryUrl,
     [ValidateRange(60, 3600)]
@@ -142,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.82-dev-r58-phase11-remote-baseline-restore"
+$script:BuildScriptRevision = "1.4.83-dev-r60-deterministic-core"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -172,27 +178,17 @@ if (-not (Get-Command 'PyDroid.Build.Paths\Resolve-AbsolutePath' -ErrorAction Si
 
 function Get-DefaultWorkRoot {
     if ($env:PYDROID_BUILD_HOME) { return $env:PYDROID_BUILD_HOME }
-    if (Test-Path -LiteralPath "D:\PyDroidTemp") { return "D:\PyDroidTemp" }
-    $local = [Environment]::GetFolderPath("LocalApplicationData")
-    if ([string]::IsNullOrWhiteSpace($local)) { $local = $PSScriptRoot }
-    return (Join-Path $local "PyDroidBuild")
+    return "D:\PyDroidTemp"
 }
 
 function Get-DefaultToolRoot {
-    param([string]$ResolvedWorkRoot)
     if ($env:DK_TOOL_ROOT) { return $env:DK_TOOL_ROOT }
-    if ($env:PYDROID_TOOL_ROOT -and $env:PYDROID_TOOL_ROOT -ine "D:\Code\Language") { return $env:PYDROID_TOOL_ROOT }
-    if (Test-Path -LiteralPath "D:\Code\NodeJs\node.exe") { return "D:\Code" }
-    if ($env:PYDROID_TOOL_ROOT) { return $env:PYDROID_TOOL_ROOT }
-    if (Test-Path -LiteralPath "D:\Code") { return "D:\Code" }
-    if (Test-Path -LiteralPath "D:\Code\Language") { return "D:\Code\Language" }
-    return (Join-Path $ResolvedWorkRoot "tools")
+    return "D:\Code"
 }
 
 function Get-DefaultCacheRoot {
-    param([string]$ResolvedToolRoot,[string]$ResolvedWorkRoot)
     if ($env:DK_CACHE_ROOT) { return $env:DK_CACHE_ROOT }
-    return (Join-Path $ResolvedWorkRoot "cache")
+    return (Join-Path $WorkRoot "cache")
 }
 
 
@@ -204,7 +200,6 @@ function Configure-Network {
         -NetworkMode $NetworkMode `
         -ProxyUrl $ProxyUrl `
         -RegistryUrl $RegistryUrl `
-        -DownloadRetryCount $DownloadRetryCount `
         -PnpmFetchTimeoutSeconds $PnpmFetchTimeoutSeconds `
         -PnpmNetworkConcurrency $PnpmNetworkConcurrency `
         -WriteStep { param($Message) Write-Step $Message }
@@ -212,152 +207,15 @@ function Configure-Network {
     $script:ResolvedProxySource = $network.ProxySource
 }
 
-function Invoke-Download {
-    param([Parameter(Mandatory=$true)][string]$Uri, [Parameter(Mandatory=$true)][string]$OutFile)
-    $attempts = [Math]::Max(1, $DownloadRetryCount)
-    $parent = Split-Path $OutFile -Parent
-    if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-    $downloadName = Split-Path $OutFile -Leaf
-    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
-        try {
-            Write-BuildStage -Percent $script:CurrentBuildStagePercent -Message ("正在下载：{0}（{1}/{2}）" -f $downloadName, $attempt, $attempts)
-            Write-Host ("下载 [{0}/{1}] {2}" -f $attempt, $attempts, $Uri) -ForegroundColor DarkGray
-            if ($script:ResolvedProxyUrl) {
-                Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -TimeoutSec $PnpmFetchTimeoutSeconds -Proxy $script:ResolvedProxyUrl
-            } else {
-                Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -TimeoutSec $PnpmFetchTimeoutSeconds
-            }
-            return
-        } catch {
-            if ($attempt -ge $attempts) { throw }
-            Write-Warning ("下载失败：{0}。稍后自动重试。" -f $_.Exception.Message)
-            Start-Sleep -Seconds ([Math]::Min(8, 2 * $attempt))
-        }
-    }
-}
-
-# ---------------------------------------------------------------
-# 路径解析
-# ---------------------------------------------------------------
-
-
-
-
-
-function Select-ProjectRoot {
-    $searchRoots = @()
-    if ($SearchRoots -and $SearchRoots.Count -gt 0) {
-        $searchRoots = $SearchRoots
-    } else {
-        $searchRoots = @($WorkRoot, $ToolRoot, $PSScriptRoot)
-    }
-
-    $candidateDirs = @()
-    foreach ($root in $searchRoots) {
-        if (-not $root -or -not (Test-Path -LiteralPath $root)) { continue }
-        $candidateDirs += $root
-        $candidateDirs += Get-ChildItem -LiteralPath $root -Directory -Force -ErrorAction SilentlyContinue |
-            ForEach-Object { $_.FullName }
-
-        $repoDir = Join-Path $root "PyDroid\repo"
-        if (Test-Path -LiteralPath $repoDir) { $candidateDirs += $repoDir }
-
-        $buildRoot = Join-Path $root "builds"
-        if (Test-Path -LiteralPath $buildRoot) {
-            $candidateDirs += Get-ChildItem -LiteralPath $buildRoot -Directory -Force -ErrorAction SilentlyContinue |
-                ForEach-Object { $_.FullName }
-        }
-    }
-
-    $projects = @(
-        $candidateDirs |
-            Where-Object {
-                $_ -and
-                (Test-Path -LiteralPath (Join-Path $_ "package.json")) -and
-                ((Test-Path -LiteralPath (Join-Path $_ "android")) -or
-                 (Test-Path -LiteralPath (Join-Path $_ "desktop")))
-            } |
-            ForEach-Object { [System.IO.Path]::GetFullPath($_) } |
-            Select-Object -Unique
-    )
-
-    if ($projects.Count -eq 0) {
-        $manual = Read-Host "没有发现可编译的项目，请手动输入项目根目录"
-        if ([string]::IsNullOrWhiteSpace($manual)) {
-            throw "未提供有效的项目根目录。"
-        }
-        return [System.IO.Path]::GetFullPath($manual)
-    }
-
-    if ($projects.Count -eq 1) {
-        Write-Host "自动选择唯一的项目：$($projects[0])" -ForegroundColor DarkGray
-        return $projects[0]
-    }
-
-    Write-Host ""
-    Write-Host "发现以下可编译的项目：" -ForegroundColor Cyan
-    for ($i = 0; $i -lt $projects.Count; $i++) {
-        Write-Host ("[{0}] {1}" -f ($i + 1), $projects[$i])
-    }
-    Write-Host "[0] 手动输入其他路径"
-
-    $choice = Read-Host "请选择要编译的项目编号"
-    if ($choice -eq "0") {
-        $manual = Read-Host "请输入项目根目录"
-        if ([string]::IsNullOrWhiteSpace($manual)) {
-            throw "未提供有效的项目根目录。"
-        }
-        return [System.IO.Path]::GetFullPath($manual)
-    }
-
-    $index = 0
-    if (-not [int]::TryParse($choice, [ref]$index) -or $index -lt 1 -or $index -gt $projects.Count) {
-        throw "无效的项目编号：$choice"
-    }
-    return $projects[$index - 1]
-}
-
 if (-not $WorkRoot) { $WorkRoot = Get-DefaultWorkRoot }
-if (-not $ToolRoot) { $ToolRoot = Get-DefaultToolRoot -ResolvedWorkRoot $WorkRoot }
-if (-not $CacheRoot) { $CacheRoot = Get-DefaultCacheRoot -ResolvedToolRoot $ToolRoot -ResolvedWorkRoot $WorkRoot }
+if (-not $ToolRoot) { $ToolRoot = Get-DefaultToolRoot }
+if (-not $CacheRoot) { $CacheRoot = Get-DefaultCacheRoot }
 if (-not $NodeVersion) { $NodeVersion = if ($env:PYDROID_NODE_VERSION) { $env:PYDROID_NODE_VERSION } else { "24.19.0" } }
-$pythonPinnedInstallerVersion = "3.13.14"
-$pythonPinnedInstallerSha256 = "C54D9B9BBB8A36E6489363DDD01139707FD781D72F1F9E90C7EC65D0061368E0"
-$pythonNuGetPackageId = "python"
-$pythonNuGetPackageVersion = $pythonPinnedInstallerVersion
-$requiredPythonSeries = "3.13"
-if (-not $PythonVersion) { $PythonVersion = if ($env:PYDROID_PYTHON_VERSION) { $env:PYDROID_PYTHON_VERSION } else { $requiredPythonSeries } }
-$requestedPythonVersion = ([string]$PythonVersion).Trim()
-$requestedPythonParts = $requestedPythonVersion.Split(".")
-$requestedPythonSeries = $null
-if ($requestedPythonParts.Count -ge 2) {
-    $requestedMajor = 0
-    $requestedMinor = 0
-    if ([int]::TryParse($requestedPythonParts[0], [ref]$requestedMajor) -and [int]::TryParse($requestedPythonParts[1], [ref]$requestedMinor)) {
-        $requestedPythonSeries = ("{0}.{1}" -f $requestedMajor, $requestedMinor)
-    }
-}
-if ($requestedPythonSeries -ne $requiredPythonSeries) {
-    Write-Warning ("检测到旧版或不兼容的 PythonVersion={0}；当前 PyDroid Android/Chaquopy 固定使用 Python {1}，已自动迁移。" -f $requestedPythonVersion, $requiredPythonSeries)
-}
-# PythonVersion is a compatibility-series setting, not an installer filename. Always
-# normalize legacy GUI/environment values (for example 3.12 or 3.13.14) to 3.13.
-$PythonVersion = $requiredPythonSeries
 $pythonMajor = 3
 $pythonMinor = 13
-$pythonSeries = $requiredPythonSeries
-$pythonToolDirName = "python313"
-# PythonSeries is the compatibility requirement. Auto-install is pinned independently
-# so stored values such as "3.13" or "3.13.x" can never become a download URL directly.
-$pythonInstallerVersion = $pythonPinnedInstallerVersion
+$pythonSeries = "3.13"
 
-if (-not $ProjectRoot) {
-    if (Test-Path (Join-Path (Get-Location) "package.json")) {
-        $ProjectRoot = (Get-Location).Path
-    } else {
-        $ProjectRoot = Select-ProjectRoot
-    }
-}
+if (-not $ProjectRoot) { $ProjectRoot = (Get-Location).Path }
 
 $ProjectRoot = PyDroid.Build.Paths\Resolve-AbsolutePath $ProjectRoot
 $ToolRoot    = PyDroid.Build.Paths\Resolve-AbsolutePath $ToolRoot
@@ -366,13 +224,10 @@ $WorkRoot    = PyDroid.Build.Paths\Resolve-AbsolutePath $WorkRoot
 if (-not $OutputRoot) { $OutputRoot = $WorkRoot }
 $OutputRoot  = PyDroid.Build.Paths\Resolve-AbsolutePath $OutputRoot
 
-# ToolRoot is strictly read-only. If an old configuration points CacheRoot into ToolRoot,
-# move caches to WorkRoot instead of writing into the shared tool tree.
+# ToolRoot is read-only. Invalid configuration fails instead of being rewritten.
 if ((PyDroid.Build.Paths\Test-PathWithinRoot -Path $CacheRoot -Root $ToolRoot) -and
     -not (PyDroid.Build.Paths\Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
-    $oldCacheRoot = $CacheRoot
-    $CacheRoot = PyDroid.Build.Paths\Resolve-AbsolutePath (Join-Path $WorkRoot "cache")
-    Write-Warning ("缓存目录 {0} 位于只读共享工具目录 {1} 内，已改用临时缓存：{2}" -f $oldCacheRoot, $ToolRoot, $CacheRoot)
+    throw "CacheRoot 不能位于只读 ToolRoot 内：$CacheRoot"
 }
 
 if (-not (Test-Path (Join-Path $ProjectRoot "package.json"))) {
@@ -421,15 +276,13 @@ $workspaceFull = [IO.Path]::GetFullPath($workspace)
 if ($workspaceFull.StartsWith($projectPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw "工作区不能位于项目源码目录内部：$workspaceFull"
 }
-$downloads = Join-Path $CacheRoot "downloads"
 $storeDir  = Join-Path $CacheRoot "pnpm-store"
 $gradleHome = Join-Path (Join-Path $CacheRoot "gradle") $projectKey
 $electronCache = Join-Path $CacheRoot "electron"
 $electronBuilderCache = Join-Path $CacheRoot "electron-builder"
 $npmCache = Join-Path $CacheRoot "npm"
-$corepackCache = Join-Path $CacheRoot "corepack"
 
-foreach ($d in @($CacheRoot, $WorkRoot, $OutputRoot, $privateToolsRoot, $workspace, $downloads, $storeDir, $gradleHome, $electronCache, $electronBuilderCache, $npmCache, $corepackCache)) {
+foreach ($d in @($CacheRoot, $WorkRoot, $OutputRoot, $privateToolsRoot, $workspace, $storeDir, $gradleHome, $electronCache, $electronBuilderCache, $npmCache)) {
     New-Item -ItemType Directory -Force -Path $d | Out-Null
 }
 
@@ -464,12 +317,6 @@ function Write-BuildArtifact {
     Write-Host ("@@PYDROID_ARTIFACT@@|{0}|{1}" -f $Platform, ($Path -replace '[\r\n|]+', ' '))
 }
 
-function Test-NativeSuccess {
-    if ($LASTEXITCODE -ge 8) {
-        throw "命令失败，退出码 $LASTEXITCODE。"
-    }
-}
-
 function Invoke-Exe {
     param(
         [string]$FilePath,
@@ -500,60 +347,29 @@ function Invoke-Exe {
 
 $script:NodeDir = $null
 $script:PnpmCommand = $null
-$script:PnpmUseCorepack = $false
 
 function Test-NodeCandidate {
     param([Parameter(Mandatory = $true)][string]$Executable)
     return (PyDroid.Build.Node\Test-PyDroidNodeCandidate -Executable $Executable -RequiredVersion $NodeVersion)
 }
 
-function Find-Node {
-    return (PyDroid.Build.Node\Find-PyDroidNode -RequiredVersion $NodeVersion -ToolRoot $ToolRoot -WorkRoot $WorkRoot)
+function Resolve-NodeExecutable {
+    $configured = if ($NodeExecutable) { $NodeExecutable } elseif ($env:PYDROID_NODE_EXECUTABLE) { $env:PYDROID_NODE_EXECUTABLE } else { $null }
+    return (PyDroid.Build.Node\Resolve-PyDroidNodeExecutable -ConfiguredExecutable $configured -ToolRoot $ToolRoot)
 }
 
-function Install-Node {
-    if ($SkipToolInstall) {
-        throw "未找到满足版本要求的 Node.js，且已指定 -SkipToolInstall。项目需要 Node $NodeVersion 或同一主版本的更高版本。"
-    }
-    Write-Step "未找到满足版本要求的 Node.js，正在下载 Node.js $NodeVersion 到临时工具目录 $privateToolsRoot\NodeJs ..."
-    $zip = Join-Path $downloads ("node-v{0}-win-x64.zip" -f $NodeVersion)
-    if (-not (Test-Path -LiteralPath $zip)) {
-        Invoke-Download -Uri ("https://nodejs.org/dist/v{0}/node-v{0}-win-x64.zip" -f $NodeVersion) -OutFile $zip
-    }
-    $temp = Join-Path $CacheRoot ".node-extract"
-    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $temp | Out-Null
-    Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-
-    $inner = Get-ChildItem -LiteralPath $temp -Directory | Where-Object { Test-Path (Join-Path $_.FullName "node.exe") } | Select-Object -First 1
-    if (-not $inner) { throw "Node.js 压缩包解压后未找到 node.exe。" }
-
-    $dest = Join-Path $privateToolsRoot "NodeJs"
-    if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
-    Move-Item -LiteralPath $inner.FullName -Destination $dest
-    Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
-    return $dest
+function Resolve-PnpmExecutable {
+    $configured = if ($PnpmExecutable) { $PnpmExecutable } elseif ($env:PYDROID_PNPM_EXECUTABLE) { $env:PYDROID_PNPM_EXECUTABLE } else { $null }
+    return (PyDroid.Build.Node\Resolve-PyDroidPnpmExecutable -ConfiguredExecutable $configured -NodeExecutable $script:NodeExecutable)
 }
-
 
 function Invoke-Pnpm {
     param([string[]]$Arguments)
     Push-Location $workspace
     try {
-        # 关键：原生命令 stdout 不能直接留在 PowerShell 成功输出流中。
-        # Build-Android 等函数需要返回路径；若 pnpm 的 [WARN]/构建日志混入成功输出流，
-        # PowerShell 会把“日志 + 路径”一起赋值给变量，最终导致 Copy-Item/Join-Path
-        # 把日志文本误当成文件路径。这里把 stdout 显式打印到主机，不向调用者返回。
-        if ($script:PnpmUseCorepack) {
-            & $script:PnpmCommand "pnpm" @Arguments |
-                ForEach-Object { Write-Host ([string]$_) }
-        } else {
-            & $script:PnpmCommand @Arguments |
-                ForEach-Object { Write-Host ([string]$_) }
-        }
-        $exitCode = $LASTEXITCODE
-        if ($exitCode -ne 0) {
-            throw "pnpm 命令失败（退出码 $exitCode）：pnpm $($Arguments -join ' ')"
+        & $script:PnpmCommand @Arguments | ForEach-Object { Write-Host ([string]$_) }
+        if ($LASTEXITCODE -ne 0) {
+            throw "pnpm 命令失败（退出码 $LASTEXITCODE）：pnpm $($Arguments -join ' ')"
         }
     } finally {
         Pop-Location
@@ -563,14 +379,9 @@ function Invoke-Pnpm {
 function Get-PnpmVersion {
     Push-Location $workspace
     try {
-        if ($script:PnpmUseCorepack) {
-            $output = & $script:PnpmCommand "pnpm" "--version" 2>$null
-        } else {
-            $output = & $script:PnpmCommand "--version" 2>$null
-        }
+        $output = & $script:PnpmCommand "--version" 2>$null
         if ($LASTEXITCODE -eq 0 -and $output) { return [string](($output | Select-Object -Last 1).Trim()) }
-    } catch {}
-    finally { Pop-Location }
+    } finally { Pop-Location }
     return $null
 }
 
@@ -581,391 +392,24 @@ function Get-PnpmVersion {
 
 
 
-function Get-JavaHomeDiagnostic {
-    param([string]$JavaHomePath)
-
-    $resolved = PyDroid.Build.Java\Resolve-JavaHomeCandidate $JavaHomePath
-    if ([string]::IsNullOrWhiteSpace($resolved)) {
-        return '路径为空或无法解析。'
-    }
-
-    if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
-        return "目录不存在：$resolved"
-    }
-
-    $java = Join-Path $resolved 'bin\java.exe'
-    $javac = Join-Path $resolved 'bin\javac.exe'
-    $missing = @()
-    if (-not (Test-Path -LiteralPath $java -PathType Leaf)) { $missing += $java }
-    if (-not (Test-Path -LiteralPath $javac -PathType Leaf)) { $missing += $javac }
-    if ($missing.Count -gt 0) {
-        return ("不是完整 JDK，缺少：{0}" -f ($missing -join '；'))
-    }
-
-    $major = PyDroid.Build.Java\Get-JavaMajorVersion $resolved
-    if ($null -ne $major) {
-        if ($major -eq $JdkMajor) {
-            return "有效 JDK $major：$resolved"
-        }
-        return "检测到完整 JDK $major，但当前构建要求 JDK $JdkMajor：$resolved"
-    }
-
-    $javaProbe = PyDroid.Build.Java\Invoke-JavaVersionProbe -ExecutablePath $java -Arguments '-version'
-    $javacProbe = PyDroid.Build.Java\Invoke-JavaVersionProbe -ExecutablePath $javac -Arguments '-version'
-    $parts = @("完整 JDK 文件存在，但无法解析版本：$resolved")
-    if (-not [string]::IsNullOrWhiteSpace([string]$javaProbe.Error)) {
-        $parts += "java.exe 启动错误：$($javaProbe.Error)"
-    }
-    if (-not [string]::IsNullOrWhiteSpace([string]$javacProbe.Error)) {
-        $parts += "javac.exe 启动错误：$($javacProbe.Error)"
-    }
-    $rawJava = ((([string]$javaProbe.StdOut) + ' ' + ([string]$javaProbe.StdErr)).Trim() -replace '[\r\n]+', ' ')
-    $rawJavac = ((([string]$javacProbe.StdOut) + ' ' + ([string]$javacProbe.StdErr)).Trim() -replace '[\r\n]+', ' ')
-    if ($rawJava) { $parts += "java -version：$rawJava" }
-    if ($rawJavac) { $parts += "javac -version：$rawJavac" }
-    return ($parts -join "`n")
-}
-
 function Test-JavaHome {
     param([string]$JavaHomePath)
     $major = PyDroid.Build.Java\Get-JavaMajorVersion $JavaHomePath
     return ($null -ne $major -and $major -eq $JdkMajor)
 }
 
-function Find-JavaHomeInRoot {
-    param(
-        [string]$RootPath,
-        [int]$MaxDepth = 2
-    )
-    if ([string]::IsNullOrWhiteSpace($RootPath)) { return $null }
-
-    $root = PyDroid.Build.Java\Resolve-JavaHomeCandidate $RootPath
-    if ([string]::IsNullOrWhiteSpace($root)) { return $null }
-
-    # 最常见情况：用户直接指定真正的 JAVA_HOME。
-    # 例如 D:\Code\Language\Java，其中 bin\java.exe / bin\javac.exe
-    # 就在下一层 bin 目录内。此处直接验证，不需要递归搜索。
-    if (Test-JavaHome $root) { return $root }
-    if (-not (Test-Path -LiteralPath $root -PathType Container)) { return $null }
-
-    # 兼容把“Java 容器目录”作为根目录的情况，例如：
-    # D:\Code\Language\Java\jdk-21\bin\java.exe
-    # 最多向下 MaxDepth 层，避免对整个磁盘递归扫描。
-    $queue = New-Object System.Collections.Queue
-    $queue.Enqueue([pscustomobject]@{ Path = $root; Depth = 0 })
-    $visited = @{}
-    while ($queue.Count -gt 0) {
-        $item = $queue.Dequeue()
-        $currentPath = [string]$item.Path
-        $depth = [int]$item.Depth
-        $key = $currentPath.ToLowerInvariant()
-        if ($visited.ContainsKey($key)) { continue }
-        $visited[$key] = $true
-
-        if ($depth -gt 0 -and (Test-JavaHome $currentPath)) { return $currentPath }
-        if ($depth -ge $MaxDepth) { continue }
-
-        foreach ($dir in @(Get-ChildItem -LiteralPath $currentPath -Directory -ErrorAction SilentlyContinue)) {
-            $queue.Enqueue([pscustomobject]@{ Path = $dir.FullName; Depth = ($depth + 1) })
-        }
-    }
-    return $null
-}
-
-
-
-
-
 function Find-JavaHome {
-    # 0) GUI/命令行手动指定时绝对优先，并具有“禁止自动下载”的语义。
-    # 可以填写真正的 JAVA_HOME、bin 目录、java.exe/javac.exe，
-    # 也可以填写包含 JDK 子目录的 Java 容器目录。
-    if (-not [string]::IsNullOrWhiteSpace($JavaHome)) {
-        $explicitRoot = [Environment]::ExpandEnvironmentVariables($JavaHome.Trim().Trim('"'))
-        $explicit = Find-JavaHomeInRoot -RootPath $explicitRoot -MaxDepth 2
-        if ($explicit) {
-            $major = PyDroid.Build.Java\Get-JavaMajorVersion $explicit
-            Write-Step ("使用手动指定的 JDK {0}：{1}" -f $major, $explicit)
-            return $explicit
-        }
-
-        # 手动指定失败时必须告诉用户真正原因，不能只说“找不到 Java”。
-        $diagnostics = New-Object System.Collections.Generic.List[string]
-        [void]$diagnostics.Add((Get-JavaHomeDiagnostic $explicitRoot))
-        if (Test-Path -LiteralPath $explicitRoot -PathType Container) {
-            foreach ($dir in @(Get-ChildItem -LiteralPath $explicitRoot -Directory -ErrorAction SilentlyContinue)) {
-                $resolvedDir = PyDroid.Build.Java\Resolve-JavaHomeCandidate $dir.FullName
-                $javaCandidate = Join-Path $resolvedDir 'bin\java.exe'
-                $javacCandidate = Join-Path $resolvedDir 'bin\javac.exe'
-                if ((Test-Path -LiteralPath $javaCandidate -PathType Leaf) -or
-                    (Test-Path -LiteralPath $javacCandidate -PathType Leaf)) {
-                    [void]$diagnostics.Add((Get-JavaHomeDiagnostic $resolvedDir))
-                }
-            }
-        }
-        $detail = @($diagnostics | Where-Object { $_ } | Select-Object -Unique) -join "`n- "
-        throw ("你手动指定了 Java/JDK：{0}`n但没有找到可用于本次构建的 JDK {1}。`n诊断：`n- {2}`n`n脚本不会在你手动指定 Java 后擅自下载另一个 JDK。" -f $explicitRoot, $JdkMajor, $detail)
+    $configured = if ($JavaHome) { $JavaHome } elseif ($env:PYDROID_JAVA_HOME) { $env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { $env:JAVA_HOME } else { (Join-Path $ToolRoot 'Language\Java') }
+    $resolved = PyDroid.Build.Java\Resolve-JavaHomeCandidate $configured
+    if (-not (Test-JavaHome $resolved)) {
+        throw "JDK 配置无效或版本不是 $JdkMajor：$resolved"
     }
-
-    # 1) 环境变量优先。环境变量也允许指向 Java 容器目录。
-    foreach ($envHome in @($env:PYDROID_JAVA_HOME, $env:JAVA_HOME)) {
-        $resolved = Find-JavaHomeInRoot -RootPath $envHome -MaxDepth 2
-        if ($resolved) { return $resolved }
-    }
-
-    # 2) 已经存在的共享工具链继续优先复用。
-    $sharedCandidates = @(
-        (Join-Path $ToolRoot ("Java\temurin-{0}\current" -f $JdkMajor)),
-        (Join-Path $ToolRoot ("Java\jdk-{0}" -f $JdkMajor)),
-        (Join-Path $ToolRoot ("JDK\{0}" -f $JdkMajor)),
-        (Join-Path $ToolRoot ("jdk-{0}" -f $JdkMajor)),
-        (Join-Path $ToolRoot 'Java'),
-        (Join-Path $ToolRoot 'Language\Java'),
-        (Join-Path $privateToolsRoot ("Java\jdk-{0}" -f $JdkMajor)),
-        (Join-Path $WorkRoot ("PyDroid\tools\jdk-{0}" -f $JdkMajor)),
-        (Join-Path $WorkRoot ("tools\jdk-{0}" -f $JdkMajor))
-    )
-    foreach ($candidate in $sharedCandidates) {
-        $resolved = Find-JavaHomeInRoot -RootPath $candidate -MaxDepth 2
-        if ($resolved) { return $resolved }
-    }
-
-    # 3) Windows 已安装 JDK。Microsoft OpenJDK 的 JAVA_HOME 是可选安装项，
-    # 所以即使环境变量没有配置，也主动检查注册表、常见目录、PATH。
-    $systemCandidates = @()
-    $systemCandidates += @(PyDroid.Build.Java\Get-JavaHomesFromRegistry)
-    $systemCandidates += @(PyDroid.Build.Java\Get-JavaHomesFromCommonLocations)
-    $systemCandidates += @(PyDroid.Build.Java\Get-JavaHomesFromPath)
-    foreach ($candidate in @($systemCandidates | Where-Object { $_ } | Select-Object -Unique)) {
-        $resolved = Find-JavaHomeInRoot -RootPath $candidate -MaxDepth 1
-        if ($resolved) { return $resolved }
-    }
-
-    return $null
-}
-
-function Install-Jdk {
-    if ($SkipToolInstall) {
-        throw "未找到 JDK $JdkMajor，且已指定 -SkipToolInstall。请安装兼容 JDK 后设置 JAVA_HOME/PYDROID_JAVA_HOME。"
-    }
-    Write-Step "未找到 JDK $JdkMajor，正在下载 Microsoft OpenJDK 到临时工具目录 $privateToolsRoot\Java\jdk-$JdkMajor ..."
-    $zip = Join-Path $downloads ("microsoft-jdk-{0}-windows-x64.zip" -f $JdkMajor)
-    if (-not (Test-Path -LiteralPath $zip)) {
-        Invoke-Download -Uri ("https://aka.ms/download-jdk/microsoft-jdk-{0}-windows-x64.zip" -f $JdkMajor) -OutFile $zip
-    }
-    $temp = Join-Path $CacheRoot ".jdk-extract"
-    if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
-    New-Item -ItemType Directory -Force -Path $temp | Out-Null
-    Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-
-    $inner = Get-ChildItem -LiteralPath $temp -Directory | Where-Object { Test-Path (Join-Path $_.FullName "bin\java.exe") } | Select-Object -First 1
-    if (-not $inner) { throw "JDK 压缩包解压后未找到 java.exe。" }
-
-    $dest = Join-Path $privateToolsRoot ("Java\jdk-{0}" -f $JdkMajor)
-    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
-    if (Test-Path -LiteralPath $dest) { Remove-Item -LiteralPath $dest -Recurse -Force }
-    Move-Item -LiteralPath $inner.FullName -Destination $dest
-    Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
-    if (-not (Test-JavaHome $dest)) { throw "JDK $JdkMajor 安装完成但版本检查失败：$dest" }
-    return $dest
+    return $resolved
 }
 
 function Find-AndroidSdk {
-    return (PyDroid.Build.Android\Find-PyDroidAndroidSdk -ToolRoot $ToolRoot -WorkRoot $WorkRoot -PrivateToolsRoot $privateToolsRoot -ApiLevel $resolvedAndroidApi)
-}
-
-function New-TemporaryAndroidSdkOverlay {
-    param([string]$SharedSdkRoot)
-
-    $overlay = Join-Path $privateToolsRoot "Android\Sdk"
-    New-Item -ItemType Directory -Force -Path $overlay | Out-Null
-    $buildToolsVersion = ("{0}.0.0" -f $resolvedAndroidApi)
-
-    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "cmdline-tools") -Destination (Join-Path $overlay "cmdline-tools")
-    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot "platform-tools") -Destination (Join-Path $overlay "platform-tools")
-    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("platforms\android-{0}" -f $resolvedAndroidApi)) -Destination (Join-Path $overlay ("platforms\android-{0}" -f $resolvedAndroidApi))
-    PyDroid.Build.Android\Add-AndroidSdkOverlayDirectory -Source (Join-Path $SharedSdkRoot ("build-tools\{0}" -f $buildToolsVersion)) -Destination (Join-Path $overlay ("build-tools\{0}" -f $buildToolsVersion))
-
-    $sharedLicenses = Join-Path $SharedSdkRoot "licenses"
-    $overlayLicenses = Join-Path $overlay "licenses"
-    if ((Test-Path -LiteralPath $sharedLicenses -PathType Container) -and -not (Test-Path -LiteralPath $overlayLicenses)) {
-        Copy-Item -LiteralPath $sharedLicenses -Destination $overlayLicenses -Recurse -Force
-    }
-
-    Write-Warning ("共享 Android SDK 只读且缺少组件；不会修改 {0}，改在临时 SDK 视图中补齐：{1}" -f $SharedSdkRoot, $overlay)
-    return $overlay
-}
-
-function Install-AndroidSdk {
-    param([string]$SdkRoot)
-
-    if ([string]::IsNullOrWhiteSpace($SdkRoot)) {
-        $SdkRoot = Join-Path $privateToolsRoot "Android\Sdk"
-    }
-
-    $sdkRoot = PyDroid.Build.Paths\Resolve-AbsolutePath $SdkRoot
-    Write-Step "Android SDK：$sdkRoot"
-    if (-not (Test-Path -LiteralPath $sdkRoot -PathType Container)) {
-        New-Item -ItemType Directory -Force -Path $sdkRoot | Out-Null
-    }
-
-    # 先逐项检查。已有组件绝不重复安装，只补真正缺少的部分。
-    $platformToolsAdb = Join-Path $sdkRoot "platform-tools\adb.exe"
-    $platformJar = Join-Path $sdkRoot ("platforms\android-{0}\android.jar" -f $resolvedAndroidApi)
-    $buildToolsVersion = ("{0}.0.0" -f $resolvedAndroidApi)
-    $buildToolsDir = Join-Path $sdkRoot ("build-tools\{0}" -f $buildToolsVersion)
-    $buildToolsAapt2 = Join-Path $buildToolsDir "aapt2.exe"
-
-    $missingPackages = @()
-
-    if (Test-Path -LiteralPath $platformToolsAdb -PathType Leaf) {
-        Write-Host "✓ platform-tools 已存在：$platformToolsAdb" -ForegroundColor DarkGreen
-    } else {
-        Write-Host "✗ platform-tools 缺失" -ForegroundColor DarkYellow
-        $missingPackages += "platform-tools"
-    }
-
-    if (Test-Path -LiteralPath $platformJar -PathType Leaf) {
-        Write-Host ("✓ platforms;android-{0} 已存在：{1}" -f $resolvedAndroidApi, $platformJar) -ForegroundColor DarkGreen
-    } else {
-        Write-Host ("✗ platforms;android-{0} 缺失" -f $resolvedAndroidApi) -ForegroundColor DarkYellow
-        $missingPackages += ("platforms;android-{0}" -f $resolvedAndroidApi)
-    }
-
-    if (Test-Path -LiteralPath $buildToolsAapt2 -PathType Leaf) {
-        Write-Host ("✓ build-tools;{0} 已存在：{1}" -f $buildToolsVersion, $buildToolsDir) -ForegroundColor DarkGreen
-    } else {
-        Write-Host ("✗ build-tools;{0} 缺失" -f $buildToolsVersion) -ForegroundColor DarkYellow
-        $missingPackages += ("build-tools;{0}" -f $buildToolsVersion)
-    }
-
-    if ($missingPackages.Count -eq 0) {
-        Write-Step "Android SDK 所需组件均已存在，无需下载。"
-        return [string]$sdkRoot
-    }
-
-    if ((PyDroid.Build.Paths\Test-PathWithinRoot -Path $sdkRoot -Root $ToolRoot) -and
-        -not (PyDroid.Build.Paths\Test-PathWithinRoot -Path $ToolRoot -Root $WorkRoot)) {
-        $overlayRoot = New-TemporaryAndroidSdkOverlay -SharedSdkRoot $sdkRoot
-        return (Install-AndroidSdk -SdkRoot $overlayRoot)
-    }
-
-    if ($SkipToolInstall) {
-        throw ("Android SDK 缺少组件：{0}，且已指定 -SkipToolInstall。" -f ($missingPackages -join ", "))
-    }
-
-    # 只有真的需要补包时才要求 sdkmanager。
-    $sdkManager = PyDroid.Build.Paths\Find-ExistingFile @(
-        (Join-Path $sdkRoot "cmdline-tools\latest\bin\sdkmanager.bat"),
-        (Join-Path $sdkRoot "cmdline-tools\bin\sdkmanager.bat")
-    )
-
-    if (-not $sdkManager) {
-        $zip = PyDroid.Build.Paths\Find-ExistingFile @(
-            (Join-Path $WorkRoot "PyDroid\tools\downloads\commandlinetools-win.zip"),
-            (Join-Path $downloads "commandlinetools-win.zip")
-        )
-        if (-not $zip) {
-            $zip = Join-Path $downloads "commandlinetools-win.zip"
-            Write-Host "正在下载 Android commandline-tools ..."
-            Invoke-Download -Uri "https://dl.google.com/android/repository/commandlinetools-win-11076708_latest.zip" -OutFile $zip
-        }
-
-        $temp = Join-Path $CacheRoot ".cmdline-tools-extract"
-        if (Test-Path -LiteralPath $temp) {
-            Remove-Item -LiteralPath $temp -Recurse -Force
-        }
-        New-Item -ItemType Directory -Force -Path $temp | Out-Null
-        Expand-Archive -LiteralPath $zip -DestinationPath $temp -Force
-
-        $cmdline = Join-Path $temp "cmdline-tools"
-        if (-not (Test-Path -LiteralPath $cmdline)) {
-            $cmdlineItem = Get-ChildItem -LiteralPath $temp -Recurse -Directory -Filter "cmdline-tools" |
-                Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "bin\sdkmanager.bat") } |
-                Select-Object -First 1
-            if ($cmdlineItem) {
-                $cmdline = $cmdlineItem.FullName
-            }
-        }
-
-        if (-not $cmdline -or -not (Test-Path -LiteralPath (Join-Path $cmdline "bin\sdkmanager.bat"))) {
-            throw "Android commandline-tools 解压后未找到 sdkmanager.bat。"
-        }
-
-        $latestDir = Join-Path $sdkRoot "cmdline-tools\latest"
-        if (Test-Path -LiteralPath $latestDir) {
-            Remove-Item -LiteralPath $latestDir -Recurse -Force
-        }
-        New-Item -ItemType Directory -Force -Path (Split-Path $latestDir -Parent) | Out-Null
-        Move-Item -LiteralPath $cmdline -Destination $latestDir
-        Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
-
-        $sdkManager = Join-Path $latestDir "bin\sdkmanager.bat"
-    }
-
-    # 预写许可证，避免 sdkmanager 等待交互。
-    $licensesDir = Join-Path $sdkRoot "licenses"
-    New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
-    $licenseFiles = @{
-        "android-sdk-license"         = "24333f8a63b6825ea9c5514f83c2829b004d1fee"
-        "android-sdk-preview-license" = "84831b9409646a918e30573bab4c9c91346d8abd"
-        "android-sdk-arm-dbt-license" = "859f317696f67ef3d7f30a50a5560e7834b43903"
-        "google-gdk-license"           = "33b6a2b64607f11b759f320ef9dff4ae5c47d97a"
-    }
-    foreach ($k in $licenseFiles.Keys) {
-        $lf = Join-Path $licensesDir $k
-        if (-not (Test-Path -LiteralPath $lf -PathType Leaf)) {
-            Set-Content -LiteralPath $lf -Value $licenseFiles[$k] -Encoding ASCII
-        }
-    }
-
-    Write-BuildStage -Percent $script:CurrentBuildStagePercent -Message "补齐缺失的 Android SDK 组件"
-    Write-Step ("仅安装缺失组件：{0}" -f ($missingPackages -join ", "))
-
-    # 重要：
-    # PowerShell 函数内 native command 的 stdout 会进入函数成功输出流。
-    # 如果直接写：
-    #   $sdk = Install-AndroidSdk ...
-    # 那么 sdkmanager 的 "Loading package information..." 等文本也会被装进 $sdk。
-    # 这里显式消费所有 sdkmanager 输出并用 Write-Host 显示，保证函数唯一返回值只有 SDK 根目录。
-    $yes = (("y`n") * 40)
-    $oldEap = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = "Continue"
-        $yes | & $sdkManager "--sdk_root=$sdkRoot" @missingPackages 2>&1 |
-            ForEach-Object {
-                if ($_ -ne $null) {
-                    Write-Host ([string]$_)
-                }
-            }
-        $sdkExitCode = $LASTEXITCODE
-    }
-    finally {
-        $ErrorActionPreference = $oldEap
-    }
-
-    if ($sdkExitCode -ne 0) {
-        throw "Android SDK 包安装失败（退出码 $sdkExitCode）。"
-    }
-
-    # 安装后逐项复核，避免 sdkmanager 返回 0 但组件不完整。
-    $missingAfterInstall = @()
-    if (-not (Test-Path -LiteralPath $platformToolsAdb -PathType Leaf)) {
-        $missingAfterInstall += "platform-tools"
-    }
-    if (-not (Test-Path -LiteralPath $platformJar -PathType Leaf)) {
-        $missingAfterInstall += ("platforms;android-{0}" -f $resolvedAndroidApi)
-    }
-    if (-not (Test-Path -LiteralPath $buildToolsAapt2 -PathType Leaf)) {
-        $missingAfterInstall += ("build-tools;{0}" -f $buildToolsVersion)
-    }
-
-    if ($missingAfterInstall.Count -gt 0) {
-        throw ("sdkmanager 执行结束，但以下组件仍不完整：{0}" -f ($missingAfterInstall -join ", "))
-    }
-
-    Write-Step "Android SDK 缺失组件已补齐。"
-    return [string]$sdkRoot
+    $configured = if ($AndroidSdkHome) { $AndroidSdkHome } elseif ($env:PYDROID_ANDROID_SDK) { $env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $null }
+    return (PyDroid.Build.Android\Resolve-PyDroidAndroidSdk -ConfiguredSdk $configured -ToolRoot $ToolRoot)
 }
 
 function Test-PythonSeries {
@@ -978,301 +422,18 @@ function Test-PythonBuildHost {
     return (PyDroid.Build.Python\Test-PyDroidPythonBuildHost -Executable $Executable -Major $pythonMajor -Minor $pythonMinor)
 }
 
-function Get-PythonBuildHostDiagnostic {
-    param([string]$Executable)
-
-    if ([string]::IsNullOrWhiteSpace($Executable)) { return "python.exe 路径为空" }
-    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { return "python.exe 不存在：$Executable" }
-
-    $details = New-Object System.Collections.Generic.List[string]
-    $details.Add(("version={0}" -f (PyDroid.Build.Python\Get-PythonVersionLabel $Executable)))
-    foreach ($module in @("venv", "ensurepip")) {
-        try {
-            $probe = & $Executable -c ("import {0}; print('ok')" -f $module) 2>&1
-            if ($LASTEXITCODE -eq 0) {
-                $details.Add(("{0}=ok" -f $module))
-            } else {
-                $tail = ([string]($probe | Select-Object -Last 1)).Trim()
-                $details.Add(("{0}=failed({1})" -f $module, $tail))
-            }
-        } catch {
-            $details.Add(("{0}=failed({1})" -f $module, $_.Exception.Message))
-        }
-    }
-    return ($details -join "; ")
-}
-
-
-
-function Install-Python313FromNuGet {
-    if ($SkipToolInstall) {
-        throw "未找到带 venv 的完整 Python $pythonSeries，且已指定 -SkipToolInstall。"
-    }
-
-    # CPython's official NuGet package is specifically intended for CI/build scenarios.
-    # Current Python 3.13 NuGet layouts include pip, venv/ensurepip and development files,
-    # while avoiding Windows Installer/MSI entirely.
-    $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
-    $packageFile = Join-Path $downloads ("python.{0}.nupkg" -f $pythonNuGetPackageVersion)
-    $packageUrl = ("https://api.nuget.org/v3-flatcontainer/{0}/{1}/{0}.{1}.nupkg" -f $pythonNuGetPackageId, $pythonNuGetPackageVersion)
-    $stagingRoot = Join-Path $CacheRoot (".python-nuget-{0}" -f $pythonNuGetPackageVersion)
-
-    for ($attempt = 1; $attempt -le 2; $attempt++) {
-        if (-not (Test-Path -LiteralPath $packageFile -PathType Leaf)) {
-            Write-Step ("下载官方 CPython NuGet 构建包：Python {0}（{1}/2）" -f $pythonNuGetPackageVersion, $attempt)
-            Invoke-Download -Uri $packageUrl -OutFile $packageFile
-        }
-
-        if (Test-Path -LiteralPath $stagingRoot) {
-            Remove-BuildDirectoryRobust -Path $stagingRoot -Quiet
-        }
-        New-Item -ItemType Directory -Force -Path $stagingRoot | Out-Null
-
-        try {
-            Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($packageFile, $stagingRoot)
-
-            $nuspec = Get-ChildItem -LiteralPath $stagingRoot -Filter "*.nuspec" -File | Select-Object -First 1
-            if (-not $nuspec) { throw "NuGet 包中未找到 .nuspec 元数据。" }
-            [xml]$manifest = Get-Content -LiteralPath $nuspec.FullName -Raw
-            $idNode = $manifest.SelectSingleNode("/*[local-name()='package']/*[local-name()='metadata']/*[local-name()='id']")
-            $versionNode = $manifest.SelectSingleNode("/*[local-name()='package']/*[local-name()='metadata']/*[local-name()='version']")
-            if (-not $idNode -or $idNode.InnerText -ine $pythonNuGetPackageId) {
-                throw "NuGet 包 ID 校验失败。"
-            }
-            if (-not $versionNode -or $versionNode.InnerText -ne $pythonNuGetPackageVersion) {
-                throw ("NuGet 包版本校验失败：期望 {0}。" -f $pythonNuGetPackageVersion)
-            }
-
-            $packageTools = Join-Path $stagingRoot "tools"
-            $packagePython = Join-Path $packageTools "python.exe"
-            if (-not (Test-Path -LiteralPath $packagePython -PathType Leaf)) {
-                throw "NuGet 包中未找到 tools\python.exe。"
-            }
-
-            if (Test-Path -LiteralPath $dest) {
-                Remove-BuildDirectoryRobust -Path $dest -Quiet
-            }
-            New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
-            Move-Item -LiteralPath $packageTools -Destination $dest
-
-            $pythonExe = Join-Path $dest "python.exe"
-            if (-not (Test-PythonBuildHost -Executable $pythonExe)) {
-                $diagnostic = Get-PythonBuildHostDiagnostic -Executable $pythonExe
-                throw ("NuGet Python 未通过 buildPython 校验：{0}" -f $diagnostic)
-            }
-
-            # Actually create a tiny venv once. Importing venv alone is insufficient to
-            # catch a distribution missing the Windows venv launcher executables.
-            $venvProbe = Join-Path $stagingRoot "venv-probe"
-            & $pythonExe -m venv --without-pip $venvProbe 2>$null | Out-Null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $venvProbe "Scripts\python.exe") -PathType Leaf)) {
-                throw "NuGet Python 可以导入 venv，但实际创建 Windows venv 失败。"
-            }
-
-            Write-Step ("已准备官方 CPython NuGet buildPython：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (PyDroid.Build.Python\Get-PythonVersionLabel $pythonExe))
-            return $pythonExe
-        } catch {
-            $reason = $_.Exception.Message
-            if (Test-Path -LiteralPath $dest) {
-                Remove-BuildDirectoryRobust -Path $dest -Quiet
-            }
-            if ($attempt -eq 1) {
-                Write-Warning ("缓存的 Python NuGet 包无法使用，将删除并重新下载：{0}" -f $reason)
-                Remove-Item -LiteralPath $packageFile -Force -ErrorAction SilentlyContinue
-                continue
-            }
-            throw ("官方 CPython NuGet buildPython 准备失败：{0}" -f $reason)
-        } finally {
-            if (Test-Path -LiteralPath $stagingRoot) {
-                Remove-BuildDirectoryRobust -Path $stagingRoot -Quiet
-            }
-        }
-    }
-    throw "官方 CPython NuGet buildPython 准备失败。"
-}
-
 function Find-Python313 {
-    # Android buildPython must be a FULL Python 3.13 installation with venv.
-    # Do not reuse the embeddable desktop runtime: it has no `venv` module by design.
-    if ($env:PYDROID_PYTHON_EXECUTABLE) {
-        $configured = [string]$env:PYDROID_PYTHON_EXECUTABLE
-        if (Test-PythonBuildHost -Executable $configured) {
-            return $configured
-        }
-        if (Test-Path -LiteralPath $configured -PathType Leaf) {
-            $reason = if (Test-PythonSeries -Executable $configured) { "缺少 venv/ensurepip（便携精简运行时不能作为 Chaquopy buildPython）" } else { "检测到 Python $(PyDroid.Build.Python\Get-PythonVersionLabel $configured)，Android 需要 Python $pythonSeries" }
-            Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：{1}。" -f $configured, $reason)
-        } else {
-            Write-Warning ("忽略 PYDROID_PYTHON_EXECUTABLE={0}：文件不存在。" -f $configured)
-        }
+    $configured = if ($PythonExecutable) { $PythonExecutable } elseif ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { $null }
+    $python = PyDroid.Build.Python\Resolve-PyDroidPythonExecutable -ConfiguredExecutable $configured -ToolRoot $ToolRoot
+    if (-not (Test-PythonBuildHost -Executable $python)) {
+        throw "Android buildPython 配置无效：$python。需要完整 64 位 Python $pythonSeries，并包含 venv/ensurepip。"
     }
-
-    $candidates = @(
-        (Join-Path $privateToolsRoot ("Python\{0}\python.exe" -f $pythonSeries)),
-        (Join-Path $ToolRoot ("Python\{0}\python.exe" -f $pythonSeries)),
-        (Join-Path $ToolRoot "Python\python.exe"),
-        (Join-Path $ToolRoot "Language\Python\python.exe"),
-        (Join-Path $WorkRoot ("tools\{0}\python.exe" -f $pythonToolDirName))
-    )
-
-    # A normal per-user Python installation may be intentionally absent from PATH and
-    # may not install py.exe. Probe the standard CPython locations before downloading
-    # another private copy. Python 3.13 may use either Python313 or Python313-64.
-    if ($env:LOCALAPPDATA) {
-        $candidates += @(
-            (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"),
-            (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313-64\python.exe")
-        )
-    }
-    if ($env:ProgramFiles) {
-        $candidates += (Join-Path $env:ProgramFiles "Python313\python.exe")
-    }
-    $programFilesX86 = [Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFilesX86)
-    if ($programFilesX86) {
-        $candidates += (Join-Path $programFilesX86 "Python313\python.exe")
-    }
-
-    # PEP 514 registry discovery catches custom/per-user Python installs which are not on
-    # PATH and are not located under the default Python313 directories.
-    $candidates += @(PyDroid.Build.Python\Get-RegisteredPython313Candidates)
-
-    foreach ($candidate in $candidates) {
-        if (Test-PythonBuildHost -Executable $candidate) {
-            return $candidate
-        }
-    }
-
-    try {
-        $pyOutput = & py ("-{0}" -f $pythonSeries) -c "import sys; print(sys.executable)" 2>$null
-        if ($LASTEXITCODE -eq 0 -and $pyOutput) {
-            $candidate = ([string]($pyOutput | Select-Object -Last 1)).Trim()
-            if (Test-PythonBuildHost -Executable $candidate) { return $candidate }
-        }
-    } catch {}
-
-    $pythonCommand = Get-Command python.exe -ErrorAction SilentlyContinue
-    if (-not $pythonCommand) { $pythonCommand = Get-Command python -ErrorAction SilentlyContinue }
-    if ($pythonCommand -and (Test-PythonBuildHost -Executable $pythonCommand.Source)) {
-        return $pythonCommand.Source
-    }
-
-    return $null
+    return $python
 }
 
-function Install-Python313 {
-    if ($SkipToolInstall) {
-        throw "未找到带 venv 的完整 Python $pythonSeries，且已指定 -SkipToolInstall。请安装完整 Python 3.13，或设置 PYDROID_PYTHON_EXECUTABLE。"
-    }
-
-    # Prefer zero-impact build tooling when Windows Installer is unavailable. The official
-    # CPython NuGet package is designed for CI/build systems and does not depend on MSI.
-    if (-not (PyDroid.Build.Python\Test-WindowsInstallerServiceAvailable)) {
-        Write-Warning "Windows Installer 服务（msiserver）当前不可用；跳过 EXE/MSI 安装，改用官方 CPython NuGet buildPython。"
-        return Install-Python313FromNuGet
-    }
-
-    $dest = Join-Path $privateToolsRoot ("Python\{0}" -f $pythonSeries)
-    Write-Step "未找到带 venv 的完整 Python $pythonSeries，正在安装到临时工具目录 $dest ..."
-    $installer = Join-Path $downloads ("python-{0}-amd64.exe" -f $pythonInstallerVersion)
-    $installerUrl = ("https://www.python.org/ftp/python/{0}/python-{0}-amd64.exe" -f $pythonInstallerVersion)
-    if (Test-Path -LiteralPath $installer) {
-        $cachedHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToUpperInvariant()
-        if ($cachedHash -ne $pythonPinnedInstallerSha256) {
-            Write-Warning "缓存的 Python 安装器校验失败，正在删除并重新下载：$installer"
-            Remove-Item -LiteralPath $installer -Force
-        }
-    }
-    if (-not (Test-Path -LiteralPath $installer)) {
-        Write-Step "Python $pythonSeries 自动安装固定使用官方 Python $pythonInstallerVersion x64 安装器。"
-        Invoke-Download -Uri $installerUrl -OutFile $installer
-    }
-    $installerHash = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToUpperInvariant()
-    if ($installerHash -ne $pythonPinnedInstallerSha256) {
-        throw "Python $pythonInstallerVersion 安装器 SHA-256 校验失败。期望：$pythonPinnedInstallerSha256；实际：$installerHash"
-    }
-
-    if (Test-Path -LiteralPath $dest) {
-        Remove-BuildDirectoryRobust -Path $dest -Quiet
-    }
-    New-Item -ItemType Directory -Force -Path (Split-Path $dest -Parent) | Out-Null
-
-    $pythonInstallLogDir = Join-Path $WorkRoot "logs"
-    New-Item -ItemType Directory -Force -Path $pythonInstallLogDir | Out-Null
-    $pythonInstallLog = Join-Path $pythonInstallLogDir ("python-{0}-install-{1}.log" -f $pythonInstallerVersion, (Get-Date -Format "yyyyMMdd-HHmmss"))
-
-    $installerArgs = @(
-        "/quiet", "/log", ('"{0}"' -f $pythonInstallLog),
-        "InstallAllUsers=0", "PrependPath=0", "AppendPath=0", "AssociateFiles=0", "Shortcuts=0",
-        "Include_launcher=0", "InstallLauncherAllUsers=0", "Include_exe=1", "Include_lib=1",
-        "Include_pip=1", "Include_tools=1", "Include_dev=1", "Include_tcltk=0", "Include_test=0",
-        "Include_doc=0", "Include_debug=0", "Include_symbols=0", ('TargetDir="{0}"' -f $dest)
-    )
-
-    Write-Step ("安装完整 Python {0}：{1}" -f $pythonInstallerVersion, $dest)
-    Write-Host ("Python 安装日志：{0}" -f $pythonInstallLog) -ForegroundColor DarkGray
-
-    $proc = $null
-    try {
-        $proc = Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -PassThru
-    } catch {
-        Write-Warning ("Python EXE 安装器无法启动：{0}；改用官方 CPython NuGet buildPython。" -f $_.Exception.Message)
-        return Install-Python313FromNuGet
-    }
-
-    $pythonExe = Join-Path $dest "python.exe"
-    $isUsable = Test-PythonBuildHost -Executable $pythonExe
-    if ($isUsable) {
-        if ($proc.ExitCode -ne 0) {
-            Write-Warning ("Python 安装器退出码为 {0}，但完整 Python 已通过版本/venv/ensurepip 校验，将继续构建。" -f $proc.ExitCode)
-        }
-        Write-Step ("完整 Python 安装完成：{0}（Python {1}，venv/ensurepip 可用）" -f $pythonExe, (PyDroid.Build.Python\Get-PythonVersionLabel $pythonExe))
-        return $pythonExe
-    }
-
-    $rediscovered = Find-Python313
-    if ($rediscovered -and -not [string]::Equals([string]$rediscovered, $pythonExe, [StringComparison]::OrdinalIgnoreCase)) {
-        Write-Warning ("Python 安装器没有在预期 TargetDir 生成可用解释器，但检测到完整 Python：{0}。将复用该解释器。" -f $rediscovered)
-        return [string]$rediscovered
-    }
-
-    $diagnostic = Get-PythonBuildHostDiagnostic -Executable $pythonExe
-    $logTail = ""
-    if (Test-Path -LiteralPath $pythonInstallLog -PathType Leaf) {
-        try {
-            $tailLines = @(Get-Content -LiteralPath $pythonInstallLog -Tail 24 -ErrorAction Stop)
-            if ($tailLines.Count -gt 0) { $logTail = ($tailLines -join [Environment]::NewLine) }
-        } catch {}
-    }
-
-    if ($proc.ExitCode -eq 1601) {
-        Write-Warning "Python 安装器返回 1601（Windows Installer 服务不可访问）；自动改用官方 CPython NuGet buildPython。"
-    } else {
-        Write-Warning ("Python EXE 安装器未生成可用 buildPython（退出码 {0}；{1}）；自动改用官方 CPython NuGet buildPython。" -f $proc.ExitCode, $diagnostic)
-    }
-    if ($logTail) {
-        Write-Host ("Python EXE 安装日志末尾：" + [Environment]::NewLine + $logTail) -ForegroundColor DarkGray
-    }
-
-    try {
-        return Install-Python313FromNuGet
-    } catch {
-        $nugetReason = $_.Exception.Message
-        throw ("完整 Python $pythonSeries 准备失败。EXE 安装器退出码：$($proc.ExitCode)；EXE 校验：$diagnostic；安装日志：$pythonInstallLog；NuGet fallback：$nugetReason")
-    }
-}
-
-# ---------------------------------------------------------------
-# 工作区同步 / 清理
-# ---------------------------------------------------------------
-
-
-function Remove-BuildDirectoryRobust {
-    param(
-        [Parameter(Mandatory = $true)][string]$Path,
-        [switch]$Quiet
-    )
-    PyDroid.Build.Packaging\Remove-PyDroidBuildDirectoryRobust -Path $Path -WorkRoot $WorkRoot -Quiet:$Quiet
+function Remove-BuildDirectory {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    PyDroid.Build.Packaging\Remove-PyDroidBuildDirectory -Path $Path
 }
 
 function Sync-Source {
@@ -1294,7 +455,7 @@ function Sync-Source {
     foreach ($relative in $transientDirs) {
         $full = Join-Path $workspace $relative
         if (Test-Path -LiteralPath $full) {
-            Remove-BuildDirectoryRobust -Path $full -Quiet
+            Remove-BuildDirectory -Path $full
         }
     }
 
@@ -1311,6 +472,7 @@ function Sync-Source {
         $ProjectRoot, $workspace, "/MIR",
         "/XD", $excludeDirs,
         "/XF", $excludeFiles,
+        "/R:0", "/W:0",
         "/NFL", "/NDL", "/NJH", "/NJS", "/NP", "/NS", "/NC"
     )
     # robocopy may enumerate thousands of stale Android/Python build products as EXTRA.
@@ -1322,286 +484,44 @@ function Sync-Source {
     }
 }
 
-function Patch-WorkspaceDesktopPackage {
-    # 仅修补临时工作区，不修改源码目录。兼容两类历史问题：
-    # 1) Electron/electron-builder 缓存被写入项目内部；
-    # 2) 旧脚本把 native pnpm.exe 当作 JavaScript 交给 node.exe 执行。
-    $file = Join-Path $workspace "scripts\desktop-package.mjs"
-    if (-not (Test-Path -LiteralPath $file)) { return }
-    $content = Get-Content -LiteralPath $file -Raw
-    $original = $content
-
-    $content = [regex]::Replace($content, 'const\s+cache\s*=\s*path\.join\(root,\s*["'']\.tools["''],\s*["'']electron-builder-cache["'']\)\s*;', 'const cache = process.env.ELECTRON_BUILDER_CACHE || path.join(root, ".tools", "electron-builder-cache");')
-    $content = [regex]::Replace($content, 'ELECTRON_CACHE:\s*path\.join\(root,\s*["'']\.tools["''],\s*["'']electron-cache["'']\),', 'ELECTRON_CACHE: process.env.ELECTRON_CACHE || path.join(root, ".tools", "electron-cache"),')
-
-    if ($content -match 'args:\s*\[process\.env\.npm_execpath,\s*\.\.\.args\]') {
-        $safeInvocation = @'
-function packageManagerInvocation(args) {
-  const npmExecPath = process.env.npm_execpath;
-  if (npmExecPath && fs.existsSync(npmExecPath)) {
-    const lower = npmExecPath.toLowerCase();
-    if (/\.(?:js|cjs|mjs)$/.test(lower)) {
-      return {
-        command: process.env.npm_node_execpath || process.execPath,
-        args: [npmExecPath, ...args],
-        shell: false,
-      };
-    }
-    if (/\.(?:cmd|bat)$/.test(lower)) {
-      return { command: npmExecPath, args, shell: process.platform === "win32" };
-    }
-    return { command: npmExecPath, args, shell: false };
-  }
-  return {
-    command: process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-    args,
-    shell: process.platform === "win32",
-  };
-}
-'@
-        $legacyPattern = '(?ms)^function\s+packageManagerInvocation\(args\)\s*\{.*?^\}'
-        $patched = [regex]::Replace($content, $legacyPattern, $safeInvocation.TrimEnd(), 1)
-        if ($patched -eq $content) {
-            throw "检测到旧版 pnpm.exe 调用逻辑，但无法安全修补 desktop-package.mjs。请更新项目的 desktop-package.mjs。"
-        }
-        $content = $patched
-    }
-
-    if ($content -ne $original) {
-        [System.IO.File]::WriteAllText($file, $content, (New-Object System.Text.UTF8Encoding($false)))
-        Write-Host "已修补工作区 desktop-package.mjs：共享 Electron 缓存 / native pnpm launcher 兼容。" -ForegroundColor DarkYellow
-    }
-
-    # 清除工作区内旧缓存残留，真正缓存统一由 CacheRoot 管理。
-    foreach ($oldCache in @(
-        (Join-Path $workspace ".tools\electron-builder-cache"),
-        (Join-Path $workspace ".tools\electron-cache")
-    )) {
-        if (Test-Path -LiteralPath $oldCache) {
-            Remove-Item -LiteralPath $oldCache -Recurse -Force -ErrorAction SilentlyContinue
-        }
-    }
-}
-
-function Patch-WorkspaceAndroidPackage {
-    # android-package.ps1 自己读取 PYDROID_DISABLE_GRADLE_DAEMON，核心构建器不再
-    # 用正则修改脚本中的 gradlew 命令。这样重试/降级逻辑可以保持完整，也避免
-    # GUI 显示的 daemon 状态与实际脚本分叉。
-    $file = Join-Path $workspace "scripts\android-package.ps1"
-    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return }
-
-    $content = Get-Content -LiteralPath $file -Raw
-    if ($content -notmatch 'PYDROID_DISABLE_GRADLE_DAEMON') {
-        throw "Gradle daemon 开关自检失败：android-package.ps1 未读取 PYDROID_DISABLE_GRADLE_DAEMON。"
-    }
-    if ($content -notmatch 'A problem occurred starting process.+Gradle build daemon') {
-        throw "Gradle daemon 恢复自检失败：android-package.ps1 缺少 daemon 启动失败自动恢复逻辑。"
-    }
-
-    if ($DisableGradleDaemon) {
-        Write-Host "Gradle daemon：已禁用（-DisableGradleDaemon）。" -ForegroundColor DarkYellow
-    } else {
-        Write-Host "Gradle daemon：启用（默认；失败时自动清理并降级）。" -ForegroundColor DarkGreen
-    }
-}
-
-function Clear-WorkspaceOutputs {
-    param([switch]$IncludeAndroidBuild)
-
-    Write-Step "清理工作区中的临时构建产物：$workspace"
-    $paths = @("release", "dist", "dist-desktop", "temp")
-
-    if ($IncludeAndroidBuild) {
-        $paths += @(
-            "android\.gradle",
-            "android\app\build",
-            "android\build",
-            "android\capacitor-cordova-android-plugins\build"
-        )
-    }
-
-    foreach ($p in $paths) {
-        $full = Join-Path $workspace $p
-        if (Test-Path -LiteralPath $full) {
-            Remove-BuildDirectoryRobust -Path $full
-        }
-    }
-}
-
 function Ensure-PythonRuntimeForDesktop {
-    $runtimeLink = Join-Path $workspace ".tools\python313-runtime"
-    $runtimeTarget = Join-Path $privateToolsRoot "Python\runtime-3.13"
-    New-Item -ItemType Directory -Force -Path (Join-Path $workspace ".tools") | Out-Null
-    New-Item -ItemType Directory -Force -Path $runtimeTarget | Out-Null
-
-    # Older builds could leave a workspace junction pointing into D:\Code. ToolRoot is now
-    # read-only, so detach that legacy junction and recreate it against the WorkRoot target.
-    if (Test-Path -LiteralPath $runtimeLink) {
-        $item = Get-Item -LiteralPath $runtimeLink -Force
-        if ($item.LinkType -eq "Junction") {
-            $actualTarget = [string]$item.Target
-            $expectedTarget = [System.IO.Path]::GetFullPath($runtimeTarget).TrimEnd([char[]]'\/')
-            $actualTargetFull = $null
-            try { $actualTargetFull = [System.IO.Path]::GetFullPath($actualTarget).TrimEnd([char[]]'\/') } catch {}
-            if (-not $actualTargetFull -or -not $actualTargetFull.Equals($expectedTarget, [StringComparison]::OrdinalIgnoreCase)) {
-                Write-Step "移除旧桌面 Python 运行时联接（不会删除原目标）：$runtimeLink -> $actualTarget"
-                & cmd.exe /c rmdir "`"$runtimeLink`"" | Out-Null
-            }
-        }
-    }
-
-    if (-not (Test-Path -LiteralPath $runtimeLink)) {
-        New-Item -ItemType Junction -Path $runtimeLink -Target $runtimeTarget | Out-Null
+    $runtimeTarget = if ($DesktopPythonRuntime) {
+        $DesktopPythonRuntime
+    } elseif ($env:PYDROID_DESKTOP_PYTHON_RUNTIME) {
+        $env:PYDROID_DESKTOP_PYTHON_RUNTIME
     } else {
-        $item = Get-Item -LiteralPath $runtimeLink -Force
-        if ($item.LinkType -ne "Junction") {
-            Write-Warning "$runtimeLink 已存在但不是目录联接，将使用工作区本地运行时。"
-            $runtimeTarget = $runtimeLink
-        }
+        Join-Path $privateToolsRoot 'Python\runtime-3.13'
+    }
+    $runtimeTarget = [Environment]::ExpandEnvironmentVariables(([string]$runtimeTarget).Trim().Trim('"'))
+    $python = Join-Path $runtimeTarget 'python.exe'
+    if (-not (Test-Path -LiteralPath $python -PathType Leaf)) {
+        throw "桌面 Python 运行时不存在：$runtimeTarget。请显式设置 -DesktopPythonRuntime 或 PYDROID_DESKTOP_PYTHON_RUNTIME。"
     }
 
-    if (Test-Path -LiteralPath (Join-Path $runtimeLink "python.exe")) {
-        Write-Step "复用桌面 Python 便携运行时（临时目录）：$runtimeTarget"
-        return
-    }
-
-    Write-BuildStage -Percent 48 -Message "首次准备桌面 Python 3.13 运行时（可能需要联网下载）"
-    Write-Step "准备桌面版所需的 Python 3.13 便携运行时（仅写入临时目录）..."
-    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $workspace "scripts\setup-windows.ps1")
-    if ($LASTEXITCODE -ne 0) {
-        throw "Python 便携运行时初始化失败。"
-    }
+    $runtimeDestination = Join-Path $workspace '.tools\python313-runtime'
+    if (Test-Path -LiteralPath $runtimeDestination) { Remove-BuildDirectory -Path $runtimeDestination }
+    New-Item -ItemType Directory -Force -Path (Split-Path $runtimeDestination -Parent) | Out-Null
+    Copy-Item -LiteralPath $runtimeTarget -Destination $runtimeDestination -Recurse
+    Write-Step "桌面 Python 运行时：$runtimeTarget"
 }
 
 # ---------------------------------------------------------------
 # 构建步骤
 # ---------------------------------------------------------------
 
-function Invoke-DesktopCompatibilityPackage {
-    Write-Warning "常规 desktop:package 失败，尝试兼容打包。"
-    Invoke-Pnpm @("build")
-    Invoke-Pnpm @("desktop:build")
-
-    $rendererSource = Join-Path $workspace "dist-desktop"
-    $rendererStage = Join-Path $workspace "desktop\package-renderer"
-    $remoteRendererSource = Join-Path $workspace "dist"
-    $remoteRendererStage = Join-Path $workspace "desktop\package-remote"
-    if (-not (Test-Path -LiteralPath (Join-Path $rendererSource "index.html"))) {
-        throw "兼容打包失败：dist-desktop\index.html 不存在。"
-    }
-    if (-not (Test-Path -LiteralPath (Join-Path $remoteRendererSource "index.html"))) {
-        throw "兼容打包失败：dist\index.html 不存在，无法封装 Remote Web 浏览器资源。"
-    }
-    if (Test-Path -LiteralPath $rendererStage) {
-        Remove-Item -LiteralPath $rendererStage -Recurse -Force
-    }
-    New-Item -ItemType Directory -Force -Path $rendererStage | Out-Null
-    Copy-Item -Path (Join-Path $rendererSource "*") -Destination $rendererStage -Recurse -Force
-    if (Test-Path -LiteralPath $remoteRendererStage) {
-        Remove-Item -LiteralPath $remoteRendererStage -Recurse -Force
-    }
-    New-Item -ItemType Directory -Force -Path $remoteRendererStage | Out-Null
-    Copy-Item -Path (Join-Path $remoteRendererSource "*") -Destination $remoteRendererStage -Recurse -Force
-
-    try {
-        $partialRelease = Join-Path $workspace "release\win-unpacked"
-        Remove-Item -LiteralPath $partialRelease -Recurse -Force -ErrorAction SilentlyContinue
-
-        $resourcePreservingSucceeded = $false
-        try {
-            Write-Warning "先尝试仅关闭 Windows 代码签名，保留 exe 图标和元数据。"
-            Invoke-Pnpm @(
-                "exec", "electron-builder", "--win", "dir",
-                "--config.win.signExecutable=false"
-            )
-            $resourcePreservingSucceeded = $true
-        } catch {
-            Write-Warning "关闭签名后仍失败：$($_.Exception.Message)"
-        }
-
-        if (-not $resourcePreservingSucceeded) {
-            Remove-Item -LiteralPath $partialRelease -Recurse -Force -ErrorAction SilentlyContinue
-            Write-Warning "最后尝试跳过 exe 资源编辑；此模式可能使用 Electron 默认图标/元数据。"
-            Invoke-Pnpm @(
-                "exec", "electron-builder", "--win", "dir",
-                "--config.win.signAndEditExecutable=false",
-                "--config.win.signExecutable=false"
-            )
-        }
-
-        $unpacked = Join-Path $workspace "release\win-unpacked"
-        $exe = Get-ChildItem -LiteralPath $unpacked -Filter "*.exe" -File -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $exe) { throw "兼容打包完成但未找到 win-unpacked\*.exe。" }
-
-        $smokeLog = Join-Path $workspace "release\desktop-package-smoke.log"
-        Remove-Item -LiteralPath $smokeLog -Force -ErrorAction SilentlyContinue
-        $oldSmoke = $env:PYDROID_DESKTOP_SMOKE
-        $oldSmokeLog = $env:PYDROID_DESKTOP_SMOKE_LOG
-        try {
-            $env:PYDROID_DESKTOP_SMOKE = "1"
-            $env:PYDROID_DESKTOP_SMOKE_LOG = $smokeLog
-            $smokeProcess = Start-Process -FilePath $exe.FullName -PassThru
-            if (-not $smokeProcess.WaitForExit(120000)) {
-                try { & taskkill.exe /PID $smokeProcess.Id /T /F | Out-Null } catch {}
-                throw "兼容打包 smoke test 超时。"
-            }
-            if ($smokeProcess.ExitCode -ne 0) { throw "兼容打包 smoke test 退出码 $($smokeProcess.ExitCode)。" }
-        } finally {
-            $env:PYDROID_DESKTOP_SMOKE = $oldSmoke
-            $env:PYDROID_DESKTOP_SMOKE_LOG = $oldSmokeLog
-        }
-        if (-not (Test-Path -LiteralPath $smokeLog) -or (Get-Content -LiteralPath $smokeLog -Raw).Trim() -ne "passed") {
-            throw "兼容打包 smoke test 未报告 passed。"
-        }
-        if ($resourcePreservingSucceeded) {
-            Write-Host "兼容打包成功：已关闭代码签名，但保留 exe 资源编辑，smoke test 已通过。" -ForegroundColor DarkYellow
-        } else {
-            Write-Host "兼容打包成功：使用无 exe 资源编辑模式，smoke test 已通过。" -ForegroundColor DarkYellow
-        }
-    } finally {
-        Remove-Item -LiteralPath $rendererStage -Recurse -Force -ErrorAction SilentlyContinue
-        Remove-Item -LiteralPath $remoteRendererStage -Recurse -Force -ErrorAction SilentlyContinue
-    }
-}
 function Build-Desktop {
     Write-BuildStage -Percent 48 -Message "准备 Windows Desktop 构建环境"
     Write-Step "构建未压缩桌面版（win-unpacked）..."
     Ensure-PythonRuntimeForDesktop
-    # Electron/electron-builder 版本仍由各项目 package.json 决定，二进制缓存跨项目共享。
     $env:ELECTRON_CACHE = $electronCache
     $env:ELECTRON_BUILDER_CACHE = $electronBuilderCache
-    $env:PYDROID_DESKTOP_PACKAGE_RETRIES = [string][Math]::Max(1, $DownloadRetryCount)
-    $env:PYDROID_DESKTOP_PLAIN_EXE_FALLBACK = "1"
     if ($ElectronMirror) { $env:ELECTRON_MIRROR = $ElectronMirror }
     if ($ElectronBuilderMirror) { $env:ELECTRON_BUILDER_BINARIES_MIRROR = $ElectronBuilderMirror }
     New-Item -ItemType Directory -Force -Path $env:ELECTRON_CACHE | Out-Null
     New-Item -ItemType Directory -Force -Path $env:ELECTRON_BUILDER_CACHE | Out-Null
 
     Write-BuildStage -Percent 55 -Message "构建 Windows Desktop"
-    $desktopPackageFile = Join-Path $workspace "scripts\desktop-package.mjs"
-    $packageScriptHandlesRetry = $false
-    if (Test-Path -LiteralPath $desktopPackageFile) {
-        $packageScriptHandlesRetry = (Get-Content -LiteralPath $desktopPackageFile -Raw) -match "PYDROID_DESKTOP_PACKAGE_RETRIES"
-    }
-    $outerAttempts = if ($packageScriptHandlesRetry) { 1 } else { [Math]::Max(1, $DownloadRetryCount) }
-    $packaged = $false
-    for ($attempt = 1; $attempt -le $outerAttempts; $attempt++) {
-        try {
-            if ($attempt -gt 1) { Write-Warning "desktop:package 重试 $attempt/$outerAttempts ..." }
-            Invoke-Pnpm @("desktop:package")
-            $packaged = $true
-            break
-        } catch {
-            if ($attempt -ge $outerAttempts) {
-                Write-Warning $_.Exception.Message
-            } else {
-                Start-Sleep -Seconds ([Math]::Min(8, 2 * $attempt))
-            }
-        }
-    }
-    if (-not $packaged) {
-        Invoke-DesktopCompatibilityPackage
-    }
+    Invoke-Pnpm @("desktop:package")
 
     $unpacked = Join-Path $workspace "release\win-unpacked"
     if (-not (Test-Path -LiteralPath $unpacked) -or -not (Get-ChildItem -LiteralPath $unpacked -Filter "*.exe" -File -ErrorAction SilentlyContinue)) {
@@ -1609,155 +529,17 @@ function Build-Desktop {
     }
 }
 
-
 function Configure-GradleNetwork {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$WrapperPropertiesPath,
-
-        [Parameter(Mandatory = $true)]
-        [string]$ProjectPropertiesPath
-    )
-
-    # Gradle Wrapper is itself a Java process. HTTP_PROXY/HTTPS_PROXY are useful
-    # for pnpm and PowerShell, but the JVM does not reliably consume them as the
-    # Gradle proxy configuration. Pass the resolved proxy explicitly as JVM
-    # system properties so both the Wrapper distribution download and the later
-    # Gradle dependency resolution use the same proxy selected in the GUI.
-    $gradleArgs = @("-Xms64m", "-Xmx1536m")
-
+    $gradleArgs = @('-Xms64m', '-Xmx1536m')
     if (-not [string]::IsNullOrWhiteSpace([string]$script:ResolvedProxyUrl)) {
-        try {
-            $proxyUri = [Uri]$script:ResolvedProxyUrl
-            if ($proxyUri.Scheme -notin @("http", "https")) {
-                throw "Gradle 当前仅支持从本脚本自动转换 HTTP/HTTPS 代理，当前代理协议为：$($proxyUri.Scheme)"
-            }
-
-            $proxyHost = $proxyUri.Host
-            $proxyPort = $proxyUri.Port
-            if ($proxyPort -le 0) {
-                $proxyPort = if ($proxyUri.Scheme -eq "https") { 443 } else { 80 }
-            }
-
-            $gradleArgs += "-Dhttp.proxyHost=$proxyHost"
-            $gradleArgs += "-Dhttp.proxyPort=$proxyPort"
-            $gradleArgs += "-Dhttps.proxyHost=$proxyHost"
-            $gradleArgs += "-Dhttps.proxyPort=$proxyPort"
-
-            # Basic-auth proxy is uncommon for local proxy tools, but preserve
-            # credentials if the selected proxy URL explicitly contains them.
-            if (-not [string]::IsNullOrWhiteSpace($proxyUri.UserInfo)) {
-                $userInfoParts = $proxyUri.UserInfo -split ':', 2
-                $proxyUser = [Uri]::UnescapeDataString($userInfoParts[0])
-                $proxyPassword = if ($userInfoParts.Count -gt 1) {
-                    [Uri]::UnescapeDataString($userInfoParts[1])
-                } else {
-                    ""
-                }
-
-                if ($proxyUser -match '\s' -or $proxyPassword -match '\s') {
-                    Write-Warning "Gradle 代理用户名或密码包含空格，无法安全通过 GRADLE_OPTS 传递；将仅配置代理主机和端口。"
-                } else {
-                    $gradleArgs += "-Dhttp.proxyUser=$proxyUser"
-                    $gradleArgs += "-Dhttp.proxyPassword=$proxyPassword"
-                    $gradleArgs += "-Dhttps.proxyUser=$proxyUser"
-                    $gradleArgs += "-Dhttps.proxyPassword=$proxyPassword"
-                }
-            }
-
-            Write-Step ("Gradle 网络代理：{0}:{1}（沿用 GUI/构建网络配置）" -f $proxyHost, $proxyPort)
-        } catch {
-            throw "无法把当前代理配置转换为 Gradle JVM 代理参数：$($script:ResolvedProxyUrl)`n$($_.Exception.Message)"
-        }
-    } else {
-        Write-Step "Gradle 网络代理：直连"
+        $proxyUri = [Uri]$script:ResolvedProxyUrl
+        if ($proxyUri.Scheme -notin @('http', 'https')) { throw "Gradle 仅接受 HTTP/HTTPS 代理：$script:ResolvedProxyUrl" }
+        $gradleArgs += "-Dhttp.proxyHost=$($proxyUri.Host)"
+        $gradleArgs += "-Dhttp.proxyPort=$($proxyUri.Port)"
+        $gradleArgs += "-Dhttps.proxyHost=$($proxyUri.Host)"
+        $gradleArgs += "-Dhttps.proxyPort=$($proxyUri.Port)"
     }
-
-    $effectiveJvmArgs = ($gradleArgs -join " ")
-    $env:GRADLE_OPTS = $effectiveJvmArgs
-
-    # Gradle 官方要求：若 --no-daemon 时客户端 JVM 参数与构建 JVM 参数不一致，
-    # 仍会创建 single-use daemon。把工作区 org.gradle.jvmargs 与 GRADLE_OPTS
-    # 保持完全一致，使“禁用 daemon”真正不再派生额外 JVM；在 daemon 模式下
-    # 也确保代理参数被构建 JVM 继承。只修改临时工作区，不修改用户源码。
-    if (Test-Path -LiteralPath $ProjectPropertiesPath -PathType Leaf) {
-        $projectGradleText = Get-Content -LiteralPath $ProjectPropertiesPath -Raw
-        if ($projectGradleText -match '(?m)^\s*org\.gradle\.jvmargs\s*=') {
-            $projectGradleText = [regex]::Replace(
-                $projectGradleText,
-                '(?m)^\s*org\.gradle\.jvmargs\s*=.*$',
-                "org.gradle.jvmargs=$effectiveJvmArgs"
-            )
-        } else {
-            if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
-            $projectGradleText += "org.gradle.jvmargs=$effectiveJvmArgs`r`n"
-        }
-        # 将 daemon JVM 明确固定到本次 GUI/CLI 已确认的 JAVA_HOME，避免
-        # 用户级 Gradle 配置或旧 daemon 使用另一套 JDK 而被判定 incompatible。
-        if (-not [string]::IsNullOrWhiteSpace([string]$env:JAVA_HOME)) {
-            $gradleJavaHome = ([string]$env:JAVA_HOME).Replace('\', '/')
-            if ($projectGradleText -match '(?m)^\s*org\.gradle\.java\.home\s*=') {
-                $projectGradleText = [regex]::Replace(
-                    $projectGradleText,
-                    '(?m)^\s*org\.gradle\.java\.home\s*=.*$',
-                    "org.gradle.java.home=$gradleJavaHome"
-                )
-            } else {
-                if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
-                $projectGradleText += "org.gradle.java.home=$gradleJavaHome`r`n"
-            }
-        }
-
-        # 关闭 GUI 时会显式 --stop；这里再把空闲超时缩短到 10 分钟，
-        # 即使 GUI 异常崩溃，也不会让 PyDroid daemon 长时间残留。
-        if ($projectGradleText -match '(?m)^\s*org\.gradle\.daemon\.idletimeout\s*=') {
-            $projectGradleText = [regex]::Replace(
-                $projectGradleText,
-                '(?m)^\s*org\.gradle\.daemon\.idletimeout\s*=.*$',
-                'org.gradle.daemon.idletimeout=600000'
-            )
-        } else {
-            if (-not $projectGradleText.EndsWith("`n")) { $projectGradleText += "`r`n" }
-            $projectGradleText += "org.gradle.daemon.idletimeout=600000`r`n"
-        }
-
-        [System.IO.File]::WriteAllText(
-            $ProjectPropertiesPath,
-            $projectGradleText,
-            (New-Object System.Text.UTF8Encoding($false))
-        )
-    } else {
-        Write-Warning "未找到项目 gradle.properties，无法同步 Gradle JVM 参数：$ProjectPropertiesPath"
-    }
-
-    # Gradle Wrapper 的 distribution 下载默认只有 10 秒网络超时。
-    # 在临时工作区副本中提高 networkTimeout，不修改用户的项目源码。
-    if (Test-Path -LiteralPath $WrapperPropertiesPath -PathType Leaf) {
-        $timeoutMs = [Math]::Max(60000, ($PnpmFetchTimeoutSeconds * 1000))
-        $wrapperText = Get-Content -LiteralPath $WrapperPropertiesPath -Raw
-
-        if ($wrapperText -match '(?m)^\s*networkTimeout\s*=') {
-            $wrapperText = [regex]::Replace(
-                $wrapperText,
-                '(?m)^\s*networkTimeout\s*=.*$',
-                "networkTimeout=$timeoutMs"
-            )
-        } else {
-            if (-not $wrapperText.EndsWith("`n")) {
-                $wrapperText += "`r`n"
-            }
-            $wrapperText += "networkTimeout=$timeoutMs`r`n"
-        }
-
-        [System.IO.File]::WriteAllText(
-            $WrapperPropertiesPath,
-            $wrapperText,
-            (New-Object System.Text.UTF8Encoding($false))
-        )
-        Write-Step ("Gradle Wrapper 下载超时：{0} ms（{1} s）" -f $timeoutMs, [int]($timeoutMs / 1000))
-    } else {
-        Write-Warning "未找到 gradle-wrapper.properties，无法调整 Wrapper 下载超时：$WrapperPropertiesPath"
-    }
+    $env:GRADLE_OPTS = ($gradleArgs -join ' ')
 }
 
 function Build-Android {
@@ -1766,7 +548,7 @@ function Build-Android {
 
     $jdk = Find-JavaHome
     if (-not $jdk) {
-        $jdk = Install-Jdk
+        throw "未找到 JDK $JdkMajor。构建器不会自动下载安装；请设置 -JavaHome/PYDROID_JAVA_HOME/JAVA_HOME，或使用固定 ToolRoot\Language\Java。"
     }
     $jdk = [string]$jdk
     Write-Step ("JDK {0}：{1}" -f $JdkMajor, $jdk)
@@ -1775,19 +557,11 @@ function Build-Android {
     $env:JAVA_HOME = $jdk
     $env:Path = "$(Join-Path $jdk 'bin');$env:Path"
 
-    # Find-AndroidSdk 负责寻找现有 SDK 根；Install-AndroidSdk 负责逐项检查并只补缺失组件。
     $sdk = Find-AndroidSdk
     if ([string]::IsNullOrWhiteSpace([string]$sdk)) {
-        $sdk = Join-Path $privateToolsRoot "Android\Sdk"
+        throw "未找到包含 android-$resolvedAndroidApi 的 Android SDK。构建器不会自动安装或覆盖 SDK；请设置 -AndroidSdkHome/PYDROID_ANDROID_SDK/ANDROID_HOME，或使用固定 ToolRoot\Android\Sdk。"
     }
-
-    # 防止任何函数/原生命令的附带 stdout 污染 SDK 路径。
-    # Install-AndroidSdk 已保证只向成功输出流返回一个字符串，这里再次强制标量化并校验。
-    $sdkResult = @(Install-AndroidSdk -SdkRoot ([string]$sdk))
-    if ($sdkResult.Count -ne 1) {
-        throw ("Android SDK 准备函数返回了异常数量的结果（{0}）。这通常意味着某个命令输出污染了 SDK 路径。" -f $sdkResult.Count)
-    }
-    $sdk = [string]$sdkResult[0]
+    $sdk = [string]$sdk
 
     if ([string]::IsNullOrWhiteSpace($sdk) -or -not (Test-Path -LiteralPath $sdk -PathType Container)) {
         throw "Android SDK 根目录无效：$sdk"
@@ -1800,7 +574,7 @@ function Build-Android {
 
     $python = if ($script:ResolvedAndroidPython) { [string]$script:ResolvedAndroidPython } else { Find-Python313 }
     if (-not $python) {
-        $python = Install-Python313
+        throw "未找到带 venv/ensurepip 的完整 Python $pythonSeries。构建器不会自动下载安装；请设置 -PythonExecutable/PYDROID_PYTHON_EXECUTABLE，或使用固定 ToolRoot\Python\3.13\python.exe。"
     }
     $python = [string]$python
     if (-not (Test-PythonBuildHost -Executable $python)) {
@@ -1816,9 +590,7 @@ function Build-Android {
 
     # Gradle Wrapper 是独立 Java 进程，需要显式配置 JVM 代理。
     # 同时提高 distribution 下载超时，避免 services.gradle.org 默认 10 秒超时。
-    $gradleWrapperProps = Join-Path $workspace "android\gradle\wrapper\gradle-wrapper.properties"
-    $gradleProjectProps = Join-Path $workspace "android\gradle.properties"
-    Configure-GradleNetwork -WrapperPropertiesPath $gradleWrapperProps -ProjectPropertiesPath $gradleProjectProps
+    Configure-GradleNetwork
 
     Write-Step "Android 构建环境"
     Write-Host "JAVA_HOME：$env:JAVA_HOME"
@@ -1827,21 +599,18 @@ function Build-Android {
     Write-Host "Python：$env:PYDROID_PYTHON_EXECUTABLE"
     Write-Host "GRADLE_USER_HOME：$env:GRADLE_USER_HOME"
 
-    # Android 打包脚本读取此开关决定正常 daemon 模式或显式无 daemon 模式。
-    # 默认模式若遇到 daemon 进程启动失败，会在 android-package.ps1 内自动恢复。
+    # Android 打包脚本只执行用户选定的 daemon 模式，不做自动恢复或降级。
     $env:PYDROID_DISABLE_GRADLE_DAEMON = if ($DisableGradleDaemon) { "1" } else { "0" }
 
     Write-BuildStage -Percent 78 -Message "准备 Android Gradle 构建"
     if ($DisableGradleDaemon) {
         Write-Step "Gradle daemon 已禁用；本次构建使用独立 JVM。"
     } else {
-        Write-Step "Gradle daemon 已启用；使用 PyDroid 专属 daemon 状态，启动失败会自动清理并重试。"
+        Write-Step "Gradle daemon 已启用；失败时直接报告 Gradle 原始错误。"
     }
 
     Write-BuildStage -Percent 80 -Message "同步 Web 资源与 Capacitor Android 工程"
-    # Keep pnpm/Corepack discovery centralized in the main build orchestrator. The standalone
-    # android-package.ps1 can still run `pnpm android:sync` itself, but GUI builds perform the
-    # sync here so the Gradle wrapper no longer sits behind pnpm -> PowerShell -> Gradle.
+    # GUI 构建在这里完成一次 Android Web/Capacitor 同步，随后直接进入 Gradle。
     Invoke-Pnpm @("android:sync")
 
     Write-BuildStage -Percent 82 -Message "编译 Android APK"
@@ -1866,33 +635,6 @@ function Build-Android {
     return $apk
 }
 
-$script:DeferredCleanupTargets = New-Object System.Collections.Generic.List[string]
-
-function Queue-DeferredCleanup {
-    param([string]$Path)
-    if ([string]::IsNullOrWhiteSpace($Path)) { return }
-    if (-not $script:DeferredCleanupTargets.Contains($Path)) { $script:DeferredCleanupTargets.Add($Path) }
-}
-
-function Start-DeferredCleanup {
-    if ($script:DeferredCleanupTargets.Count -eq 0) { return }
-    $cleanupScript = Join-Path $ProjectRoot "tools\deferred-cleanup.ps1"
-    if (-not (Test-Path -LiteralPath $cleanupScript -PathType Leaf)) {
-        Write-Warning "未找到延后清理脚本；本次构建不会等待清理：$cleanupScript"
-        return
-    }
-    $manifest = Join-Path $WorkRoot (".pydroid-deferred-cleanup-{0}.json" -f ([guid]::NewGuid().ToString("N")))
-    @($script:DeferredCleanupTargets) | ConvertTo-Json | Set-Content -LiteralPath $manifest -Encoding UTF8
-    try {
-        Start-Process -FilePath "powershell.exe" -WindowStyle Hidden -ArgumentList @(
-            "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ('"{0}"' -f $cleanupScript), "-ManifestPath", ('"{0}"' -f $manifest)
-        ) | Out-Null
-        Write-Step "旧版本与临时打包文件已转入后台清理；不再阻塞构建完成。"
-    } catch {
-        Write-Warning "无法启动后台清理，构建结果不受影响：$($_.Exception.Message)"
-    }
-}
-
 function Copy-Outputs {
     param(
         [string]$ApkSource,
@@ -1905,32 +647,16 @@ function Copy-Outputs {
 
     $desktopDest = $null
     $apkDest = $null
-    $trashRoot = $null
 
-    # Renaming large old desktop folders inside the same output directory is nearly
-    # instantaneous. Defer the physical deletion until after the new output is in place,
-    # so the GUI does not spend minutes at a vague "copying" stage.
     if (-not $KeepHistory) {
         if ($HasApk) {
-            Write-BuildStage -Percent 91 -Message "清理旧版 APK"
-            Get-ChildItem -LiteralPath $OutputRoot -Filter "$outputBaseName-*.apk" -File -ErrorAction SilentlyContinue |
-                Remove-Item -Force -ErrorAction SilentlyContinue
+            foreach ($oldApk in @(Get-ChildItem -LiteralPath $OutputRoot -Filter "$outputBaseName-*.apk" -File -ErrorAction SilentlyContinue)) {
+                Remove-Item -LiteralPath $oldApk.FullName -Force -ErrorAction Stop
+            }
         }
         if ($HasDesktop) {
-            $oldDesktopDirs = @(Get-ChildItem -LiteralPath $OutputRoot -Directory -Filter "$outputBaseName-*-Desktop" -ErrorAction SilentlyContinue)
-            if ($oldDesktopDirs.Count -gt 0) {
-                $trashRoot = Join-Path $OutputRoot (".pydroid-finalize-trash-{0}" -f ([guid]::NewGuid().ToString("N")))
-                New-Item -ItemType Directory -Force -Path $trashRoot | Out-Null
-                foreach ($oldDir in $oldDesktopDirs) {
-                    try {
-                        Move-Item -LiteralPath $oldDir.FullName -Destination (Join-Path $trashRoot $oldDir.Name) -Force -ErrorAction Stop
-                    } catch {
-                        # Never block a successful build on deleting an old Electron tree.
-                        # Queue the locked directory for best-effort background cleanup instead.
-                        Write-Warning "旧桌面产物暂时无法移动，将在后台尝试清理：$($oldDir.FullName)"
-                        Queue-DeferredCleanup -Path $oldDir.FullName
-                    }
-                }
+            foreach ($oldDir in @(Get-ChildItem -LiteralPath $OutputRoot -Directory -Filter "$outputBaseName-*-Desktop" -ErrorAction SilentlyContinue)) {
+                Remove-BuildDirectory -Path $oldDir.FullName
             }
         }
     }
@@ -1938,7 +664,7 @@ function Copy-Outputs {
     if ($HasApk) {
         Write-BuildStage -Percent 93 -Message "复制 Android APK"
         $apkDest = Join-Path $OutputRoot "$outputBaseName-$version.apk"
-        Copy-Item -LiteralPath $ApkSource -Destination $apkDest -Force
+        Copy-Item -LiteralPath $ApkSource -Destination $apkDest -Force -ErrorAction Stop
         Write-BuildArtifact -Platform "android" -Path $apkDest
         Write-Host "Android 输出：$apkDest" -ForegroundColor Yellow
     }
@@ -1946,56 +672,31 @@ function Copy-Outputs {
     if ($HasDesktop) {
         Write-BuildStage -Percent 94 -Message "整理 Windows Desktop 产物"
         $desktopDest = Join-Path $OutputRoot "$outputBaseName-$version-Desktop"
-        $unpacked = Join-Path $workspace "release\win-unpacked"
-        if (-not (Test-Path -LiteralPath $unpacked -PathType Container)) {
-            throw "未找到 Windows Desktop 打包目录：$unpacked"
-        }
-
-        if (Test-Path -LiteralPath $desktopDest) {
-            if (-not $trashRoot) {
-                $trashRoot = Join-Path $OutputRoot (".pydroid-finalize-trash-{0}" -f ([guid]::NewGuid().ToString("N")))
-                New-Item -ItemType Directory -Force -Path $trashRoot | Out-Null
-            }
-            try { Move-Item -LiteralPath $desktopDest -Destination (Join-Path $trashRoot (Split-Path $desktopDest -Leaf)) -Force -ErrorAction Stop }
-            catch {
-                Queue-DeferredCleanup -Path $desktopDest
-                $desktopDest = Join-Path $OutputRoot ("{0}-{1}-Desktop-{2}" -f $outputBaseName, $version, (Get-Date -Format "HHmmss"))
-                Write-Warning "旧版目录被占用；新桌面版将输出到不冲突目录：$desktopDest"
-            }
-        }
+        $unpacked = Join-Path $workspace 'release\win-unpacked'
+        if (-not (Test-Path -LiteralPath $unpacked -PathType Container)) { throw "未找到 Windows Desktop 打包目录：$unpacked" }
+        if (Test-Path -LiteralPath $desktopDest) { Remove-BuildDirectory -Path $desktopDest }
 
         $sourceRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $unpacked))
         $destRoot = [System.IO.Path]::GetPathRoot((PyDroid.Build.Paths\Resolve-AbsolutePath $OutputRoot))
         if ($sourceRoot -and $destRoot -and $sourceRoot.Equals($destRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            # Same volume: directory rename/move avoids copying the bundled Electron/Python
-            # tree file-by-file and is normally almost instantaneous.
-            Write-Step "同盘快速移动桌面版到 $desktopDest"
-            Move-Item -LiteralPath $unpacked -Destination $desktopDest -Force
-        }
-        else {
-            # Cross-volume output cannot be renamed. Use multithreaded unbuffered robocopy.
-            Write-Step "跨盘复制未压缩桌面版到 $desktopDest"
-            $robocopyArgs = @($unpacked, $desktopDest, "/E", "/MT:16", "/J", "/R:2", "/W:1", "/NFL", "/NDL", "/NJH", "/NJS", "/NP")
+            Move-Item -LiteralPath $unpacked -Destination $desktopDest -ErrorAction Stop
+        } else {
+            $robocopyArgs = @($unpacked, $desktopDest, '/E', '/MT:16', '/J', '/R:0', '/W:0', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
             & robocopy @robocopyArgs
-            $robocopyExitCode = $LASTEXITCODE
-            if ($robocopyExitCode -ge 8) { throw "桌面版复制失败，robocopy 退出码 $robocopyExitCode。" }
+            if ($LASTEXITCODE -ge 8) { throw "桌面版复制失败，robocopy 退出码 $LASTEXITCODE。" }
+            $global:LASTEXITCODE = 0
         }
         Write-BuildArtifact -Platform "windows" -Path $desktopDest
         Write-Host "Windows 输出：$desktopDest" -ForegroundColor Yellow
     }
 
     Write-BuildStage -Percent 96 -Message "最终产物已就位"
-
-    if ($trashRoot -and (Test-Path -LiteralPath $trashRoot -PathType Container)) {
-        Queue-DeferredCleanup -Path $trashRoot
-    }
-
     Write-Host ""
     Write-Host "==================== 构建产物已就绪 ====================" -ForegroundColor Green
     Write-Host "版本：$version"
-    if ($HasApk)    { Write-Host "APK：$apkDest" -ForegroundColor Yellow }
+    if ($HasApk) { Write-Host "APK：$apkDest" -ForegroundColor Yellow }
     if ($HasDesktop) { Write-Host "桌面版：$desktopDest" -ForegroundColor Yellow }
-    Write-Host "工作区：$workspace（临时打包文件将后台清理）"
+    Write-Host "工作区：$workspace"
     Write-Host "==================================================" -ForegroundColor Green
 }
 
@@ -2026,50 +727,31 @@ Write-Step "共享缓存目录：$CacheRoot"
 Write-Step "工作目录：$WorkRoot"
 Write-Step "最终输出目录：$OutputRoot"
 Write-Step "Android compile SDK：$resolvedAndroidApi"
-Write-Step "下载重试次数：$DownloadRetryCount"
 Write-Step "网络模式：$NetworkMode"
 
 # Node / pnpm
 Write-BuildStage -Percent 8 -Message "检查 Node、pnpm 与网络配置"
-$script:NodeDir = Find-Node
-if (-not $script:NodeDir) {
-    $script:NodeDir = Install-Node
+$script:NodeExecutable = Resolve-NodeExecutable
+if (-not (Test-NodeCandidate -Executable $script:NodeExecutable)) {
+    throw "Node 配置无效或版本不满足 $NodeVersion：$script:NodeExecutable"
 }
-$selectedNodeExe = Join-Path $script:NodeDir "node.exe"
-if (-not (Test-NodeCandidate -Executable $selectedNodeExe)) {
-    $selectedNodeVersion = try { [string]((& $selectedNodeExe --version | Select-Object -Last 1)).Trim() } catch { "unknown" }
-    throw ("内部错误：最终选定的 Node 不满足项目版本要求。实际={0}；路径={1}；要求={2}+ 同主版本。" -f $selectedNodeVersion, $selectedNodeExe, $NodeVersion)
+$script:NodeDir = Split-Path $script:NodeExecutable -Parent
+$script:PnpmCommand = Resolve-PnpmExecutable
+if (-not (Test-Path -LiteralPath $script:PnpmCommand -PathType Leaf)) {
+    throw "pnpm 配置无效：$script:PnpmCommand"
 }
-# 共享 ToolRoot 只读；仅把已存在的 Node 放到 PATH，再探测 pnpm/corepack。
-$env:Path = "$script:NodeDir;$ToolRoot\NodeJs;$ToolRoot\NodeJS;$env:Path"
-$script:PnpmCommand = PyDroid.Build.Node\Find-Pnpm
-if (-not $script:PnpmCommand) {
-    if ($SkipToolInstall) {
-        throw "未找到 pnpm/corepack，且已指定 -SkipToolInstall。"
-    }
-    Write-Step "未找到 pnpm，使用 corepack 启用 pnpm ..."
-    $corepack = PyDroid.Build.Paths\Find-ExistingFile @(
-        (Join-Path $script:NodeDir "corepack.cmd"),
-        (Join-Path $ToolRoot "NodeJS\corepack.cmd")
-    )
-    if (-not $corepack) {
-        throw "Node.js 目录中未找到 corepack.cmd，无法自动启用 pnpm。"
-    }
-    $script:PnpmCommand = $corepack
-    $script:PnpmUseCorepack = $true
-}
+$env:Path = "$script:NodeDir;$env:Path"
 
 $env:npm_config_cache = $npmCache
 $env:PNPM_STORE_DIR = $storeDir
-$env:COREPACK_HOME = $corepackCache
 $env:ELECTRON_CACHE = $electronCache
 $env:ELECTRON_BUILDER_CACHE = $electronBuilderCache
 $env:GRADLE_USER_HOME = $gradleHome
 
-# 配置代理/超时/并发。必须在 pnpm/corepack 和后续 Electron 下载之前完成。
+# 配置显式网络参数。必须在 pnpm 和后续 Electron 下载之前完成。
 Configure-Network
 
-$nodeExe = Join-Path $script:NodeDir 'node.exe'
+$nodeExe = $script:NodeExecutable
 $actualNodeVersion = $null
 try { $actualNodeVersion = [string]((& $nodeExe --version | Select-Object -Last 1).Trim()) } catch {}
 $actualPnpmVersion = Get-PnpmVersion
@@ -2079,47 +761,21 @@ if ($actualPnpmVersion) { Write-Host "pnpm：$actualPnpmVersion（$script:PnpmCo
 if ($packageManagerSpec -match '^pnpm@([^+]+)' -and $actualPnpmVersion) {
     $expectedPnpmVersion = $matches[1]
     if ($expectedPnpmVersion -ne $actualPnpmVersion) {
-        Write-Warning "项目声明 packageManager=$packageManagerSpec，但当前 pnpm=$actualPnpmVersion。构建会继续；若 lockfile 不兼容，建议通过 Corepack/共享工具链使用项目声明版本。"
+        throw "pnpm 版本不匹配：项目要求 $expectedPnpmVersion，当前为 $actualPnpmVersion（$script:PnpmCommand）。"
     }
 }
 
 # 同步源码到工作区
 Sync-Source
 
-# 修补工作区内的桌面打包脚本，使 electron-builder 缓存位于项目外部
-Patch-WorkspaceDesktopPackage
-
-# 默认启用 Gradle daemon；仅在 -DisableGradleDaemon 时修补工作区脚本。
-Patch-WorkspaceAndroidPackage
-
-# 安装 JS 依赖（使用外部 pnpm store，避免重复下载；网络失败时整次安装可重试）
-Write-BuildStage -Percent 30 -Message "检查/更新 JS 依赖（本地缓存优先，缺失时才联网）"
+# 安装 JS 依赖：执行一次，失败即报告真实错误。
+Write-BuildStage -Percent 30 -Message "检查/更新 JS 依赖"
 Write-Step "安装/更新 JS 依赖（pnpm install --frozen-lockfile --prefer-offline）..."
 $installArgs = @("install", "--frozen-lockfile", "--prefer-offline", "--store-dir", $storeDir)
 if ($RegistryUrl) { $installArgs += @("--registry", $RegistryUrl) }
-$installAttempts = [Math]::Max(1, $DownloadRetryCount)
-$installSucceeded = $false
-for ($installAttempt = 1; $installAttempt -le $installAttempts; $installAttempt++) {
-    try {
-        Write-Host ("pnpm install [{0}/{1}]" -f $installAttempt, $installAttempts) -ForegroundColor DarkGray
-        Invoke-Pnpm $installArgs
-        $installSucceeded = $true
-        break
-    } catch {
-        if ($installAttempt -ge $installAttempts) {
-            $effectiveProxy = if ($script:ResolvedProxyUrl) { $script:ResolvedProxyUrl } else { "<direct>" }
-            throw ("pnpm install 连续 {0} 次失败。当前网络模式={1}，代理={2}，timeout={3}s，concurrency={4}。最后错误：{5}" -f $installAttempts, $NetworkMode, $effectiveProxy, $PnpmFetchTimeoutSeconds, $PnpmNetworkConcurrency, $_.Exception.Message)
-        }
-        Write-Warning ("pnpm install 失败：{0}。保留已下载到 store 的内容，稍后重试。" -f $_.Exception.Message)
-        Start-Sleep -Seconds ([Math]::Min(15, 3 * $installAttempt))
-    }
-}
-if (-not $installSucceeded) { throw "pnpm install 未完成。" }
+Invoke-Pnpm $installArgs
 
-# 默认仅清理最终打包产物，保留 Android 增量构建缓存。
-# 需要彻底重编译时使用 -CleanBuild。
-Write-BuildStage -Percent 40 -Message $(if ($CleanBuild) { "执行完整清理构建" } else { "清理旧打包产物（保留 Android 增量缓存）" })
-Clear-WorkspaceOutputs -IncludeAndroidBuild:$CleanBuild
+Write-BuildStage -Percent 40 -Message "JS 依赖已就绪"
 
 $apkSource = $null
 $hasApk = -not $SkipAndroid
@@ -2133,7 +789,7 @@ if ($hasApk) {
     Write-BuildStage -Percent 45 -Message "预检 Android 完整 Python 3.13（需要 venv）"
     $pythonPreflight = Find-Python313
     if (-not $pythonPreflight) {
-        $pythonPreflight = Install-Python313
+        throw "Android Python 预检失败：未找到完整 Python $pythonSeries。构建器不会自动下载安装。"
     }
     $pythonPreflight = [string]$pythonPreflight
     if (-not (Test-PythonBuildHost -Executable $pythonPreflight)) {
@@ -2166,19 +822,8 @@ if ($hasApk) {
 
 Copy-Outputs -ApkSource $apkSource -HasApk:$hasApk -HasDesktop:$hasDesktop
 
-# 构建产物一旦就位就视为完成。release/dist 等可再生目录转入独立后台进程清理，
-# 不再让 GUI 等待成千上万个 Electron/Python 小文件被物理删除。
-if (-not $KeepWorkspace) {
-    foreach ($relative in @("release", "dist", "dist-desktop", "temp")) {
-        $candidate = Join-Path $workspace $relative
-        if (Test-Path -LiteralPath $candidate) { Queue-DeferredCleanup -Path $candidate }
-    }
-} else {
-    Write-Host "保留工作区用于排查：$workspace" -ForegroundColor DarkYellow
-}
-
-Write-BuildStage -Percent 100 -Message "构建完成（后台清理不阻塞）"
-Start-DeferredCleanup
+# 构建产物就位即完成。不再启动后台清理或其它成功后的隐藏任务。
+Write-BuildStage -Percent 100 -Message "构建完成"
 Write-Host ""
 Write-Host "提示：如需查看脚本帮助，运行：" -ForegroundColor DarkGray
 Write-Host "  powershell -ExecutionPolicy Bypass -File "$PSCommandPath" -?" -ForegroundColor DarkGray

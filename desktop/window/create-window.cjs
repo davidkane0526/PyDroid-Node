@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require("electron");
 const fs = require("node:fs");
+const http = require("node:http");
 const path = require("node:path");
 const { projectPaths, projectRoot } = require("../services/profile-service.cjs");
 
@@ -30,10 +31,7 @@ function createDesktopWindow({ log }) {
   window.webContents.on("console-message", (_event, level, message, line, sourceId) => {
     if (level >= 2) log(`renderer-console level=${level} ${message} ${sourceId}:${line}`);
   });
-  if (!smokeTest) {
-    window.once("ready-to-show", () => window.show());
-    setTimeout(() => { if (!window.isDestroyed() && !window.isVisible()) window.show(); }, 5000);
-  }
+  if (!smokeTest) window.once("ready-to-show", () => window.show());
   const developmentUrl = process.env.PYDROID_DESKTOP_URL;
   if (developmentUrl) window.loadURL(developmentUrl);
   else window.loadFile(projectPaths(app).renderer);
@@ -110,17 +108,43 @@ function createDesktopWindow({ log }) {
           || !exportNames.has("desktop-b.csv")
         ) throw new Error(`Unexpected smoke-test result: ${raw}`);
 
-        const remoteBridgeShape = await window.webContents.executeJavaScript(`({
-          getRemoteHostStatus: typeof window.pyDroidDesktop?.getRemoteHostStatus === "function"
-        })`);
-        if (!remoteBridgeShape.getRemoteHostStatus) {
-          throw new Error(`Packaged Remote Web bridge is missing getRemoteHostStatus(): ${JSON.stringify(remoteBridgeShape)}`);
+        const remoteInfo = await window.webContents.executeJavaScript("window.pyDroidDesktop.startRemoteServer(true)");
+        if (!remoteInfo || remoteInfo.port !== 8765 || !/^http:\/\//.test(remoteInfo.url || "")) {
+          throw new Error(`Packaged Remote Web failed to bind the expected listener: ${JSON.stringify(remoteInfo)}`);
         }
-        const remoteStatus = await window.webContents.executeJavaScript("window.pyDroidDesktop.getRemoteHostStatus()");
-        if (!remoteStatus || remoteStatus.state !== "stopped") {
-          throw new Error(`Unexpected packaged Remote Web bridge state: ${JSON.stringify(remoteStatus)}`);
+        const requestRemote = (pathname, host = "127.0.0.1") => new Promise((resolve, reject) => {
+          const request = http.get({ host, port: remoteInfo.port, path: pathname, timeout: 3000 }, (response) => {
+            const chunks = [];
+            response.on("data", (chunk) => chunks.push(chunk));
+            response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+          });
+          request.once("timeout", () => request.destroy(new Error(`Packaged Remote Web timeout: ${pathname}`)));
+          request.once("error", reject);
+        });
+        try {
+          const health = await requestRemote("/health");
+          if (health.status !== 200 || health.body.trim() !== "OK") throw new Error(`Packaged Remote Web /health failed: ${JSON.stringify(health)}`);
+          const preferredHost = new URL(remoteInfo.url).hostname;
+          if (preferredHost !== "127.0.0.1" && preferredHost !== "localhost") {
+            const lanHealth = await requestRemote("/health", preferredHost);
+            if (lanHealth.status !== 200 || lanHealth.body.trim() !== "OK") {
+              throw new Error(`Packaged Remote Web preferred LAN URL failed: ${remoteInfo.url}`);
+            }
+          }
+          const shell = await requestRemote("/");
+          if (shell.status !== 200 || !/id=["']root["']/.test(shell.body) || !/<script\b/i.test(shell.body)) {
+            throw new Error("Packaged Remote Web did not serve the browser shell");
+          }
+          const assetMatch = shell.body.match(/<script[^>]+src=["']([^"']+)["']/i);
+          if (assetMatch) {
+            const assetPath = new URL(assetMatch[1], `http://127.0.0.1:${remoteInfo.port}/`).pathname;
+            const asset = await requestRemote(assetPath);
+            if (asset.status !== 200 || asset.body.length < 32) throw new Error(`Packaged Remote Web asset failed: ${assetPath}`);
+          }
+        } finally {
+          await window.webContents.executeJavaScript("window.pyDroidDesktop.stopRemoteServer()");
         }
-        console.log("Desktop packaged Remote Web bridge/resource contract passed without opening a LAN listener");
+        console.log(`Desktop packaged Remote Web live HTTP smoke passed on ${remoteInfo.port}`);
         console.log("Desktop Electron/IPC/Python multi-file smoke test passed");
         if (process.env.PYDROID_DESKTOP_SMOKE_LOG) fs.writeFileSync(process.env.PYDROID_DESKTOP_SMOKE_LOG, "passed\n", "utf8");
         app.exit(0);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -18,31 +18,21 @@ const required = [
 const present = new Set(readdirSync(moduleDir));
 for (const name of required) {
   assert.ok(present.has(name), `missing build-tool module ${name}`);
-  assert.match(main, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `build-pydroid.ps1 must import ${name}`);
+  assert.match(main, new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")), `main must import ${name}`);
   const body = readFileSync(path.join(moduleDir, name), "utf8");
-  assert.match(body, /Export-ModuleMember\s+-Function/, `${name} should expose an explicit public surface`);
-  assert.doesNotMatch(body, /Import-Module[\s\S]*PyDroid\.Build\./i, `${name} must not nested-import another PyDroid build module; Windows PowerShell 5.1 -Force reloads can evict the caller's module instance`);
+  assert.match(body, /Export-ModuleMember\s+-Function/);
+  assert.doesNotMatch(body, /Import-Module[\s\S]*PyDroid\.Build\./i);
 }
 
-assert.match(main, /Import-Module\s+-Name\s+\$modulePath\s+-Force\s+-Global\s+-DisableNameChecking/, "main build script must load focused modules globally for GUI child-process compatibility");
-assert.match(main, /PyDroid\.Build\.Paths\\Resolve-AbsolutePath/, "path helpers should be called with an explicit module qualifier");
-assert.doesNotMatch(main, /(?<![\\\w.])Resolve-AbsolutePath\s+\$ProjectRoot/, "core build path resolution must not depend on unqualified module command lookup");
-assert.doesNotMatch(main, /^function\s+Resolve-JavaHomeCandidate\b/m, "Java probing implementation belongs in the Java module");
-assert.doesNotMatch(main, /^function\s+Normalize-ProxyUrl\b/m, "network parsing implementation belongs in the Network module");
-assert.doesNotMatch(main, /^function\s+Get-ExtendedLengthPath\b/m, "path implementation belongs in the Paths module");
-assert.doesNotMatch(main, /^function\s+Get-PythonVersionLabel\b/m, "Python version probing belongs in the Python module");
-assert.match(main, /function\s+Test-NodeCandidate[\s\S]*Test-PyDroidNodeCandidate/, "Node wrapper should delegate version validation to its module");
-assert.match(main, /function\s+Test-PythonSeries[\s\S]*Test-PyDroidPythonSeries/, "Python wrapper should delegate series validation to its module");
-assert.match(main, /function\s+Remove-BuildDirectoryRobust[\s\S]*Remove-PyDroidBuildDirectoryRobust/, "packaging cleanup should delegate to its module");
-
-
-const deferredCleanup = path.join(root, "tools", "deferred-cleanup.ps1");
-assert.ok(readFileSync(deferredCleanup, "utf8").includes("ManifestPath"), "deferred cleanup worker must exist");
-assert.match(main, /Start-DeferredCleanup/, "successful builds should launch cleanup out-of-process");
-assert.match(main, /构建完成（后台清理不阻塞）/, "build completion should be reported before cleanup finishes");
-assert.match(main, /Windows Desktop 已编译完成，可直接运行目录/, "Desktop output path should be displayed as soon as Desktop compilation finishes");
-assert.match(main, /Android APK 已编译完成，可直接安装/, "Android APK path should be displayed as soon as Android compilation finishes");
+assert.match(main, /Import-Module\s+-Name\s+\$modulePath\s+-Force\s+-Global\s+-DisableNameChecking/);
+assert.match(main, /PyDroid\.Build\.Paths\\Resolve-AbsolutePath/);
+assert.match(main, /function\s+Remove-BuildDirectory[\s\S]*Remove-PyDroidBuildDirectory/);
+assert.doesNotMatch(main, /Start-DeferredCleanup|Queue-DeferredCleanup|deferred-cleanup\.ps1|Remove-BuildDirectoryRobust|Remove-PyDroidBuildDirectoryRobust/);
+assert.equal(existsSync(path.join(root, "tools", "deferred-cleanup.ps1")), false);
+assert.match(main, /Write-BuildStage -Percent 100 -Message "构建完成"/);
+assert.match(main, /Windows Desktop 已编译完成，可直接运行目录/);
+assert.match(main, /Android APK 已编译完成，可直接安装/);
 
 const mainLines = main.split(/\r?\n/).length;
-assert.ok(mainLines < 2500, `build-pydroid.ps1 should keep shrinking as orchestration root (currently ${mainLines} lines)`);
+assert.ok(mainLines < 1000, `build-pydroid.ps1 should remain a small orchestrator (currently ${mainLines} lines)`);
 console.log(`Build-tool architecture smoke passed (${required.length} modules; main ${mainLines} lines).`);

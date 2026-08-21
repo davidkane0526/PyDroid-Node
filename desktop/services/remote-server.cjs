@@ -4,28 +4,17 @@ const fs = require("node:fs");
 const http = require("node:http");
 const path = require("node:path");
 const { LanDiscoveryService } = require("../lan/LanDiscoveryService.cjs");
-const { LAN_WEB_PORT } = require("../lan/firewall.cjs");
-const { REMOTE_SECURITY_POLICY, RemoteAccessGuard, RemoteTokenStore } = require("./remote-security.cjs");
-
-const EXPENSIVE_API_PATHS = new Set(["/api/execute", "/api/analyze-notebook", "/api/analyze-signature", "/api/agent-proxy"]);
-const MAX_PAIR_BODY_BYTES = 64 * 1024;
+const LAN_WEB_PORT = 8765;
 
 function resolveRendererRoot() {
-  const candidates = app.isPackaged
-    ? [
-        path.join(app.getAppPath(), "desktop", "package-remote"),
-        path.join(process.resourcesPath, "app.asar", "desktop", "package-remote"),
-      ]
-    : [
-        path.resolve(__dirname, "..", "..", "dist"),
-        path.resolve(__dirname, "..", "..", "dist-desktop"),
-      ];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const index = path.join(candidate, "index.html");
-    try { if (fs.existsSync(index) && fs.statSync(index).isFile()) return path.resolve(candidate); } catch { /* try next candidate */ }
+  const rendererRoot = app.isPackaged
+    ? path.join(app.getAppPath(), "desktop", "package-remote")
+    : path.resolve(__dirname, "..", "..", "dist");
+  const index = path.join(rendererRoot, "index.html");
+  if (!fs.existsSync(index) || !fs.statSync(index).isFile()) {
+    throw new Error(`Remote Web renderer not found: ${rendererRoot}`);
   }
-  throw new Error(`Remote Web renderer not found. Checked: ${candidates.join(" | ")}`);
+  return path.resolve(rendererRoot);
 }
 
 function safeStaticPath(rendererRoot, pathname) {
@@ -37,57 +26,21 @@ function safeStaticPath(rendererRoot, pathname) {
   return filePath;
 }
 
-
-function requestText(port, pathname, host = "127.0.0.1") {
-  return new Promise((resolve, reject) => {
-    const request = http.get({ host, port, path: pathname, timeout: 2500 }, (response) => {
-      const chunks = [];
-      response.on("data", (chunk) => chunks.push(chunk));
-      response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
-    });
-    request.once("timeout", () => request.destroy(new Error(`Remote Web readiness timeout: ${pathname}`)));
-    request.once("error", reject);
-  });
-}
-
-async function verifyLoopbackReady(port) {
-  const health = await requestText(port, "/health");
-  if (health.status !== 200 || health.body.trim() !== "OK") throw new Error("Remote Web /health readiness check failed");
-  const shell = await requestText(port, "/");
-  if (shell.status !== 200 || !/<script\b/i.test(shell.body) || !/<div[^>]+id=["']root["']/i.test(shell.body)) {
-    throw new Error("Remote Web browser shell readiness check failed");
-  }
-  const assetMatch = shell.body.match(/<script[^>]+src=["']([^"']+)["']/i);
-  if (assetMatch) {
-    const assetPath = new URL(assetMatch[1], `http://127.0.0.1:${port}/`).pathname;
-    const asset = await requestText(port, assetPath);
-    if (asset.status !== 200 || asset.body.length < 32) throw new Error(`Remote Web main asset readiness check failed: ${assetPath}`);
-  }
-}
-
-function normalizeClientAddress(request) {
-  return String(request.socket?.remoteAddress ?? "unknown").replace(/^::ffff:/, "").replace(/^\[|\]$/g, "") || "unknown";
-}
-
 function createRemoteServerService({ pythonService, log }) {
   let remoteServer = null;
-  let remoteStartPromise = null;
-  let remoteStopPromise = null;
-  let remoteLifecycleGeneration = 0;
   let remotePin = null;
   let lanDiscovery = null;
-  const accessGuard = new RemoteAccessGuard();
-  const remoteTokens = new RemoteTokenStore();
+  const remoteTokens = new Set();
   const remoteExecutionIds = new Set();
   const maxOutputBytes = pythonService.MAX_OUTPUT_BYTES;
   const defaultExecutionTimeoutMs = pythonService.DEFAULT_EXECUTION_TIMEOUT_MS;
 
-  function readRequestBody(request, limitBytes = maxOutputBytes) {
+  function readRequestBody(request) {
     return new Promise((resolve, reject) => {
       const chunks = []; let size = 0;
       request.on("data", (chunk) => {
         size += chunk.length;
-        if (size > limitBytes) { reject(new Error("请求体过大")); request.destroy(); }
+        if (size > maxOutputBytes) { reject(new Error("请求超过 64 MiB")); request.destroy(); }
         else chunks.push(chunk);
       });
       request.on("end", () => {
@@ -98,82 +51,21 @@ function createRemoteServerService({ pythonService, log }) {
     });
   }
 
-  function sendJson(response, status, value, extraHeaders = {}) {
+  function sendJson(response, status, value) {
     const body = JSON.stringify(value);
-    response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store", ...extraHeaders });
+    response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store" });
     response.end(body);
   }
 
-  function sendRateLimit(response, error, retryAfterSeconds) {
-    return sendJson(response, 429, { error, retryAfterSeconds }, { "Retry-After": String(retryAfterSeconds) });
-  }
-
-  function currentConnectionSnapshot(server, port = LAN_WEB_PORT) {
-    const discoveryState = lanDiscovery?.getStatus?.() ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
-    const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
-    const interfaceUrls = (discoveryState.interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
-    const url = `http://${address}:${port}/`;
-    const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
-    const discovery = {
-      interfaces: (discoveryState.interfaces ?? []).map((item) => ({ name: item.name, address: item.address, defaultRoute: Boolean(item.defaultRoute) })),
-      ssdp: discoveryState.ssdp ?? "unavailable",
-      mdns: discoveryState.mdns ?? "unavailable",
-      recoveryAttempts: Number(discoveryState.recoveryAttempts ?? 0),
-    };
-    const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, discovery };
-    if (server) server.__info = { ...(server.__info ?? {}), ...info };
-    return info;
-  }
-
-  async function currentConnectionInfo(server, port = LAN_WEB_PORT) {
-    const snapshot = currentConnectionSnapshot(server, port);
-    const discoveryState = snapshot.discovery ?? { interfaces: [], ssdp: "unavailable", mdns: "unavailable" };
-    let loopback = false;
-    try {
-      const health = await requestText(port, "/health");
-      loopback = health.status === 200 && health.body.trim() === "OK";
-    } catch {}
-    const lanHealth = [];
-    for (const item of discoveryState.interfaces ?? []) {
-      try {
-        const health = await requestText(port, "/health", item.address);
-        lanHealth.push({ address: item.address, ok: health.status === 200 && health.body.trim() === "OK" });
-      } catch (error) {
-        lanHealth.push({ address: item.address, ok: false, error: error?.message || String(error) });
-      }
-    }
-    const readiness = {
-      loopback,
-      lanHttp: lanHealth,
-      allLanHttpReady: lanHealth.length > 0 && lanHealth.every((item) => item.ok),
-      discoveryReady: discoveryState.ssdp === "running" && discoveryState.mdns === "running",
-    };
-    const info = { ...snapshot, readiness };
-    if (server) server.__info = info;
-    return info;
-  }
-
   function start(requirePin) {
-    if (remoteStopPromise) return remoteStopPromise.then(() => start(requirePin));
-    if (remoteServer) return currentConnectionInfo(remoteServer);
-    if (remoteStartPromise) return remoteStartPromise;
-    const generation = remoteLifecycleGeneration;
-    const operation = startOnce(requirePin, generation);
-    const tracked = operation.finally(() => { if (remoteStartPromise === tracked) remoteStartPromise = null; });
-    remoteStartPromise = tracked;
-    return tracked;
-  }
-
-  async function startOnce(requirePin, generation) {
+    if (remoteServer) return Promise.resolve(remoteServer.__info);
     remotePin = requirePin ? String(crypto.randomInt(0, 10000)).padStart(4, "0") : null;
     remoteTokens.clear();
-    accessGuard.reset();
     const rendererRoot = resolveRendererRoot();
     log(`[Remote Web] Renderer root: ${rendererRoot}`);
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url, "http://localhost");
-        const clientKey = normalizeClientAddress(request);
         if (url.pathname === "/upnp/device.xml" && request.method === "GET") {
           const address = request.socket.localAddress && request.socket.localAddress !== "0.0.0.0" ? request.socket.localAddress.replace(/^::ffff:/, "") : undefined;
           const xml = lanDiscovery?.deviceXml(address) ?? "";
@@ -184,31 +76,17 @@ function createRemoteServerService({ pythonService, log }) {
           response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
           return response.end("OK");
         }
-        if (url.pathname === "/api/health") {
-          if (request.method !== "GET") return sendJson(response, 405, { error: "Method not allowed" });
-          return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
-        }
-        if (url.pathname === "/api/pair") {
-          if (request.method !== "POST") return sendJson(response, 405, { error: "Method not allowed" });
-          const pairCheck = accessGuard.checkPair(clientKey);
-          if (!pairCheck.allowed) return sendRateLimit(response, `配对尝试过多，请 ${pairCheck.retryAfterSeconds} 秒后重试`, pairCheck.retryAfterSeconds);
-          const body = await readRequestBody(request, MAX_PAIR_BODY_BYTES);
-          if (remotePin && String(body.pin ?? "") !== remotePin) {
-            const failure = accessGuard.recordPairFailure(clientKey);
-            if (failure.locked) return sendRateLimit(response, `配对尝试过多，请 ${failure.retryAfterSeconds} 秒后重试`, failure.retryAfterSeconds);
-            return sendJson(response, 403, { error: "四位校验码不正确" });
-          }
-          accessGuard.recordPairSuccess(clientKey);
-          const token = remoteTokens.issue(clientKey);
+        if (url.pathname === "/api/health") return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
+        if (url.pathname === "/api/pair" && request.method === "POST") {
+          const body = await readRequestBody(request);
+          if (remotePin && String(body.pin ?? "") !== remotePin) return sendJson(response, 403, { error: "四位校验码不正确" });
+          const token = crypto.randomBytes(24).toString("hex");
+          remoteTokens.add(token);
           return sendJson(response, 200, { token });
         }
         if (url.pathname.startsWith("/api/")) {
-          const token = String(request.headers["x-pydroid-token"] ?? "");
-          if (!remoteTokens.validate(token, clientKey)) return sendJson(response, 401, { error: "配对会话无效或已过期，请重新配对" });
-          const rate = accessGuard.consumeApi(clientKey, EXPENSIVE_API_PATHS.has(url.pathname));
-          if (!rate.allowed) return sendRateLimit(response, `请求过于频繁，请 ${rate.retryAfterSeconds} 秒后重试`, rate.retryAfterSeconds);
-          if (request.method !== "POST") return sendJson(response, 405, { error: "Method not allowed" });
-          const body = await readRequestBody(request);
+          if (!remoteTokens.has(String(request.headers["x-pydroid-token"] ?? ""))) return sendJson(response, 401, { error: "尚未配对" });
+          const body = request.method === "POST" ? await readRequestBody(request) : {};
           if (url.pathname === "/api/execute") {
             const executionId = String(body.executionId ?? `remote-${crypto.randomUUID()}`);
             remoteExecutionIds.add(executionId);
@@ -248,10 +126,8 @@ function createRemoteServerService({ pythonService, log }) {
               const raw = hostWindow ? await hostWindow.webContents.executeJavaScript(`localStorage.getItem("pydroid-flow.settings.v1")`) : null;
               if (raw) settings = JSON.parse(raw);
             } catch {}
-            // Desktop Agent keys are intentionally renderer-session scoped; never expose them to Remote Web.
             return sendJson(response, 200, { settings, agentProxyAvailable: false });
           }
-          if (url.pathname === "/api/agent-proxy") return sendJson(response, 409, { error: "桌面宿主当前没有可供网页使用的安全 Agent 密钥代理；请在此浏览器会话中单独填写 API 密钥" });
           return sendJson(response, 404, { error: "接口不存在" });
         }
         let filePath = safeStaticPath(rendererRoot, url.pathname);
@@ -270,115 +146,51 @@ function createRemoteServerService({ pythonService, log }) {
       } catch (error) { sendJson(response, 500, { error: error?.message || String(error) }); }
     });
 
-    const ensureCurrentGeneration = async (server) => {
-      if (generation === remoteLifecycleGeneration) return true;
-      try { lanDiscovery?.stop(); } catch {}
-      lanDiscovery = null;
-      remoteTokens.clear();
-      accessGuard.reset();
-      remotePin = null;
-      if (server.listening) await new Promise((resolve) => server.close(() => resolve()));
-      return false;
-    };
-
     return new Promise((resolve, reject) => {
       const onError = (error) => {
-        if (error?.code === "EADDRINUSE") return reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用，请关闭占用程序后重试`));
-        reject(error);
+        if (error?.code === "EADDRINUSE") reject(new Error(`局域网 Web 端口 ${LAN_WEB_PORT} 已被其他程序占用`));
+        else reject(error);
       };
-      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", async () => {
+      server.once("error", onError).listen(LAN_WEB_PORT, "0.0.0.0", () => {
         server.removeListener("error", onError);
         const port = LAN_WEB_PORT;
         try {
-          await verifyLoopbackReady(port);
-          log(`[Remote Web] Loopback readiness passed on 127.0.0.1:${port}`);
-        } catch (error) {
-          try { server.close(); } catch {}
-          return reject(error);
-        }
-        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
-        try {
           lanDiscovery = new LanDiscoveryService({ userDataRoot: app.getPath("userData"), log, version: app.getVersion() });
           const discovery = lanDiscovery.start({ port });
-          await lanDiscovery.waitUntilReady(2500);
           log(`[LAN] HTTP ${lanDiscovery.presentationUrl()}`);
           log(`[LAN] Local ${discovery.localUrl ?? "unavailable"}`);
         } catch (error) {
           lanDiscovery = null;
           log(`[LAN] Discovery startup failed; HTTP remains available: ${error.message || error}`);
         }
-        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
-        const info = await currentConnectionInfo(server, port);
-        if (!info.readiness.loopback) {
-          try { server.close(); } catch {}
-          return reject(new Error("Remote Web /health readiness check failed"));
-        }
-        if (!(await ensureCurrentGeneration(server))) return reject(new Error("Remote Web start cancelled"));
+        const address = lanDiscovery?.primaryAddress() ?? "127.0.0.1";
+        const interfaceUrls = (lanDiscovery?.getStatus?.().interfaces ?? []).map((item) => `http://${item.address}:${port}/`);
+        const url = `http://${address}:${port}/`;
+        const urls = [...new Set([url, ...interfaceUrls, lanDiscovery?.localUrl?.()].filter(Boolean))];
+        const discovery = lanDiscovery?.getStatus?.();
+        const info = { url, urls, pin: remotePin, requiresPin: Boolean(remotePin), port, ...(discovery ? { discovery } : {}) };
+        server.__info = info;
         remoteServer = server;
-        server.on("error", (error) => log(`[Remote Web] Server error: ${error?.message || error}`));
-        server.once("close", () => {
-          if (remoteServer !== server) return;
-          remoteServer = null;
-          try { lanDiscovery?.stop(); } catch {}
-          lanDiscovery = null;
-          remoteTokens.clear();
-          accessGuard.reset();
-          remotePin = null;
-          log("[Remote Web] Server closed; lifecycle state reset");
-        });
+        server.on("error", (error) => log(`[Remote Web] ${error?.message || error}`));
         resolve(info);
       });
     });
   }
 
-  function stopActiveHost() {
+  function stop() {
     for (const executionId of remoteExecutionIds) pythonService.cancel(executionId);
     remoteExecutionIds.clear();
-    const hadDiscovery = Boolean(lanDiscovery);
     lanDiscovery?.stop();
     lanDiscovery = null;
-    if (!remoteServer) {
-      remoteTokens.clear();
-      accessGuard.reset();
-      remotePin = null;
-      return hadDiscovery ? new Promise((resolve) => setTimeout(resolve, 80)) : Promise.resolve();
-    }
+    remoteTokens.clear();
+    remotePin = null;
+    if (!remoteServer) return Promise.resolve();
     const server = remoteServer;
     remoteServer = null;
-    remoteTokens.clear();
-    accessGuard.reset();
-    remotePin = null;
-    return new Promise((resolve) => server.close(() => {
-      if (hadDiscovery) setTimeout(resolve, 80); else resolve();
-    }));
+    return new Promise((resolve) => server.close(resolve));
   }
 
-  function stop() {
-    remoteLifecycleGeneration += 1;
-    if (remoteStopPromise) return remoteStopPromise;
-    const pendingStart = remoteStartPromise;
-    const operation = (async () => {
-      if (pendingStart) { try { await pendingStart; } catch {} }
-      await stopActiveHost();
-    })();
-    const tracked = operation.finally(() => { if (remoteStopPromise === tracked) remoteStopPromise = null; });
-    remoteStopPromise = tracked;
-    return tracked;
-  }
-
-  function lifecycleState() {
-    if (remoteStopPromise) return "stopping";
-    if (remoteStartPromise) return "starting";
-    if (remoteServer) return "running";
-    return "stopped";
-  }
-
-  function status() {
-    const state = lifecycleState();
-    return { state, info: state === "running" && remoteServer ? currentConnectionSnapshot(remoteServer) : null };
-  }
-
-  return { start, stop, status, lifecycleState };
+  return { start, stop };
 }
 
-module.exports = { createRemoteServerService, normalizeClientAddress, REMOTE_SECURITY_POLICY };
+module.exports = { createRemoteServerService };

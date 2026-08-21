@@ -1,3 +1,19 @@
+## 1.4.83 Deterministic Core / Remote false-green repair
+
+- Root cause of the 1.4.82 false green: the packaged Desktop smoke only exercised the Remote host-status bridge and never proved that TCP 8765 was listening or that packaged Remote Web assets were reachable. A fully green report could therefore coexist with a dead network service.
+- Desktop and Android Remote Web now use a direct lifecycle: bind fixed TCP 8765, serve HTTP, and stop directly. Host lifecycle generations, start/stop futures, readiness self-probes, 3-second UI reconciliation, network-change recovery, firewall/profile automation and route probing are removed.
+- SSDP/UPnP/mDNS remain, but discovery is best-effort and can never block the HTTP listener. PIN/token pairing remains simple; cooldown/rate-limit/token-TTL guards introduced in Phase 10 are removed.
+- Packaged Desktop smoke now starts the real service and requests `/health`, `/`, and the actual packaged JavaScript asset. Repository Remote E2E starts real HTTP on 8765; Android JVM E2E compiles the production server/service and performs the same live-resource checks. Tests observe production behavior and do not gate production startup.
+- Build paths are deterministic: one `pnpm install`, one Electron packaging attempt, and one explicitly selected Gradle daemon mode. Automatic Node/JDK/SDK/Python install, Corepack pnpm acquisition, Windows proxy/PAC discovery, retry/backoff, compatibility packaging, signing/plain-EXE degradation and Gradle daemon recovery are removed.
+- The final build cleanup also removes registry/PATH/common-folder tool scans, multi-stage cleanup fallback, deferred cleanup workers, GUI path mutation, and the Android wrapper-kill success override. Gradle process exit code is now the only success authority.
+- Removed the final source-tree compatibility shims: Junction-based local storage redirection, the Capacitor Junction path rewriter and the package-manager launcher selector. Desktop packaging now calls the project-local TypeScript/Vite/electron-builder entry points directly.
+- Removed remaining speculative runtime shims: Android Remote Web uses only the Capacitor `public/` asset root, Desktop window presentation has one `ready-to-show` path, the unused default Execution Controller compatibility export is gone, and Android LAN no longer carries the obsolete network-key lifecycle helper.
+- Workflow schema/resource migration, autosave restore, execution cancellation/timeouts and protocol input validation remain because they are product/data semantics rather than alternate infrastructure-success paths.
+- Version: **1.4.83 (106)**. Build revision: `1.4.83-dev-r60-deterministic-core`. Current branch: `refactor/1.4.83-deterministic-core`.
+- Validation available in this environment: real Desktop Remote Host E2E passed; real Android JVM Remote Host E2E passed; LAN simplicity/selection, Platform/Host contracts, Editor/Workflow/Runtime architecture, migration corpus and runtime parity 68/68 all passed; Python suite is 111 passed / 1 skipped. Dependency-backed Vite/Electron/Gradle packaging is not claimed here because the container has no project pnpm installation and no network access to acquire it.
+
+> Historical Phase 10/early Phase 11 entries below document superseded experiments. Their lifecycle/readiness/security/freeze mechanisms are **not current architecture requirements** and must not be reintroduced merely to satisfy old design notes.
+
 ## 1.4.82 Remote baseline restore
 
 - Restored `desktop/services/remote-server.cjs` byte-for-byte to the user-validated 1.4.76 host implementation while retaining all Phase 11 migration/resource compatibility work.

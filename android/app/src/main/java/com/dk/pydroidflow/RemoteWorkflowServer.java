@@ -2,6 +2,8 @@ package com.dk.pydroidflow;
 
 import android.content.Context;
 import android.content.res.AssetManager;
+import android.util.Base64;
+import android.util.Log;
 import com.chaquo.python.PyObject;
 import com.chaquo.python.Python;
 
@@ -16,7 +18,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
-import java.net.InetSocketAddress;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.Socket;
@@ -37,15 +38,13 @@ import java.util.concurrent.Future;
 final class RemoteWorkflowServer {
     private static final int PORT = 8765;
     private static final int MAX_BODY_BYTES = 96 * 1024 * 1024;
-    private static final int MAX_CONTROL_BODY_BYTES = 1024 * 1024;
-    private static final int MAX_PAIR_BODY_BYTES = 64 * 1024;
     private static final int MAX_HEADER_BYTES = 16 * 1024;
 
     private final Context context;
     private final ExecutorService pythonWorker;
     private final ExecutorService requestWorker;
     private final PythonExecutionController executionController;
-    private final RemoteAccessGuard accessGuard = new RemoteAccessGuard();
+    private final String token;
     private final String pin;
     private final boolean requiresPin;
     private final LanDiscoveryService discovery;
@@ -53,13 +52,15 @@ final class RemoteWorkflowServer {
     private final Set<String> remoteExecutionIds = ConcurrentHashMap.newKeySet();
     private ServerSocket socket;
     private Thread acceptThread;
-    private String assetRoot = "public";
 
     private RemoteWorkflowServer(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) {
         this.context = context.getApplicationContext();
         this.pythonWorker = pythonWorker;
         this.requestWorker = requestWorker;
         this.executionController = executionController;
+        byte[] tokenBytes = new byte[18];
+        new SecureRandom().nextBytes(tokenBytes);
+        token = Base64.encodeToString(tokenBytes, Base64.URL_SAFE | Base64.NO_WRAP | Base64.NO_PADDING);
         this.requiresPin = requiresPin;
         pin = String.format(java.util.Locale.US, "%04d", new SecureRandom().nextInt(10_000));
         discovery = new LanDiscoveryService(this.context, PORT);
@@ -67,55 +68,15 @@ final class RemoteWorkflowServer {
 
     static RemoteWorkflowServer start(Context context, ExecutorService pythonWorker, ExecutorService requestWorker, PythonExecutionController executionController, boolean requiresPin) throws IOException {
         RemoteWorkflowServer server = new RemoteWorkflowServer(context, pythonWorker, requestWorker, executionController, requiresPin);
-        server.assetRoot = server.resolveAssetRoot();
-        server.socket = new ServerSocket();
+        try (InputStream ignored = server.context.getAssets().open("public/index.html")) { }
+        server.socket = new ServerSocket(PORT);
         server.socket.setReuseAddress(true);
-        server.socket.bind(new InetSocketAddress(PORT));
         server.running = true;
         server.acceptThread = new Thread(server::acceptLoop, "pydroid-flow-lan-server");
         server.acceptThread.setDaemon(true);
         server.acceptThread.start();
         try { server.discovery.start(); } catch (Exception ignored) { /* Discovery must never take down HTTP. */ }
-        try {
-            server.verifyLoopbackReady();
-        } catch (IOException exception) {
-            server.stop();
-            throw exception;
-        }
         return server;
-    }
-
-    private void verifyLoopbackReady() throws IOException {
-        String health = verifyEndpoint("/health");
-        if (!"OK".equals(health.trim())) throw new IOException("Remote Web /health readiness check failed");
-        String shell = verifyEndpoint("/");
-        if (!shell.contains("id=\"root\"") || !shell.toLowerCase(java.util.Locale.ROOT).contains("<script")) {
-            throw new IOException("Remote Web browser shell readiness check failed");
-        }
-        java.util.regex.Matcher matcher = java.util.regex.Pattern.compile("<script[^>]+src=[\"']([^\"']+)[\"']", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(shell);
-        if (matcher.find()) {
-            String asset = matcher.group(1);
-            if (!asset.startsWith("/")) asset = "/" + asset.replaceFirst("^\\./", "");
-            String javascript = verifyEndpoint(asset);
-            if (javascript.length() < 32) throw new IOException("Remote Web main asset readiness check failed: " + asset);
-        }
-    }
-
-    private String verifyEndpoint(String path) throws IOException {
-        try (Socket probe = new Socket()) {
-            probe.connect(new InetSocketAddress("127.0.0.1", PORT), 2500);
-            probe.setSoTimeout(2500);
-            OutputStream output = probe.getOutputStream();
-            output.write(("GET " + path + " HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
-            output.flush();
-            byte[] response = readAll(probe.getInputStream(), MAX_BODY_BYTES);
-            String text = new String(response, StandardCharsets.UTF_8);
-            int headerEnd = text.indexOf("\r\n\r\n");
-            if (headerEnd < 0) throw new IOException("Remote Web readiness returned an invalid HTTP response for " + path);
-            String statusLine = text.substring(0, Math.max(0, text.indexOf("\r\n")));
-            if (!statusLine.matches("HTTP/1\\.[01] 200(?: .*)?")) throw new IOException("Remote Web readiness returned " + statusLine + " for " + path);
-            return text.substring(headerEnd + 4);
-        }
     }
 
     JSONObject connectionInfo() throws Exception {
@@ -134,7 +95,6 @@ final class RemoteWorkflowServer {
         discovery.stop();
         for (String executionId : remoteExecutionIds) executionController.cancel(executionId);
         remoteExecutionIds.clear();
-        accessGuard.reset();
         try { if (socket != null) socket.close(); } catch (IOException ignored) { }
     }
 
@@ -172,19 +132,12 @@ final class RemoteWorkflowServer {
                 return;
             }
             if (request.path.startsWith("/api/")) {
-                String clientKey = client.getInetAddress() == null ? "unknown" : client.getInetAddress().getHostAddress();
                 if ("/api/pair".equals(request.path)) {
-                    handlePair(request, output, clientKey);
+                    handlePair(request, output);
                     return;
                 }
-                if (!accessGuard.validateToken(request.headers.get("x-pydroid-token"), clientKey)) {
-                    sendJson(output, 401, new JSONObject().put("error", "配对会话无效或已过期，请重新配对"));
-                    return;
-                }
-                boolean expensive = "/api/execute".equals(request.path) || "/api/analyze-notebook".equals(request.path) || "/api/analyze-signature".equals(request.path) || "/api/agent-proxy".equals(request.path);
-                RemoteAccessGuard.Decision rate = accessGuard.consumeApi(clientKey, expensive);
-                if (!rate.allowed) {
-                    sendRateLimited(output, "请求过于频繁，请 " + rate.retryAfterSeconds + " 秒后重试", rate.retryAfterSeconds);
+                if (!token.equals(request.headers.get("x-pydroid-token"))) {
+                    sendJson(output, 401, new JSONObject().put("error", "尚未配对"));
                     return;
                 }
                 handleApi(request, output);
@@ -195,34 +148,27 @@ final class RemoteWorkflowServer {
                 return;
             }
             serveAsset(request.path, output);
-        } catch (SocketTimeoutException ignored) {
-            // An incomplete browser request should never keep the app's worker thread forever.
+        } catch (SocketTimeoutException exception) {
+            Log.w("PyDroid-Remote", "Remote request timed out", exception);
         } catch (Exception exception) {
             String message = exception.getMessage();
-            String safeMessage = message != null && message.startsWith("[EXECUTION_") ? message : "Remote service error";
-            try { sendJson(client.getOutputStream(), 500, new JSONObject().put("error", safeMessage)); } catch (Exception ignored) { }
+            if (message == null || message.isBlank()) message = exception.getClass().getSimpleName();
+            Log.e("PyDroid-Remote", "Remote request failed: " + message, exception);
+            try { sendJson(client.getOutputStream(), 500, new JSONObject().put("error", message)); } catch (Exception ignored) { }
         }
     }
 
-    private void handlePair(Request request, OutputStream output, String clientKey) throws Exception {
+    private void handlePair(Request request, OutputStream output) throws Exception {
         if (!"POST".equals(request.method)) {
             send(output, 405, "text/plain", "Method not allowed".getBytes(StandardCharsets.UTF_8));
             return;
         }
-        RemoteAccessGuard.Decision pairCheck = accessGuard.checkPair(clientKey);
-        if (!pairCheck.allowed) {
-            sendRateLimited(output, "配对尝试过多，请 " + pairCheck.retryAfterSeconds + " 秒后重试", pairCheck.retryAfterSeconds);
-            return;
-        }
         JSONObject payload = new JSONObject(new String(request.body, StandardCharsets.UTF_8));
         if (requiresPin && !pin.equals(payload.optString("pin", ""))) {
-            RemoteAccessGuard.Decision failure = accessGuard.recordPairFailure(clientKey);
-            if (!failure.allowed) sendRateLimited(output, "配对尝试过多，请 " + failure.retryAfterSeconds + " 秒后重试", failure.retryAfterSeconds);
-            else sendJson(output, 403, new JSONObject().put("error", "四位校验码不正确"));
+            sendJson(output, 403, new JSONObject().put("error", "四位校验码不正确"));
             return;
         }
-        accessGuard.recordPairSuccess(clientKey);
-        sendJson(output, 200, new JSONObject().put("token", accessGuard.issueToken(clientKey)));
+        sendJson(output, 200, new JSONObject().put("token", token));
     }
 
     private void handleApi(Request request, OutputStream output) throws Exception {
@@ -371,12 +317,6 @@ final class RemoteWorkflowServer {
         }
     }
 
-    private void sendRateLimited(OutputStream output, String error, int retryAfterSeconds) throws IOException {
-        JSONObject payload = new JSONObject();
-        try { payload.put("error", error).put("retryAfterSeconds", retryAfterSeconds); } catch (Exception ignored) { }
-        sendJsonWithHeaders(output, 429, payload, "Retry-After: " + retryAfterSeconds + "\r\n");
-    }
-
 
     private JSONObject readSettings() {
         File file = new File(new File(new File(context.getFilesDir(), "pydroid-flow"), "settings"), "app-settings.json");
@@ -402,25 +342,6 @@ final class RemoteWorkflowServer {
         }
     }
 
-    private String resolveAssetRoot() throws IOException {
-        AssetManager assets = context.getAssets();
-        String[] roots = new String[] { "public", "www", "" };
-        IOException last = null;
-        for (String root : roots) {
-            String candidate = root.isEmpty() ? "index.html" : root + "/index.html";
-            try (InputStream ignored = assets.open(candidate)) {
-                return root;
-            } catch (IOException exception) {
-                last = exception;
-            }
-        }
-        throw new IOException("Remote Web index.html is missing from packaged Android assets", last);
-    }
-
-    private String assetPath(String path) {
-        return assetRoot == null || assetRoot.isEmpty() ? path : assetRoot + "/" + path;
-    }
-
     private void serveAsset(String rawPath, OutputStream output) throws IOException {
         String path = rawPath.equals("/") ? "index.html" : rawPath.substring(1);
         if (path.contains("..") || path.contains("\\") || path.isEmpty()) {
@@ -428,12 +349,12 @@ final class RemoteWorkflowServer {
             return;
         }
         AssetManager assets = context.getAssets();
-        try (InputStream input = assets.open(assetPath(path))) {
+        try (InputStream input = assets.open("public/" + path)) {
             send(output, 200, contentType(path), readAll(input, MAX_BODY_BYTES));
         } catch (IOException exception) {
             // Client-side routes should still resolve to the Remote Web SPA shell.
             if (!path.contains(".")) {
-                try (InputStream input = assets.open(assetPath("index.html"))) {
+                try (InputStream input = assets.open("public/index.html")) {
                     send(output, 200, "text/html; charset=utf-8", readAll(input, MAX_BODY_BYTES));
                     return;
                 }
@@ -468,10 +389,7 @@ final class RemoteWorkflowServer {
             if (colon > 0) headers.put(lines[index].substring(0, colon).trim().toLowerCase(), lines[index].substring(colon + 1).trim());
         }
         int contentLength = headers.containsKey("content-length") ? Integer.parseInt(headers.get("content-length")) : 0;
-        int bodyLimit = "/api/pair".equals(path) ? MAX_PAIR_BODY_BYTES
-            : ("/api/execute".equals(path) || "/api/agent-proxy".equals(path)) ? MAX_BODY_BYTES
-            : MAX_CONTROL_BODY_BYTES;
-        if (contentLength < 0 || contentLength > bodyLimit) throw new IOException("Request body is too large");
+        if (contentLength < 0 || contentLength > MAX_BODY_BYTES) throw new IOException("Request body is too large");
         byte[] body = readExactly(input, contentLength);
         return new Request(requestLine[0], path, headers, body);
     }

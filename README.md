@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.82 (105) · Phase 11 Workflow Compatibility & Migration 最终网络基线恢复候选**。保留 Phase 11 全部迁移能力，同时将 Desktop Remote Web 生产服务器恢复到用户实机确认可用的 1.4.76 行为；运行时不再自动调用 PowerShell/UAC 或修改 Windows 防火墙。Remote Host 单机诊断成功时只记为 skip，不再声称已经证明跨设备可达。详见 [docs/phase11-workflow-compatibility-migration.md](docs/phase11-workflow-compatibility-migration.md)。
+> **当前开发版本：1.4.83 (106) · Deterministic Core / Remote Web 修复候选**。Remote Web 已回到单一路径：直接绑定固定 TCP 8765，HTTP 启动不再经过 lifecycle/readiness/firewall/recovery 状态机；SSDP/UPnP/mDNS 仅作为独立发现能力。桌面成品 Smoke 现在必须真实启动 8765 并请求 `/health`、主页和实际 JS 资源，不能再用状态桥接“替代启动”。构建器同样改为缺失即报错、一次执行，不自动安装工具、探测代理、重试或降级打包。Phase 11 工作流迁移能力保留。详见 [docs/1.4.83-deterministic-core.md](docs/1.4.83-deterministic-core.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -73,7 +73,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 局域网网页遥控 | 已实现：Android 托管同一 UI；启动后自动 SSDP/UPnP + mDNS 发现 | 已实现：Electron 托管同一 UI；启动后自动 SSDP/UPnP + mDNS 发现 |
 | AI 节点规划 | 已实现：会话密钥、计划预览、权限和审计 | 已实现，共用渲染层与工作流模型 |
 | 表格、图表及导出预览 | 已实现 | 已实现 |
-| 自动化测试 | 共享诊断 22 项；Remote Host 与 LAN discovery Android 生命周期门禁 | 共享诊断 22 项；Remote Host 与 LAN discovery Desktop SSDP/UPnP/mDNS 可执行生命周期门禁 |
+| 自动化测试 | 共享诊断 20 项；Remote Host 由独立 JVM/HTTP E2E 真实启动验证 | 共享诊断 20 项；Remote Host 由独立 HTTP E2E 与成品 live-HTTP smoke 验证 |
 | 安装包构建 | ARM64 debug APK 本机构建通过，待真机复验 | 自包含 Windows x64 便携包已生成并验证 |
 | 物理设备/人工交互验收 | 待完成 | 新版便携包与自动化链路通过，完整人工交互待完成 |
 
@@ -248,7 +248,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。RC10 构建器统一采用共享工具链：优先**只读复用** `DK_TOOL_ROOT`（推荐 `D:\Code`）中的 Node/JDK/Android SDK/Python。构建器不会向共享工具目录安装、更新或写入任何文件；缺失工具与临时运行时统一放入 `WorkRoot`（推荐 `D:\PyDroidTemp`）下的项目临时工具目录。pnpm/npm/Corepack/Electron/electron-builder/Gradle 下载缓存使用 `DK_CACHE_ROOT`；若未指定，则默认落到 `WorkRoot\cache`。网络层支持 Auto/Direct/Manual，代理会继续传给 pnpm 与 Electron；构建日志保存在输出目录的 `logs/`。Electron/electron-builder 不要求全局安装，具体版本仍由各项目 `package.json` 与 lockfile 决定。构建器同时兼容 native `pnpm.exe`、Corepack/JavaScript launcher 与传统 `pnpm.cmd`；清理 Electron/Android 构建输出时对 Windows 超长路径使用扩展长度路径与 `robocopy` 兜底，避免 PowerShell 5.1 在深层 `node_modules` 中因 `MAX_PATH` 中止构建；`pnpm check` 会先运行轻量构建工具回归测试。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.83 构建器采用确定性工具链：默认只读使用 `D:\Code` 中固定的 Node/JDK/Android SDK/Python，并在 `D:\PyDroidTemp` 中保存工作区和缓存。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不再扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 
@@ -284,12 +284,7 @@ pnpm android:emulator
 子进程，可直接读取源码更新。Notebook AST 识别器位于
 `python/pydroid_flow/notebook.py`，对应测试位于 `python/tests/test_notebook.py`。
 
-Android 打包需要 JDK 21、Python 3.13、Android SDK platform 36，以及 ARM64
-设备或模拟器。Windows 开发和打包使用项目内 `.tools/python313-runtime/`，该运行时会
-连同桌面安装包发布；开发时也可以通过
-`PYDROID_PYTHON_EXECUTABLE` 指定其他 Python 3.13 可执行文件。
-`android:package` 优先使用 `JAVA_HOME`，否则使用项目内 `.tools/jdk-21/`，debug APK
-输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
+Android 打包需要 JDK 21、完整 64-bit Python 3.13（含 `venv`/`ensurepip`）和 Android SDK platform 36。默认分别使用 `D:\Code\Language\Java`、`D:\Code\Python\3.13\python.exe`、`D:\Code\Android\Sdk`，也可通过构建 GUI 或专用环境变量显式覆盖。Desktop 便携 Python 默认位于 `D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13`，可用 `pnpm env:windows` 人工准备；核心 builder 不会自动调用环境准备脚本。debug APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
 本机 x86_64 模拟器通过 Google APIs 镜像的 NDK translation 运行 ARM64-only APK，
 不会给应用增加 x86_64 ABI。项目结束时运行 `pnpm android:emulator:remove` 删除该 AVD
 及其项目本地 SDK；此操作不会删除源码或项目 JDK。

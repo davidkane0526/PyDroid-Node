@@ -328,15 +328,7 @@ async function discoverSmbServers() {
     seen.add(address);
     found.push({ address, name: names.get(address) || address, shares: [] });
   }
-  // 3) 对首次 nbtstat 解析失败的设备重试（UDP 137 偶发丢包），与共享枚举并行
-  const retryTargets = pending.filter((address) => names.get(address) === address);
-  const retryPromise = retryTargets.length
-    ? Promise.all(retryTargets.map(async (address) => {
-        const name = await netbiosName(address);
-        if (name) names.set(address, name);
-      }))
-    : Promise.resolve();
-  // 4) 共享枚举并行批次（Get-ChildItem \\ip 对无凭据主机快速失败，避免串行累积等待）
+  // 3) 共享枚举并行批次（Get-ChildItem \\ip 对无凭据主机快速失败，避免串行累积等待）
   const shareCandidates = found.map((server) => server.address);
   const sharesByAddress = new Map();
   for (let offset = 0; offset < shareCandidates.length; offset += 16) {
@@ -344,13 +336,12 @@ async function discoverSmbServers() {
     const results = await Promise.all(batch.map((address) => netViewShares(address).catch(() => [])));
     batch.forEach((address, index) => sharesByAddress.set(address, results[index]));
   }
-  await retryPromise;
   for (const server of found) {
     server.shares = sharesByAddress.get(server.address) || [];
     const name = names.get(server.address);
     if (name && name !== server.address) server.name = name;
   }
-  // 5) mDNS 正向发现补充：_smb._tcp.local 的权威名称，覆盖 445 未开或 net view 漏掉的设备
+  // 4) mDNS 正向发现补充：_smb._tcp.local 的权威名称，覆盖 445 未开或 net view 漏掉的设备
   for (const server of await mdnsPromise) {
     const key = server.address.toLocaleLowerCase();
     if (seen.has(key)) {

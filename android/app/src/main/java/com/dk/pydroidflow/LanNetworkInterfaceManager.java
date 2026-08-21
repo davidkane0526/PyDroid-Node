@@ -46,13 +46,6 @@ final class LanNetworkInterfaceManager {
         return selected;
     }
 
-    static String key(List<Entry> entries) {
-        List<String> values = new ArrayList<>();
-        for (Entry entry : entries) values.add(entry.key());
-        Collections.sort(values);
-        return String.join("|", values);
-    }
-
     static Entry selectForRemote(List<Entry> entries, InetAddress remote) {
         if (remote instanceof Inet4Address) {
             byte[] candidate = remote.getAddress();

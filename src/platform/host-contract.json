@@ -32,7 +32,6 @@
     { "capability": "profile", "operation": "deleteWorkflowFile", "desktop": { "mode": "system-dialog" }, "android": { "plugin": "PythonExecutor", "method": "deleteWorkflowFile" } },
 
     { "capability": "remote", "operation": "startServer", "desktop": { "bridge": "startRemoteServer", "channel": "pydroid:start-remote-server" }, "android": { "plugin": "PythonExecutor", "method": "startRemoteServer" } },
-    { "capability": "remote", "operation": "getHostStatus", "desktop": { "bridge": "getRemoteHostStatus", "channel": "pydroid:get-remote-host-status" }, "android": { "plugin": "PythonExecutor", "method": "getRemoteHostStatus" } },
     { "capability": "remote", "operation": "stopServer", "desktop": { "bridge": "stopRemoteServer", "channel": "pydroid:stop-remote-server" }, "android": { "plugin": "PythonExecutor", "method": "stopRemoteServer" } },
 
     { "capability": "system", "operation": "setSystemTheme", "desktop": { "mode": "renderer-css" }, "android": { "plugin": "UiChrome", "method": "setTheme" } },

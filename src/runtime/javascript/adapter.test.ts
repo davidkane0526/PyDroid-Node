@@ -29,7 +29,7 @@ describe("javascript runtime compatibility", () => {
     expect(support?.supported).toBe(true);
   });
 
-  it("rejects Python-source nodes so auto mode can fall back safely", () => {
+  it("rejects Python-source nodes before auto runtime selection", () => {
     const support = javascriptRuntime.canExecute?.([node("custom", "custom.python_function")]);
     expect(support?.supported).toBe(false);
     expect(support?.reason).toContain("custom.python_function");

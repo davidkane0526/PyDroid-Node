@@ -23,28 +23,22 @@ assert.match(desktop, /function resolveRendererRoot\(/, "Desktop Remote Web must
 assert.match(desktop, /package-remote/, "Desktop Remote Web must serve the browser-native renderer bundle");
 assert.match(desktopPackage, /remoteRendererStage[\s\S]*package-remote/, "desktop packaging must stage the Remote Web browser bundle");
 assert.ok(packageJson.build.files.includes("desktop/package-remote/**/*"), "electron-builder must include the staged Remote Web browser bundle");
-const buildScript = readFileSync(path.join(root, "tools/build-pydroid.ps1"), "utf8");
 const packagedSmoke = readFileSync(path.join(root, "desktop/window/create-window.cjs"), "utf8");
-assert.match(buildScript, /Invoke-DesktopCompatibilityPackage[\s\S]*remoteRendererSource[\s\S]*package-remote/, "Desktop compatibility packaging must stage the browser-native Remote Web bundle");
-assert.doesNotMatch(packagedSmoke, /startRemoteServer\(true\)/, "Packaged desktop smoke must not open a real LAN listener during packaging");
-const remoteStatusOperation = hostContract.operations.find((item) => item.capability === "remote" && item.operation === "getHostStatus");
-assert.ok(remoteStatusOperation, "Host contract must define remote.getHostStatus");
-const remoteStatusBridge = remoteStatusOperation.desktop?.bridge;
-assert.equal(remoteStatusBridge, "getRemoteHostStatus", "Desktop remote.getHostStatus bridge name must remain contract-stable");
-assert.ok(preload.includes(`${remoteStatusBridge}: () => ipcRenderer.invoke("${remoteStatusOperation.desktop.channel}")`), "Desktop preload must expose the contract-defined Remote Host status bridge");
-assert.ok(packagedSmoke.includes(`${remoteStatusBridge}()`), "Packaged desktop smoke must call the contract-defined Remote Host status bridge");
-assert.doesNotMatch(packagedSmoke, /getRemoteServerStatus\(/, "Packaged desktop smoke must not use the obsolete/nonexistent getRemoteServerStatus bridge name");
-assert.match(desktop, /verifyLoopbackReady/, "Desktop Remote Web must verify a real loopback HTTP response before reporting startup success");
-assert.match(android, /verifyLoopbackReady\(\)/, "Android Remote Web must verify a real loopback HTTP response before reporting startup success");
-assert.doesNotMatch(desktop, /verifyEndpointAtHost|LAN self-test/i, "Desktop startup readiness must not depend on hairpin access through the selected LAN address");
-assert.doesNotMatch(android, /verifyEndpointAtHost|LAN self-test/i, "Android startup readiness must not depend on hairpin access through the selected LAN address");
+assert.match(desktopPackage, /remoteRendererSource[\s\S]*dist[\s\S]*cpSync\(remoteRendererSource, remoteRendererStage/, "Desktop packaging must stage the browser-native Remote Web bundle directly from dist");
+assert.match(packagedSmoke, /startRemoteServer\(true\)[\s\S]*127\.0\.0\.1[\s\S]*\/health[\s\S]*stopRemoteServer\(\)/, "Packaged desktop smoke must open the real listener and request the real HTTP endpoint");
+assert.doesNotMatch(packagedSmoke, /getRemoteHostStatus|getRemoteServerStatus/, "Packaged desktop smoke must not substitute a lifecycle/status bridge for real HTTP");
+assert.doesNotMatch(desktop, /verifyLoopbackReady|currentConnectionInfo|remoteLifecycleGeneration|remoteStopPromise|recoveryAttempts/, "Desktop production startup must not self-probe, reconcile, or recover");
+assert.doesNotMatch(android, /verifyLoopbackReady|RemoteAccessGuard|PAIR_MAX_FAILURES|TOKEN_TTL_MS/, "Android production startup must not self-probe or run defensive access guards");
 assert.match(androidService, /remoteRequests\.execute\(\(\) ->/, "Android Remote Web startup must run off the Capacitor/UI call path");
 assert.match(android, /new JSONArray\(discovery\.urls\(\)\)/, "Android Remote Web should expose alternate LAN URLs when multiple interfaces exist");
 assert.match(desktop, /index\.html[\s\S]*Remote Web renderer not found/, "Desktop Remote Web must fail clearly when its renderer is missing");
-assert.match(android, /resolveAssetRoot\(\)/, "Android Remote Web must resolve the packaged asset root");
-assert.match(android, /Remote Web index\.html is missing from packaged Android assets/, "Android Remote Web must fail clearly when packaged web assets are missing");
+assert.match(android, /getAssets\(\)\.open\("public\/index\.html"\)/, "Android Remote Web must require the exact Capacitor asset root before binding");
+assert.match(android, /assets\.open\("public\/" \+ path\)/, "Android Remote Web must serve from the exact Capacitor public asset root");
+assert.doesNotMatch(android, /resolveAssetRoot|"www"/, "Android Remote Web must not probe alternate packaged asset roots");
 assert.match(desktop, /Cache-Control[\s\S]*no-store/, "Desktop Remote Web index should avoid stale shell caching without URL version noise");
 assert.match(android, /Cache-Control: no-store/, "Android Remote Web responses should avoid stale shell caching without URL version noise");
+assert.ok(!hostContract.operations.some((item) => item.capability === "remote" && item.operation === "getHostStatus"), "Remote host lifecycle reconciliation must not be part of the platform contract");
+assert.doesNotMatch(preload, /getRemoteHostStatus/, "Desktop preload must not expose a reconciliation-only host status API");
 
 for (const [name, source] of [
   ["Desktop service", desktop], ["Desktop discovery", desktopDiscovery], ["Desktop UPnP", desktopUpnp], ["Desktop mDNS", desktopMdns],

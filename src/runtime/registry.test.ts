@@ -30,7 +30,7 @@ describe("runtime registry", () => {
     expect(resolveRuntime("auto", [node("io.read_csv")]).descriptor.id).toBe("javascript");
   });
 
-  it("falls back to Python in auto mode when JavaScript cannot execute the workflow", () => {
+  it("selects Python in auto mode when JavaScript cannot execute the workflow", () => {
     expect(resolveRuntime("auto", [node("python-only")]).descriptor.id).toBe("python");
   });
 
