@@ -1,4 +1,4 @@
-# PyDroid Node 1.4.83 环境约定
+# PyDroid Node 1.4.84 环境约定
 
 构建环境采用**显式路径或固定目录**。构建器不会扫描系统寻找替代安装，也不会安装缺失工具。
 
@@ -7,7 +7,6 @@
 ```text
 D:\Code\
   NodeJs\node.exe
-  NodeJs\pnpm.cmd
   Language\Java\bin\java.exe
   Language\Java\bin\javac.exe
   Android\Sdk\platforms\android-36\android.jar
@@ -25,7 +24,7 @@ D:\PyDroidTemp\
 | 工具 | 要求 | 默认路径 | 显式覆盖 |
 | --- | --- | --- | --- |
 | Node.js | 24.19.x，项目 engines 为 24 | `D:\Code\NodeJs\node.exe` | `-NodeExecutable` / `PYDROID_NODE_EXECUTABLE` |
-| pnpm | `packageManager` 指定，目前 11.21.0 | `D:\Code\NodeJs\pnpm.cmd` | `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE` |
+| pnpm | `packageManager` 指定，目前 11.21.0 | `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd` | `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE` |
 | JDK | 21，完整 JDK | `D:\Code\Language\Java` | `-JavaHome` / `PYDROID_JAVA_HOME` / `JAVA_HOME` |
 | Android SDK | `android/variables.gradle` 中的 compileSdk，目前 36 | `D:\Code\Android\Sdk` | `-AndroidSdkHome` / `PYDROID_ANDROID_SDK` / `ANDROID_HOME` |
 | Android buildPython | 64-bit CPython 3.13，含 `venv` 和 `ensurepip` | `D:\Code\Python\3.13\python.exe` | `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE` |
@@ -40,7 +39,7 @@ PYDROID_BUILD_HOME=D:\PyDroidTemp
 DK_TOOL_ROOT=D:\Code
 DK_CACHE_ROOT=D:\PyDroidTemp\cache
 PYDROID_NODE_EXECUTABLE=D:\Code\NodeJs\node.exe
-PYDROID_PNPM_EXECUTABLE=D:\Code\NodeJs\pnpm.cmd
+PYDROID_PNPM_EXECUTABLE=C:\Users\<user>\AppData\Local\pnpm\bin\pnpm.cmd
 PYDROID_JAVA_HOME=D:\Code\Language\Java
 PYDROID_ANDROID_SDK=D:\Code\Android\Sdk
 PYDROID_PYTHON_EXECUTABLE=D:\Code\Python\3.13\python.exe

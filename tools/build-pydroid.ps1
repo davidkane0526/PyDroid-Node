@@ -53,7 +53,7 @@
     可选 Node.js 可执行文件。留空时使用 PYDROID_NODE_EXECUTABLE，否则固定 ToolRoot\NodeJs\node.exe。
 
 .PARAMETER PnpmExecutable
-    可选 pnpm.cmd/pnpm.exe。留空时使用 PYDROID_PNPM_EXECUTABLE，否则与 Node 位于同一目录的 pnpm.cmd。
+    可选 pnpm.cmd/pnpm.exe。留空时使用 PYDROID_PNPM_EXECUTABLE，否则固定为 %LOCALAPPDATA%\pnpm\bin\pnpm.cmd。不会扫描 PATH，也不会调用额外的包管理器启动器。
 
 .PARAMETER JavaHome
     JDK 根目录、bin 目录或 java.exe/javac.exe。留空时依次使用 PYDROID_JAVA_HOME、JAVA_HOME、ToolRoot\Language\Java。仅验证该路径。
@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.83-dev-r60-deterministic-core"
+$script:BuildScriptRevision = "1.4.84-dev-r61-pnpm-path-fix"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -360,7 +360,7 @@ function Resolve-NodeExecutable {
 
 function Resolve-PnpmExecutable {
     $configured = if ($PnpmExecutable) { $PnpmExecutable } elseif ($env:PYDROID_PNPM_EXECUTABLE) { $env:PYDROID_PNPM_EXECUTABLE } else { $null }
-    return (PyDroid.Build.Node\Resolve-PyDroidPnpmExecutable -ConfiguredExecutable $configured -NodeExecutable $script:NodeExecutable)
+    return (PyDroid.Build.Node\Resolve-PyDroidPnpmExecutable -ConfiguredExecutable $configured)
 }
 
 function Invoke-Pnpm {

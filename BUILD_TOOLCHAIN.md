@@ -1,6 +1,6 @@
 # PyDroid Node deterministic build toolchain
 
-Baseline: **1.4.83 / Deterministic Core** (2026-08-21).
+Baseline: **1.4.84 / Deterministic Core** (2026-08-21).
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
 
@@ -34,7 +34,6 @@ OutputRoot = <WorkRoot>
 D:\Code\
   NodeJs\
     node.exe
-    pnpm.cmd
   Language\Java\
     bin\java.exe
     bin\javac.exe
@@ -43,6 +42,8 @@ D:\Code\
   Python\3.13\
     python.exe                 # 完整 CPython，含 venv/ensurepip
 ```
+
+pnpm 不属于 `ToolRoot`。默认入口固定为 `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`；如需其它位置，只能通过 `-PnpmExecutable` 或 `PYDROID_PNPM_EXECUTABLE` 显式指定。构建器不扫描 PATH、不调用 Corepack，也不自动安装 pnpm。
 
 Desktop 便携 Python 默认位于：
 

@@ -1,11 +1,11 @@
-<#
+﻿<#
 .SYNOPSIS
-Prepare the Windows desktop development environment on the deterministic 1.4.83 toolchain.
+Prepare the Windows desktop development environment on the deterministic 1.4.84 toolchain.
 #>
 
 [CmdletBinding()]
 param(
-    [string]$PnpmExecutable = $(if ($env:PYDROID_PNPM_EXECUTABLE) { $env:PYDROID_PNPM_EXECUTABLE } else { "D:\Code\NodeJs\pnpm.cmd" }),
+    [string]$PnpmExecutable = $(if ($env:PYDROID_PNPM_EXECUTABLE) { $env:PYDROID_PNPM_EXECUTABLE } else { (Join-Path $env:LOCALAPPDATA "pnpm\bin\pnpm.cmd") }),
     [string]$RuntimeRoot = $(if ($env:PYDROID_DESKTOP_PYTHON_RUNTIME) { $env:PYDROID_DESKTOP_PYTHON_RUNTIME } else { "D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13" }),
     [switch]$Start
 )

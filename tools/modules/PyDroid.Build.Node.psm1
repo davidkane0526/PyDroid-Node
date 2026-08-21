@@ -1,5 +1,5 @@
 ﻿# PyDroid Node/pnpm build-tool helpers. Windows PowerShell 5.1 compatible.
-# Deterministic policy: validate explicit executable paths only.
+# Deterministic policy: use explicit paths or one fixed Windows user-level pnpm location; never scan PATH or alternate machine locations.
 
 function Test-PyDroidNodeCandidate {
     param(
@@ -27,14 +27,14 @@ function Resolve-PyDroidNodeExecutable {
 }
 
 function Resolve-PyDroidPnpmExecutable {
-    param(
-        [string]$ConfiguredExecutable,
-        [Parameter(Mandatory = $true)][string]$NodeExecutable
-    )
+    param([string]$ConfiguredExecutable)
     if (-not [string]::IsNullOrWhiteSpace($ConfiguredExecutable)) {
         return [Environment]::ExpandEnvironmentVariables($ConfiguredExecutable.Trim().Trim('"'))
     }
-    return (Join-Path (Split-Path $NodeExecutable -Parent) 'pnpm.cmd')
+    if ([string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
+        throw 'LOCALAPPDATA 未定义，无法解析默认 pnpm。请显式传入 -PnpmExecutable 或设置 PYDROID_PNPM_EXECUTABLE。'
+    }
+    return (Join-Path $env:LOCALAPPDATA 'pnpm\bin\pnpm.cmd')
 }
 
 Export-ModuleMember -Function 'Test-PyDroidNodeCandidate', 'Resolve-PyDroidNodeExecutable', 'Resolve-PyDroidPnpmExecutable'

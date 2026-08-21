@@ -1,3 +1,9 @@
+## 1.4.84 (107) — Deterministic pnpm path correction — 2026-08-21
+
+- Fix Windows build bootstrap: Node remains fixed at `D:\Code\NodeJs\node.exe`, while pnpm now defaults to the actual user-level installation `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`.
+- Preserve deterministic behavior: no PATH scan, no Corepack, no automatic download, no retry/fallback chain. `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE` remain the only explicit override.
+- Build revision: `1.4.84-dev-r61-pnpm-path-fix`.
+
 ## 1.4.83 (106) — Deterministic Core / Remote false-green repair — 2026-08-21
 
 - Fixes the core validation defect behind 1.4.82: the packaged Desktop smoke had stopped proving a live Remote Web listener and could pass through a host-status bridge while TCP 8765 was unusable. The packaged smoke now starts the real server and fetches `/health`, `/`, and the actual packaged JS asset.

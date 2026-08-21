@@ -28,8 +28,11 @@ assert.match(build, /Invoke-Pnpm \$installArgs/);
 assert.match(build, /Invoke-Pnpm @\("desktop:package"\)/);
 assert.doesNotMatch(build, /Corepack|COREPACK_HOME|Install-Node|Install-Jdk|Install-AndroidSdk|Install-Python|SearchRoots|DeferredCleanup|compatibility package|PLAIN_EXE_FALLBACK/i);
 
+assert.match(nodeModule, /Join-Path \$env:LOCALAPPDATA 'pnpm\\bin\\pnpm\.cmd'/);
+assert.doesNotMatch(nodeModule, /Get-Command|Get-ItemProperty|Registry|CurrentVersion\\Uninstall|where\.exe|py\.exe|Program Files|recursive|fallback/i,
+  "Node build helper must not scan alternate machine locations");
 for (const [name, source] of [
-  ["Node", nodeModule], ["Java", javaModule], ["Android", androidModule], ["Python", pythonModule],
+  ["Java", javaModule], ["Android", androidModule], ["Python", pythonModule],
 ]) {
   assert.doesNotMatch(source, /Get-Command|Get-ItemProperty|Registry|CurrentVersion\\Uninstall|where\.exe|py\.exe|Program Files|LOCALAPPDATA|recursive|fallback/i,
     `${name} build helper must not scan alternate machine locations`);

@@ -1,4 +1,4 @@
-# PyDroid Build GUI — 1.4.83 deterministic baseline
+# PyDroid Build GUI — 1.4.84 deterministic baseline
 
 正常构建入口是项目根目录的 `Build PyDroid GUI.cmd`。GUI 调用 `tools/build-pydroid.ps1`，源码先同步到外部工作目录，再从工作副本构建。
 
@@ -10,7 +10,7 @@
 - `ToolRoot`：`DK_TOOL_ROOT`，否则 `D:\Code`，只读。
 - `CacheRoot`：`DK_CACHE_ROOT`，否则 `WorkRoot\cache`。
 - Node：显式 `-NodeExecutable` / `PYDROID_NODE_EXECUTABLE`，否则 `ToolRoot\NodeJs\node.exe`。
-- pnpm：显式 `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE`，否则与 Node 同目录的 `pnpm.cmd`。
+- pnpm：显式 `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE`，否则固定使用 `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`。不扫描 PATH，不调用 Corepack。
 - JDK：显式 `-JavaHome` / `PYDROID_JAVA_HOME` / `JAVA_HOME`，否则 `ToolRoot\Language\Java`。
 - Android SDK：显式 `-AndroidSdkHome` / `PYDROID_ANDROID_SDK` / `ANDROID_HOME`，否则 `ToolRoot\Android\Sdk`。
 - Android buildPython：显式 `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE`，否则 `ToolRoot\Python\3.13\python.exe`。
