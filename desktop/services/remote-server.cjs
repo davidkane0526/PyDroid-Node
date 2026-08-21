@@ -90,8 +90,12 @@ function createRemoteServerService({ pythonService, log }) {
           response.writeHead(200, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
           return response.end("OK");
         }
-        if (url.pathname === "/api/health") return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
-        if (url.pathname === "/api/pair" && request.method === "POST") {
+        if (url.pathname === "/api/health") {
+          if (request.method !== "GET") return sendJson(response, 405, { error: "Method not allowed" });
+          return sendJson(response, 200, { requiresPin: Boolean(remotePin) });
+        }
+        if (url.pathname === "/api/pair") {
+          if (request.method !== "POST") return sendJson(response, 405, { error: "Method not allowed" });
           const body = await readRequestBody(request);
           if (remotePin && String(body.pin ?? "") !== remotePin) return sendJson(response, 403, { error: "四位校验码不正确" });
           const token = crypto.randomBytes(24).toString("hex");
@@ -100,7 +104,8 @@ function createRemoteServerService({ pythonService, log }) {
         }
         if (url.pathname.startsWith("/api/")) {
           if (!remoteTokens.has(String(request.headers["x-pydroid-token"] ?? ""))) return sendJson(response, 401, { error: "尚未配对" });
-          const body = request.method === "POST" ? await readRequestBody(request) : {};
+          if (request.method !== "POST") return sendJson(response, 405, { error: "Method not allowed" });
+          const body = await readRequestBody(request);
           if (url.pathname === "/api/execute") {
             const executionId = String(body.executionId ?? `remote-${crypto.randomUUID()}`);
             remoteExecutionIds.add(executionId);
@@ -141,6 +146,9 @@ function createRemoteServerService({ pythonService, log }) {
               if (raw) settings = JSON.parse(raw);
             } catch {}
             return sendJson(response, 200, { settings, agentProxyAvailable: false });
+          }
+          if (url.pathname === "/api/agent-proxy") {
+            return sendJson(response, 409, { error: "桌面宿主当前没有可供网页使用的安全 Agent 密钥代理；请在此浏览器会话中单独填写 API 密钥" });
           }
           return sendJson(response, 404, { error: "接口不存在" });
         }

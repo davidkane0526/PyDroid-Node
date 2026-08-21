@@ -1,6 +1,6 @@
 # Phase 10 — Remote Access Security & Host Reliability
 
-> **历史文档，已被 1.4.83 Deterministic Core 废止。** 本文记录 Phase 10 的实验性 security/readiness/lifecycle 设计，不再构成生产架构要求。其中 RemoteAccessGuard、Token TTL/IP binding、rate limit、readiness、自恢复、Host reconciliation 等机制已从当前代码删除。当前规则见 `docs/1.4.83-deterministic-core.md`。
+> **历史文档，已被 1.4.83 Deterministic Core 废止。** 本文记录 Phase 10 的实验性 security/readiness/lifecycle 设计，不再构成生产架构要求。其中 RemoteAccessGuard、Token TTL/IP binding、rate limit、readiness、自恢复、Host reconciliation 等机制已从当前代码删除。当前规则见 `docs/history/1.4.83-deterministic-core.md`。
 
 
 Started: 2026-08-20

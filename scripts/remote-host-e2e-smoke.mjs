@@ -125,6 +125,12 @@ try {
     assert.equal(lanHealth.status, 200, `selected LAN address is not reachable from the live host: ${info.url}`);
   }
 
+  const healthWrongMethod = await request(`${loopback}/api/health`, { method: "POST" });
+  assert.equal(healthWrongMethod.status, 405, "Desktop /api/health must remain GET-only");
+
+  const pairWrongMethod = await request(`${loopback}/api/pair`, { method: "GET" });
+  assert.equal(pairWrongMethod.status, 405, "Desktop /api/pair must remain POST-only");
+
   const pair = await request(`${loopback}/api/pair`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -140,6 +146,19 @@ try {
     body: "{}",
   });
   assert.equal(api.status, 200);
+
+  const apiWrongMethod = await request(`${loopback}/api/runtime-stats`, {
+    method: "GET",
+    headers: { "X-PyDroid-Token": token },
+  });
+  assert.equal(apiWrongMethod.status, 405, "Authenticated Desktop /api/* endpoints must remain POST-only");
+
+  const agentProxy = await request(`${loopback}/api/agent-proxy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-PyDroid-Token": token },
+    body: JSON.stringify({ provider: "openai", body: {} }),
+  });
+  assert.equal(agentProxy.status, 409, "Desktop must explicitly preserve the no-host-secret Agent proxy contract instead of falling through to 404");
 
   const ssdp = await ssdpSearch();
   assert.ok(ssdp.some((item) => /^HTTP\/1\.1 200 OK/m.test(item) && /LOCATION: http:\/\//i.test(item)), "live SSDP response must advertise an HTTP LOCATION");

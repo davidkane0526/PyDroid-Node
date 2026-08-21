@@ -57,7 +57,7 @@ function getLanInterfaces() {
         netmask: entry.netmask || "255.255.255.0",
         private: isPrivateIpv4(entry.address),
         virtual: VIRTUAL_INTERFACE.test(name),
-        defaultRoute: false,
+        preferred: false,
       });
     }
   }
@@ -66,7 +66,7 @@ function getLanInterfaces() {
   const physicalAny = candidates.filter((item) => !item.virtual);
   const selected = privatePhysical.length ? privatePhysical : privateAny.length ? privateAny : physicalAny.length ? physicalAny : candidates;
   const interfaces = dedupeInterfacesBySubnet(selected);
-  if (interfaces.length) interfaces[0].defaultRoute = true;
+  if (interfaces.length) interfaces[0].preferred = true;
   return interfaces;
 }
 
@@ -83,8 +83,4 @@ function selectInterfaceForRemote(interfaces, remoteAddress) {
   return subnetMatches[0] ?? interfaces[0] ?? null;
 }
 
-function networkKey(interfaces) {
-  return interfaces.map((item) => `${item.name}:${item.address}/${item.netmask}`).sort().join("|");
-}
-
-module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet, networkKey };
+module.exports = { getLanInterfaces, isPrivateIpv4, selectInterfaceForRemote, dedupeInterfacesBySubnet };

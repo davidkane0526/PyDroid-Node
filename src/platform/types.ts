@@ -14,7 +14,7 @@ export type SmbServer = { address: string; name: string; shares?: string[] };
 export type SmbEntry = { name: string; path: string; directory: boolean; size: number; modifiedAt?: string | null };
 
 export type RemoteDiscoveryStatus = {
-  interfaces: Array<{ name: string; address: string; defaultRoute?: boolean }>;
+  interfaces: Array<{ name: string; address: string; preferred?: boolean }>;
   ssdp: "running" | "failed" | "unavailable" | string;
   mdns: "running" | "failed" | "unavailable" | string;
 };

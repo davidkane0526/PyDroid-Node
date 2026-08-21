@@ -1,3 +1,14 @@
+## 1.4.92 (115) — Baseline Consolidation — 2026-08-21
+
+- Establish `docs/BASELINE.md` as the authoritative active architecture after the 1.4.83–1.4.91 Remote/build troubleshooting sequence. Physical acceptance outranks smoke tests: 1.4.91 Windows Remote Web was successfully opened from an Android tablet over the LAN.
+- Add Git acceptance anchors `baseline-remote-lan-1.4.91` and `historical-remote-lan-1.4.73` so future work can compare against known user-validated Remote/LAN states without treating intermediate experiments as requirements.
+- Restore Desktop Remote HTTP correctness that was accidentally removed during the deterministic-core cleanup: `/api/health` is GET-only, `/api/pair` is POST-only, authenticated application `/api/*` endpoints are POST-only, and Desktop `/api/agent-proxy` again returns its explicit 409 unsupported-host-secret contract instead of falling through to 404. Live Remote Host E2E now guards these contracts.
+- Correct the Desktop LAN interface model: the locally scored first interface is now named `preferred`, not `defaultRoute`. No route probe, shell command, PowerShell, UAC, firewall management, readiness gate or recovery path is added.
+- Consolidate `AGENTS.md`, roadmap, handoff, progress and LAN documentation around 1.4.92; move 1.4.83/Phase 10 reliability documents under `docs/history/` so historical experiments cannot silently become current architecture rules.
+- Explicitly classify the removed PIN cooldown, token TTL/IP binding and API rate limits as legitimate deferred security policies rather than useless code. They remain outside the 1.4.92 baseline and must not be coupled to Host startup if reconsidered.
+- Preserve Phase 11 Workflow Compatibility & Migration and all persistent-data safeguards; these are correctness features, not defensive infrastructure.
+- Build revision: `1.4.92-dev-r69-baseline-consolidation`.
+
 ## 1.4.91 (114) — deterministic long-path build cleanup — 2026-08-21
 
 - Replaced recursive PowerShell `Remove-Item` directory cleanup with one .NET recursive delete using Windows extended-length paths.

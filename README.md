@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.91 (114) · long-path-safe deterministic build cleanup**。Remote Web 仍只有一条生产路径：直接绑定 `0.0.0.0:8765` 并立即完成启动，不使用 PowerShell/UAC/防火墙管理/readiness/recovery。Windows 当前桌面版固定输出到 `PyDroid-Flow-Desktop`；重复构建使用一次 `robocopy /MIR` 原位更新，不先递归删除旧 Electron 目录。打包版运行日志固定写到 EXE 同级 `logs/desktop.log`，只记录真实监听、候选 URL 与收到的请求，不参与服务控制。
+> **当前开发版本：1.4.92 (115) · Baseline Consolidation**。1.4.91 Windows Remote Web 已由安卓平板真实局域网访问验收；1.4.92 不重构这条 Host 路径，只恢复 Desktop/Android 一致的 HTTP method 契约、纠正 LAN 接口命名并统一当前文档。Remote Web 仍直接绑定 `0.0.0.0:8765`，Discovery 仅旁路运行。权威基线见 [docs/BASELINE.md](docs/BASELINE.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -9,10 +9,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 所有面向用户的功能、修复和版本号更新均记录在 [CHANGELOG.md](CHANGELOG.md)，并与 Android
 `versionName` / `versionCode` 保持一致。
 
-> **新会话 / Coding AI 开发入口**：先阅读根目录 [AGENTS.md](AGENTS.md) 和
-> [docs/development-handoff.md](docs/development-handoff.md) 与
-> [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。它们记录当前 Git 分支、已完成重构、
-> 云端验证状态、下一阶段计划和“只交付一个干净 Git 项目目录”的约束。
+> **新会话 / Coding AI 开发入口**：先阅读 [docs/BASELINE.md](docs/BASELINE.md)，再阅读根目录 [AGENTS.md](AGENTS.md)、[docs/development-handoff.md](docs/development-handoff.md) 和 [docs/ARCHITECTURE_RELIABILITY_ROADMAP.md](docs/ARCHITECTURE_RELIABILITY_ROADMAP.md)。旧 Phase 10/1.4.83 文档仅作历史证据，不再定义当前架构。
 
 ## 项目目标
 
@@ -23,9 +20,13 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **PlatformAdapter Phase 1（`dev`）**：共享 UI 不变；`App.tsx` 从 `./platform` 获取 SMB、文件、Profile、Secrets、Remote Access 与系统能力，从 `./execution` 只获取 Runtime/执行能力；Android/Web 与 Desktop 均实现同一 `PlatformAdapter` contract。
-- **Runtime Adapter 架构重构（当前分支，待本地完整编译验证）**：保留 149p 共享 UI 与 Python 能力，取回原 JS 分支中可复用的数据流引擎；“自动”模式仅在整个工作流兼容时选择 JS，否则回退 Python；JS 图表以 ECharts 交互式结果接入现有预览。详见 [docs/runtime-architecture.md](docs/runtime-architecture.md)。
-- **1.4.9 RC2 设置与 SMB 文件管理器（当前分支，待本地验证）**：设置窗口使用宽屏双列/窄屏单列的自适应卡片布局并统一主题滚动条；SMB 改为网络设备与共享树、地址面包屑、可折叠连接设置和名称/类型/大小文件列表。详见 [docs/development-handoff.md](docs/development-handoff.md)。
+- **1.4.92 Baseline Consolidation（当前分支）**：以 1.4.91 安卓平板真实访问 Windows Remote Web 的结果作为 LAN 验收锚点；恢复 Desktop Remote API 的 405 method 契约并与 Android 对齐；将 LAN `defaultRoute` 误称改为 `preferred`，不增加路由探测；统一基线、交接、进度和路线文档。
+- **Phase 11 Workflow Compatibility & Migration 已保留**：Workflow schema v3、资源 schema v2 future-version 保护、历史 Git corpus 和迁移后双运行时验证继续作为用户数据正确性能力。
+- **Remote Web 已冻结为基础设施**：Windows/Android 直接监听固定 8765；SSDP/UPnP/mDNS 只负责发现，不能改变 HTTP Host 成败；不使用运行时 PowerShell/UAC/防火墙管理/readiness/recovery。
+- **构建链当前基线**：Windows 当前成品固定输出 `PyDroid-Flow-Desktop`，版本目录仅归档；重复构建用一次镜像覆盖，工作区递归清理使用单一长路径安全 .NET 实现。
+
+### 历史功能演进
+
 - `1.4.9` 候选：修复 Android 长按画布框选与单指平移竞争，框选激活后不再推动画布；首次构建不再因固定为 `null` 的 `restoredSnapshot` 可选链访问产生 `never` 类型错误；并继续统一资源栏、参数面板和节点结果 UI。
 - `1.4.8`：组合会从内部未占用端口自动生成公开输入输出并修复旧 0 端点资源；完成组合与框选计数同步，框选时隐藏连线和删除叉号；节点/组合资源增加右键菜单，组合卡片与桌面拖拽动画重做。
 - `1.4.7`：SMB 文件选择器改为多行设备/登录/共享/文件流程，设备卡显示共享名与 IP，支持访客登录、密码显隐和可读错误；设置页合并为单一文件选择入口；鼠标可拖动连线端点改接或拖到空白处断开，并校准断开按钮；缩窄、减淡资源栏。
@@ -75,7 +76,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 表格、图表及导出预览 | 已实现 | 已实现 |
 | 自动化测试 | 共享诊断 20 项；Remote Host 由独立 JVM/HTTP E2E 真实启动验证 | 共享诊断 20 项；Remote Host 由独立 HTTP E2E 与成品 live-HTTP smoke 验证 |
 | 安装包构建 | ARM64 debug APK 本机构建通过，待真机复验 | 自包含 Windows x64 便携包已生成并验证 |
-| 物理设备/人工交互验收 | 待完成 | 新版便携包与自动化链路通过，完整人工交互待完成 |
+| 物理设备/人工交互验收 | Remote Web 作为访问端已通过安卓平板实机验证 | Windows Remote Web Host 已由安卓平板跨设备访问通过；其余完整交互继续按功能验收 |
 
 当前阶段为功能原型/MVP。平台功能应保持对等；若某平台暂不支持某项能力，必须在上表
 和 `docs/progress.md` 中明确记录，不得静默产生平台分叉。
@@ -248,7 +249,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.86 构建器采用确定性工具链：默认只读使用 `D:\Code` 中固定的 Node/JDK/Android SDK/Python，并在 `D:\PyDroidTemp` 中保存工作区和缓存。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不再扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.92 构建器采用确定性工具链：默认只读使用 `D:\Code` 中固定的 Node/JDK/Android SDK/Python，并在 `D:\PyDroidTemp` 中保存工作区和缓存。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不再扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 
@@ -263,8 +264,7 @@ pnpm desktop:dev
 pnpm desktop:package
 ```
 
-Windows x64 便携版输出到 `release/PyDroid Flow 0.1.0.exe`。它包含 Python 3.13、
-pandas 和 Matplotlib，不要求目标电脑另行安装 Python。`release/` 是可再生成目录，不进入 Git。
+Windows 正式构建的当前可运行目录固定为 `PyDroid-Flow-Desktop`（默认位于 `D:\\PyDroidTemp`）；可选版本目录只用于归档。成品包含项目配置的桌面 Python runtime；构建工作区和输出目录均为可再生成内容，不进入 Git。
 
 Android 快速开发：
 

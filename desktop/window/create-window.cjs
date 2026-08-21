@@ -112,9 +112,9 @@ function createDesktopWindow({ log }) {
         if (!remoteInfo || remoteInfo.port !== 8765 || !/^http:\/\//.test(remoteInfo.url || "")) {
           throw new Error(`Packaged Remote Web failed to bind the expected listener: ${JSON.stringify(remoteInfo)}`);
         }
-        const defaultRouteInterface = remoteInfo.discovery?.interfaces?.find((item) => item.defaultRoute);
-        if (defaultRouteInterface && new URL(remoteInfo.url).hostname !== defaultRouteInterface.address) {
-          throw new Error(`Packaged Remote Web advertised the wrong LAN entrypoint: ${JSON.stringify(remoteInfo)}`);
+        const preferredInterface = remoteInfo.discovery?.interfaces?.find((item) => item.preferred);
+        if (preferredInterface && new URL(remoteInfo.url).hostname !== preferredInterface.address) {
+          throw new Error(`Packaged Remote Web advertised the wrong preferred LAN entrypoint: ${JSON.stringify(remoteInfo)}`);
         }
         const requestRemote = (pathname, host = "127.0.0.1") => new Promise((resolve, reject) => {
           const request = http.get({ host, port: remoteInfo.port, path: pathname, timeout: 3000 }, (response) => {

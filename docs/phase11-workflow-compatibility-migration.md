@@ -1,6 +1,6 @@
 # Phase 11 — Workflow Compatibility & Migration
 
-> **当前说明。** Phase 11 的 workflow schema/migration 能力继续保留，但当时用于冻结 Remote/LAN 文件的 freeze gate 已在 1.4.83 删除。兼容性测试验证数据迁移行为，不得冻结或改变 Remote Web 生产启动路径。
+> **当前说明（1.4.92 Baseline Consolidation）。** Phase 11 的 workflow schema/migration 能力继续保留；历史 Remote/LAN freeze gate 不属于当前架构。兼容性测试验证数据迁移行为，不得冻结或改变已实机验收的 Remote Web 生产启动路径。当前总规则见 `docs/BASELINE.md`。
 
 
 Phase 11 starts from the user-accepted `1.4.76 (99)` Phase 10 freeze candidate and establishes long-lived compatibility rules for workflow documents, reusable functions, NodeSpec evolution, editor resources and autosave data. It does **not** redesign UI or modify the accepted Remote Web/LAN path.

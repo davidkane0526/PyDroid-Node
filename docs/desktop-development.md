@@ -2,7 +2,7 @@
 
 PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflow schema 和 `python/pydroid_flow` 执行核心。Windows 与 Android 导出的流程必须可以相互导入和执行。
 
-> **当前规则：1.4.83 Deterministic Core。** 源码目录保持普通目录结构，不创建 Junction，不把 `node_modules`、`dist`、`release`、`.tools` 或 Gradle 目录重定向到别处。工具路径明确，缺失即失败。
+> **当前规则：1.4.92 Baseline Consolidation。** 源码目录保持普通目录结构，不创建 Junction，不把 `node_modules`、`dist`、`release`、`.tools` 或 Gradle 目录重定向到别处。工具路径明确，缺失即失败。
 
 ## 必备环境
 
