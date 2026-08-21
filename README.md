@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.80 (103) · Phase 11 Workflow Compatibility & Migration 最终修复候选**。1.4.79 被真实 Windows 构建拒绝：打包 smoke 在构建期启动真实 LAN 服务，并让同步防火墙检查/二次 readiness 参与生产启动，造成 `/health` 自检反向阻断打包。1.4.80 恢复“生产路径最小化、验证旁路化”：固定 8765/SSDP/mDNS/UPnP/PIN/Token 与现有 UI 文案保持不变；Windows LocalSubnet 防火墙集成仅在服务已经成功启动后异步 best-effort 执行，永不决定 start 成败；打包 smoke 不再打开真实 LAN listener。Remote Host 诊断只有观察到真实外部客户端后才可宣称外部可达。详见 [docs/phase11-workflow-compatibility-migration.md](docs/phase11-workflow-compatibility-migration.md)。
+> **当前开发版本：1.4.81 (104) · Phase 11 Workflow Compatibility & Migration 最终构建热修候选**。1.4.80 的真实 Windows 构建证明 TypeScript/Vite/Electron 打包均成功，但 packaged smoke 错把 Host Contract 的 `getRemoteHostStatus()` 写成不存在的 `getRemoteServerStatus()`，导致 renderer smoke 抛错。1.4.81 仅修复 packaged smoke 与 Host Contract/preload 的一致性门禁；10 个已冻结 Remote Web/LAN 生产文件保持字节级不变，不新增 UI 文案。详见 [docs/phase11-workflow-compatibility-migration.md](docs/phase11-workflow-compatibility-migration.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

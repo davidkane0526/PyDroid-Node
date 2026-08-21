@@ -110,7 +110,13 @@ function createDesktopWindow({ log }) {
           || !exportNames.has("desktop-b.csv")
         ) throw new Error(`Unexpected smoke-test result: ${raw}`);
 
-        const remoteStatus = await window.webContents.executeJavaScript("window.pyDroidDesktop.getRemoteServerStatus()");
+        const remoteBridgeShape = await window.webContents.executeJavaScript(`({
+          getRemoteHostStatus: typeof window.pyDroidDesktop?.getRemoteHostStatus === "function"
+        })`);
+        if (!remoteBridgeShape.getRemoteHostStatus) {
+          throw new Error(`Packaged Remote Web bridge is missing getRemoteHostStatus(): ${JSON.stringify(remoteBridgeShape)}`);
+        }
+        const remoteStatus = await window.webContents.executeJavaScript("window.pyDroidDesktop.getRemoteHostStatus()");
         if (!remoteStatus || remoteStatus.state !== "stopped") {
           throw new Error(`Unexpected packaged Remote Web bridge state: ${JSON.stringify(remoteStatus)}`);
         }

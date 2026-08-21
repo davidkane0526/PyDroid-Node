@@ -1,3 +1,11 @@
+## 1.4.81 (104) — Phase 11 packaged smoke Host Contract hotfix — 2026-08-21
+
+- Fix the packaged Desktop smoke to call the real Host Contract bridge `getRemoteHostStatus()` instead of the nonexistent `getRemoteServerStatus()`.
+- Strengthen `test:remote-web` so `src/platform/host-contract.json`, `desktop/preload.cjs`, and the packaged smoke must agree on the same Remote Host status bridge/channel; explicitly reject the obsolete bridge name.
+- Keep all ten frozen Desktop/Android Remote Web/LAN production files byte-for-byte unchanged from 1.4.80. This hotfix only repairs packaging verification and its gate.
+- Harden the Android JVM Host test itself against millisecond-scale OS socket-release jitter by waiting up to 750 ms for port 8765 to become unreachable; production Android networking remains frozen and unchanged.
+- Version: `1.4.81 (104)`; build revision: `1.4.81-dev-r57-phase11-packaged-smoke-contract-hotfix`.
+
 ## 1.4.80 (103) — Phase 11 Remote production-path freeze correction — 2026-08-21
 
 - Rejected 1.4.79 after the real Windows packaged build proved that the packaged smoke still opened TCP 8765 and allowed firewall/readiness verification to re-enter the production start path.

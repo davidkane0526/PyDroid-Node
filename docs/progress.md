@@ -1,3 +1,11 @@
+## 1.4.81 packaged smoke Host Contract hotfix
+
+- Real Windows 1.4.80 build passed application/Desktop TypeScript, both Vite builds and electron-builder packaging, then failed only inside the packaged renderer smoke.
+- Root cause: the smoke called nonexistent `window.pyDroidDesktop.getRemoteServerStatus()` while `host-contract.json` and `desktop/preload.cjs` define `getRemoteHostStatus()`.
+- 1.4.81 fixes that mismatch and makes `test:remote-web` derive the expected bridge/channel from Host Contract, checking preload and packaged smoke together.
+- All ten frozen Remote Web/LAN production files remain unchanged.
+- Version: **1.4.81 (104)**. Build revision: `1.4.81-dev-r57-phase11-packaged-smoke-contract-hotfix`.
+
 ## 1.4.80 production-path freeze correction
 
 - 1.4.79 rejected by the real Windows package build: packaged smoke opened a real LAN listener and readiness/firewall logic re-entered production startup.

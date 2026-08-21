@@ -16,6 +16,8 @@ const androidUpnp = readFileSync(path.join(root, "android/app/src/main/java/com/
 const androidMdns = readFileSync(path.join(root, "android/app/src/main/java/com/dk/pydroidflow/MdnsService.java"), "utf8");
 const desktopPackage = readFileSync(path.join(root, "scripts/desktop-package.mjs"), "utf8");
 const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+const hostContract = JSON.parse(readFileSync(path.join(root, "src/platform/host-contract.json"), "utf8"));
+const preload = readFileSync(path.join(root, "desktop/preload.cjs"), "utf8");
 
 assert.match(desktop, /function resolveRendererRoot\(/, "Desktop Remote Web must resolve the packaged browser bundle");
 assert.match(desktop, /package-remote/, "Desktop Remote Web must serve the browser-native renderer bundle");
@@ -25,7 +27,13 @@ const buildScript = readFileSync(path.join(root, "tools/build-pydroid.ps1"), "ut
 const packagedSmoke = readFileSync(path.join(root, "desktop/window/create-window.cjs"), "utf8");
 assert.match(buildScript, /Invoke-DesktopCompatibilityPackage[\s\S]*remoteRendererSource[\s\S]*package-remote/, "Desktop compatibility packaging must stage the browser-native Remote Web bundle");
 assert.doesNotMatch(packagedSmoke, /startRemoteServer\(true\)/, "Packaged desktop smoke must not open a real LAN listener during packaging");
-assert.match(packagedSmoke, /getRemoteServerStatus\(\)/, "Packaged desktop smoke must verify that the Remote Web IPC bridge is present");
+const remoteStatusOperation = hostContract.operations.find((item) => item.capability === "remote" && item.operation === "getHostStatus");
+assert.ok(remoteStatusOperation, "Host contract must define remote.getHostStatus");
+const remoteStatusBridge = remoteStatusOperation.desktop?.bridge;
+assert.equal(remoteStatusBridge, "getRemoteHostStatus", "Desktop remote.getHostStatus bridge name must remain contract-stable");
+assert.ok(preload.includes(`${remoteStatusBridge}: () => ipcRenderer.invoke("${remoteStatusOperation.desktop.channel}")`), "Desktop preload must expose the contract-defined Remote Host status bridge");
+assert.ok(packagedSmoke.includes(`${remoteStatusBridge}()`), "Packaged desktop smoke must call the contract-defined Remote Host status bridge");
+assert.doesNotMatch(packagedSmoke, /getRemoteServerStatus\(/, "Packaged desktop smoke must not use the obsolete/nonexistent getRemoteServerStatus bridge name");
 assert.match(desktop, /verifyLoopbackReady/, "Desktop Remote Web must verify a real loopback HTTP response before reporting startup success");
 assert.match(android, /verifyLoopbackReady\(\)/, "Android Remote Web must verify a real loopback HTTP response before reporting startup success");
 assert.doesNotMatch(desktop, /verifyEndpointAtHost|LAN self-test/i, "Desktop startup readiness must not depend on hairpin access through the selected LAN address");

@@ -2,7 +2,7 @@
 
 更新时间：2026-08-21
 当前架构开发分支：`fix/phase11-lan-boundary-verification`
-稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.80 (103)`
+稳定 `main` 基线：`1.4.27 (50)`；Phase 8 已冻结：`1.4.59 (82)`；Phase 9 已冻结：`1.4.67 (90)`；Phase 10 已冻结：`1.4.76 (99)`；当前 Phase 11：`1.4.81 (104)`
 
 > 本文是后续 Coding AI 进行架构与可靠性开发的主要依据。除非出现明确的交互缺陷，后续阶段不再以大规模 UI 改版为目标。任何重构都应优先保持现有 Windows、Android 与 Web UI 行为不变。
 
@@ -651,7 +651,7 @@ After the accepted 1.4.73 network baseline, 1.4.74 fixes stale start resurrectio
 
 ## 15. Phase 11 — Workflow Compatibility & Migration
 
-状态：**1.4.80 (103) 最终完成候选，等待一次真实 Windows + 第二物理 LAN 客户端验证后冻结。1.4.77 因 diagnostics TS2339 被拒绝；1.4.78 暴露同机 LAN 假阳性；1.4.79 又因打包 smoke 真实启动 LAN 服务并被 readiness gate 反向阻断而被拒绝。1.4.80 将生产路径与测试/防火墙旁路彻底解耦，并用冻结哈希门禁阻止无证据修改。**
+状态：**1.4.81 (104) 最终构建热修候选，等待一次真实 Windows + 第二物理 LAN 客户端验证后冻结。1.4.77 因 diagnostics TS2339 被拒绝；1.4.78 暴露同机 LAN 假阳性；1.4.79 因 packaged smoke 启动真实 LAN 服务并被 readiness gate 反向阻断而被拒绝；1.4.80 已通过 TypeScript/Vite/electron-builder 打包但 packaged smoke 使用不存在的 `getRemoteServerStatus()` bridge 而失败。1.4.81 仅修复 smoke/Host Contract 一致性，Remote/LAN 冻结生产文件保持不变。**
 
 Phase 11 将“工作流能否长期演进”从零散兼容代码提升为独立契约。Workflow schema 固定为 v3，并通过不可覆盖的逐版本 migration chain 从历史 v1/v2 升级；NodeSpec 迁移负责参数、类型、端口及边界 handle 演进，同时禁止修改稳定 node id；Reusable Function 调用只有在保存签名能够证明兼容时才自动升级。Editor Saved Node/Group/Flow 使用独立 resource schema v2，future/invalid payload 作为 opaque raw data 原样保护，当前版本不得通过普通持久化、重命名或删除破坏它们。未来版本 autosave 同样受到覆盖保护，未来工作流打开失败时不得污染当前 Editor Session。
 
