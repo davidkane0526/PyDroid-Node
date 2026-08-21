@@ -1,3 +1,12 @@
+## 1.4.93 (116) — Android buildPython path correction — 2026-08-21
+
+- Keep the 1.4.92 Baseline Consolidation and accepted Remote Web/LAN path unchanged.
+- Restore the default full Android buildPython to `WorkRoot\tools\pydroid-flow\Python\3.13\python.exe`; historical successful builds used `D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe` with Python 3.13.14 and working `venv`/`ensurepip`.
+- Stop assuming the full Android buildPython belongs under the read-only shared `D:\Code` tool tree. Node/JDK/Android SDK remain explicit shared-tool paths; buildPython and Desktop runtime remain private writable tool assets.
+- Migrate the exact stale GUI-generated 1.4.92 value `D:\Code\Python\3.13\python.exe` to the corrected WorkRoot location. Other user-selected Python paths remain untouched.
+- Keep deterministic failure semantics: no PATH/registry scan, no `py.exe` probing, no automatic download/install and no fallback chain.
+- Build revision: `1.4.93-dev-r70-buildpython-path`.
+
 ## 1.4.92 (115) — Baseline Consolidation — 2026-08-21
 
 - Establish `docs/BASELINE.md` as the authoritative active architecture after the 1.4.83–1.4.91 Remote/build troubleshooting sequence. Physical acceptance outranks smoke tests: 1.4.91 Windows Remote Web was successfully opened from an Android tablet over the LAN.

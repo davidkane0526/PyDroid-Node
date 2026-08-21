@@ -13,7 +13,7 @@
 - pnpm：显式 `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE`，否则固定使用 `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`。不扫描 PATH，不调用 Corepack。
 - JDK：显式 `-JavaHome` / `PYDROID_JAVA_HOME` / `JAVA_HOME`，否则 `ToolRoot\Language\Java`。
 - Android SDK：显式 `-AndroidSdkHome` / `PYDROID_ANDROID_SDK` / `ANDROID_HOME`，否则 `ToolRoot\Android\Sdk`。
-- Android buildPython：显式 `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE`，否则 `ToolRoot\Python\3.13\python.exe`。
+- Android buildPython：显式 `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE`，否则 `WorkRoot\tools\pydroid-flow\Python\3.13\python.exe`。
 - Desktop Python：显式 `-DesktopPythonRuntime` / `PYDROID_DESKTOP_PYTHON_RUNTIME`，否则 `WorkRoot\tools\pydroid-flow\Python\runtime-3.13`。
 
 缺失、版本不符或命令返回非零退出码时立即失败。核心构建器不会自动安装工具、调用 Corepack、读取 Windows 注册表/PAC、重试安装/打包、改变 Electron 签名模式、清 Gradle 状态后重试、切换 daemon 模式或启动后台清理任务。

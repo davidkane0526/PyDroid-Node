@@ -1,4 +1,4 @@
-# PyDroid Node 1.4.92 环境约定
+# PyDroid Node 1.4.93 环境约定
 
 构建环境采用**显式路径或固定目录**。构建器不会扫描系统寻找替代安装，也不会安装缺失工具。
 
@@ -10,11 +10,12 @@ D:\Code\
   Language\Java\bin\java.exe
   Language\Java\bin\javac.exe
   Android\Sdk\platforms\android-36\android.jar
-  Python\3.13\python.exe
+  # Android buildPython 不在共享只读工具根目录中；见下方 WorkRoot 约定。
 
 D:\PyDroidTemp\
   cache\
   builds\
+  tools\pydroid-flow\Python\3.13\python.exe
   tools\pydroid-flow\Python\runtime-3.13\python.exe
   logs\
 ```
@@ -27,7 +28,7 @@ D:\PyDroidTemp\
 | pnpm | `packageManager` 指定，目前 11.21.0 | `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd` | `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE` |
 | JDK | 21，完整 JDK | `D:\Code\Language\Java` | `-JavaHome` / `PYDROID_JAVA_HOME` / `JAVA_HOME` |
 | Android SDK | `android/variables.gradle` 中的 compileSdk，目前 36 | `D:\Code\Android\Sdk` | `-AndroidSdkHome` / `PYDROID_ANDROID_SDK` / `ANDROID_HOME` |
-| Android buildPython | 64-bit CPython 3.13，含 `venv` 和 `ensurepip` | `D:\Code\Python\3.13\python.exe` | `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE` |
+| Android buildPython | 64-bit CPython 3.13，含 `venv` 和 `ensurepip` | `D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe` | `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE` |
 | Desktop Python | CPython 3.13 embeddable runtime + `requirements-dev.txt` | `D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13` | `-DesktopPythonRuntime` / `PYDROID_DESKTOP_PYTHON_RUNTIME` |
 
 ## 环境变量
@@ -42,7 +43,7 @@ PYDROID_NODE_EXECUTABLE=D:\Code\NodeJs\node.exe
 PYDROID_PNPM_EXECUTABLE=C:\Users\<user>\AppData\Local\pnpm\bin\pnpm.cmd
 PYDROID_JAVA_HOME=D:\Code\Language\Java
 PYDROID_ANDROID_SDK=D:\Code\Android\Sdk
-PYDROID_PYTHON_EXECUTABLE=D:\Code\Python\3.13\python.exe
+PYDROID_PYTHON_EXECUTABLE=D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe
 PYDROID_DESKTOP_PYTHON_RUNTIME=D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13
 ```
 
@@ -68,4 +69,4 @@ powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1 `
 
 ## 清理
 
-项目源码目录只保留源码和 `.git`。可直接删除 `D:\PyDroidTemp\builds`、`cache`、旧输出和 Desktop Python runtime 来清理本项目生成内容。`D:\Code` 下共享的 Node/JDK/SDK/Python 只有在确认无其他项目使用时才人工删除。
+项目源码目录只保留源码和 `.git`。可直接删除 `D:\PyDroidTemp\builds`、`cache` 和旧输出；`D:\PyDroidTemp\tools\pydroid-flow\Python` 同时承载 Android 完整 buildPython 与 Desktop runtime，只有确认要重新准备 Python 工具时才删除。`D:\Code` 下共享的 Node/JDK/SDK 只有在确认无其他项目使用时才人工删除。

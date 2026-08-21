@@ -1,6 +1,6 @@
 # PyDroid Node deterministic build toolchain
 
-Baseline: **1.4.92 / Baseline Consolidation** (2026-08-21).
+Current build revision: **1.4.93 / buildPython path fix** (2026-08-21). Architecture baseline remains **1.4.92 / Baseline Consolidation**.
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
 
@@ -41,8 +41,6 @@ D:\Code\
     bin\javac.exe
   Android\Sdk\
     platforms\android-<compileSdk>\android.jar
-  Python\3.13\
-    python.exe                 # 完整 CPython，含 venv/ensurepip
 ```
 
 pnpm 不属于 `ToolRoot`。默认入口固定为 `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`；如需其它位置，只能通过 `-PnpmExecutable` 或 `PYDROID_PNPM_EXECUTABLE` 显式指定。构建器不扫描 PATH、不调用 Corepack，也不自动安装 pnpm。
@@ -59,7 +57,7 @@ D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13\python.exe
 
 1. 不读取 Java/Python 注册表，不扫描 Program Files、用户目录、PATH 或厂商目录。
 2. 不调用 `where.exe`、`py.exe`、Corepack 去寻找或补齐工具。
-3. 不自动下载 Node、JDK、Android SDK 或完整 buildPython。
+3. 不自动下载 Node、JDK、Android SDK 或完整 buildPython。完整 Android buildPython 固定来自 `WorkRoot\tools\pydroid-flow\Python\3.13\python.exe`，历史成功构建已验证该位置；Desktop embeddable runtime 使用同级 `runtime-3.13`。
 4. 不读取 Windows 系统代理、PAC、默认路由或网络 Profile。
 5. 不对 `pnpm install`、Electron packaging、Gradle build 做第二次尝试。
 6. 不关闭签名/资源编辑后重新打 Electron 包，不生成 plain-EXE 替代品。

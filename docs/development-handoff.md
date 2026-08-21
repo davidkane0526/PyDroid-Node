@@ -1,9 +1,9 @@
-# Current development handoff — 1.4.92 Baseline Consolidation
+# Current development handoff — 1.4.93 buildPython path fix
 
-Branch: `baseline/1.4.92-consolidated`
-Version: **1.4.92**
-Android versionCode: **115**
-Build revision: `1.4.92-dev-r69-baseline-consolidation`
+Branch: `fix/1.4.93-buildpython-path`
+Version: **1.4.93**
+Android versionCode: **116**
+Build revision: `1.4.93-dev-r70-buildpython-path`
 
 ## Authoritative baseline
 
@@ -11,7 +11,14 @@ Read `docs/BASELINE.md` first. It supersedes older Phase 10/1.4.83 reliability n
 
 The important physical acceptance fact is: **1.4.91 Windows Remote Web was successfully opened from an Android tablet over the LAN.** Do not alter the Remote Host start/stop path without a concrete regression.
 
-## What this consolidation changes
+## Current build-only correction
+
+- 1.4.93 leaves the 1.4.92 architecture baseline unchanged.
+- Android full buildPython defaults to `D:\\PyDroidTemp\\tools\\pydroid-flow\\Python\\3.13\\python.exe`, the path confirmed by earlier successful Android builds.
+- The exact stale 1.4.92 GUI-generated value `D:\\Code\\Python\\3.13\\python.exe` is migrated to the WorkRoot buildPython path. Other explicit user paths are preserved.
+- No PATH/registry probing, Python download/install, or alternate fallback path is restored.
+
+## What the 1.4.92 consolidation changed
 
 - Keeps the accepted 1.4.91 direct Remote Web Host path.
 - Restores Desktop HTTP method correctness lost during the over-design cleanup: `/api/health` GET-only, `/api/pair` POST-only, authenticated `/api/*` POST-only; wrong methods return 405, matching Android behavior.

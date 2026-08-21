@@ -133,7 +133,7 @@ $cacheDefault = Default-CacheRoot $workDefault
 $outputDefault = $workDefault
 $jdkDefault = if ($env:PYDROID_JAVA_HOME) { $env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'D:\Code\Language\Java' }
 $androidSdkDefault = if ($env:PYDROID_ANDROID_SDK) { $env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { 'D:\Code\Android\Sdk' }
-$pythonDefault = if ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { 'D:\Code\Python\3.13\python.exe' }
+$pythonDefault = if ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe' }
 $desktopRuntimeDefault = if ($env:PYDROID_DESKTOP_PYTHON_RUNTIME) { $env:PYDROID_DESKTOP_PYTHON_RUNTIME } else { Join-Path $workDefault 'tools\pydroid-flow\Python\runtime-3.13' }
 $settingsDir = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "PyDroidBuild"
 $settingsFile = Join-Path $settingsDir "gui-settings.json"
@@ -150,7 +150,19 @@ if ($stored) {
     if ($stored.OutputRoot) { $outputDefault = [string]$stored.OutputRoot }
     if (-not $env:PYDROID_JAVA_HOME -and -not $env:JAVA_HOME -and $stored.JdkHome) { $jdkDefault = [string]$stored.JdkHome }
     if (-not $env:PYDROID_ANDROID_SDK -and -not $env:ANDROID_HOME -and $stored.AndroidSdkHome) { $androidSdkDefault = [string]$stored.AndroidSdkHome }
-    if (-not $env:PYDROID_PYTHON_EXECUTABLE -and $stored.PythonExecutable) { $pythonDefault = [string]$stored.PythonExecutable }
+    if (-not $env:PYDROID_PYTHON_EXECUTABLE -and $stored.PythonExecutable) {
+        $storedPython = [string]$stored.PythonExecutable
+        # 1.4.92 temporarily persisted this generated default. Migrate that exact
+        # value to the already-established private buildPython location instead
+        # of carrying a known-invalid generated setting into future builds.
+        if ($storedPython -ieq 'D:\Code\Python\3.13\python.exe') {
+            $pythonDefault = Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe'
+        } else {
+            $pythonDefault = $storedPython
+        }
+    } elseif (-not $env:PYDROID_PYTHON_EXECUTABLE) {
+        $pythonDefault = Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe'
+    }
     if (-not $env:PYDROID_DESKTOP_PYTHON_RUNTIME -and $stored.DesktopPythonRuntime) { $desktopRuntimeDefault = [string]$stored.DesktopPythonRuntime }
 }
 

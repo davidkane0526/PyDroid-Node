@@ -62,7 +62,7 @@
     Android SDK 根目录。留空时使用 PYDROID_ANDROID_SDK、ANDROID_HOME，否则固定 ToolRoot\Android\Sdk。
 
 .PARAMETER PythonExecutable
-    Android/Chaquopy 构建用完整 Python 3.13。留空时使用 PYDROID_PYTHON_EXECUTABLE，否则固定 ToolRoot\Python\3.13\python.exe。
+    Android/Chaquopy 构建用完整 Python 3.13。留空时使用 PYDROID_PYTHON_EXECUTABLE，否则固定 WorkRoot\tools\pydroid-flow\Python\3.13\python.exe。
 
 .PARAMETER DesktopPythonRuntime
     桌面打包用便携 Python 运行时目录。留空时使用 PYDROID_DESKTOP_PYTHON_RUNTIME，否则固定 WorkRoot\tools\<project>\Python\runtime-3.13。
@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.92-dev-r69-baseline-consolidation"
+$script:BuildScriptRevision = "1.4.93-dev-r70-buildpython-path"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -424,7 +424,7 @@ function Test-PythonBuildHost {
 
 function Find-Python313 {
     $configured = if ($PythonExecutable) { $PythonExecutable } elseif ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { $null }
-    $python = PyDroid.Build.Python\Resolve-PyDroidPythonExecutable -ConfiguredExecutable $configured -ToolRoot $ToolRoot
+    $python = PyDroid.Build.Python\Resolve-PyDroidPythonExecutable -ConfiguredExecutable $configured -WorkRoot $WorkRoot
     if (-not (Test-PythonBuildHost -Executable $python)) {
         throw "Android buildPython 配置无效：$python。需要完整 64 位 Python $pythonSeries，并包含 venv/ensurepip。"
     }
@@ -574,7 +574,7 @@ function Build-Android {
 
     $python = if ($script:ResolvedAndroidPython) { [string]$script:ResolvedAndroidPython } else { Find-Python313 }
     if (-not $python) {
-        throw "未找到带 venv/ensurepip 的完整 Python $pythonSeries。构建器不会自动下载安装；请设置 -PythonExecutable/PYDROID_PYTHON_EXECUTABLE，或使用固定 ToolRoot\Python\3.13\python.exe。"
+        throw "未找到带 venv/ensurepip 的完整 Python $pythonSeries。构建器不会自动下载安装；请设置 -PythonExecutable/PYDROID_PYTHON_EXECUTABLE，或使用固定 WorkRoot\tools\pydroid-flow\Python\3.13\python.exe。"
     }
     $python = [string]$python
     if (-not (Test-PythonBuildHost -Executable $python)) {

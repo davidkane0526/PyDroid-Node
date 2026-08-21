@@ -1,4 +1,4 @@
-# Current progress — 1.4.92 Baseline Consolidation
+# Current progress — 1.4.93 buildPython path fix
 
 Date: 2026-08-21
 
@@ -13,7 +13,7 @@ Date: 2026-08-21
 
 ## Baseline Consolidation changes
 
-- Version advanced to **1.4.92**, Android versionCode **115**.
+- Version advanced to **1.4.93**, Android versionCode **116**. Architecture baseline remains 1.4.92.
 - Desktop Remote API method contract restored to match Android and the earlier correct contract.
 - Misleading Desktop discovery `defaultRoute` label replaced with `preferred`; the implementation remains a deterministic local-interface heuristic and does not probe the OS route table.
 - Current documentation consolidated around `docs/BASELINE.md`.
@@ -36,4 +36,4 @@ This consolidation does not redesign UI, Remote Web, discovery, execution or mig
 
 ## Next
 
-Continue feature development from `baseline/1.4.92-consolidated`. Remote Web is considered accepted infrastructure unless a new reproducible defect is reported.
+Continue feature development from the 1.4.92 consolidated architecture baseline after applying the 1.4.93 buildPython path correction. Remote Web is considered accepted infrastructure unless a new reproducible defect is reported.

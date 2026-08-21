@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.92 (115) · Baseline Consolidation**。1.4.91 Windows Remote Web 已由安卓平板真实局域网访问验收；1.4.92 不重构这条 Host 路径，只恢复 Desktop/Android 一致的 HTTP method 契约、纠正 LAN 接口命名并统一当前文档。Remote Web 仍直接绑定 `0.0.0.0:8765`，Discovery 仅旁路运行。权威基线见 [docs/BASELINE.md](docs/BASELINE.md)。
+> **当前开发版本：1.4.93 (116) · Baseline buildPython path fix**。1.4.92 Baseline Consolidation 保持为当前架构基线；1.4.93 只修复 Android buildPython 默认路径，恢复到历史成功构建已验证的 `D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe`。Remote Web 与 Baseline Consolidation 控制流均不改动。权威基线见 [docs/BASELINE.md](docs/BASELINE.md)。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,8 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.4.92 Baseline Consolidation（当前分支）**：以 1.4.91 安卓平板真实访问 Windows Remote Web 的结果作为 LAN 验收锚点；恢复 Desktop Remote API 的 405 method 契约并与 Android 对齐；将 LAN `defaultRoute` 误称改为 `preferred`，不增加路由探测；统一基线、交接、进度和路线文档。
+- **1.4.93 buildPython path fix（当前分支）**：保持 1.4.92 Baseline Consolidation 不变，仅将 Android buildPython 默认位置从错误的共享工具目录恢复到已经成功构建验证过的 `WorkRoot\tools\pydroid-flow\Python\3.13\python.exe`，并迁移 GUI 在 1.4.92 自动保存的旧默认值。
+- **1.4.92 Baseline Consolidation**：以 1.4.91 安卓平板真实访问 Windows Remote Web 的结果作为 LAN 验收锚点；恢复 Desktop Remote API 的 405 method 契约并与 Android 对齐；将 LAN `defaultRoute` 误称改为 `preferred`，不增加路由探测；统一基线、交接、进度和路线文档。
 - **Phase 11 Workflow Compatibility & Migration 已保留**：Workflow schema v3、资源 schema v2 future-version 保护、历史 Git corpus 和迁移后双运行时验证继续作为用户数据正确性能力。
 - **Remote Web 已冻结为基础设施**：Windows/Android 直接监听固定 8765；SSDP/UPnP/mDNS 只负责发现，不能改变 HTTP Host 成败；不使用运行时 PowerShell/UAC/防火墙管理/readiness/recovery。
 - **构建链当前基线**：Windows 当前成品固定输出 `PyDroid-Flow-Desktop`，版本目录仅归档；重复构建用一次镜像覆盖，工作区递归清理使用单一长路径安全 .NET 实现。
@@ -249,7 +250,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.92 构建器采用确定性工具链：默认只读使用 `D:\Code` 中固定的 Node/JDK/Android SDK/Python，并在 `D:\PyDroidTemp` 中保存工作区和缓存。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不再扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.93 构建器采用确定性工具链：Node/JDK/Android SDK 默认只读使用 `D:\Code` 中固定路径；Android buildPython 默认使用 `D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe`，Desktop 便携 Python 使用相邻的 `runtime-3.13`。每个工具路径都可在 GUI 中显式覆盖；缺失或版本不符时立即失败。构建器不扫描注册表/PATH、不调用 Corepack、不自动安装工具、不探测 Windows 系统代理、不重试或切换打包模式，也不会在成功后启动后台清理。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 
@@ -284,7 +285,7 @@ pnpm android:emulator
 子进程，可直接读取源码更新。Notebook AST 识别器位于
 `python/pydroid_flow/notebook.py`，对应测试位于 `python/tests/test_notebook.py`。
 
-Android 打包需要 JDK 21、完整 64-bit Python 3.13（含 `venv`/`ensurepip`）和 Android SDK platform 36。默认分别使用 `D:\Code\Language\Java`、`D:\Code\Python\3.13\python.exe`、`D:\Code\Android\Sdk`，也可通过构建 GUI 或专用环境变量显式覆盖。Desktop 便携 Python 默认位于 `D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13`，可用 `pnpm env:windows` 人工准备；核心 builder 不会自动调用环境准备脚本。debug APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
+Android 打包需要 JDK 21、完整 64-bit Python 3.13（含 `venv`/`ensurepip`）和 Android SDK platform 36。默认分别使用 `D:\Code\Language\Java`、`D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe`、`D:\Code\Android\Sdk`，也可通过构建 GUI 或专用环境变量显式覆盖。Desktop 便携 Python 默认位于 `D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13`。核心 builder 不自动扫描或下载安装完整 buildPython。debug APK 输出到 `android/app/build/outputs/apk/debug/app-debug.apk`。
 本机 x86_64 模拟器通过 Google APIs 镜像的 NDK translation 运行 ARM64-only APK，
 不会给应用增加 x86_64 ABI。项目结束时运行 `pnpm android:emulator:remove` 删除该 AVD
 及其项目本地 SDK；此操作不会删除源码或项目 JDK。

@@ -12,7 +12,7 @@ PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflo
 - pnpm：`D:\Code\NodeJs\pnpm.cmd`
 - JDK：`D:\Code\Language\Java`
 - Android SDK：`D:\Code\Android\Sdk`
-- 完整 Python 3.13：`D:\Code\Python\3.13\python.exe`
+- Android 构建用完整 Python 3.13：`D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe`
 - Desktop Python Runtime：`D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13`
 
 核心构建器和开发初始化脚本不会扫描 PATH、注册表或其它常见目录。需要不同位置时显式传参或使用 `docs/environment.md` 中列出的环境变量。

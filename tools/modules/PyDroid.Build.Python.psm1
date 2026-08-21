@@ -34,12 +34,12 @@ function Get-PythonVersionLabel {
 function Resolve-PyDroidPythonExecutable {
     param(
         [string]$ConfiguredExecutable,
-        [Parameter(Mandatory = $true)][string]$ToolRoot
+        [Parameter(Mandatory = $true)][string]$WorkRoot
     )
     if (-not [string]::IsNullOrWhiteSpace($ConfiguredExecutable)) {
         return [Environment]::ExpandEnvironmentVariables($ConfiguredExecutable.Trim().Trim('"'))
     }
-    return (Join-Path $ToolRoot 'Python\3.13\python.exe')
+    return (Join-Path $WorkRoot 'tools\pydroid-flow\Python\3.13\python.exe')
 }
 
 Export-ModuleMember -Function 'Test-PyDroidPythonSeries', 'Test-PyDroidPythonBuildHost', 'Get-PythonVersionLabel', 'Resolve-PyDroidPythonExecutable'

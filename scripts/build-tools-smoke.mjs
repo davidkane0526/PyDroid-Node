@@ -22,7 +22,9 @@ assert.match(build, /return "D:\\PyDroidTemp"/);
 assert.match(build, /return "D:\\Code"/);
 assert.match(nodeModule, /Join-Path \$ToolRoot 'NodeJs\\node\.exe'/);
 assert.match(build, /Join-Path \$ToolRoot 'Language\\Java'/);
-assert.match(pythonModule, /Join-Path \$ToolRoot 'Python\\3\.13\\python\.exe'/);
+assert.match(pythonModule, /Join-Path \$WorkRoot 'tools\\pydroid-flow\\Python\\3\.13\\python\.exe'/);
+assert.match(build, /Resolve-PyDroidPythonExecutable -ConfiguredExecutable \$configured -WorkRoot \$WorkRoot/);
+assert.doesNotMatch(build, /ToolRoot\\Python\\3\.13\\python\.exe/);
 assert.match(androidModule, /Join-Path \$ToolRoot 'Android\\Sdk'/);
 assert.match(build, /Invoke-Pnpm \$installArgs/);
 assert.match(build, /Invoke-Pnpm @\("desktop:package"\)/);
@@ -58,6 +60,7 @@ assert.equal(existsSync(path.join(root, "scripts/local-storage.ps1")), false, "j
 assert.equal(existsSync(path.join(root, "scripts/fix-capacitor-paths.ps1")), false, "junction path rewrite shim must be removed");
 assert.equal(packageJson.scripts["android:sync"], "pnpm build && cap sync android");
 assert.match(androidPackage, /& "\.\\gradlew\.bat" @gradleArgs/);
+assert.match(androidPackage, /Join-Path \$workRoot "tools\\pydroid-flow\\Python\\3\.13\\python\.exe"/);
 assert.match(androidPackage, /if \(\$disableGradleDaemon\) \{ \$gradleArgs \+= "--no-daemon" \} else \{ \$gradleArgs \+= "--daemon" \}/);
 assert.doesNotMatch(androidPackage, /gradlew\.bat --stop|Clear-PyDroidGradleDaemonState|Kill\(|BUILD SUCCESSFUL.*APK|py -3\.13|LOCALAPPDATA|\.tools\\jdk|retry|fallback|recovery/i);
 
@@ -65,6 +68,9 @@ assert.match(gui, /@\("直连", "手动代理"\)/);
 assert.match(gui, /"Android SDK"/);
 assert.match(gui, /"Python 3\.13"/);
 assert.match(gui, /"桌面 Python"/);
+assert.match(gui, /Join-Path \$workDefault 'tools\\pydroid-flow\\Python\\3\.13\\python\.exe'/);
+assert.match(gui, /storedPython -ieq 'D:\\Code\\Python\\3\.13\\python\.exe'/,
+  "GUI must migrate the exact stale 1.4.92 generated buildPython default");
 assert.doesNotMatch(gui, /KeepWorkspace|自动补齐缺失工具|DownloadRetryCount|AutoInstall|Retries|BuildCache'\)/i);
 assert.match(gui, /构建器只使用界面中确定的工具路径，缺失或版本错误立即失败/);
 

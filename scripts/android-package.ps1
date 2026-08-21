@@ -2,6 +2,7 @@
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $toolRoot = if ($env:DK_TOOL_ROOT) { [string]$env:DK_TOOL_ROOT } else { "D:\Code" }
+$workRoot = if ($env:PYDROID_BUILD_HOME) { [string]$env:PYDROID_BUILD_HOME } else { "D:\PyDroidTemp" }
 $variablesFile = Join-Path $projectRoot "android\variables.gradle"
 if (-not (Test-Path -LiteralPath $variablesFile -PathType Leaf)) { throw "Android variables file not found: $variablesFile" }
 $variablesText = Get-Content -LiteralPath $variablesFile -Raw
@@ -11,7 +12,7 @@ $compileSdk = [int]$match.Groups[1].Value
 
 $jdkRoot = if ($env:PYDROID_JAVA_HOME) { [string]$env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { [string]$env:JAVA_HOME } else { Join-Path $toolRoot "Language\Java" }
 $sdkRoot = if ($env:PYDROID_ANDROID_SDK) { [string]$env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { [string]$env:ANDROID_HOME } else { Join-Path $toolRoot "Android\Sdk" }
-$python = if ($env:PYDROID_PYTHON_EXECUTABLE) { [string]$env:PYDROID_PYTHON_EXECUTABLE } else { Join-Path $toolRoot "Python\3.13\python.exe" }
+$python = if ($env:PYDROID_PYTHON_EXECUTABLE) { [string]$env:PYDROID_PYTHON_EXECUTABLE } else { Join-Path $workRoot "tools\pydroid-flow\Python\3.13\python.exe" }
 
 $java = Join-Path $jdkRoot "bin\java.exe"
 $javac = Join-Path $jdkRoot "bin\javac.exe"
