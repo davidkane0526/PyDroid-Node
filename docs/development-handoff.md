@@ -1,9 +1,9 @@
-# Current development handoff — 1.4.93 buildPython path fix
+# Current development handoff — 1.4.94 local tool discovery correction
 
-Branch: `fix/1.4.93-buildpython-path`
-Version: **1.4.93**
-Android versionCode: **116**
-Build revision: `1.4.93-dev-r70-buildpython-path`
+Branch: `fix/1.4.94-local-tool-discovery`
+Version: **1.4.94**
+Android versionCode: **117**
+Build revision: `1.4.94-dev-r71-local-tool-discovery`
 
 ## Authoritative baseline
 
@@ -13,10 +13,11 @@ The important physical acceptance fact is: **1.4.91 Windows Remote Web was succe
 
 ## Current build-only correction
 
-- 1.4.93 leaves the 1.4.92 architecture baseline unchanged.
-- Android full buildPython defaults to `D:\\PyDroidTemp\\tools\\pydroid-flow\\Python\\3.13\\python.exe`, the path confirmed by earlier successful Android builds.
-- The exact stale 1.4.92 GUI-generated value `D:\\Code\\Python\\3.13\\python.exe` is migrated to the WorkRoot buildPython path. Other explicit user paths are preserved.
-- No PATH/registry probing, Python download/install, or alternate fallback path is restored.
+- 1.4.94 leaves the 1.4.92 architecture baseline and accepted Remote/LAN path unchanged.
+- Build tool path fields are overrides: blank means read-only local discovery; a user-entered value is strict.
+- Known generated defaults from 1.4.92/1.4.93 are cleared so they no longer suppress discovery.
+- Local discovery is allowed; automatic installation/repair, SDK mutation and post-failure tool switching remain forbidden.
+- Read-only PATH/registry/standard-location discovery is restored where appropriate; Python/JDK/SDK download/install and post-failure fallback remain prohibited.
 
 ## What the 1.4.92 consolidation changed
 

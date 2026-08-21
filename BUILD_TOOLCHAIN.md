@@ -1,25 +1,23 @@
-# PyDroid Node deterministic build toolchain
+# PyDroid Node build toolchain
 
-Current build revision: **1.4.93 / buildPython path fix** (2026-08-21). Architecture baseline remains **1.4.92 / Baseline Consolidation**.
+Current build revision: **1.4.94 / local tool discovery correction** (2026-08-21). Architecture baseline remains **1.4.92 / Baseline Consolidation**; Remote/LAN physical-device acceptance remains anchored at **1.4.91**.
 
-正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 只提供无隐藏状态的路径、版本、网络和清理辅助函数。
+正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 提供路径发现、版本验证、网络和清理辅助函数。
 
 ## 核心原则
 
-构建器做一次明确操作，并以该操作的真实返回结果作为结果。**不自动搜索替代环境，不自动安装缺失工具，不重试，不降级，不恢复，不在成功后启动后台任务。**
+构建工具链分成两个阶段：**只读发现**与**实际执行**。
 
-这条原则适用于：
+1. GUI 中 Node/JDK/Android SDK/Python 等路径留空时，构建器自动发现本机已经存在的工具。
+2. 用户在 GUI/CLI 中显式填写路径时，该路径是严格覆盖；无效就直接报错，不再偷偷换另一个工具。
+3. 自动发现只读取现有环境，不下载安装、不补 SDK 包、不修改注册表/PATH、不创建工具链 overlay。
+4. 每个候选必须先通过项目版本/完整性检查；不合格候选跳过，直到找到第一个符合要求的现有安装。
+5. 工具一旦选定并进入 `pnpm install` / Electron / Gradle 执行阶段，失败就直接失败，不再切换另一个工具重试。
+6. 网络代理仍只有 Direct 与用户显式 Manual proxy，不自动读取 Windows 系统代理。
 
-- Node / pnpm / JDK / Android SDK / Python 解析；
-- 网络与代理；
-- `pnpm install`；
-- Electron packaging；
-- Android Gradle packaging；
-- 工作区清理和最终产物复制。
+因此：**自动发现不是 fallback，也不是 recovery。** “本机有工具就自己找到”是构建器的正常职责；“失败后下载/修复/切换另一套工具继续构建”才是被禁止的复杂路径。
 
-## 固定工具布局
-
-默认：
+## 默认根目录
 
 ```text
 WorkRoot   = PYDROID_BUILD_HOME 或 D:\PyDroidTemp
@@ -28,63 +26,153 @@ CacheRoot  = DK_CACHE_ROOT      或 <WorkRoot>\cache
 OutputRoot = <WorkRoot>
 ```
 
-默认 Windows Desktop 最终运行目录固定为 `<OutputRoot>\PyDroid-Flow-Desktop`，版本号由应用自身显示，不再写进默认 EXE 目录路径。这样每次构建不会因为目录名变化而让操作系统把它视为另一个应用路径。`-KeepHistory` 只额外创建版本化归档，不改变当前 Desktop 路径。重复构建当前 Desktop 时使用一次 `robocopy /MIR` 镜像更新，不先递归删除旧 Electron 目录。
-
-`ToolRoot` 是只读工具来源。默认工具位置：
+Windows Desktop 当前运行目录固定为：
 
 ```text
-D:\Code\
-  NodeJs\
-    node.exe
-  Language\Java\
-    bin\java.exe
-    bin\javac.exe
-  Android\Sdk\
-    platforms\android-<compileSdk>\android.jar
+<OutputRoot>\PyDroid-Flow-Desktop
 ```
 
-pnpm 不属于 `ToolRoot`。默认入口固定为 `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`；如需其它位置，只能通过 `-PnpmExecutable` 或 `PYDROID_PNPM_EXECUTABLE` 显式指定。构建器不扫描 PATH、不调用 Corepack，也不自动安装 pnpm。
+`-KeepHistory` 只额外创建版本归档，不改变当前 EXE 路径。当前目录用一次 `robocopy /MIR` 镜像更新，不先递归删除旧 Electron 目录。
 
-Desktop 便携 Python 默认位于：
+## 本机工具发现顺序
+
+显式 CLI/GUI 路径始终最高优先级且严格验证。未显式指定时，使用以下只读候选。
+
+### Node.js
+
+项目当前要求 Node 24.19.x/24 主版本兼容：
+
+1. `PYDROID_NODE_EXECUTABLE`
+2. `<ToolRoot>\NodeJs\node.exe`
+3. `<ToolRoot>\Language\NodeJs\node.exe`
+4. `%ProgramFiles%\nodejs\node.exe`
+5. PATH 中的 `node.exe` / `node`
+
+只有满足项目 Node 版本要求的候选才会被选择。
+
+### pnpm
+
+项目 `packageManager` 当前固定为 `pnpm@11.21.0`：
+
+1. `PYDROID_PNPM_EXECUTABLE`
+2. `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd`
+3. `%APPDATA%\npm\pnpm.cmd`
+4. PATH 中的 `pnpm.cmd` / `pnpm`
+
+候选必须精确匹配 `packageManager` 版本。**不调用 Corepack，不自动安装 pnpm。**
+
+### JDK
+
+项目当前要求完整 JDK 21（同时存在 `java.exe` 与 `javac.exe`）。自动发现：
+
+1. `PYDROID_JAVA_HOME` / `JAVA_HOME`
+2. `<ToolRoot>\Java`
+3. `<ToolRoot>\Language\Java`
+4. `<ToolRoot>\JDK` / `<ToolRoot>\jdk-21`
+5. `%ProgramFiles%\Java`、Microsoft、Eclipse Adoptium 常见目录
+6. JavaSoft JDK 注册表
+7. PATH 中的 `javac.exe` / `java.exe`
+
+目录允许是 JDK 根、`bin`、`java.exe/javac.exe`，也允许是包含 JDK 子目录的容器目录。只选择主版本 21。
+
+### Android SDK
+
+项目 compile SDK 从 `android/variables.gradle` 读取，当前为 36。自动发现：
+
+1. `PYDROID_ANDROID_SDK`
+2. `ANDROID_HOME`
+3. `ANDROID_SDK_ROOT`
+4. `%LOCALAPPDATA%\Android\Sdk`
+5. `<ToolRoot>\Language\Android`
+6. `<ToolRoot>\Android\Sdk`
+7. `<ToolRoot>\Android` / `<ToolRoot>\android-sdk`
+8. `<WorkRoot>\tools\pydroid-flow\Android\Sdk` / `<WorkRoot>\tools\android-sdk`
+
+候选必须已有 `platforms\android-<compileSdk>\android.jar`。构建器**不会运行 sdkmanager 补包，不会创建 overlay，不会修改共享 SDK**。
+
+在当前已成功构建过的 Windows 环境中，实际 Android SDK 曾位于：
+
+```text
+C:\Users\dk\AppData\Local\Android\Sdk
+```
+
+因此不能把 `D:\Code\Android\Sdk` 之类的目录假设当成强制配置。
+
+### Android buildPython
+
+Chaquopy 需要**完整 64 位 CPython 3.13**，且必须包含 `venv` 和 `ensurepip`。自动发现：
+
+1. `PYDROID_PYTHON_EXECUTABLE`
+2. `<WorkRoot>\tools\pydroid-flow\Python\3.13\python.exe`
+3. `<ToolRoot>\Python\3.13\python.exe`
+4. `<ToolRoot>\Python\python.exe`
+5. `<ToolRoot>\Language\Python\python.exe`
+6. `%LOCALAPPDATA%\Programs\Python\Python313\python.exe`
+7. Windows `py.exe -3.13` 指向的解释器
+8. PATH 中的 `python.exe` / `python`
+
+Desktop embeddable runtime **不能**作为 Android buildPython，因为它按设计没有 `venv`。
+
+当前历史成功构建验证过：
+
+```text
+D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe
+```
+
+### Desktop Python runtime
+
+Desktop 便携 Python 仍是独立运行时，默认：
 
 ```text
 D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13\python.exe
 ```
 
-每个路径均可通过 GUI 字段、对应 CLI 参数或专用环境变量显式覆盖。覆盖值就是权威值，验证失败直接报错。
+`scripts/setup-windows.ps1` / `pnpm env:windows` 是用户主动运行的环境准备命令；核心 builder 不会自动调用它。
 
-## 明确不存在的行为
+## GUI 语义
 
-1. 不读取 Java/Python 注册表，不扫描 Program Files、用户目录、PATH 或厂商目录。
-2. 不调用 `where.exe`、`py.exe`、Corepack 去寻找或补齐工具。
-3. 不自动下载 Node、JDK、Android SDK 或完整 buildPython。完整 Android buildPython 固定来自 `WorkRoot\tools\pydroid-flow\Python\3.13\python.exe`，历史成功构建已验证该位置；Desktop embeddable runtime 使用同级 `runtime-3.13`。
-4. 不读取 Windows 系统代理、PAC、默认路由或网络 Profile。
-5. 不对 `pnpm install`、Electron packaging、Gradle build 做第二次尝试。
-6. 不关闭签名/资源编辑后重新打 Electron 包，不生成 plain-EXE 替代品。
-7. 不在 Gradle daemon 失败后清状态、`--stop`、再切到 `--no-daemon`。
-8. 不依据“APK 已经出现”覆盖 Gradle 进程退出码。
-9. 工作区目录树只使用一次 .NET 递归删除，并使用 Windows extended-length path；不再使用 PowerShell `Remove-Item -Recurse`，也不切换备用清理器。
-10. 不启动 detached cleanup worker，最终产物就位后构建结束。
+JDK、Android SDK、Python 3.13 等工具字段：
+
+- **留空：自动发现本机已有安装。**
+- **填写：严格使用该路径。**
+
+1.4.92/1.4.93 曾把生成的固定路径保存在 GUI 设置里，导致自动发现被误当成用户覆盖。1.4.94 会清理这些已知生成值，例如 `D:\Code\Android\Sdk`，让发现器重新工作。真正由用户手动填写的其它路径继续保留。
+
+## 明确禁止的行为
+
+- 自动下载/安装 Node、pnpm、JDK、Android SDK、完整 buildPython。
+- Corepack bootstrap。
+- 自动调用 `sdkmanager` 补 Android 组件。
+- 创建 SDK overlay/Junction 作为替代环境。
+- 发现阶段结束后因构建失败切换另一套工具。
+- 自动代理/PAC 探测。
+- `pnpm install`、Electron packaging、Gradle build 的自动重试或降级。
+- 关闭签名后重打、plain EXE 替代品。
+- Gradle daemon 失败后自动清状态再切 `--no-daemon`。
+- 用“APK 文件已经出现”覆盖 Gradle 真实退出码。
+- 后台 deferred cleanup。
 
 ## 网络
 
-只有两种模式：
+只有：
 
-- `Direct`：当前构建进程清除代理变量后直接联网。
+- `Direct`：本次构建清除代理变量后直连。
 - `Manual`：使用用户明确填写的 `ProxyUrl`。
 
-pnpm fetch retry 固定为 `0`。`RegistryUrl`、Electron mirror、electron-builder mirror 都只在用户填写时生效。
+pnpm fetch retry 固定为 `0`。`RegistryUrl`、Electron mirror、electron-builder mirror 只有用户填写时才生效。
 
 ## 构建顺序
 
 ```text
-校验项目/版本
+读取项目要求
   ↓
-解析并验证明确工具路径
+只读发现 + 验证本机工具链
   ↓
-清理工作区可再生输出
+冻结本次构建所选工具
   ↓
-robocopy /MIR /R:0 /W:0 同步源码
+清理可再生输出
+  ↓
+同步源码到 WorkRoot
   ↓
 pnpm install --frozen-lockfile --prefer-offline   [一次]
   ↓
@@ -96,13 +184,11 @@ Android: android:sync → gradlew assembleDebug      [各一次]
 100% / 进程结束
 ```
 
-Android daemon 模式是**运行前的用户选择**。选择 daemon 就只运行 daemon；选择 no-daemon 就只运行 no-daemon。
+Android daemon/no-daemon 是运行前的用户选择，不在失败后自动切换。
 
-## Desktop Python setup
+## 清理
 
-`scripts/setup-windows.ps1`（`pnpm env:windows`）是独立的、用户主动执行的准备命令。它下载并校验 Desktop embeddable Python 到指定 `RuntimeRoot`。核心 builder 不会自动调用它。
-
-Android/Chaquopy 使用的是完整 CPython 3.13 build host，不能用 Desktop embeddable runtime 替代。
+工作区目录树使用 `PyDroid.Build.Packaging.psm1` 中单一 .NET recursive delete + Windows extended-length path。正常构建链不再使用 PowerShell `Remove-Item -Recurse` 删除 Electron/Capacitor/Gradle 深目录，也不切备用清理器。
 
 ## 模块边界
 
@@ -117,7 +203,7 @@ tools/modules/
   PyDroid.Build.Packaging.psm1
 ```
 
-模块之间不互相 import。`build-pydroid.ps1` 负责组合。
+模块之间不互相 import；`build-pydroid.ps1` 负责组合。`scripts/android-package.ps1` 复用同一 Java/Android/Python 发现模块，避免独立 Android 打包重新写死路径。
 
 ## Source ZIP
 
@@ -130,4 +216,4 @@ node scripts/build-tools-smoke.mjs
 node scripts/build-tool-architecture-smoke.mjs
 ```
 
-这些测试只保护当前确定性架构，不再保护旧 RC/Phase 的自动发现、恢复、fallback 或 freeze 机制。
+测试保护的是：**允许只读本机工具发现，同时禁止自动安装、修复、重试和构建后切换工具。**

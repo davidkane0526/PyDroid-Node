@@ -10,26 +10,17 @@ $match = [regex]::Match($variablesText, 'compileSdkVersion\s*=\s*(\d+)')
 if (-not $match.Success) { throw "compileSdkVersion is missing from: $variablesFile" }
 $compileSdk = [int]$match.Groups[1].Value
 
-$jdkRoot = if ($env:PYDROID_JAVA_HOME) { [string]$env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { [string]$env:JAVA_HOME } else { Join-Path $toolRoot "Language\Java" }
-$sdkRoot = if ($env:PYDROID_ANDROID_SDK) { [string]$env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { [string]$env:ANDROID_HOME } else { Join-Path $toolRoot "Android\Sdk" }
-$python = if ($env:PYDROID_PYTHON_EXECUTABLE) { [string]$env:PYDROID_PYTHON_EXECUTABLE } else { Join-Path $workRoot "tools\pydroid-flow\Python\3.13\python.exe" }
+$moduleRoot = Join-Path $projectRoot "tools\modules"
+Import-Module -Name (Join-Path $moduleRoot "PyDroid.Build.Java.psm1") -Force -DisableNameChecking
+Import-Module -Name (Join-Path $moduleRoot "PyDroid.Build.Android.psm1") -Force -DisableNameChecking
+Import-Module -Name (Join-Path $moduleRoot "PyDroid.Build.Python.psm1") -Force -DisableNameChecking
 
-$java = Join-Path $jdkRoot "bin\java.exe"
-$javac = Join-Path $jdkRoot "bin\javac.exe"
-if (-not (Test-Path -LiteralPath $java -PathType Leaf) -or -not (Test-Path -LiteralPath $javac -PathType Leaf)) {
-    throw "JDK 21 path is invalid: $jdkRoot"
-}
-$javaVersion = (& $java -version 2>&1 | Out-String)
-if ($LASTEXITCODE -ne 0 -or $javaVersion -notmatch '(?:version\s+"|openjdk\s+)(?:1\.)?21(?:[\."\s])') {
-    throw "Android requires JDK 21: $jdkRoot"
-}
-
-$platformJar = Join-Path $sdkRoot ("platforms\android-{0}\android.jar" -f $compileSdk)
-if (-not (Test-Path -LiteralPath $platformJar -PathType Leaf)) { throw "Android SDK platform $compileSdk not found at $sdkRoot" }
-
-if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw "Python 3.13 path is invalid: $python" }
-& $python -c "import sys, venv, ensurepip; raise SystemExit(0 if sys.version_info[:2] == (3, 13) else 1)" 2>$null
-if ($LASTEXITCODE -ne 0) { throw "Android buildPython must be a full Python 3.13 installation with venv/ensurepip: $python" }
+$jdkRoot = PyDroid.Build.Java\Resolve-PyDroidJavaHome -ConfiguredHome $env:PYDROID_JAVA_HOME -ToolRoot $toolRoot -RequiredMajor 21
+if (-not $jdkRoot) { throw "JDK 21 was not found on this machine." }
+$sdkRoot = PyDroid.Build.Android\Resolve-PyDroidAndroidSdk -ConfiguredSdk $env:PYDROID_ANDROID_SDK -ToolRoot $toolRoot -WorkRoot $workRoot -RequiredApi $compileSdk
+if (-not $sdkRoot) { throw "Android SDK platform $compileSdk was not found on this machine." }
+$python = PyDroid.Build.Python\Resolve-PyDroidPythonExecutable -ConfiguredExecutable $env:PYDROID_PYTHON_EXECUTABLE -WorkRoot $workRoot -ToolRoot $toolRoot -Major 3 -Minor 13
+if (-not $python) { throw "Full Python 3.13 with venv/ensurepip was not found on this machine." }
 
 $env:JAVA_HOME = $jdkRoot
 $env:ANDROID_HOME = $sdkRoot

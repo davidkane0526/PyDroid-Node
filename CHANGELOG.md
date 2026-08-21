@@ -1,3 +1,15 @@
+## 1.4.94 (117) — Local tool discovery correction — 2026-08-21
+
+- Corrects the over-constrained 1.4.92/1.4.93 build policy: local discovery of already-installed tools is a normal builder responsibility and is no longer classified as fallback/recovery.
+- GUI JDK/Android SDK/Python path fields now mean **blank = auto-discover, filled = strict override**. Known generated defaults such as `D:\Code\Android\Sdk` are cleared from persisted settings so they cannot suppress discovery.
+- Node discovery validates existing candidates from the dedicated environment variable, `ToolRoot`, Program Files and PATH; pnpm validates the exact `packageManager` version across LocalAppData/AppData/PATH candidates.
+- JDK 21 discovery again inspects environment variables, `ToolRoot`, common vendor directories, JavaSoft registry entries and PATH, while requiring both `java.exe` and `javac.exe` with the correct major version.
+- Android SDK discovery again includes `%LOCALAPPDATA%\Android\Sdk` plus environment/ToolRoot/WorkRoot candidates and requires the project compile SDK to exist. It does **not** run `sdkmanager`, install packages or create overlays.
+- Android buildPython discovery validates existing full 64-bit CPython 3.13 candidates from WorkRoot/ToolRoot/LocalAppData, `py.exe -3.13` and PATH; it never substitutes the Desktop embeddable runtime.
+- `scripts/android-package.ps1` now reuses the same Java/Android/Python discovery modules instead of reintroducing fixed paths when run directly.
+- Automatic downloads/installs, Corepack bootstrap, SDK repair/overlay, proxy discovery, build retry, Gradle mode switching and post-failure tool switching remain prohibited.
+- Build revision: `1.4.94-dev-r71-local-tool-discovery`.
+
 ## 1.4.93 (116) — Android buildPython path correction — 2026-08-21
 
 - Keep the 1.4.92 Baseline Consolidation and accepted Remote Web/LAN path unchanged.

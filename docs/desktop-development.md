@@ -2,20 +2,30 @@
 
 PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflow schema 和 `python/pydroid_flow` 执行核心。Windows 与 Android 导出的流程必须可以相互导入和执行。
 
-> **当前规则：1.4.92 Baseline Consolidation。** 源码目录保持普通目录结构，不创建 Junction，不把 `node_modules`、`dist`、`release`、`.tools` 或 Gradle 目录重定向到别处。工具路径明确，缺失即失败。
+> **当前规则：1.4.92 Baseline Consolidation + 1.4.94 Local Tool Discovery Correction。** 源码目录保持普通目录结构，不创建 Junction，不把 `node_modules`、`dist`、`release`、`.tools` 或 Gradle 目录重定向到别处。
 
-## 必备环境
+## 工具发现
 
-默认 Windows 工具位置：
+正常情况下不需要手工填写工具路径。核心构建器会只读发现本机已有的：
 
-- Node：`D:\Code\NodeJs\node.exe`
-- pnpm：`D:\Code\NodeJs\pnpm.cmd`
-- JDK：`D:\Code\Language\Java`
-- Android SDK：`D:\Code\Android\Sdk`
-- Android 构建用完整 Python 3.13：`D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe`
-- Desktop Python Runtime：`D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13`
+- Node / pnpm；
+- JDK 21；
+- Android SDK；
+- 完整 64 位 Python 3.13（Android buildPython）。
 
-核心构建器和开发初始化脚本不会扫描 PATH、注册表或其它常见目录。需要不同位置时显式传参或使用 `docs/environment.md` 中列出的环境变量。
+例如当前机器历史成功构建曾使用：
+
+```text
+Node        D:\Code\NodeJs\node.exe
+pnpm        C:\Users\dk\AppData\Local\pnpm\bin\pnpm.cmd
+JDK 21      D:\Code\Java\
+Android SDK C:\Users\dk\AppData\Local\Android\Sdk
+Python 3.13 D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe
+```
+
+这些是已验证位置，不是硬编码要求。
+
+路径字段/参数的语义是：**留空自动发现，填写则严格覆盖**。构建器可以读环境变量、标准目录、JDK 注册表、`py.exe` 和 PATH 中已有命令，但不会自动安装/修复工具，也不会在构建失败后换另一套工具继续。
 
 ## 首次准备
 
@@ -25,9 +35,9 @@ PyDroid Flow 桌面端使用 Electron，共用 Web 编辑器、版本化 workflo
 powershell -ExecutionPolicy Bypass -File scripts/setup-desktop-development.ps1
 ```
 
-该脚本只做两件事：使用确定的 pnpm 执行一次 `install`，然后显式调用 `setup-windows.ps1` 准备 Desktop Python Runtime。它不会创建目录联接，也不会寻找其它 Node/pnpm/Python 安装。
+该脚本自动发现项目要求版本的 pnpm，执行一次 `install`，然后显式调用 `setup-windows.ps1` 准备 Desktop Python Runtime。它不会创建目录联接，也不会自动安装 Node/JDK/Android SDK。
 
-若 pnpm 或 Runtime 使用其它位置：
+如需强制指定 pnpm 或 Runtime：
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/setup-desktop-development.ps1 `
@@ -63,8 +73,6 @@ pnpm android:sync
 pnpm android:package
 ```
 
-`android:sync` 只执行 Web 构建与 Capacitor sync。旧的 Junction 路径修复脚本已删除。`android:package` 只执行用户选择的 Gradle daemon/no-daemon 路径一次，Gradle 退出码是唯一构建结果。
+`android:package` 复用与主构建器相同的 JDK/Android SDK/Python 发现模块。工具选定后只执行用户选择的 Gradle daemon/no-daemon 路径一次，Gradle 退出码是唯一构建结果。
 
-## 原则
-
-工具或依赖缺失时直接修正明确路径或显式运行 provisioning，不在运行中搜索替代工具、切换模式、清状态重试或创建隐藏目录映射。完整构建约定见 `BUILD_TOOLCHAIN.md`。
+完整构建约定见 `BUILD_TOOLCHAIN.md`。

@@ -5,8 +5,8 @@
 .DESCRIPTION
     - 项目源码目录保持只读，脚本只读取项目，不写入任何项目文件。
     - 脚本把源码同步到 $WorkRoot\builds\<项目名> 临时工作区，在外部完成构建。
-    - 工具路径来自显式参数/专用环境变量或固定 ToolRoot 布局；缺失即报错，不扫描系统安装位置。
-    - JDK 只验证一个选定路径，不读取注册表、不遍历厂商目录、不从 PATH 猜测。
+    - 显式工具路径是严格覆盖；未显式指定时只读发现本机已安装工具并验证版本/完整性。
+    - 本机发现与自动安装严格分离：可以读取环境变量、常见安装位置、注册表/PATH 等现有信息，但绝不自动下载或修改系统工具链。
     - 最终产物平铺到 $OutputRoot：
           <productName>-<版本>.apk
           <productName>-Desktop\          （默认稳定路径，win-unpacked 未压缩桌面版）
@@ -50,19 +50,19 @@
 
 
 .PARAMETER NodeExecutable
-    可选 Node.js 可执行文件。留空时使用 PYDROID_NODE_EXECUTABLE，否则固定 ToolRoot\NodeJs\node.exe。
+    可选 Node.js 可执行文件。显式填写时严格使用该路径；留空时从专用环境变量、ToolRoot、系统安装位置/PATH 中只读发现满足版本要求的 Node。
 
 .PARAMETER PnpmExecutable
-    可选 pnpm.cmd/pnpm.exe。留空时使用 PYDROID_PNPM_EXECUTABLE，否则固定为 %LOCALAPPDATA%\pnpm\bin\pnpm.cmd。不会扫描 PATH，也不会调用额外的包管理器启动器。
+    可选 pnpm.cmd/pnpm.exe。显式填写时严格使用该路径；留空时从专用环境变量、用户级 pnpm/npm 目录和 PATH 中只读发现。不会调用 Corepack，也不会自动安装 pnpm。
 
 .PARAMETER JavaHome
-    JDK 根目录、bin 目录或 java.exe/javac.exe。留空时依次使用 PYDROID_JAVA_HOME、JAVA_HOME、ToolRoot\Language\Java。仅验证该路径。
+    JDK 根目录、bin 目录或 java.exe/javac.exe。显式填写时严格使用；留空时从环境变量、ToolRoot、常见安装目录、Java 注册表和 PATH 中只读发现指定主版本 JDK。
 
 .PARAMETER AndroidSdkHome
-    Android SDK 根目录。留空时使用 PYDROID_ANDROID_SDK、ANDROID_HOME，否则固定 ToolRoot\Android\Sdk。
+    Android SDK 根目录。显式填写时严格使用；留空时从专用环境变量、ANDROID_HOME/ANDROID_SDK_ROOT、%LOCALAPPDATA%\Android\Sdk、ToolRoot 与 WorkRoot 中只读发现包含所需 compile SDK 的现有 SDK。
 
 .PARAMETER PythonExecutable
-    Android/Chaquopy 构建用完整 Python 3.13。留空时使用 PYDROID_PYTHON_EXECUTABLE，否则固定 WorkRoot\tools\pydroid-flow\Python\3.13\python.exe。
+    Android/Chaquopy 构建用完整 Python 3.13。显式填写时严格使用；留空时从专用环境变量、WorkRoot/ToolRoot、本机 Python 安装、py launcher 和 PATH 中只读发现 64 位且含 venv/ensurepip 的完整 Python。
 
 .PARAMETER DesktopPythonRuntime
     桌面打包用便携 Python 运行时目录。留空时使用 PYDROID_DESKTOP_PYTHON_RUNTIME，否则固定 WorkRoot\tools\<project>\Python\runtime-3.13。
@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.93-dev-r70-buildpython-path"
+$script:BuildScriptRevision = "1.4.94-dev-r71-local-tool-discovery"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -354,13 +354,12 @@ function Test-NodeCandidate {
 }
 
 function Resolve-NodeExecutable {
-    $configured = if ($NodeExecutable) { $NodeExecutable } elseif ($env:PYDROID_NODE_EXECUTABLE) { $env:PYDROID_NODE_EXECUTABLE } else { $null }
-    return (PyDroid.Build.Node\Resolve-PyDroidNodeExecutable -ConfiguredExecutable $configured -ToolRoot $ToolRoot)
+    return (PyDroid.Build.Node\Resolve-PyDroidNodeExecutable -ConfiguredExecutable $NodeExecutable -ToolRoot $ToolRoot -RequiredVersion $NodeVersion)
 }
 
 function Resolve-PnpmExecutable {
-    $configured = if ($PnpmExecutable) { $PnpmExecutable } elseif ($env:PYDROID_PNPM_EXECUTABLE) { $env:PYDROID_PNPM_EXECUTABLE } else { $null }
-    return (PyDroid.Build.Node\Resolve-PyDroidPnpmExecutable -ConfiguredExecutable $configured)
+    $required = if ($packageManagerSpec -match '^pnpm@([^+]+)') { [string]$matches[1] } else { '11.21.0' }
+    return (PyDroid.Build.Node\Resolve-PyDroidPnpmExecutable -ConfiguredExecutable $PnpmExecutable -RequiredVersion $required)
 }
 
 function Invoke-Pnpm {
@@ -399,17 +398,11 @@ function Test-JavaHome {
 }
 
 function Find-JavaHome {
-    $configured = if ($JavaHome) { $JavaHome } elseif ($env:PYDROID_JAVA_HOME) { $env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { $env:JAVA_HOME } else { (Join-Path $ToolRoot 'Language\Java') }
-    $resolved = PyDroid.Build.Java\Resolve-JavaHomeCandidate $configured
-    if (-not (Test-JavaHome $resolved)) {
-        throw "JDK 配置无效或版本不是 $JdkMajor：$resolved"
-    }
-    return $resolved
+    return (PyDroid.Build.Java\Resolve-PyDroidJavaHome -ConfiguredHome $JavaHome -ToolRoot $ToolRoot -RequiredMajor $JdkMajor)
 }
 
 function Find-AndroidSdk {
-    $configured = if ($AndroidSdkHome) { $AndroidSdkHome } elseif ($env:PYDROID_ANDROID_SDK) { $env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { $null }
-    return (PyDroid.Build.Android\Resolve-PyDroidAndroidSdk -ConfiguredSdk $configured -ToolRoot $ToolRoot)
+    return (PyDroid.Build.Android\Resolve-PyDroidAndroidSdk -ConfiguredSdk $AndroidSdkHome -ToolRoot $ToolRoot -WorkRoot $WorkRoot -RequiredApi $resolvedAndroidApi)
 }
 
 function Test-PythonSeries {
@@ -423,8 +416,10 @@ function Test-PythonBuildHost {
 }
 
 function Find-Python313 {
-    $configured = if ($PythonExecutable) { $PythonExecutable } elseif ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { $null }
-    $python = PyDroid.Build.Python\Resolve-PyDroidPythonExecutable -ConfiguredExecutable $configured -WorkRoot $WorkRoot
+    $python = PyDroid.Build.Python\Resolve-PyDroidPythonExecutable -ConfiguredExecutable $PythonExecutable -WorkRoot $WorkRoot -ToolRoot $ToolRoot -Major $pythonMajor -Minor $pythonMinor
+    if ([string]::IsNullOrWhiteSpace([string]$python)) {
+        return $null
+    }
     if (-not (Test-PythonBuildHost -Executable $python)) {
         throw "Android buildPython 配置无效：$python。需要完整 64 位 Python $pythonSeries，并包含 venv/ensurepip。"
     }
@@ -548,7 +543,7 @@ function Build-Android {
 
     $jdk = Find-JavaHome
     if (-not $jdk) {
-        throw "未找到 JDK $JdkMajor。构建器不会自动下载安装；请设置 -JavaHome/PYDROID_JAVA_HOME/JAVA_HOME，或使用固定 ToolRoot\Language\Java。"
+        throw "未找到 JDK $JdkMajor。已检查显式配置、环境变量、ToolRoot、常见安装目录、注册表和 PATH；构建器不会自动下载安装。"
     }
     $jdk = [string]$jdk
     Write-Step ("JDK {0}：{1}" -f $JdkMajor, $jdk)
@@ -559,7 +554,7 @@ function Build-Android {
 
     $sdk = Find-AndroidSdk
     if ([string]::IsNullOrWhiteSpace([string]$sdk)) {
-        throw "未找到包含 android-$resolvedAndroidApi 的 Android SDK。构建器不会自动安装或覆盖 SDK；请设置 -AndroidSdkHome/PYDROID_ANDROID_SDK/ANDROID_HOME，或使用固定 ToolRoot\Android\Sdk。"
+        throw "未找到包含 android-$resolvedAndroidApi 的 Android SDK。已检查显式配置、环境变量、%LOCALAPPDATA%\Android\Sdk、ToolRoot 和 WorkRoot；构建器不会自动安装或覆盖 SDK。"
     }
     $sdk = [string]$sdk
 
@@ -574,7 +569,7 @@ function Build-Android {
 
     $python = if ($script:ResolvedAndroidPython) { [string]$script:ResolvedAndroidPython } else { Find-Python313 }
     if (-not $python) {
-        throw "未找到带 venv/ensurepip 的完整 Python $pythonSeries。构建器不会自动下载安装；请设置 -PythonExecutable/PYDROID_PYTHON_EXECUTABLE，或使用固定 WorkRoot\tools\pydroid-flow\Python\3.13\python.exe。"
+        throw "未找到带 venv/ensurepip 的完整 Python $pythonSeries。已检查显式配置、WorkRoot/ToolRoot、本机 Python、py launcher 和 PATH；构建器不会自动下载安装。"
     }
     $python = [string]$python
     if (-not (Test-PythonBuildHost -Executable $python)) {
@@ -743,11 +738,17 @@ Write-Step "网络模式：$NetworkMode"
 # Node / pnpm
 Write-BuildStage -Percent 8 -Message "检查 Node、pnpm 与网络配置"
 $script:NodeExecutable = Resolve-NodeExecutable
+if ([string]::IsNullOrWhiteSpace([string]$script:NodeExecutable)) {
+    throw "未找到满足 $NodeVersion 的 Node.js。已检查专用环境变量、ToolRoot、Program Files 和 PATH；构建器不会自动安装 Node。"
+}
 if (-not (Test-NodeCandidate -Executable $script:NodeExecutable)) {
     throw "Node 配置无效或版本不满足 $NodeVersion：$script:NodeExecutable"
 }
 $script:NodeDir = Split-Path $script:NodeExecutable -Parent
 $script:PnpmCommand = Resolve-PnpmExecutable
+if ([string]::IsNullOrWhiteSpace([string]$script:PnpmCommand)) {
+    throw "未找到项目要求版本的 pnpm。已检查专用环境变量、LocalAppData、AppData/npm 和 PATH；构建器不会调用 Corepack 或自动安装 pnpm。"
+}
 if (-not (Test-Path -LiteralPath $script:PnpmCommand -PathType Leaf)) {
     throw "pnpm 配置无效：$script:PnpmCommand"
 }

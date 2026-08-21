@@ -131,9 +131,9 @@ $projectDefault = Resolve-InitialProjectRoot
 $toolDefault = Default-ToolRoot
 $cacheDefault = Default-CacheRoot $workDefault
 $outputDefault = $workDefault
-$jdkDefault = if ($env:PYDROID_JAVA_HOME) { $env:PYDROID_JAVA_HOME } elseif ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'D:\Code\Language\Java' }
-$androidSdkDefault = if ($env:PYDROID_ANDROID_SDK) { $env:PYDROID_ANDROID_SDK } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { 'D:\Code\Android\Sdk' }
-$pythonDefault = if ($env:PYDROID_PYTHON_EXECUTABLE) { $env:PYDROID_PYTHON_EXECUTABLE } else { Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe' }
+$jdkDefault = ''
+$androidSdkDefault = ''
+$pythonDefault = ''
 $desktopRuntimeDefault = if ($env:PYDROID_DESKTOP_PYTHON_RUNTIME) { $env:PYDROID_DESKTOP_PYTHON_RUNTIME } else { Join-Path $workDefault 'tools\pydroid-flow\Python\runtime-3.13' }
 $settingsDir = Join-Path ([Environment]::GetFolderPath("LocalApplicationData")) "PyDroidBuild"
 $settingsFile = Join-Path $settingsDir "gui-settings.json"
@@ -148,20 +148,23 @@ if ($stored) {
     if (-not $env:DK_TOOL_ROOT -and $stored.ToolRoot) { $toolDefault = [string]$stored.ToolRoot }
     if (-not $env:DK_CACHE_ROOT -and $stored.CacheRoot) { $cacheDefault = [string]$stored.CacheRoot }
     if ($stored.OutputRoot) { $outputDefault = [string]$stored.OutputRoot }
-    if (-not $env:PYDROID_JAVA_HOME -and -not $env:JAVA_HOME -and $stored.JdkHome) { $jdkDefault = [string]$stored.JdkHome }
-    if (-not $env:PYDROID_ANDROID_SDK -and -not $env:ANDROID_HOME -and $stored.AndroidSdkHome) { $androidSdkDefault = [string]$stored.AndroidSdkHome }
-    if (-not $env:PYDROID_PYTHON_EXECUTABLE -and $stored.PythonExecutable) {
+    if ($stored.JdkHome) {
+        $storedJdk = [string]$stored.JdkHome
+        # Historical generated defaults are hints, not user overrides. Clear them so discovery can run.
+        if ($storedJdk -ieq 'D:\Code\Language\Java') { $jdkDefault = '' } else { $jdkDefault = $storedJdk }
+    }
+    if ($stored.AndroidSdkHome) {
+        $storedSdk = [string]$stored.AndroidSdkHome
+        if ($storedSdk -ieq 'D:\Code\Android\Sdk') { $androidSdkDefault = '' } else { $androidSdkDefault = $storedSdk }
+    }
+    if ($stored.PythonExecutable) {
         $storedPython = [string]$stored.PythonExecutable
-        # 1.4.92 temporarily persisted this generated default. Migrate that exact
-        # value to the already-established private buildPython location instead
-        # of carrying a known-invalid generated setting into future builds.
-        if ($storedPython -ieq 'D:\Code\Python\3.13\python.exe') {
-            $pythonDefault = Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe'
+        $generatedWorkPython = Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe'
+        if ($storedPython -ieq 'D:\Code\Python\3.13\python.exe' -or $storedPython -ieq $generatedWorkPython) {
+            $pythonDefault = ''
         } else {
             $pythonDefault = $storedPython
         }
-    } elseif (-not $env:PYDROID_PYTHON_EXECUTABLE) {
-        $pythonDefault = Join-Path $workDefault 'tools\pydroid-flow\Python\3.13\python.exe'
     }
     if (-not $env:PYDROID_DESKTOP_PYTHON_RUNTIME -and $stored.DesktopPythonRuntime) { $desktopRuntimeDefault = [string]$stored.DesktopPythonRuntime }
 }
@@ -259,15 +262,19 @@ $jdkBox = Add-LabeledPathRow $pathsPanel 5 "JDK 目录" $jdkDefault {
     if ($v) { $jdkBox.Text = $v }
 }
 $jdkTip = New-Object System.Windows.Forms.ToolTip
-$jdkTip.SetToolTip($jdkBox, "填写实际 JDK 根目录（或其 bin/java.exe）。构建器只验证这个路径，不搜索其它安装位置。")
+$jdkTip.SetToolTip($jdkBox, "留空自动发现本机 JDK 21；填写后视为严格覆盖，只使用你指定的路径。")
 $androidSdkBox = Add-LabeledPathRow $pathsPanel 6 "Android SDK" $androidSdkDefault {
     $v = Select-Folder $androidSdkBox.Text
     if ($v) { $androidSdkBox.Text = $v }
 }
+$androidSdkTip = New-Object System.Windows.Forms.ToolTip
+$androidSdkTip.SetToolTip($androidSdkBox, "留空自动发现本机 Android SDK（包括 LocalAppData/Android/Sdk）；填写后视为严格覆盖。")
 $pythonBox = Add-LabeledPathRow $pathsPanel 7 "Python 3.13" $pythonDefault {
     $v = Select-File $pythonBox.Text
     if ($v) { $pythonBox.Text = $v }
 }
+$pythonTip = New-Object System.Windows.Forms.ToolTip
+$pythonTip.SetToolTip($pythonBox, "留空自动发现完整 64 位 Python 3.13（必须包含 venv/ensurepip）；填写后视为严格覆盖。")
 $desktopRuntimeBox = Add-LabeledPathRow $pathsPanel 8 "桌面 Python" $desktopRuntimeDefault {
     $v = Select-Folder $desktopRuntimeBox.Text
     if ($v) { $desktopRuntimeBox.Text = $v }
@@ -386,7 +393,7 @@ $progressBar.Margin = New-Object System.Windows.Forms.Padding(0, 5, 0, 2)
 [void]$progressPanel.Controls.Add($progressBar, 0, 1)
 
 $progressHint = New-Object System.Windows.Forms.Label
-$progressHint.Text = "阶段进度用于说明当前正在做什么；构建器只使用界面中确定的工具路径，缺失或版本错误立即失败。"
+$progressHint.Text = "阶段进度用于说明当前正在做什么；工具路径留空时自动发现本机现有安装，显式填写时严格使用指定路径。"
 $progressHint.AutoSize = $true
 $progressHint.Dock = "Fill"
 $progressHint.ForeColor = [System.Drawing.SystemColors]::GrayText

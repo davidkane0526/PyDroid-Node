@@ -45,8 +45,10 @@ PIN cooldown, token TTL/IP binding and API rate limits are deferred security-pol
 
 ## Build rules
 
-- Explicit tools and explicit failure. No PATH/registry/Corepack guessing in the normal builder.
-- No automatic tool installation, proxy discovery, build retry/backoff, signing degradation, Gradle-mode switching or fallback packaging.
+- Tool path fields are overrides, not mandatory configuration. Blank means read-only local discovery; an explicit value is strict and must fail if invalid.
+- Local discovery may inspect environment variables, known install locations, registry/PATH/launcher metadata and shared/work roots, but it must validate the project version/completeness requirement before selection.
+- Local discovery must never turn into automatic installation/repair, Corepack bootstrap, SDK mutation, proxy discovery, build retry/backoff, signing degradation, Gradle-mode switching or fallback packaging.
+- Once build execution starts, do not switch to another discovered tool after a failure.
 - Current Windows output is always `PyDroid-Flow-Desktop`; versioned copies are archive-only.
 - Current output uses one `robocopy /MIR` mirror operation.
 - Build workspace recursive cleanup uses the documented .NET long-path-safe implementation, not PowerShell `Remove-Item -Recurse`.
@@ -68,4 +70,4 @@ For workflow/runtime changes also run migration, NodeContract, parity and Python
 
 ## Current phase state
 
-Phases 1–9 foundations remain retained. Phase 11 Workflow Compatibility & Migration remains retained. Phase 10 reliability/security experiments are historical except for ordinary API correctness contracts. Continue post-Phase-11 development from **1.4.92 Baseline Consolidation**; do not start another broad Remote Web refactor without a new reproducible defect.
+Phases 1–9 foundations remain retained. Phase 11 Workflow Compatibility & Migration remains retained. Phase 10 reliability/security experiments are historical except for ordinary API correctness contracts. Continue post-Phase-11 development from **1.4.92 Baseline Consolidation** plus subsequent narrow build fixes; current build-tool behavior is documented by 1.4.94. Do not start another broad Remote Web refactor without a new reproducible defect.

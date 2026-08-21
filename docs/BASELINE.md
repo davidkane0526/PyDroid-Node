@@ -67,12 +67,14 @@ Historical Phase 10 security features such as PIN cooldown, token TTL, token/IP 
 
 ## 4. Build baseline
 
-The builder follows one explicit path and fails clearly:
+The builder separates **local discovery** from **automatic recovery**:
 
-- Node: explicit configured executable.
-- pnpm: explicit override or `%LOCALAPPDATA%\\pnpm\\bin\\pnpm.cmd` on Windows.
-- No PATH/registry/Corepack discovery in the normal builder.
-- No automatic tool installation.
+- A path explicitly entered by the user is a strict override. If it is invalid, fail clearly.
+- If a tool path is left blank, the builder may read-only discover already-installed Node, pnpm, JDK, Android SDK and full Python from environment variables, known local installation locations, registry/PATH/launcher metadata where appropriate, and the shared/work tool roots.
+- Every discovered candidate must satisfy the project version/completeness contract before it can be selected.
+- Discovery ends before package/build execution starts. A later build failure must not switch to another tool candidate.
+- Local discovery is **not** fallback/recovery. It must never download, install, repair, overlay, relocate or mutate a toolchain.
+- No Corepack bootstrap, automatic JDK/Python/SDK installation, or SDK component installation.
 - No automatic proxy discovery.
 - No package/build retries or mode switching.
 - Desktop current output is always `PyDroid-Flow-Desktop`.
@@ -106,7 +108,7 @@ Do not restore these without a new user requirement and a demonstrated failure t
 - discovery recovery counters.
 - firewall/profile automation and UAC elevation.
 - Remote production freeze hashes.
-- automatic environment/toolchain recovery or fallback packaging modes.
+- automatic tool installation/repair, post-failure tool switching, or fallback packaging modes. Read-only discovery of already-installed local tools is explicitly allowed.
 
 Historical implementation details remain available in Git and `docs/history/`.
 

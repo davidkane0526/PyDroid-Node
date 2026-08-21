@@ -1,57 +1,58 @@
-# PyDroid Node 1.4.93 环境约定
+# PyDroid Node 1.4.94 环境约定
 
-构建环境采用**显式路径或固定目录**。构建器不会扫描系统寻找替代安装，也不会安装缺失工具。
+构建器默认采用**本机只读自动发现**。通常不需要手工填写 JDK、Android SDK 或 Python 路径；GUI 对应字段留空即可。
 
-## 推荐目录
+## 已验证的当前机器布局
+
+历史成功构建记录中出现过：
 
 ```text
-D:\Code\
-  NodeJs\node.exe
-  Language\Java\bin\java.exe
-  Language\Java\bin\javac.exe
-  Android\Sdk\platforms\android-36\android.jar
-  # Android buildPython 不在共享只读工具根目录中；见下方 WorkRoot 约定。
-
-D:\PyDroidTemp\
-  cache\
-  builds\
-  tools\pydroid-flow\Python\3.13\python.exe
-  tools\pydroid-flow\Python\runtime-3.13\python.exe
-  logs\
+Node       D:\Code\NodeJs\node.exe
+pnpm       C:\Users\dk\AppData\Local\pnpm\bin\pnpm.cmd
+JDK 21     D:\Code\Java\
+Android SDK C:\Users\dk\AppData\Local\Android\Sdk
+Python 3.13 D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe
+Desktop Python D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13\python.exe
 ```
 
-## 项目要求
+这些是已验证实例，不是必须写死的目录。
 
-| 工具 | 要求 | 默认路径 | 显式覆盖 |
+## 路径字段语义
+
+| 工具 | 要求 | 路径留空 | 显式覆盖 |
 | --- | --- | --- | --- |
-| Node.js | 24.19.x，项目 engines 为 24 | `D:\Code\NodeJs\node.exe` | `-NodeExecutable` / `PYDROID_NODE_EXECUTABLE` |
-| pnpm | `packageManager` 指定，目前 11.21.0 | `%LOCALAPPDATA%\pnpm\bin\pnpm.cmd` | `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE` |
-| JDK | 21，完整 JDK | `D:\Code\Language\Java` | `-JavaHome` / `PYDROID_JAVA_HOME` / `JAVA_HOME` |
-| Android SDK | `android/variables.gradle` 中的 compileSdk，目前 36 | `D:\Code\Android\Sdk` | `-AndroidSdkHome` / `PYDROID_ANDROID_SDK` / `ANDROID_HOME` |
-| Android buildPython | 64-bit CPython 3.13，含 `venv` 和 `ensurepip` | `D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe` | `-PythonExecutable` / `PYDROID_PYTHON_EXECUTABLE` |
-| Desktop Python | CPython 3.13 embeddable runtime + `requirements-dev.txt` | `D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13` | `-DesktopPythonRuntime` / `PYDROID_DESKTOP_PYTHON_RUNTIME` |
+| Node.js | Node 24，满足项目 `engines` | 自动发现 | `-NodeExecutable` / `PYDROID_NODE_EXECUTABLE` |
+| pnpm | 精确匹配 `packageManager`，当前 11.21.0 | 自动发现 | `-PnpmExecutable` / `PYDROID_PNPM_EXECUTABLE` |
+| JDK | 完整 JDK 21 | 自动发现 | `-JavaHome` |
+| Android SDK | 含当前 compile SDK，当前 android-36 | 自动发现 | `-AndroidSdkHome` |
+| Android buildPython | 64 位 CPython 3.13 + `venv` + `ensurepip` | 自动发现 | `-PythonExecutable` |
+| Desktop Python | embeddable runtime + 项目依赖 | 固定 WorkRoot runtime | `-DesktopPythonRuntime` |
 
-## 环境变量
+专用环境变量和系统标准变量会作为自动发现候选，而不是要求用户必须配置。
 
-可选：
+## 自动发现不是自动安装
 
-```text
-PYDROID_BUILD_HOME=D:\PyDroidTemp
-DK_TOOL_ROOT=D:\Code
-DK_CACHE_ROOT=D:\PyDroidTemp\cache
-PYDROID_NODE_EXECUTABLE=D:\Code\NodeJs\node.exe
-PYDROID_PNPM_EXECUTABLE=C:\Users\<user>\AppData\Local\pnpm\bin\pnpm.cmd
-PYDROID_JAVA_HOME=D:\Code\Language\Java
-PYDROID_ANDROID_SDK=D:\Code\Android\Sdk
-PYDROID_PYTHON_EXECUTABLE=D:\PyDroidTemp\tools\pydroid-flow\Python\3.13\python.exe
-PYDROID_DESKTOP_PYTHON_RUNTIME=D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13
-```
+允许读取：
 
-不设置时就使用上表固定默认值，不再尝试其它位置。
+- 环境变量；
+- `D:\Code` 等 ToolRoot 已有目录；
+- `%LOCALAPPDATA%\Android\Sdk` 等标准用户安装目录；
+- JDK 注册表；
+- `py.exe` / PATH 中已有命令。
+
+不允许：
+
+- 自动下载或安装工具；
+- Corepack 自动引导；
+- `sdkmanager` 自动补组件；
+- 自动修改 PATH/注册表/SDK；
+- 构建失败后换另一套工具重试。
+
+如果你明确在 GUI 中填写一个工具路径，该路径就是严格覆盖。验证失败会直接告诉你该路径的问题。
 
 ## Desktop Python 准备
 
-显式执行：
+需要重新准备 Desktop embeddable runtime 时，人工执行：
 
 ```powershell
 pnpm env:windows
@@ -65,8 +66,8 @@ powershell -ExecutionPolicy Bypass -File scripts/setup-windows.ps1 `
   -RuntimeRoot D:\PyDroidTemp\tools\pydroid-flow\Python\runtime-3.13
 ```
 
-该脚本是人工触发的环境准备工具，不会被 build 自动调用。
+核心 builder 不会自动调用这个准备脚本。
 
 ## 清理
 
-项目源码目录只保留源码和 `.git`。可直接删除 `D:\PyDroidTemp\builds`、`cache` 和旧输出；`D:\PyDroidTemp\tools\pydroid-flow\Python` 同时承载 Android 完整 buildPython 与 Desktop runtime，只有确认要重新准备 Python 工具时才删除。`D:\Code` 下共享的 Node/JDK/SDK 只有在确认无其他项目使用时才人工删除。
+源码目录只保留源码和 `.git`。构建工作区、缓存、工具运行时和最终产物位于 `D:\PyDroidTemp`；共享工具通常位于 `D:\Code` 或系统标准安装位置。
