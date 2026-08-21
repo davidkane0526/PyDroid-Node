@@ -46,7 +46,7 @@ import {
   type WorkflowFunctionDefinition,
   type WorkflowNode,
 } from "./workflow";
-import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell } from "./workflowNotebook";
+import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, summarizeNotebookConversion, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell, type NotebookConversionReport } from "./workflowNotebook";
 import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelHostExecution, executeWorkflow, executeWorkflowWithRuntime, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getHostExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type HostExecutionStatus, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, clearWorkspaceVariableState, getExecutionClientId, getWorkspaceExecutionResult, listWorkspaceVariableNames } from "./execution-workspace";
@@ -374,8 +374,8 @@ function loadPersonalTemplates(): CustomNodeTemplate[] {
 function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const spec = data.nodeType === "workflow.group"
     ? { nodeType: "workflow.group", label: data.label, category: "逻辑控制" as const, defaults: {}, parameters: [], inputPorts: data.groupInputs ?? [], outputPorts: data.groupOutputs ?? [] }
-    : data.nodeType === "function.call"
-      ? { nodeType: "function.call", label: data.label, category: "自定义" as const, defaults: {}, parameters: [], inputPorts: data.functionInputs ?? [], outputPorts: data.functionOutputs ?? [] }
+    : data.nodeType === "function.call" || data.nodeType === "function.map"
+      ? { nodeType: data.nodeType, label: data.label, category: "自定义" as const, defaults: {}, parameters: [], inputPorts: data.functionInputs ?? [], outputPorts: data.functionOutputs ?? [] }
       : resolveNodeSpec(getNodeSpec(data.nodeType), data.parameters);
   const insight = useContext(NodeInsightContext);
   const nodeResult = insight.results[id];
@@ -820,7 +820,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const nodeTypes = useMemo(() => ({ workflow: WorkflowNodeCard }), []);
   const edgeTypes = useMemo(() => ({ typed: TypedGradientEdge }), []);
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
-  const selectedFunctionDefinition = selectedNode?.data.nodeType === "function.call"
+  const selectedFunctionDefinition = selectedNode?.data.nodeType === "function.call" || selectedNode?.data.nodeType === "function.map"
     ? functions.find((definition) => definition.id === String(selectedNode.data.parameters.functionId ?? "")) ?? null
     : selectedNode?.data.nodeType === "workflow.group" && selectedNode.data.functionSourceId
       ? functions.find((definition) => definition.id === selectedNode.data.functionSourceId) ?? null
@@ -2509,6 +2509,19 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     } finally { setNotebookRunningCell(null); }
   };
 
+  const notebookConversionMessage = (report: NotebookConversionReport): string => {
+    const details = [
+      report.promotedFunctionDefinitions ? `函数 ${report.promotedFunctionDefinitions}${report.typedFunctionDefinitions ? `（类型化 ${report.typedFunctionDefinitions}）` : ""}` : "",
+      report.functionCalls ? `函数调用 ${report.functionCalls}` : "",
+      report.functionMaps ? `函数映射 ${report.functionMaps}${report.functionConcatMaps ? `（其中循环合并 ${report.functionConcatMaps}）` : ""}` : "",
+      report.androidUnsupportedModules.length
+        ? `Android 待确认依赖 ${report.androidUnsupportedModules.slice(0, 4).join(", ")}${report.androidUnsupportedModules.length > 4 ? "…" : ""}`
+        : "",
+      report.windowsPathCells ? `Windows 路径 ${report.windowsPathCells} 个单元格` : "",
+    ].filter(Boolean);
+    return `已无损转换 ${report.totalCells} 个单元格：结构化 ${report.semanticOperations}/${report.operations} 步（${report.structuredPercent}%），原样保留 ${report.carrierOperations} 步${details.length ? `；${details.join("；")}` : ""}`;
+  };
+
   const importNotebook = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -2526,10 +2539,10 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       replaceWorkflowContent(prepareImportedWorkflow(document));
       setNotebookError(null);
       setViewMode("nodes");
-      const recognizedCount = analyses.filter((analysis) => analysis.recognized).length;
+      const conversionReport = summarizeNotebookConversion(imported.cells, analyses);
       setMessage(source.includes("# %% [node]")
         ? `已自动识别并恢复 ${document.nodes.length} 个功能节点`
-        : `已转换 ${imported.cells.length} 个 Jupyter 单元格：识别 ${recognizedCount} 个功能节点，其余以无损代码/Markdown 节点保留`);
+        : notebookConversionMessage(conversionReport));
     } catch (error) {
       setMessage(error instanceof Error ? `Jupyter 导入失败：${error.message}` : "Jupyter 导入失败");
     } finally {
@@ -2755,10 +2768,10 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         setNotebookMetadata(imported.metadata);
         replaceWorkflowContent(prepareImportedWorkflow(document));
         setViewMode("nodes");
-        const recognizedCount = analyses.filter((analysis) => analysis.recognized).length;
+        const conversionReport = summarizeNotebookConversion(imported.cells, analyses);
         setMessage(source.includes("# %% [node]")
           ? `已从 Jupyter 自动恢复 ${document.nodes.length} 个功能节点`
-          : `已转换 ${imported.cells.length} 个单元格：识别 ${recognizedCount} 个功能节点，其余无损保留`);
+          : notebookConversionMessage(conversionReport));
         return;
       }
       const opened = lifecycle.openSerialized(session, text, prepareImportedWorkflow);
@@ -3640,7 +3653,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
                 <div><strong>公开输出</strong>{(selectedNode.data.groupOutputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("output", port.id, event.target.value)} /></label>)}</div>
                 <small>端口由组合时跨越组边界的连线自动生成；内部连线和节点参数在子画布中编辑。</small>
               </section>}
-              {selectedNode.data.nodeType === "function.call" && <section className="group-settings function-call-settings"><strong>{selectedFunctionDefinition?.name ?? selectedNode.data.label}</strong><small>{selectedFunctionDefinition ? `函数 ${selectedFunctionDefinition.id} · v${selectedFunctionDefinition.version}` : "函数定义缺失"}</small>{selectedFunctionDefinition && <button onClick={() => insertFunctionEditableGroup(selectedFunctionDefinition)}>展开为可编辑组合</button>}<small>调用端口来自函数签名；更新函数时当前工作流中的调用节点会同步到新版本。</small></section>}
+              {(selectedNode.data.nodeType === "function.call" || selectedNode.data.nodeType === "function.map") && <section className="group-settings function-call-settings"><strong>{selectedFunctionDefinition?.name ?? selectedNode.data.label}</strong><small>{selectedFunctionDefinition ? `函数 ${selectedFunctionDefinition.id} · v${selectedFunctionDefinition.version}` : "函数定义缺失"}</small>{selectedNode.data.nodeType === "function.call" && selectedFunctionDefinition && <button onClick={() => insertFunctionEditableGroup(selectedFunctionDefinition)}>展开为可编辑组合</button>}{selectedNode.data.nodeType === "function.map" ? <small>函数映射：输入端口“{String(selectedNode.data.parameters.mapInput ?? "")}”逐项执行，结果按 {selectedNode.data.parameters.collectMode === "table" ? "DataFrame" : selectedNode.data.parameters.collectMode === "concat_columns" ? "列方向 DataFrame 合并" : "列表"} 汇总。</small> : <small>调用端口来自函数签名；更新函数时当前工作流中的调用节点会同步到新版本。</small>}</section>}
               <div className="inspector-node-overview">
               {["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{selectedNode.data.nodeType === "io.read_csv_batch" ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
               {selectedNode.data.nodeType !== "workflow.group" && selectedSpec?.pythonCallable && (

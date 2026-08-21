@@ -1,6 +1,6 @@
 import type { Edge } from "@xyflow/react";
-import { parseWorkflow, type WorkflowDocument, type WorkflowNode } from "./workflow";
-import { getNodeSpec } from "./nodeCatalog";
+import { parseWorkflow, type WorkflowDocument, type WorkflowFunctionDefinition, type WorkflowNode } from "./workflow";
+import { getNodeSpec, type ValueType } from "./nodeCatalog";
 import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
 
 const NODE_CELL = /^# %% \[node\] ([^\r\n]+)$/gm;
@@ -24,10 +24,91 @@ export type NotebookCellAnalysis = {
   children?: Array<Omit<NotebookCellAnalysis, "operations"> & { branch: "true" | "false" | "body"; childIndex: number }>;
 };
 
+export type NotebookConversionReport = {
+  totalCells: number;
+  codeCells: number;
+  operations: number;
+  semanticOperations: number;
+  carrierOperations: number;
+  structuredPercent: number;
+  functionDefinitions: number;
+  promotedFunctionDefinitions: number;
+  typedFunctionDefinitions: number;
+  functionCalls: number;
+  functionMaps: number;
+  functionConcatMaps: number;
+  importedModules: string[];
+  androidUnsupportedModules: string[];
+  windowsPathCells: number;
+};
+
+const PYTHON_STDLIB_ROOTS = new Set([
+  "abc", "argparse", "array", "ast", "asyncio", "base64", "builtins", "collections", "contextlib", "copy", "csv", "datetime",
+  "decimal", "enum", "filecmp", "functools", "glob", "hashlib", "heapq", "inspect", "io", "itertools", "json", "logging", "math", "operator",
+  "os", "pathlib", "pickle", "random", "re", "shutil", "statistics", "string", "subprocess", "sys", "tempfile", "textwrap", "time",
+  "traceback", "typing", "uuid", "warnings", "zipfile",
+]);
+const ANDROID_PYTHON_PACKAGE_ROOTS = new Set(["numpy", "pandas", "matplotlib"]);
+
+function importedModuleRoots(source: string): string[] {
+  const modules = new Set<string>();
+  for (const line of source.split(/\r?\n/)) {
+    const from = line.match(/^\s*from\s+([A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*)\s+import\b/);
+    if (from) { modules.add(from[1].split(".")[0]); continue; }
+    const direct = line.match(/^\s*import\s+(.+)$/);
+    if (!direct) continue;
+    for (const entry of direct[1].split(",")) {
+      const name = entry.trim().split(/\s+as\s+/i)[0]?.trim().split(".")[0];
+      if (name && /^[A-Za-z_]\w*$/.test(name)) modules.add(name);
+    }
+  }
+  return [...modules];
+}
+
+export function summarizeNotebookConversion(cells: NotebookCell[], analyses: NotebookCellAnalysis[]): NotebookConversionReport {
+  const operations = analyses.flatMap((analysis) => analysis.operations?.length ? analysis.operations : (analysis.nodeType ? [{ ...analysis, index: 0 }] : []));
+  const semanticOperations = operations.filter((operation) => Boolean(operation.semantic && operation.nodeType && !operation.nodeType.startsWith("notebook."))).length;
+  const carrierOperations = operations.length - semanticOperations;
+  const importedModules = [...new Set(cells.filter((cell) => cell.cellType === "code").flatMap((cell) => importedModuleRoots(cell.source)))].sort();
+  const androidUnsupportedModules = importedModules.filter((module) => !PYTHON_STDLIB_ROOTS.has(module) && !ANDROID_PYTHON_PACKAGE_ROOTS.has(module));
+  const windowsPathCells = cells.filter((cell) => cell.cellType === "code" && /(?:[A-Za-z]:\\|\\\\[^\\\s]+\\)/.test(cell.source)).length;
+  const functionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef").length;
+  const promotedFunctionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string").length;
+  const typedFunctionDefinitions = operations.filter((operation) => {
+    if (operation.kind !== "FunctionDef" || typeof operation.parameters?.workflowFunctionId !== "string") return false;
+    const raw = operation.parameters.workflowFunctionOutputTypesJson;
+    if (typeof raw !== "string") return false;
+    try {
+      const types = JSON.parse(raw) as unknown;
+      return Array.isArray(types) && types.some((value) => typeof value === "string" && value !== "any");
+    } catch { return false; }
+  }).length;
+  return {
+    totalCells: cells.length,
+    codeCells: cells.filter((cell) => cell.cellType === "code").length,
+    operations: operations.length,
+    semanticOperations,
+    carrierOperations,
+    structuredPercent: operations.length ? Math.round((semanticOperations / operations.length) * 1000) / 10 : 0,
+    functionDefinitions,
+    promotedFunctionDefinitions,
+    typedFunctionDefinitions,
+    functionCalls: operations.filter((operation) => operation.nodeType === "function.call" && operation.semantic).length,
+    functionMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic).length,
+    functionConcatMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic && operation.parameters?.collectMode === "concat_columns").length,
+    importedModules,
+    androidUnsupportedModules,
+    windowsPathCells,
+  };
+}
+
 function resolvedNodePorts(node: WorkflowNode | undefined, direction: "input" | "output"): string[] {
   if (!node) return [];
   if (node.data.nodeType === "workflow.group") {
     return (direction === "input" ? node.data.groupInputs : node.data.groupOutputs)?.map((port) => port.id) ?? [];
+  }
+  if (node.data.nodeType === "function.call" || node.data.nodeType === "function.map") {
+    return (direction === "input" ? node.data.functionInputs : node.data.functionOutputs)?.map((port) => port.id) ?? [];
   }
   const spec = resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters);
   return (direction === "input" ? spec?.inputPorts : spec?.outputPorts)?.map((port) => port.id) ?? [];
@@ -85,21 +166,101 @@ export function notebookCellsToWorkflow(name: string, cells: NotebookCell[], not
 }
 
 export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], analyses: NotebookCellAnalysis[], notebookMetadata: Record<string, unknown> = {}): WorkflowDocument {
+  const conversionReport = summarizeNotebookConversion(cells, analyses);
   const byIndex = new Map(analyses.map((analysis) => [analysis.index, analysis]));
   type Operation = Omit<NotebookCellAnalysis, "operations"> & { index: number };
   type Entry = { cell: NotebookCell; cellIndex: number; operation?: Operation; operationIndex: number; parentOperationIndex?: number; branch?: "true" | "false" | "body" };
+  const fallbackOperation = (cell: NotebookCell, index: number, operation?: Operation): Operation => ({
+    index,
+    recognized: true,
+    semantic: false,
+    kind: operation?.kind ?? (cell.cellType === "markdown" ? "Markdown" : "Code"),
+    nodeType: cell.cellType === "markdown" ? "notebook.markdown_cell" : "notebook.code_cell",
+    label: operation?.label ?? (cell.cellType === "markdown" ? "Markdown" : `代码片段 ${index + 1}`),
+    parameters: {
+      ...(operation?.parameters ?? {}),
+      source: operation?.source ?? String(operation?.parameters?.source ?? cell.source),
+    },
+    source: operation?.source ?? String(operation?.parameters?.source ?? cell.source),
+    defines: operation?.defines ?? [],
+    uses: operation?.uses ?? [],
+    reason: operation?.reason,
+  });
   const entries: Entry[] = cells.flatMap<Entry>((cell, index) => {
     const analysis = byIndex.get(index);
+    if (cell.cellType === "markdown") {
+      return [{ cell, cellIndex: index, operation: fallbackOperation(cell, 0), operationIndex: 0 }];
+    }
     if (cell.cellType === "code" && analysis?.operations?.length) {
       return analysis.operations
-        .filter((operation) => operation.semantic !== false && operation.nodeType && !operation.nodeType.startsWith("notebook."))
-        .flatMap((operation, operationIndex) => [{ cell, cellIndex: index, operation, operationIndex }, ...((operation.children ?? []).filter((child) => child.semantic && child.nodeType).map((child, childIndex) => ({ cell, cellIndex: index, operation: { ...child, index: operationIndex * 100 + childIndex + 1 } as Operation, operationIndex: operationIndex * 100 + childIndex + 1, parentOperationIndex: operationIndex, branch: child.branch })))]);
+        .flatMap((operation, operationIndex) => {
+          // Reserve a deterministic range per top-level statement.  Child
+          // operations previously used `operationIndex * 100 + child`, which
+          // collided with the next top-level statement for the first block.
+          const topLevelOrder = operationIndex * 1000;
+          const executable = operation.semantic && operation.nodeType && !operation.nodeType.startsWith("notebook.")
+            ? operation
+            : fallbackOperation(cell, topLevelOrder, operation);
+          const children = executable.semantic
+            ? (operation.children ?? []).filter((child) => child.semantic && child.nodeType).map((child, childIndex) => ({
+              cell,
+              cellIndex: index,
+              operation: { ...child, index: topLevelOrder + childIndex + 1 } as Operation,
+              operationIndex: topLevelOrder + childIndex + 1,
+              parentOperationIndex: topLevelOrder,
+              branch: child.branch,
+            }))
+            : [];
+          return [{ cell, cellIndex: index, operation: executable as Operation, operationIndex: topLevelOrder }, ...children];
+        });
     }
     if (cell.cellType === "code" && analysis?.recognized && analysis.semantic !== false && analysis.nodeType && !analysis.nodeType.startsWith("notebook.")) {
       return [{ cell, cellIndex: index, operation: analysis as Operation, operationIndex: 0 }];
     }
-    return [];
+    return [{ cell, cellIndex: index, operation: fallbackOperation(cell, 0, analysis as Operation | undefined), operationIndex: 0 }];
   });
+  const parseStringList = (value: unknown): string[] => {
+    if (typeof value !== "string" || !value) return [];
+    try {
+      const parsed = JSON.parse(value) as unknown;
+      return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string" && Boolean(item)) : [];
+    } catch { return []; }
+  };
+  const parseValueTypeList = (value: unknown): ValueType[] => {
+    const allowed = new Set<ValueType>(["table", "plot", "csv", "number", "text", "boolean", "list", "object", "any"]);
+    return parseStringList(value).map((item) => allowed.has(item as ValueType) ? item as ValueType : "any");
+  };
+  const functionDefinitions: WorkflowFunctionDefinition[] = [];
+  const functionDefinitionMap = new Map<string, WorkflowFunctionDefinition>();
+  for (const entry of entries) {
+    if (entry.operation?.kind !== "FunctionDef") continue;
+    const params = entry.operation.parameters ?? {};
+    const id = typeof params.workflowFunctionId === "string" ? params.workflowFunctionId : "";
+    const code = typeof params.workflowFunctionCode === "string" ? params.workflowFunctionCode : "";
+    const inputNames = parseStringList(params.workflowFunctionInputsJson);
+    const inputTypes = parseValueTypeList(params.workflowFunctionInputTypesJson);
+    const outputIds = parseStringList(params.workflowFunctionOutputsJson);
+    const outputTypes = parseValueTypeList(params.workflowFunctionOutputTypesJson);
+    if (!id || !code || !outputIds.length || functionDefinitionMap.has(id)) continue;
+    const implementationId = `${id}-impl`;
+    const definition: WorkflowFunctionDefinition = {
+      id,
+      name: entry.operation.label?.replace(/^定义函数\s*·\s*/, "") || id,
+      version: 1,
+      description: "由 Jupyter 顶层函数定义自动生成；原始 def 同时保留在 Notebook 命名空间用于无损回退。",
+      inputs: inputNames.map((input, index) => ({ id: input, label: input, valueType: inputTypes[index] ?? "any", internalNodeId: implementationId, internalHandle: input })),
+      outputs: outputIds.map((output, index) => ({ id: output, label: output, valueType: outputTypes[index] ?? "any", internalNodeId: implementationId, internalHandle: output })),
+      nodes: [{
+        id: implementationId,
+        type: "workflow",
+        position: { x: 80, y: 80 },
+        data: { label: entry.operation.label || "Python 函数", nodeType: "custom.python_function", nodeVersion: 1, parameters: { code }, status: "idle" },
+      }],
+      edges: [],
+    };
+    functionDefinitions.push(definition);
+    functionDefinitionMap.set(id, definition);
+  }
   // 布局常量：结构容器按子节点数自适应高度，顶层按容器占位流式排布，避免与既有节点重叠
   const STRUCTURE_MIN_WIDTH = 520;
   const STRUCTURE_MIN_HEIGHT = 300;
@@ -150,13 +311,31 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     };
   })();
   const nodes: WorkflowNode[] = entries.map(({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch }) => {
-    const recognized = Boolean(cell.cellType === "code" && operation?.semantic && operation.nodeType);
     const resolvedNodeType = operation!.nodeType!;
     const id = entryId({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch });
     const parentId = parentOperationIndex === undefined ? undefined : `notebook-cell-${cellIndex + 1}-step-${parentOperationIndex + 1}`;
     const structure = isStructureType(resolvedNodeType);
     const size = structure ? (structureSizes.get(id) ?? { width: STRUCTURE_MIN_WIDTH, height: STRUCTURE_MIN_HEIGHT }) : undefined;
     const position = parentId ? (childPositions.get(id) ?? { x: 35, y: STRUCTURE_TOP }) : topLevelPosition({ cell, cellIndex, operation, operationIndex, parentOperationIndex, branch });
+    const functionDefinition = resolvedNodeType === "function.call" || resolvedNodeType === "function.map"
+      ? functionDefinitionMap.get(String(operation?.parameters?.functionId ?? ""))
+      : undefined;
+    const mappedOutput = resolvedNodeType === "function.map"
+      ? [
+          {
+            id: "output",
+            label: operation?.parameters?.collectMode === "table" || operation?.parameters?.collectMode === "concat_columns" ? "结果表" : "结果列表",
+            valueType: operation?.parameters?.collectMode === "table" || operation?.parameters?.collectMode === "concat_columns" ? "table" as const : "list" as const,
+          },
+          ...(typeof operation?.parameters?.lastItemVariable === "string" && operation.parameters.lastItemVariable
+            ? [{
+                id: "last",
+                label: "最后一项",
+                valueType: functionDefinition?.outputs[0]?.valueType ?? "any" as const,
+              }]
+            : []),
+        ]
+      : undefined;
     return {
       id, type: "workflow", parentId, extent: parentId ? "parent" : undefined, style: size ? { width: size.width, height: size.height } : undefined, position,
       data: {
@@ -166,46 +345,84 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
           ...(operation?.parameters ?? {}),
           notebookCellIndex: cellIndex,
           notebookOperationIndex: operationIndex,
+          ...(operationIndex === 0 ? { notebookCellJson: JSON.stringify(cell) } : {}),
+          ...(cellIndex === 0 && operationIndex === 0 ? {
+            notebookMetadataJson: JSON.stringify(notebookMetadata),
+            notebookConversionReportJson: JSON.stringify(conversionReport),
+          } : {}),
         }, status: "idle", branch,
+        ...(functionDefinition ? {
+          functionInputs: functionDefinition.inputs.map((port) => ({
+            id: port.id,
+            label: resolvedNodeType === "function.map" && port.id === String(operation?.parameters?.mapInput ?? "") ? `${port.label} 列表` : port.label,
+            valueType: resolvedNodeType === "function.map" && port.id === String(operation?.parameters?.mapInput ?? "") ? "list" as const : port.valueType,
+            required: true,
+          })),
+          functionOutputs: mappedOutput ?? functionDefinition.outputs.map((port) => ({ id: port.id, label: port.label, valueType: port.valueType })),
+          functionSourceId: functionDefinition.id,
+        } : {}),
       },
     };
   });
   const edges: Edge[] = [];
-  const variableNode = new Map<string, { nodeId: string; sourceHandle?: string }>();
+  const variableNode = new Map<string, { nodeId: string; sourceHandle?: string; semantic: boolean }>();
+  const notebookVariables = new Set<string>();
   entries.forEach(({ operation }, flatIndex) => {
-    if (!operation?.recognized) return;
+    if (!operation) return;
     const target = nodes[flatIndex]?.id;
     const targetNode = nodes[flatIndex];
-    const dependencies = [...new Set([operation.inputVariable, ...(operation.uses ?? [])].filter((name): name is string => Boolean(name && variableNode.has(name))))];
-    dependencies.forEach((dependency, dependencyIndex) => {
+    const semantic = Boolean(operation.semantic && operation.nodeType && !operation.nodeType.startsWith("notebook."));
+    const dependencies = [...new Set([operation.inputVariable, ...(operation.uses ?? [])].filter((name): name is string => Boolean(name && notebookVariables.has(name))))];
+    let explicitBindings: Record<string, string> = {};
+    const rawBindings = operation.parameters?.notebookInputBindingsJson;
+    if (typeof rawBindings === "string" && rawBindings) {
+      try {
+        const parsed = JSON.parse(rawBindings) as unknown;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          explicitBindings = Object.fromEntries(Object.entries(parsed as Record<string, unknown>).filter(([, value]) => typeof value === "string").map(([port, value]) => [port, String(value)]));
+        }
+      } catch { /* invalid metadata falls back to inferred bindings */ }
+    }
+    const inferredBindings = dependencies.map((dependency, dependencyIndex) => [connectablePort(targetNode, "input", dependencyIndex), dependency] as const)
+      .filter((entry): entry is readonly [string, string] => Boolean(entry[0]));
+    const bindingEntries = Object.keys(explicitBindings).length ? Object.entries(explicitBindings) : inferredBindings;
+    const inputBindings: Record<string, string> = {};
+    bindingEntries.forEach(([targetHandle, dependency]) => {
       const sourceBinding = variableNode.get(dependency);
       const source = sourceBinding?.nodeId;
       const sourceNode = nodes.find((node) => node.id === source);
       const sourceHandle = sourceBinding?.sourceHandle ?? connectablePort(sourceNode, "output");
-      const targetHandle = connectablePort(targetNode, "input", dependencyIndex);
-      if (source && target && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.targetHandle === targetHandle)) {
+      if (semantic && targetHandle) inputBindings[targetHandle] = dependency;
+      if (semantic && sourceBinding?.semantic && source && target && source !== target && sourceHandle && targetHandle && !edges.some((edge) => edge.source === source && edge.target === target && edge.targetHandle === targetHandle)) {
         edges.push({ id: `notebook-variable-${edges.length}`, source, sourceHandle, target, targetHandle });
       }
     });
     if (target) {
       const outputHandles = resolvedNodePorts(targetNode, "output");
+      const outputBindings: Record<string, string> = {};
       for (const [definedIndex, defined] of (operation.defines ?? []).entries()) {
-        variableNode.set(defined, { nodeId: target, sourceHandle: outputHandles[definedIndex] ?? outputHandles[0] ?? connectablePort(targetNode, "output") });
+        const sourceHandle = outputHandles[definedIndex] ?? outputHandles[0] ?? connectablePort(targetNode, "output");
+        variableNode.set(defined, { nodeId: target, sourceHandle, semantic });
+        notebookVariables.add(defined);
+        if (semantic && sourceHandle) outputBindings[defined] = sourceHandle;
       }
       if (operation.outputVariable && !(operation.defines ?? []).includes(operation.outputVariable)) {
-        variableNode.set(operation.outputVariable, { nodeId: target, sourceHandle: outputHandles[0] ?? connectablePort(targetNode, "output") });
+        const sourceHandle = outputHandles[0] ?? connectablePort(targetNode, "output");
+        variableNode.set(operation.outputVariable, { nodeId: target, sourceHandle, semantic });
+        notebookVariables.add(operation.outputVariable);
+        if (semantic && sourceHandle) outputBindings[operation.outputVariable] = sourceHandle;
+      }
+      if (semantic) {
+        targetNode.data.parameters.notebookInputBindingsJson = JSON.stringify(inputBindings);
+        targetNode.data.parameters.notebookOutputBindingsJson = JSON.stringify(outputBindings);
       }
     }
   });
-  // Preserve executable cell order when AST dependency inference has no usable variable edge.
-  for (let index = 1; index < nodes.length; index += 1) {
-    const source = nodes[index - 1];
-    const target = nodes[index];
-    if (edges.some((edge) => edge.target === target.id)) continue;
-    const sourceHandle = connectablePort(source, "output");
-    const targetHandle = connectablePort(target, "input");
-    if (sourceHandle && targetHandle) edges.push({ id: `notebook-order-${edges.length}`, source: source.id, sourceHandle, target: target.id, targetHandle });
-  }
+  // Execution order for analyzed notebooks is carried explicitly by
+  // notebookCellIndex/notebookOperationIndex (see the Python graph planner).
+  // Do not manufacture data edges merely to enforce sequence: a code carrier's
+  // generic `next` value is not necessarily the variable a later native node
+  // consumes. Cross-boundary values are bridged through notebook bindings.
   const groupedNodes = [...nodes];
   const groupedEdges = [...edges];
   const byCell = new Map<number, WorkflowNode[]>();
@@ -231,7 +448,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
       return edge;
     }));
   }
-  return parseWorkflow(JSON.stringify({ schemaVersion: 1, name, nodes: groupedNodes, edges: groupedEdges }));
+  return parseWorkflow(JSON.stringify({ schemaVersion: 1, name, nodes: groupedNodes, edges: groupedEdges, functions: functionDefinitions }));
 }
 
 export function workflowNotebookMetadata(nodes: WorkflowNode[]): Record<string, unknown> {

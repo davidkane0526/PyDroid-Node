@@ -1,6 +1,6 @@
 # PyDroid Node build toolchain
 
-Current build revision: **1.4.94 / local tool discovery correction** (2026-08-21). Architecture baseline remains **1.4.92 / Baseline Consolidation**; Remote/LAN physical-device acceptance remains anchored at **1.4.91**.
+Current build revision: **1.4.95 / Notebook compiler foundation** (2026-08-21). Build-tool behavior remains the **1.4.94 local tool discovery correction**; architecture baseline remains **1.4.92 / Baseline Consolidation** and Remote/LAN physical-device acceptance remains anchored at **1.4.91**.
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 提供路径发现、版本验证、网络和清理辅助函数。
 

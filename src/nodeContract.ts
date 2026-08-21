@@ -32,6 +32,7 @@ const SPECIAL_NODE_CONTRACTS: Array<{ nodeType: string; runtimeSupport: NodeRunt
   { nodeType: "workflow.group", runtimeSupport: ["python", "javascript"], executionModel: "workflow" },
   { nodeType: "function.definition", runtimeSupport: [], executionModel: "function", functionRole: "definition", notes: ["Document-level reusable function definition contract; not executed as a graph node."] },
   { nodeType: "function.call", runtimeSupport: ["python", "javascript"], executionModel: "function", functionRole: "call", notes: ["Ports are derived from the referenced workflow function signature."] },
+  { nodeType: "function.map", runtimeSupport: ["python"], executionModel: "function", functionRole: "call", notes: ["Maps one referenced workflow function over an iterable input; supports list/table collection and the strict Notebook map+concat-columns pattern."] },
   { nodeType: "table.group_mean", runtimeSupport: ["python", "javascript"], notes: ["Legacy compatibility contract for workflows created before table.group_mean left the visible catalog."] },
 ];
 
@@ -58,7 +59,7 @@ function inferStateAccess(nodeType: string): NodeStateAccess {
 }
 
 function inferDeterministic(nodeType: string): boolean {
-  return !new Set(["generate.random_table", "ui.alert", "ui.input_dialog", "variable.set", "variable.set_workspace", "variable.get_workspace", "custom.python_function", "notebook.code_cell"]).has(nodeType);
+  return !new Set(["generate.random_table", "ui.alert", "ui.input_dialog", "variable.set", "variable.set_workspace", "variable.get_workspace", "custom.python_function", "notebook.code_cell", "function.map"]).has(nodeType);
 }
 
 function inferSideEffect(nodeType: string): boolean {

@@ -1,3 +1,21 @@
+## 1.4.95 (118) — Lossless Notebook → Workflow compiler foundation — 2026-08-21
+
+- Reworks Jupyter import into a **lossless hybrid compiler**: statements are converted to visual/native nodes only when an equivalent mapping is known; imports, function definitions and unsupported Python remain executable `notebook.code_cell` carriers instead of being silently dropped.
+- Fixes a long-standing multi-cell indexing defect where a one-statement cell could report its statement index (`0`) as the notebook cell index, attaching analysis to the wrong Jupyter cell.
+- Adds shared Notebook-namespace bridges for mixed graphs: native nodes can read variables created by code carriers and publish their outputs back into the namespace for later Python code.
+- Promotes safe top-level user functions into document-level `WorkflowFunctionDefinition` entries and direct call sites into `function.call` nodes. Variable, JSON-literal, safe-expression and free-global dependencies are represented explicitly; unknown data types stay `Any` instead of being guessed as `table`.
+- Keeps the original `def` statement in the Notebook namespace even when a reusable function definition is generated, preserving fallback semantics and allowing dependent user functions to reference earlier definitions.
+- Stops treating ordinary Python `if`/`for`/`while` as the existing table-oriented visual subflows. Those nodes operate on DataFrame branch/row semantics and are not a general Python control-flow equivalent, so generic Python control flow now remains lossless code unless a dedicated equivalence rule exists.
+- Adds a strict `function.map` `concat_columns` mode for the common scientific pattern `for item in items: result = pd.concat([result, fn(item, ...)], axis=1)`. The pre-loop accumulator is preserved, an optional temporary variable receives the last mapped value, and loops with extra side effects/conditions/index expressions remain Python.
+- Expands the safe custom-function builtin environment with ordinary non-I/O Python builtins and exception classes used by real scientific functions. Functions requiring unsupported semantics such as `open()`, generators or `global/nonlocal` are deliberately left as lossless code carriers.
+- Upgrades `scripts/audit-notebooks.py` into a compiler coverage audit that shares function context across cells and reports promotable definitions/calls, native operations, lossless carriers and failures.
+- Real-workspace regression: **186 notebooks / 1,443 code cells / 5,418 top-level operations analyzed with 0 failures**; 266 top-level function definitions found, 262 safely promotable, and **105 of 108 direct calls to previously defined user functions** promoted to `function.call`; the remaining 3 are file-I/O functions using `open()` and stay lossless Python.
+- Adds Python-only `function.map` for provably equivalent list-comprehension and strict loop-aggregation subsets. The current real corpus safely promotes **18 mappings**, including **11 map + column-concat loops**; filters, multiple generators, generic control flow and embedded mapped expressions remain lossless Python.
+- Adds a persistent Notebook conversion-quality report with structural coverage, promoted function calls/maps, imported modules, Android dependencies requiring review and Windows-path cell counts; import UI now surfaces these facts immediately.
+- Current corpus platform audit finds 194 Windows-path code cells and Android dependencies requiring review led by `scipy` (19 notebooks), local `Tools` (4), `import_ipynb` (2) and `PIL` (1).
+- Remote Web/LAN and build-tool behavior are unchanged from the accepted 1.4.91 / 1.4.94 baselines.
+- Build revision: `1.4.95-dev-r73-notebook-compiler`.
+
 ## 1.4.94 (117) — Local tool discovery correction — 2026-08-21
 
 - Corrects the over-constrained 1.4.92/1.4.93 build policy: local discovery of already-installed tools is a normal builder responsibility and is no longer classified as fallback/recovery.

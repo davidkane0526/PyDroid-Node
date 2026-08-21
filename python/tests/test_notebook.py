@@ -23,28 +23,32 @@ def test_classifies_every_statement_in_a_compound_cell_as_carrier_operations():
     assert [item["source"] for item in result["operations"]] == ["x = 1", "y = x + 2"]
 
 
-def test_recognizes_fully_annotated_function_as_custom_node():
+def test_preserves_fully_annotated_function_definition_in_notebook_namespace():
     result = analyze_python_cell("def scale(table: 'table', factor: float = 2) -> 'table':\n    return table * factor\n")
-    assert result["nodeType"] == "custom.python_function"
+    assert result["nodeType"] == "notebook.code_cell"
     assert result["recognized"] is True
-    assert result["parameters"]["code"].startswith("def scale")
+    assert result["semantic"] is False
+    assert result["parameters"]["source"].startswith("def scale")
+    assert "workflowFunctionCode" in result["parameters"]
     assert result["defines"] == ["scale"]
 
 
-def test_infers_annotations_for_unannotated_function():
+def test_compiles_unannotated_function_to_any_typed_workflow_kernel_without_guessing_table():
     result = analyze_python_cell("def clean(data, factor=2):\n    return data * factor\n")
-    assert result["nodeType"] == "custom.python_function"
+    assert result["nodeType"] == "notebook.code_cell"
     assert result["recognized"] is True
-    code = result["parameters"]["code"]
-    assert "data: 'table'" in code
-    assert "factor: int" in code
-    assert "-> 'table'" in code
+    code = result["parameters"]["workflowFunctionCode"]
+    assert "data: 'Any'" in code
+    assert "factor: 'Any'" in code
+    assert "-> 'Any'" in code
 
 
-def test_marks_uninferable_function_as_unmapped():
+def test_keeps_vararg_function_as_lossless_code_even_when_it_cannot_be_promoted():
     result = analyze_python_cell("def f(*args, **kwargs):\n    return args\n")
-    assert result["recognized"] is False
-    assert "无法自动转换" in result["reason"]
+    assert result["recognized"] is True
+    assert result["semantic"] is False
+    assert result["nodeType"] == "notebook.code_cell"
+    assert "workflowFunctionCode" not in result["parameters"]
 
 
 def test_analyzes_ipynb_cells():
@@ -58,7 +62,8 @@ def test_splits_compound_cell_into_classified_top_level_operations():
     result = analyze_python_cell("import pandas as pd\ndf = pd.read_csv('a.csv')\nfor value in range(3):\n    print(value)\n")
     assert [item["nodeType"] for item in result["operations"]] == ["notebook.code_cell", "io.read_csv", "notebook.code_cell"]
     assert result["operations"][1]["semantic"] is True
-    assert result["operations"][2]["recognized"] is False
+    assert result["operations"][2]["recognized"] is True
+    assert result["operations"][2]["semantic"] is False
 
 
 def test_recognizes_chained_plot_and_clipboard_export():
@@ -133,16 +138,15 @@ def test_ast_does_not_claim_unmapped_assignment_is_a_node():
     assert result["operations"][0]["reason"].startswith("尚未将")
 
 
-def test_ast_maps_if_body_to_visual_structure_children():
+def test_ast_keeps_python_if_as_lossless_code_instead_of_table_branch_semantics():
     result = analyze_python_cell("if voltage >= 0:\n    positive = frame.abs()\nelse:\n    negative = frame.round(2)\n")
-    assert result["nodeType"] == "logic.if_subflow"
-    assert result["parameters"]["condition"] == "voltage >= 0"
-    assert [child["branch"] for child in result["children"]] == ["true", "false"]
-    assert [child["nodeType"] for child in result["children"]] == ["table.absolute", "pandas.round"]
+    assert result["nodeType"] == "notebook.code_cell"
+    assert result["semantic"] is False
+    assert "标量控制流" in result["reason"]
 
     table_condition = analyze_python_cell("if frame['voltage'] >= 0:\n    positive = frame.abs()\n")
-    assert table_condition["inputVariable"] == "frame"
-    assert table_condition["parameters"]["condition"] == "`voltage` >= 0"
+    assert table_condition["nodeType"] == "notebook.code_cell"
+    assert table_condition["semantic"] is False
 
 
 def test_maps_boolean_indexing_to_query_node():
@@ -191,10 +195,125 @@ def test_maps_linregress_to_linear_fit():
     assert result["parameters"]["yColumn"] == "y"
 
 
-def test_infers_file_path_parameter_as_str():
+def test_does_not_guess_file_path_parameter_type_for_notebook_function():
     result = analyze_python_cell("def read_data(file_path):\n    return file_path\n")
-    assert result["nodeType"] == "custom.python_function"
-    assert "file_path: str" in result["parameters"]["code"]
+    assert result["nodeType"] == "notebook.code_cell"
+    assert "file_path: 'Any'" in result["parameters"]["workflowFunctionCode"]
+
+
+def test_infers_only_provable_user_function_port_types():
+    table = analyze_python_cell("def load(path):\n    data = pd.read_csv(path)\n    return data\n")
+    assert json.loads(table["parameters"]["workflowFunctionInputTypesJson"]) == ["any"]
+    assert json.loads(table["parameters"]["workflowFunctionOutputTypesJson"]) == ["table"]
+    assert "-> 'table'" in table["parameters"]["workflowFunctionCode"]
+
+    scalar_unknown = analyze_python_cell("def ratio(a, b):\n    return a.mean() / b.mean()\n")
+    assert json.loads(scalar_unknown["parameters"]["workflowFunctionOutputTypesJson"]) == ["any"]
+
+
+def test_preserves_supported_explicit_function_annotations_as_workflow_types():
+    result = analyze_python_cell("def format_value(value: float) -> str:\n    return str(value)\n")
+    assert json.loads(result["parameters"]["workflowFunctionInputTypesJson"]) == ["number"]
+    assert json.loads(result["parameters"]["workflowFunctionOutputTypesJson"]) == ["text"]
+    assert "value: 'number'" in result["parameters"]["workflowFunctionCode"]
+    assert "-> 'text'" in result["parameters"]["workflowFunctionCode"]
+
+
+def test_infers_stable_tuple_output_types_without_guessing_unknown_members():
+    result = analyze_python_cell("def pair():\n    return pd.DataFrame(), 1\n")
+    assert json.loads(result["parameters"]["workflowFunctionOutputTypesJson"]) == ["table", "number"]
+    code = result["parameters"]["workflowFunctionCode"]
+    assert "output1:table" in code
+    assert "output2:number" in code
+
+
+def test_promotes_direct_user_function_call_with_literal_and_variable_inputs():
+    raw = json.dumps({"cells": [{"cell_type": "code", "source": [
+        "def clean(data, factor=2):\n",
+        "    return data * factor\n",
+        "df = pd.read_csv('a.csv')\n",
+        "out = clean(df, 3)\n",
+    ]}]})
+    result = json.loads(analyze_notebook_json(raw))["cells"][0]
+    call = result["operations"][2]
+    assert call["nodeType"] == "function.call"
+    assert call["parameters"]["functionId"] == "notebook-fn-1-1-clean"
+    assert json.loads(call["parameters"]["notebookInputBindingsJson"]) == {"data": "df"}
+    assert json.loads(call["parameters"]["notebookLiteralInputsJson"]) == {"factor": 3}
+    assert call["defines"] == ["out"]
+
+
+def test_promotes_safe_user_function_list_comprehension_to_function_map():
+    raw = json.dumps({"cells": [{"cell_type": "code", "source": [
+        "def measure(path, sign=1):\n",
+        "    return path * sign\n",
+        "paths = [1, 2, 3]\n",
+        "values = [measure(path, 2) for path in paths]\n",
+        "frame = pd.DataFrame([measure(path, 3) for path in paths])\n",
+    ]}]})
+    result = json.loads(analyze_notebook_json(raw))["cells"][0]
+    list_map = result["operations"][2]
+    table_map = result["operations"][3]
+    assert list_map["nodeType"] == "function.map"
+    assert list_map["parameters"]["mapInput"] == "path"
+    assert list_map["parameters"]["collectMode"] == "list"
+    assert json.loads(list_map["parameters"]["notebookInputBindingsJson"]) == {"path": "paths"}
+    assert json.loads(list_map["parameters"]["notebookLiteralInputsJson"]) == {"sign": 2}
+    assert table_map["nodeType"] == "function.map"
+    assert table_map["parameters"]["collectMode"] == "table"
+
+
+def test_keeps_complex_user_function_comprehension_as_lossless_python():
+    raw = json.dumps({"cells": [{"cell_type": "code", "source": [
+        "def measure(path):\n",
+        "    return path\n",
+        "paths = [1, 2, 3]\n",
+        "values = [measure(path + 1) for path in paths]\n",
+    ]}]})
+    operation = json.loads(analyze_notebook_json(raw))["cells"][0]["operations"][2]
+    assert operation["nodeType"] == "notebook.code_cell"
+    assert operation["semantic"] is False
+
+
+def test_promotes_exact_user_function_concat_loop_and_preserves_last_item_variable():
+    raw = json.dumps({"cells": [{"cell_type": "code", "source": [
+        "def DataProcess(item):\n",
+        "    return pd.DataFrame({'value': [item]})\n",
+        "items = [1, 2, 3]\n",
+        "DataCount = pd.DataFrame()\n",
+        "for item in items:\n",
+        "    Data = DataProcess(item)\n",
+        "    DataCount = pd.concat([DataCount, Data], axis=1)\n",
+    ]}]})
+    result = json.loads(analyze_notebook_json(raw))["cells"][0]
+    loop = result["operations"][3]
+    assert loop["nodeType"] == "function.map"
+    assert loop["kind"] == "UserFunctionMapConcatColumns"
+    assert loop["parameters"]["collectMode"] == "concat_columns"
+    assert loop["parameters"]["concatInitialVariable"] == "DataCount"
+    assert loop["parameters"]["lastItemVariable"] == "Data"
+    assert json.loads(loop["parameters"]["notebookInputBindingsJson"]) == {"item": "items"}
+    assert loop["defines"] == ["DataCount", "Data"]
+
+
+def test_keeps_concat_loop_with_side_effect_as_lossless_python():
+    raw = json.dumps({"cells": [{"cell_type": "code", "source": [
+        "def DataProcess(item):\n",
+        "    return pd.DataFrame({'value': [item]})\n",
+        "for item in items:\n",
+        "    Data = DataProcess(item)\n",
+        "    print(item)\n",
+        "    DataCount = pd.concat([DataCount, Data], axis=1)\n",
+    ]}]})
+    loop = json.loads(analyze_notebook_json(raw))["cells"][0]["operations"][1]
+    assert loop["nodeType"] == "notebook.code_cell"
+    assert loop["semantic"] is False
+
+
+def test_keeps_generic_python_control_flow_as_lossless_code_instead_of_table_subflows():
+    assert analyze_python_cell("if flag:\n    value = 1\n")["nodeType"] == "notebook.code_cell"
+    assert analyze_python_cell("for item in items:\n    print(item)\n")["nodeType"] == "notebook.code_cell"
+    assert analyze_python_cell("while ready:\n    ready = False\n")["nodeType"] == "notebook.code_cell"
 
 
 def test_classifies_config_assignments_explicitly():
@@ -212,5 +331,22 @@ def test_marks_plt_show_as_plot_display_terminal():
 
 def test_marks_multi_file_scan_loop():
     result = analyze_python_cell("for i in Name:\n    data = pd.read_csv(i)\n")
-    assert result["recognized"] is False
+    assert result["recognized"] is True
+    assert result["nodeType"] == "notebook.code_cell"
+    assert result["semantic"] is False
     assert "多文件扫描" in result["reason"]
+
+
+def test_notebook_analysis_keeps_cell_index_distinct_from_statement_index():
+    raw = json.dumps({
+        "cells": [
+            {"cell_type": "code", "source": ["x = 1"]},
+            {"cell_type": "markdown", "source": ["note"]},
+            {"cell_type": "code", "source": ["y = 2"]},
+            {"cell_type": "code", "source": ["z = 3\nw = 4"]},
+        ]
+    })
+    cells = json.loads(analyze_notebook_json(raw))["cells"]
+    assert [cell["index"] for cell in cells] == [0, 1, 2, 3]
+    assert cells[2]["operations"][0]["index"] == 0
+    assert [operation["index"] for operation in cells[3]["operations"]] == [0, 1]

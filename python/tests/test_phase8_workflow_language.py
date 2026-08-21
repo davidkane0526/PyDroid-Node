@@ -118,3 +118,194 @@ def test_python_notebook_cell_inside_function_uses_function_runtime_namespace():
     result = run(workflow)
     assert result["status"] == "success"
     assert result["preview"]["rows"] == [[1], [2]]
+
+
+def test_analyzed_notebook_bridges_code_native_code_through_shared_namespace():
+    workflow = {
+        "schemaVersion": 2,
+        "nodes": [
+            node("cell-source", "notebook.code_cell", {
+                "source": "import pandas as pd\nframe = pd.DataFrame({'x': [1, None, 3]})",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 0,
+            }),
+            node("dropna", "pandas.dropna", {
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 1,
+                "notebookInputBindingsJson": json.dumps({"input": "frame"}),
+                "notebookOutputBindingsJson": json.dumps({"clean": "output"}),
+            }),
+            node("cell-result", "notebook.code_cell", {
+                "source": "check = pd.DataFrame({'sum': [int(clean['x'].sum())]})\ncheck",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 2,
+            }),
+        ],
+        "edges": [],
+    }
+    result = run(workflow)
+    assert result["status"] == "success"
+    assert result["nodeResults"]["cell-result"]["kind"] == "table"
+    assert result["nodeResults"]["cell-result"]["preview"]["rows"] == [[4]]
+
+
+def test_promoted_notebook_function_call_uses_namespace_and_literal_bindings():
+    definition = {
+        "id": "notebook-fn-scale",
+        "name": "scale",
+        "version": 1,
+        "inputs": [
+            {"id": "frame", "label": "frame", "valueType": "any", "internalNodeId": "impl", "internalHandle": "frame"},
+            {"id": "factor", "label": "factor", "valueType": "any", "internalNodeId": "impl", "internalHandle": "factor"},
+        ],
+        "outputs": [
+            {"id": "output", "label": "output", "valueType": "any", "internalNodeId": "impl", "internalHandle": "output"},
+        ],
+        "nodes": [node("impl", "custom.python_function", {
+            "code": "def scale(frame: 'Any', factor: 'Any') -> 'Any':\n    return frame * factor",
+        })],
+        "edges": [],
+    }
+    workflow = {
+        "schemaVersion": 2,
+        "functions": [definition],
+        "nodes": [
+            node("cell-source", "notebook.code_cell", {
+                "source": "import pandas as pd\nframe = pd.DataFrame({'x': [1, 2, 3]})\ndef scale(frame, factor=2):\n    return frame * factor",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 0,
+            }),
+            node("call", "function.call", {
+                "functionId": "notebook-fn-scale",
+                "functionVersion": 1,
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 1,
+                "notebookInputBindingsJson": json.dumps({"frame": "frame"}),
+                "notebookLiteralInputsJson": json.dumps({"factor": 3}),
+                "notebookOutputBindingsJson": json.dumps({"scaled": "output"}),
+            }),
+            node("cell-result", "notebook.code_cell", {
+                "source": "check = pd.DataFrame({'sum': [int(scaled['x'].sum())]})\ncheck",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 2,
+            }),
+        ],
+        "edges": [],
+    }
+    result = run(workflow)
+    assert result["status"] == "success"
+    assert result["nodeResults"]["cell-result"]["preview"]["rows"] == [[18]]
+
+
+def test_promoted_notebook_function_map_preserves_list_comprehension_semantics():
+    definition = {
+        "id": "notebook-fn-measure",
+        "name": "measure",
+        "version": 1,
+        "inputs": [
+            {"id": "value", "label": "value", "valueType": "any", "internalNodeId": "impl", "internalHandle": "value"},
+            {"id": "factor", "label": "factor", "valueType": "any", "internalNodeId": "impl", "internalHandle": "factor"},
+        ],
+        "outputs": [
+            {"id": "output", "label": "output", "valueType": "any", "internalNodeId": "impl", "internalHandle": "output"},
+        ],
+        "nodes": [node("impl", "custom.python_function", {
+            "code": "def measure(value: 'Any', factor: 'Any') -> 'Any':\n    return value * factor",
+        })],
+        "edges": [],
+    }
+    workflow = {
+        "schemaVersion": 2,
+        "functions": [definition],
+        "nodes": [
+            node("cell-source", "notebook.code_cell", {
+                "source": "items = [1, 2, 3]",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 0,
+            }),
+            node("map-list", "function.map", {
+                "functionId": "notebook-fn-measure",
+                "functionVersion": 1,
+                "mapInput": "value",
+                "collectMode": "list",
+                "maxIterations": 100,
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 1,
+                "notebookInputBindingsJson": json.dumps({"value": "items"}),
+                "notebookLiteralInputsJson": json.dumps({"factor": 2}),
+                "notebookOutputBindingsJson": json.dumps({"values": "output"}),
+            }),
+            node("map-table", "function.map", {
+                "functionId": "notebook-fn-measure",
+                "functionVersion": 1,
+                "mapInput": "value",
+                "collectMode": "table",
+                "maxIterations": 100,
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 2,
+                "notebookInputBindingsJson": json.dumps({"value": "items"}),
+                "notebookLiteralInputsJson": json.dumps({"factor": 3}),
+                "notebookOutputBindingsJson": json.dumps({"frame": "output"}),
+            }),
+            node("cell-result", "notebook.code_cell", {
+                "source": "check = pd.DataFrame({'list_sum': [sum(values)], 'table_sum': [int(frame.iloc[:, 0].sum())]})\ncheck",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 3,
+            }),
+        ],
+        "edges": [],
+    }
+    result = run(workflow)
+    assert result["status"] == "success"
+    assert result["nodeResults"]["cell-result"]["preview"]["rows"] == [[12, 18]]
+
+
+def test_promoted_function_map_concat_columns_preserves_accumulator_and_last_item():
+    definition = {
+        "id": "notebook-fn-frame",
+        "name": "make_frame",
+        "version": 1,
+        "inputs": [
+            {"id": "value", "label": "value", "valueType": "any", "internalNodeId": "impl", "internalHandle": "value"},
+        ],
+        "outputs": [
+            {"id": "output", "label": "output", "valueType": "table", "internalNodeId": "impl", "internalHandle": "output"},
+        ],
+        "nodes": [node("impl", "custom.python_function", {
+            "code": "def make_frame(value: 'Any') -> 'table':\n    return pd.DataFrame({str(value): [value, value + 10]})",
+        })],
+        "edges": [],
+    }
+    workflow = {
+        "schemaVersion": 2,
+        "functions": [definition],
+        "nodes": [
+            node("cell-source", "notebook.code_cell", {
+                "source": "items = [1, 2]\nresult = pd.DataFrame({'seed': [0, 0]})",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 0,
+            }),
+            node("map-concat", "function.map", {
+                "functionId": "notebook-fn-frame",
+                "functionVersion": 1,
+                "mapInput": "value",
+                "collectMode": "concat_columns",
+                "concatInitialVariable": "result",
+                "lastItemVariable": "last_frame",
+                "maxIterations": 100,
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 1,
+                "notebookInputBindingsJson": json.dumps({"value": "items"}),
+                "notebookOutputBindingsJson": json.dumps({"result": "output", "last_frame": "last"}),
+            }),
+            node("cell-result", "notebook.code_cell", {
+                "source": "check = pd.DataFrame({'columns': [','.join(result.columns)], 'last': [int(last_frame.iloc[0, 0])]})\ncheck",
+                "notebookCellIndex": 0,
+                "notebookOperationIndex": 2,
+            }),
+        ],
+        "edges": [],
+    }
+    result = run(workflow)
+    assert result["status"] == "success"
+    assert result["nodeResults"]["cell-result"]["preview"]["rows"] == [["seed,1,2", 2]]

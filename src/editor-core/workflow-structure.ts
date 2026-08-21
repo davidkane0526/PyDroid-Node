@@ -5,9 +5,9 @@ import type { WorkflowGroupPort, WorkflowNode } from "../workflow";
 
 export function nodeSpecForEditor(node: WorkflowNode | undefined): NodeSpec | undefined {
   if (!node) return undefined;
-  if (node.data.nodeType === "function.call") {
+  if (node.data.nodeType === "function.call" || node.data.nodeType === "function.map") {
     return {
-      nodeType: "function.call",
+      nodeType: node.data.nodeType,
       nodeVersion: 1,
       label: node.data.label,
       category: "自定义",
@@ -15,7 +15,7 @@ export function nodeSpecForEditor(node: WorkflowNode | undefined): NodeSpec | un
       parameters: [],
       inputPorts: node.data.functionInputs ?? [],
       outputPorts: node.data.functionOutputs ?? [],
-      runtimeSupport: ["python", "javascript"],
+      runtimeSupport: node.data.nodeType === "function.map" ? ["python"] : ["python", "javascript"],
       executionModel: "function",
       functionRole: "call",
       deterministic: false,

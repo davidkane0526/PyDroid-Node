@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import builtins
 import hashlib
 import io
@@ -56,6 +57,7 @@ def _execute_container_graph(
             raise ValueError("Nested visual structures are not supported in this build")
         has_internal_input = any(edge["target"] == child["id"] for edge in internal_edges)
         upstream = _node_upstream(child["id"], child_type, internal_workflow, values) if has_internal_input else seed
+        upstream = _bind_notebook_inputs(child_type, params, upstream, notebook_namespace)
         if isinstance(params.get("notebookSource"), str):
             outputs, _, _, _ = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
         elif child_type == "notebook.code_cell":
@@ -65,8 +67,11 @@ def _execute_container_graph(
             outputs = {"next": text, "output": text}
         elif child_type == "function.call":
             outputs, _, _, _ = _execute_function_call(child, upstream, root_workflow or workflow, csv_text, input_files, variables, call_stack, notebook_namespace)
+        elif child_type == "function.map":
+            outputs, _, _, _ = _execute_function_map(child, upstream, root_workflow or workflow, csv_text, input_files, variables, call_stack, notebook_namespace)
         else:
             outputs, _, _, _ = _execute_node(child_type, params, upstream, csv_text, input_files, variables)
+        _sync_notebook_outputs(params, outputs, notebook_namespace)
         values[child["id"]] = outputs
     if not ordered:
         return seed
@@ -118,9 +123,74 @@ def _node_upstream(node_id: str, node_type: str, workflow: dict[str, Any], value
         return _upstream_tables(node_id, workflow, values)
     if node_type in {"pulse.combine_channels", "pulse.segment_measurement"}:
         return _upstream_inputs(node_id, workflow, values)
-    if node_type in {"custom.python_function", "ui.alert", "function.call"}:
+    if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map"}:
         return _upstream_inputs(node_id, workflow, values)
     return _upstream_value(node_id, workflow, values)
+
+
+def _notebook_binding_map(params: dict[str, Any], key: str) -> dict[str, str]:
+    raw = params.get(key)
+    if not isinstance(raw, str) or not raw.strip():
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(port): str(name) for port, name in parsed.items() if str(port) and str(name)}
+
+
+def _bind_notebook_inputs(node_type: str, params: dict[str, Any], upstream: Any, namespace: dict[str, Any]) -> Any:
+    """Bridge variables produced by code carriers into native workflow nodes.
+
+    Analyzed notebooks deliberately avoid fake data edges across a code/native
+    boundary: ``notebook.code_cell.next`` is a generic display value and may not
+    be the exact Python variable consumed later.  The compiler records explicit
+    port->variable bindings instead; this helper resolves them from the shared
+    notebook namespace at execution time.
+    """
+    bindings = _notebook_binding_map(params, "notebookInputBindingsJson")
+    resolved = {port: namespace[name] for port, name in bindings.items() if name in namespace}
+    raw_literals = params.get("notebookLiteralInputsJson")
+    if isinstance(raw_literals, str) and raw_literals.strip():
+        try:
+            parsed_literals = json.loads(raw_literals)
+            if isinstance(parsed_literals, dict):
+                for port, value in parsed_literals.items():
+                    resolved.setdefault(str(port), value)
+        except (TypeError, ValueError):
+            pass
+    raw_expressions = params.get("notebookExpressionInputsJson")
+    if isinstance(raw_expressions, str) and raw_expressions.strip():
+        try:
+            parsed_expressions = json.loads(raw_expressions)
+            if isinstance(parsed_expressions, dict):
+                for port, expression in parsed_expressions.items():
+                    if isinstance(expression, str) and expression.strip():
+                        resolved.setdefault(str(port), eval(compile(ast.parse(expression, mode="eval"), "<notebook-input>", "eval"), namespace, namespace))
+        except (SyntaxError, TypeError, ValueError, NameError, AttributeError, KeyError, IndexError):
+            pass
+    if not resolved:
+        return upstream
+    if node_type in _FUNCTION_MULTI_INPUT_TYPES:
+        merged = dict(upstream) if isinstance(upstream, dict) else {}
+        for port, value in resolved.items():
+            merged.setdefault(port, value)
+        return merged
+    # Standard nodes have a single data input.  Prefer a real graph edge when
+    # present; otherwise use the compiler-recorded namespace variable.
+    if upstream is not None:
+        return upstream
+    return next(iter(resolved.values()))
+
+
+def _sync_notebook_outputs(params: dict[str, Any], outputs: dict[str, Any], namespace: dict[str, Any]) -> None:
+    """Publish native-node outputs back into the shared Python namespace."""
+    bindings = _notebook_binding_map(params, "notebookOutputBindingsJson")
+    for variable, port in bindings.items():
+        if port in outputs:
+            namespace[variable] = outputs[port]
 
 def _execute_loop_subflow(
     loop_node: dict[str, Any], workflow: dict[str, Any], values: dict[str, dict[str, Any]],
@@ -136,15 +206,17 @@ def _execute_loop_subflow(
         edge for edge in workflow.get("edges", [])
         if edge["target"] == loop_id and edge.get("targetHandle") in {None, "input"}
     ]
-    if len(entry_edges) != 1:
-        raise ValueError("Loop subflow requires exactly one initial input connection")
-    initial = _require_table(_edge_value(entry_edges[0], values), "Loop initial input")
+    notebook_namespace = notebook_namespace or _new_notebook_namespace(csv_text, input_files)
+    if len(entry_edges) > 1:
+        raise ValueError("Loop subflow requires exactly one initial input")
+    initial_value = _edge_value(entry_edges[0], values) if entry_edges else _bind_notebook_inputs(node_type, params, None, notebook_namespace)
+    if initial_value is None:
+        raise ValueError("Loop subflow requires an initial input connection or notebook variable binding")
+    initial = _require_table(initial_value, "Loop initial input")
     body_nodes, back_edge = _loop_body(workflow, loop_id)
     maximum = int(params.get("maxIterations", 100))
     if maximum < 1 or maximum > 100_000:
         raise ValueError("Loop maxIterations must be between 1 and 100000")
-
-    notebook_namespace = notebook_namespace or _new_notebook_namespace(csv_text, input_files)
 
     def execute_body(seed: pd.DataFrame) -> pd.DataFrame:
         local_values = dict(values)
@@ -157,6 +229,7 @@ def _execute_loop_subflow(
             if body_type in {"logic.for_each_subflow", "logic.while_subflow"}:
                 raise ValueError("Nested loop subflows are not supported yet")
             upstream = _node_upstream(body_id, body_type, workflow, local_values)
+            upstream = _bind_notebook_inputs(body_type, params, upstream, notebook_namespace)
             if isinstance(params.get("notebookSource"), str):
                 outputs, _, _, _ = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
             elif body_type == "notebook.code_cell":
@@ -166,8 +239,11 @@ def _execute_loop_subflow(
                 outputs = {"next": text, "output": text}
             elif body_type == "function.call":
                 outputs, _, _, _ = _execute_function_call(body_node, upstream, root_workflow or workflow, csv_text, input_files, variables, call_stack, notebook_namespace)
+            elif body_type == "function.map":
+                outputs, _, _, _ = _execute_function_map(body_node, upstream, root_workflow or workflow, csv_text, input_files, variables, call_stack, notebook_namespace)
             else:
                 outputs, _, _, _ = _execute_node(body_type, params, upstream, csv_text, input_files, variables)
+            _sync_notebook_outputs(params, outputs, notebook_namespace)
             local_values[body_id] = outputs
         return _require_table(_edge_value(back_edge, local_values), "Loop continue output")
 
@@ -192,7 +268,7 @@ def _execute_loop_subflow(
 
 _FUNCTION_MULTI_INPUT_TYPES = {
     "table.concat", "logic.merge_rows", "pulse.combine_channels", "pulse.segment_measurement",
-    "custom.python_function", "ui.alert", "function.call",
+    "custom.python_function", "ui.alert", "function.call", "function.map",
 }
 
 def _function_definition_for_call(node: dict[str, Any], workflow: dict[str, Any], call_stack: tuple[str, ...]) -> dict[str, Any]:
@@ -299,6 +375,7 @@ def _execute_function_call(
         body_type = data.get("nodeType")
         params = data.get("parameters", {})
         upstream_value = _function_node_upstream(body_node, body, values, external_by_node.get(body_id, {}))
+        upstream_value = _bind_notebook_inputs(body_type, params, upstream_value, notebook_namespace)
         if isinstance(params.get("notebookSource"), str):
             outputs, table_result, plot_result, export_result = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
         elif body_type == "notebook.code_cell":
@@ -319,8 +396,11 @@ def _execute_function_call(
                 outputs, plot_result, export_result = {"done": table_result, "output": table_result}, None, None
         elif body_type == "function.call":
             outputs, table_result, plot_result, export_result = _execute_function_call(body_node, upstream_value, workflow, csv_text, input_files, variables, next_stack, notebook_namespace)
+        elif body_type == "function.map":
+            outputs, table_result, plot_result, export_result = _execute_function_map(body_node, upstream_value, workflow, csv_text, input_files, variables, next_stack, notebook_namespace)
         else:
             outputs, table_result, plot_result, export_result = _execute_node(body_type, params, upstream_value, csv_text, input_files, variables)
+        _sync_notebook_outputs(params, outputs, notebook_namespace)
         values[body_id] = outputs
         if table_result is not None:
             latest_table = table_result
@@ -342,6 +422,90 @@ def _execute_function_call(
         outputs["output"] = next(iter(outputs.values()))
     table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), latest_table)
     return outputs, table_result, latest_plot, latest_export
+
+
+def _execute_function_map(
+    node: dict[str, Any], upstream: Any, workflow: dict[str, Any], csv_text: str,
+    input_files: list[dict[str, Any]], variables: dict[str, Any] | None,
+    call_stack: tuple[str, ...] = (),
+    notebook_namespace: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], pd.DataFrame | None, str | None, str | None]:
+    """Map one reusable workflow function over a named iterable input.
+
+    This is the exact execution primitive required by the safe Notebook subset
+    ``[fn(item, ...) for item in items]``.  It is intentionally not a generic
+    Python-comprehension emulator: filters, multiple generators and per-item
+    expressions remain in ``notebook.code_cell`` until they have an equivalent
+    contract.
+    """
+    definition = _function_definition_for_call(node, workflow, call_stack)
+    params = node.get("data", {}).get("parameters", {})
+    map_input = str(params.get("mapInput", "")).strip()
+    if not map_input:
+        raise ValueError("Function map is missing mapInput")
+    input_ids = [str(port.get("id", "")) for port in definition.get("inputs", []) if isinstance(port, dict)]
+    if map_input not in input_ids:
+        raise ValueError(f"Function map input {map_input} is not present in function {definition.get('name', definition.get('id'))}")
+    if not isinstance(upstream, dict):
+        raise ValueError("Function map requires named function inputs")
+    call_inputs = dict(upstream)
+    if map_input not in call_inputs:
+        raise ValueError(f"Function map requires iterable input {map_input}")
+    try:
+        items = list(call_inputs[map_input])
+    except TypeError as exception:
+        raise ValueError(f"Function map input {map_input} is not iterable") from exception
+    maximum = int(params.get("maxIterations", 100000))
+    if maximum < 1 or maximum > 1_000_000:
+        raise ValueError("Function map maxIterations must be between 1 and 1000000")
+    if len(items) > maximum:
+        raise ValueError(f"Function map has {len(items)} items, exceeding maxIterations={maximum}")
+
+    function_outputs = [str(port.get("id", "output")) for port in definition.get("outputs", []) if isinstance(port, dict)] or ["output"]
+    collected: list[Any] = []
+    last_value: Any = None
+    has_last_value = False
+    latest_plot: str | None = None
+    latest_export: str | None = None
+    for item in items:
+        iteration_inputs = dict(call_inputs)
+        iteration_inputs[map_input] = item
+        outputs, _, plot_result, export_result = _execute_function_call(
+            node, iteration_inputs, workflow, csv_text, input_files, variables, call_stack, notebook_namespace,
+        )
+        if len(function_outputs) == 1:
+            last_value = outputs.get(function_outputs[0])
+            has_last_value = True
+            collected.append(last_value)
+        else:
+            collected.append(tuple(outputs.get(port) for port in function_outputs))
+        if plot_result is not None:
+            latest_plot = plot_result
+        if export_result is not None:
+            latest_export = export_result
+
+    collect_mode = str(params.get("collectMode", "list"))
+    if collect_mode == "table":
+        result: Any = pd.DataFrame(collected)
+        table_result: pd.DataFrame | None = result
+    elif collect_mode == "concat_columns":
+        initial_variable = str(params.get("concatInitialVariable", "")).strip()
+        if not initial_variable:
+            raise ValueError("Function map concat_columns requires concatInitialVariable")
+        if notebook_namespace is None or initial_variable not in notebook_namespace:
+            raise ValueError(f"Function map concat_columns requires Notebook variable {initial_variable}")
+        initial = notebook_namespace[initial_variable]
+        result = pd.concat([initial, *collected], axis=1)
+        table_result = result if isinstance(result, pd.DataFrame) else None
+    elif collect_mode == "list":
+        result = collected
+        table_result = None
+    else:
+        raise ValueError(f"Unsupported function map collectMode: {collect_mode}")
+    result_outputs: dict[str, Any] = {"output": result}
+    if has_last_value and str(params.get("lastItemVariable", "")).strip():
+        result_outputs["last"] = last_value
+    return result_outputs, table_result, latest_plot, latest_export
 
 def _error_response(
     message: str,
@@ -523,6 +687,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
             elif node_type in {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"}:
                 if node_type == "logic.if_subflow" or any(child.get("parentId") == node_id for child in workflow.get("nodes", [])):
                     upstream = _node_upstream(node_id, node_type, workflow, values)
+                    upstream = _bind_notebook_inputs(node_type, params, upstream, notebook_namespace)
                     outputs = _execute_visual_structure(node, workflow, upstream, csv_text, input_files, variables, workflow, (), notebook_namespace)
                     table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), None)
                     plot_result, export_result = None, None
@@ -531,8 +696,11 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
                     outputs, plot_result, export_result = {"done": table_result, "output": table_result}, None, None
             else:
                 upstream = _node_upstream(node_id, node_type, workflow, values)
+                upstream = _bind_notebook_inputs(node_type, params, upstream, notebook_namespace)
                 if node_type == "function.call":
                     outputs, table_result, plot_result, export_result = _execute_function_call(node, upstream, workflow, csv_text, input_files, variables, (), notebook_namespace)
+                elif node_type == "function.map":
+                    outputs, table_result, plot_result, export_result = _execute_function_map(node, upstream, workflow, csv_text, input_files, variables, (), notebook_namespace)
                 elif node_type.startswith(_CACHEABLE_NODE_PREFIXES):
                     upstream_digest = _value_digest(upstream)
                     cache_key = hashlib.sha256(
@@ -550,6 +718,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
                     outputs, table_result, plot_result, export_result = _execute_node(
                         node_type, params, upstream, csv_text, input_files, variables
                     )
+            _sync_notebook_outputs(params, outputs, notebook_namespace)
         except Exception as exception:
             node_timings_ms[node_id] = round((time.perf_counter() - node_started) * 1000, 3)
             return _error_response(

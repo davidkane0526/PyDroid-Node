@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, workflowNotebookCells, workflowNotebookMetadata } from "./workflowNotebook";
+import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, summarizeNotebookConversion, workflowNotebookCells, workflowNotebookMetadata } from "./workflowNotebook";
 import type { WorkflowNode } from "./workflow";
 
 const sampleNode: WorkflowNode = {
@@ -157,6 +157,162 @@ describe("workflow notebook DSL", () => {
     const output = execFileSync(python, ["-c", source], { encoding: "utf8", timeout: 30_000, env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" } });
     expect(output).toContain("逻辑控制结果");
   }, 60_000);
+
+
+
+  it("keeps mixed analyzed notebook cells lossless while structuring safe operations", () => {
+    const source = "import pandas as pd\ndf = pd.read_csv('a.csv')\nanswer = custom_runtime(df)";
+    const cells = [{ id: "mixed", cellType: "code" as const, source, metadata: { tag: "keep" }, outputs: [{ output_type: "stream" }], executionCount: 4 }];
+    const workflow = analyzedNotebookToWorkflow("混合", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "Import", nodeType: "notebook.code_cell", label: "导入模块", source: "import pandas as pd", defines: ["pd"], uses: [], parameters: { source: "import pandas as pd" } },
+      { index: 1, recognized: true, semantic: true, kind: "call", nodeType: "io.read_csv", label: "df", outputVariable: "df", defines: ["df"], uses: [], parameters: { platformInput: true } },
+      { index: 2, recognized: false, semantic: false, kind: "Assign", label: "原样执行", source: "answer = custom_runtime(df)", defines: ["answer"], uses: ["custom_runtime", "df"], parameters: { source: "answer = custom_runtime(df)" } },
+    ] }]);
+    expect(workflow.nodes.some((node) => node.data.nodeType === "io.read_csv")).toBe(true);
+    expect(workflow.nodes.filter((node) => node.data.nodeType === "notebook.code_cell")).toHaveLength(2);
+    const restored = workflowNotebookCells(workflow.nodes, workflow.edges);
+    expect(restored).toHaveLength(1);
+    expect(restored[0].source).toBe(source);
+    expect(restored[0].metadata).toEqual({ tag: "keep" });
+    expect(restored[0].outputs).toEqual([{ output_type: "stream" }]);
+    expect(restored[0].executionCount).toBe(4);
+  });
+
+  it("creates a document workflow function and typed call ports for promoted notebook calls", () => {
+    const cells = [{ id: "fn", cellType: "code" as const, source: "def scale(frame, factor=2):\n    return frame * factor\nscaled = scale(frame, 3)" }];
+    const functionId = "notebook-fn-1-1-scale";
+    const workflow = analyzedNotebookToWorkflow("函数", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · scale", source: "def scale(frame, factor=2):\n    return frame * factor", defines: ["scale"], uses: [], parameters: {
+        source: "def scale(frame, factor=2):\n    return frame * factor",
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def scale(frame: 'Any', factor: 'Any') -> 'Any':\n    return frame * factor",
+        workflowFunctionInputsJson: JSON.stringify(["frame", "factor"]),
+        workflowFunctionInputTypesJson: JSON.stringify(["table", "number"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]),
+        workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionDependenciesJson: JSON.stringify([]),
+      } },
+      { index: 1, recognized: true, semantic: true, kind: "UserFunctionCall", nodeType: "function.call", label: "scale", inputVariable: "frame", outputVariable: "scaled", defines: ["scaled"], uses: ["frame"], parameters: {
+        functionId, functionVersion: 1,
+        notebookInputBindingsJson: JSON.stringify({ frame: "frame" }),
+        notebookLiteralInputsJson: JSON.stringify({ factor: 3 }),
+        notebookExpressionInputsJson: JSON.stringify({}),
+        notebookFunctionInputsJson: JSON.stringify(["frame", "factor"]),
+        notebookFunctionOutputsJson: JSON.stringify(["output"]),
+      } },
+    ] }]);
+    expect(workflow.functions).toHaveLength(1);
+    expect(workflow.functions?.[0].id).toBe(functionId);
+    expect(workflow.functions?.[0].inputs.map((port) => [port.id, port.valueType])).toEqual([["frame", "table"], ["factor", "number"]]);
+    expect(workflow.functions?.[0].outputs.map((port) => [port.id, port.valueType])).toEqual([["output", "table"]]);
+    const call = workflow.nodes.find((node) => node.data.nodeType === "function.call")!;
+    expect(call.data.functionInputs?.map((port) => port.id)).toEqual(["frame", "factor"]);
+    expect(call.data.functionOutputs?.map((port) => port.id)).toEqual(["output"]);
+  });
+
+  it("creates a function.map node with function inputs and one collected table output", () => {
+    const functionId = "notebook-fn-1-1-measure";
+    const cells = [{ id: "fn-map", cellType: "code" as const, source: "def measure(path, sign=1):\n    return path * sign\nframe = pd.DataFrame([measure(path, sign) for path in paths])" }];
+    const workflow = analyzedNotebookToWorkflow("函数映射", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · measure", source: "def measure(path, sign=1):\n    return path * sign", defines: ["measure"], uses: [], parameters: {
+        source: "def measure(path, sign=1):\n    return path * sign",
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def measure(path: 'Any', sign: 'Any') -> 'Any':\n    return path * sign",
+        workflowFunctionInputsJson: JSON.stringify(["path", "sign"]),
+        workflowFunctionInputTypesJson: JSON.stringify(["text", "number"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]),
+        workflowFunctionOutputTypesJson: JSON.stringify(["number"]),
+        workflowFunctionDependenciesJson: JSON.stringify([]),
+      } },
+      { index: 1, recognized: true, semantic: true, kind: "UserFunctionMap", nodeType: "function.map", label: "measure · 映射", inputVariable: "paths", outputVariable: "frame", defines: ["frame"], uses: ["paths", "sign"], parameters: {
+        functionId, functionVersion: 1, mapInput: "path", collectMode: "table", maxIterations: 100000,
+        notebookInputBindingsJson: JSON.stringify({ path: "paths", sign: "sign" }),
+        notebookLiteralInputsJson: JSON.stringify({}),
+        notebookExpressionInputsJson: JSON.stringify({}),
+        notebookFunctionInputsJson: JSON.stringify(["path", "sign"]),
+        notebookFunctionOutputsJson: JSON.stringify(["output"]),
+      } },
+    ] }]);
+    const map = workflow.nodes.find((node) => node.data.nodeType === "function.map")!;
+    expect(map).toBeTruthy();
+    expect(map.data.functionInputs?.map((port) => [port.id, port.valueType])).toEqual([["path", "list"], ["sign", "number"]]);
+    expect(map.data.functionOutputs).toEqual([{ id: "output", label: "结果表", valueType: "table" }]);
+    expect(map.data.parameters.mapInput).toBe("path");
+    expect(map.data.parameters.collectMode).toBe("table");
+  });
+
+  it("creates concat_columns map outputs for the accumulator and the loop's last temporary value", () => {
+    const functionId = "notebook-fn-1-1-process";
+    const cells = [{ id: "fn-map-concat", cellType: "code" as const, source: "def process(path):\n    return pd.DataFrame({'x': [path]})\nfor path in paths:\n    Data = process(path)\n    DataCount = pd.concat([DataCount, Data], axis=1)" }];
+    const workflow = analyzedNotebookToWorkflow("循环映射合并", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · process", source: "def process(path):\n    return pd.DataFrame({'x': [path]})", defines: ["process"], uses: [], parameters: {
+        source: "def process(path):\n    return pd.DataFrame({'x': [path]})",
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def process(path: 'Any') -> 'table':\n    return pd.DataFrame({'x': [path]})",
+        workflowFunctionInputsJson: JSON.stringify(["path"]),
+        workflowFunctionInputTypesJson: JSON.stringify(["any"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]),
+        workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionDependenciesJson: JSON.stringify([]),
+      } },
+      { index: 1, recognized: true, semantic: true, kind: "UserFunctionMapConcatColumns", nodeType: "function.map", label: "映射合并 · process", inputVariable: "paths", outputVariable: "DataCount", defines: ["DataCount", "Data"], uses: ["paths", "DataCount"], parameters: {
+        functionId, functionVersion: 1, mapInput: "path", collectMode: "concat_columns", concatInitialVariable: "DataCount", lastItemVariable: "Data", maxIterations: 100000,
+        notebookInputBindingsJson: JSON.stringify({ path: "paths" }),
+        notebookLiteralInputsJson: JSON.stringify({}),
+        notebookExpressionInputsJson: JSON.stringify({}),
+        notebookFunctionInputsJson: JSON.stringify(["path"]),
+        notebookFunctionOutputsJson: JSON.stringify(["output"]),
+      } },
+    ] }]);
+    const map = workflow.nodes.find((node) => node.data.nodeType === "function.map")!;
+    expect(map.data.functionInputs?.map((port) => [port.id, port.valueType])).toEqual([["path", "list"]]);
+    expect(map.data.functionOutputs).toEqual([
+      { id: "output", label: "结果表", valueType: "table" },
+      { id: "last", label: "最后一项", valueType: "table" },
+    ]);
+    expect(map.data.parameters.collectMode).toBe("concat_columns");
+    expect(map.data.parameters.concatInitialVariable).toBe("DataCount");
+  });
+
+  it("summarizes structural coverage and platform compatibility without treating stdlib or bundled Android packages as unsupported", () => {
+    const cells = [
+      { id: "a", cellType: "code" as const, source: "import os\nimport pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nfrom scipy.stats import linregress\nfrom PIL import Image\npath = r'\\\\S1\\data\\a.csv'" },
+      { id: "b", cellType: "markdown" as const, source: "# note" },
+    ];
+    const report = summarizeNotebookConversion(cells, [{ index: 0, recognized: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "def", parameters: { workflowFunctionId: "fn", workflowFunctionOutputTypesJson: JSON.stringify(["table"]) } },
+      { index: 1, recognized: true, semantic: true, kind: "call", nodeType: "function.call", label: "f", parameters: {} },
+      { index: 2, recognized: true, semantic: true, kind: "UserFunctionMap", nodeType: "function.map", label: "map", parameters: { collectMode: "concat_columns" } },
+      { index: 3, recognized: true, semantic: false, kind: "Code", nodeType: "notebook.code_cell", label: "code", parameters: {} },
+    ] }]);
+    expect(report.totalCells).toBe(2);
+    expect(report.operations).toBe(4);
+    expect(report.semanticOperations).toBe(2);
+    expect(report.carrierOperations).toBe(2);
+    expect(report.structuredPercent).toBe(50);
+    expect(report.promotedFunctionDefinitions).toBe(1);
+    expect(report.typedFunctionDefinitions).toBe(1);
+    expect(report.functionCalls).toBe(1);
+    expect(report.functionMaps).toBe(1);
+    expect(report.functionConcatMaps).toBe(1);
+    expect(report.importedModules).toEqual(["PIL", "matplotlib", "numpy", "os", "pandas", "scipy"]);
+    expect(report.androidUnsupportedModules).toEqual(["PIL", "scipy"]);
+    expect(report.windowsPathCells).toBe(1);
+  });
+
+  it("keeps control-flow child node ids distinct from following top-level statements", () => {
+    const cells = [{ id: "logic", cellType: "code" as const, source: "if flag:\n    clean = frame.abs()\nresult = clean.head()" }];
+    const workflow = analyzedNotebookToWorkflow("编号", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: true, nodeType: "logic.if_subflow", label: "If", inputVariable: "frame", uses: ["frame", "flag"], parameters: { condition: "flag" }, children: [
+        { index: 0, recognized: true, semantic: true, nodeType: "table.absolute", label: "clean", inputVariable: "frame", outputVariable: "clean", defines: ["clean"], uses: ["frame"], branch: "true", childIndex: 0, parameters: {} },
+      ] },
+      { index: 1, recognized: true, semantic: true, nodeType: "pandas.head", label: "result", inputVariable: "clean", outputVariable: "result", defines: ["result"], uses: ["clean"], parameters: {} },
+    ] }]);
+    const ids = workflow.nodes.map((node) => node.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toContain("notebook-cell-1-step-2");
+    expect(ids).toContain("notebook-cell-1-step-1001");
+  });
 
   it.skipIf(!process.env.PYDROID_NOTEBOOK_CORPUS)("losslessly round-trips every notebook in the configured corpus", () => {
     const root = process.env.PYDROID_NOTEBOOK_CORPUS!;

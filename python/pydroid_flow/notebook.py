@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import ast
+import builtins
 import json
 import re
+import symtable
 from typing import Any
 
 
@@ -16,6 +18,363 @@ METHOD_NODES = {
 
 CONTROL_LABELS = {"If": "If 条件", "For": "For 循环", "While": "While 循环", "With": "With 上下文", "Try": "Try 异常处理"}
 CONTROL_NODES = {"If": "notebook.if_block", "For": "notebook.for_block", "While": "notebook.while_block"}
+
+_CUSTOM_RUNTIME_GLOBALS = {"pd", "np", "math"}
+_BUILTIN_NAMES = set(dir(builtins))
+_CUSTOM_SAFE_BUILTINS = {
+    "abs", "all", "any", "bool", "complex", "dict", "divmod", "enumerate",
+    "filter", "float", "frozenset", "getattr", "hasattr", "int", "isinstance",
+    "issubclass", "iter", "len", "list", "map", "max", "min", "next", "pow",
+    "print", "range", "reversed", "round", "set", "slice", "sorted", "str", "sum",
+    "tuple", "type", "zip", "Exception", "ArithmeticError", "LookupError",
+    "ValueError", "TypeError", "KeyError", "IndexError", "OSError", "RuntimeError",
+    "StopIteration", "NotImplementedError",
+}
+
+
+def _identifier_slug(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_]+", "_", value).strip("_")
+    return cleaned or "function"
+
+
+def _assignment_target_names(statement: ast.stmt) -> list[str]:
+    target: ast.AST | None = None
+    if isinstance(statement, ast.Assign) and statement.targets:
+        target = statement.targets[0]
+    elif isinstance(statement, ast.AnnAssign):
+        target = statement.target
+    if isinstance(target, ast.Name):
+        return [target.id]
+    if isinstance(target, (ast.Tuple, ast.List)) and all(isinstance(item, ast.Name) for item in target.elts):
+        return [item.id for item in target.elts if isinstance(item, ast.Name)]
+    return []
+
+
+def _return_arity(function: ast.FunctionDef) -> int:
+    """Infer only the stable *shape* of top-level return statements."""
+    arities: set[int] = set()
+
+    class ReturnVisitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+            if node is function:
+                for child in node.body:
+                    self.visit(child)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+            return
+
+        def visit_Lambda(self, node: ast.Lambda) -> None:  # noqa: N802
+            return
+
+        def visit_Return(self, node: ast.Return) -> None:  # noqa: N802
+            if isinstance(node.value, ast.Tuple):
+                arities.add(len(node.value.elts))
+            else:
+                arities.add(1)
+
+    ReturnVisitor().visit(function)
+    return next(iter(arities)) if len(arities) == 1 and next(iter(arities)) > 1 else 1
+
+
+
+_VALUE_TYPE_ANNOTATIONS = {
+    "any": "any", "typing.any": "any",
+    "dataframe": "table", "pd.dataframe": "table", "pandas.dataframe": "table", "table": "table",
+    "int": "number", "float": "number", "number": "number",
+    "str": "text", "string": "text", "text": "text",
+    "bool": "boolean", "boolean": "boolean",
+    "list": "list", "typing.list": "list", "sequence": "list", "typing.sequence": "list",
+    "dict": "object", "typing.dict": "object", "mapping": "object", "typing.mapping": "object", "object": "object",
+}
+
+
+def _annotation_value_type(annotation: ast.AST | None) -> str:
+    """Normalize only annotations that map unambiguously to workflow value types."""
+    if annotation is None:
+        return "any"
+    if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
+        raw = annotation.value
+    else:
+        try:
+            raw = ast.unparse(annotation)
+        except Exception:
+            return "any"
+    normalized = raw.strip(" '\"").replace(" ", "").lower()
+    if normalized.startswith("optional[") or normalized.startswith("typing.optional["):
+        inner = normalized[normalized.find("[") + 1:-1]
+        return _VALUE_TYPE_ANNOTATIONS.get(inner, "any")
+    return _VALUE_TYPE_ANNOTATIONS.get(normalized, "any")
+
+
+def _dotted_name(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        prefix = _dotted_name(node.value)
+        return f"{prefix}.{node.attr}" if prefix else None
+    return None
+
+
+def _infer_expression_value_type(node: ast.AST | None, known: dict[str, str]) -> str:
+    """Conservative static value-type inference for function signatures.
+
+    This deliberately recognizes only constructors and operations with stable
+    workflow-level shapes.  Unknown pandas selections, arbitrary calls and
+    mixed arithmetic stay ``any`` rather than reviving the old "unknown=table"
+    guess.
+    """
+    if node is None:
+        return "any"
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool):
+            return "boolean"
+        if isinstance(node.value, (int, float, complex)) and not isinstance(node.value, bool):
+            return "number"
+        if isinstance(node.value, str):
+            return "text"
+        return "any"
+    if isinstance(node, ast.Name):
+        return known.get(node.id, "any")
+    if isinstance(node, (ast.List, ast.ListComp, ast.Set, ast.SetComp)):
+        return "list"
+    if isinstance(node, (ast.Dict, ast.DictComp)):
+        return "object"
+    if isinstance(node, (ast.Compare, ast.BoolOp)) or isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        return "boolean"
+    if isinstance(node, ast.IfExp):
+        left = _infer_expression_value_type(node.body, known)
+        right = _infer_expression_value_type(node.orelse, known)
+        return left if left == right else "any"
+    if isinstance(node, ast.BinOp):
+        left = _infer_expression_value_type(node.left, known)
+        right = _infer_expression_value_type(node.right, known)
+        if left == right == "number":
+            return "number"
+        if left == right == "text" and isinstance(node.op, ast.Add):
+            return "text"
+        return "any"
+    if not isinstance(node, ast.Call):
+        return "any"
+    name = (_dotted_name(node.func) or "").lower()
+    if name in {"float", "int", "len", "round"}:
+        return "number"
+    if name == "str":
+        return "text"
+    if name == "bool":
+        return "boolean"
+    if name in {"list", "set", "tuple"}:
+        return "list"
+    if name == "dict":
+        return "object"
+    if name in {
+        "pd.dataframe", "pandas.dataframe", "pd.read_csv", "pandas.read_csv",
+        "pd.read_table", "pandas.read_table", "pd.read_json", "pandas.read_json",
+        "pd.concat", "pandas.concat",
+    }:
+        return "table"
+    if isinstance(node.func, ast.Attribute):
+        receiver_type = _infer_expression_value_type(node.func.value, known)
+        if receiver_type == "table" and node.func.attr in {
+            "copy", "dropna", "fillna", "drop_duplicates", "head", "tail",
+            "query", "round", "sort_values", "sort_index", "reset_index",
+            "rename", "abs", "transpose", "pivot",
+        }:
+            return "table"
+    return "any"
+
+
+def _function_output_types(function: ast.FunctionDef) -> list[str]:
+    """Infer stable return port types without guessing through unknown code."""
+    arity = _return_arity(function)
+    return_types: list[list[str]] = []
+
+    def assign_name(statement: ast.stmt, known: dict[str, str]) -> None:
+        target: ast.AST | None = None
+        value: ast.AST | None = None
+        if isinstance(statement, ast.Assign) and len(statement.targets) == 1:
+            target, value = statement.targets[0], statement.value
+        elif isinstance(statement, ast.AnnAssign):
+            target, value = statement.target, statement.value
+        if not isinstance(target, ast.Name):
+            return
+        inferred = _infer_expression_value_type(value, known)
+        if inferred == "any":
+            known.pop(target.id, None)
+        else:
+            known[target.id] = inferred
+
+    def walk_block(statements: list[ast.stmt], known: dict[str, str]) -> dict[str, str]:
+        current = dict(known)
+        for statement in statements:
+            if isinstance(statement, ast.Return):
+                if arity > 1 and isinstance(statement.value, ast.Tuple) and len(statement.value.elts) == arity:
+                    return_types.append([_infer_expression_value_type(item, current) for item in statement.value.elts])
+                elif arity == 1:
+                    return_types.append([_infer_expression_value_type(statement.value, current)])
+                continue
+            if isinstance(statement, (ast.Assign, ast.AnnAssign)):
+                assign_name(statement, current)
+                continue
+            if isinstance(statement, ast.If):
+                true_known = walk_block(statement.body, current)
+                false_known = walk_block(statement.orelse, current) if statement.orelse else dict(current)
+                merged: dict[str, str] = {}
+                for name in set(true_known) | set(false_known):
+                    before = current.get(name)
+                    left = true_known.get(name, before)
+                    right = false_known.get(name, before)
+                    if left and left == right:
+                        merged[name] = left
+                current = merged
+                continue
+            if isinstance(statement, (ast.For, ast.While)):
+                body_known = walk_block(statement.body, current)
+                for name in list(current):
+                    if body_known.get(name, current[name]) != current[name]:
+                        current.pop(name, None)
+                continue
+            if isinstance(statement, ast.Try):
+                # Returns inside try/except still contribute, but assignments are
+                # too path-dependent to use for later inference.
+                walk_block(statement.body, dict(current))
+                for handler in statement.handlers:
+                    walk_block(handler.body, dict(current))
+                walk_block(statement.orelse, dict(current))
+                walk_block(statement.finalbody, dict(current))
+        return current
+
+    initial: dict[str, str] = {}
+    for argument in [*function.args.posonlyargs, *function.args.args, *function.args.kwonlyargs]:
+        explicit = _annotation_value_type(argument.annotation)
+        if explicit != "any":
+            initial[argument.arg] = explicit
+    walk_block(function.body, initial)
+    if not return_types:
+        explicit = _annotation_value_type(function.returns)
+        return [explicit] if arity == 1 else ["any"] * arity
+    stable: list[str] = []
+    for index in range(arity):
+        values = [row[index] for row in return_types if len(row) > index]
+        first = values[0] if values else "any"
+        stable.append(first if first != "any" and all(value == first for value in values) else "any")
+    explicit = _annotation_value_type(function.returns)
+    if arity == 1 and explicit != "any":
+        stable[0] = explicit
+    return stable
+
+def _function_free_globals(fragment: str, function_name: str) -> list[str]:
+    try:
+        table = symtable.symtable(fragment, "<notebook-function>", "exec")
+        child = next((item for item in table.get_children() if item.get_name() == function_name), None)
+    except (SyntaxError, ValueError):
+        child = None
+    if child is None:
+        return []
+    names = []
+    for symbol in child.get_symbols():
+        name = symbol.get_name()
+        if symbol.is_referenced() and symbol.is_global() and name not in _BUILTIN_NAMES and name not in _CUSTOM_RUNTIME_GLOBALS and name != function_name:
+            names.append(name)
+    return sorted(set(names))
+
+
+def _compile_workflow_function(statement: ast.FunctionDef, source: str, function_id: str) -> dict[str, Any] | None:
+    """Compile a top-level Python def into a reusable workflow-function kernel.
+
+    All external values are explicit ``Any`` ports.  This avoids guessing that a
+    scalar-looking argument is a UI parameter or that an unannotated return is a
+    DataFrame.  The runtime value remains authoritative.
+    """
+    if statement.decorator_list or statement.args.vararg is not None or statement.args.kwarg is not None:
+        return None
+    # The promoted implementation runs through custom.python_function.  Keep
+    # functions that require semantics unavailable in that runtime as ordinary
+    # notebook code instead of creating a visually structured node that fails.
+    if any(isinstance(node, (ast.Global, ast.Nonlocal, ast.Yield, ast.YieldFrom)) for node in ast.walk(statement)):
+        return None
+    loaded_builtins = {
+        node.id for node in ast.walk(statement)
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in _BUILTIN_NAMES
+    }
+    if loaded_builtins - _CUSTOM_SAFE_BUILTINS:
+        return None
+    fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
+    try:
+        tree = ast.parse(fragment)
+    except SyntaxError:
+        return None
+    fn = tree.body[0] if tree.body and isinstance(tree.body[0], ast.FunctionDef) else None
+    if fn is None:
+        return None
+    original_parameters = [*fn.args.posonlyargs, *fn.args.args, *fn.args.kwonlyargs]
+    parameter_names = [argument.arg for argument in original_parameters]
+    free_globals = [name for name in _function_free_globals(fragment, fn.name) if name not in parameter_names]
+
+    # Every workflow function input is a data port.  Remove Python defaults from
+    # the compiled kernel because call-site analysis supplies omitted defaults
+    # explicitly, preserving a stable document-level function signature.
+    input_types = [_annotation_value_type(argument.annotation) for argument in original_parameters]
+    for argument, value_type in zip(original_parameters, input_types):
+        argument.annotation = ast.Constant(value="Any" if value_type == "any" else value_type)
+    fn.args.defaults = []
+    fn.args.kw_defaults = [None] * len(fn.args.kwonlyargs)
+    for dependency in free_globals:
+        fn.args.kwonlyargs.append(ast.arg(arg=dependency, annotation=ast.Constant(value="Any")))
+        fn.args.kw_defaults.append(None)
+
+    arity = _return_arity(statement)
+    output_ids = ["output"] if arity == 1 else [f"output{index + 1}" for index in range(arity)]
+    output_types = _function_output_types(statement)
+    if arity == 1:
+        fn.returns = ast.Constant(value="Any" if output_types[0] == "any" else output_types[0])
+    else:
+        fn.returns = ast.Subscript(
+            value=ast.Name(id="tuple", ctx=ast.Load()),
+            slice=ast.Tuple(elts=[ast.Constant(value=f"{port}:{value_type}") for port, value_type in zip(output_ids, output_types)], ctx=ast.Load()),
+            ctx=ast.Load(),
+        )
+    ast.fix_missing_locations(tree)
+    return {
+        "id": function_id,
+        "name": statement.name,
+        "code": ast.unparse(tree),
+        "parameterNames": parameter_names,
+        "dependencyNames": free_globals,
+        "inputNames": [*parameter_names, *free_globals],
+        "inputTypes": [*input_types, *(["any"] * len(free_globals))],
+        "outputIds": output_ids,
+        "outputTypes": output_types,
+        "function": statement,
+    }
+
+
+def _safe_expression(node: ast.AST) -> bool:
+    forbidden = (ast.Call, ast.Await, ast.Yield, ast.YieldFrom, ast.Lambda, ast.NamedExpr, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
+    return not any(isinstance(item, forbidden) for item in ast.walk(node))
+
+
+def _json_literal(node: ast.AST) -> Any:
+    try:
+        value = ast.literal_eval(node)
+    except (ValueError, TypeError):
+        return ...
+
+    def compatible(item: Any) -> bool:
+        if item is None or isinstance(item, (str, int, float, bool)):
+            return True
+        if isinstance(item, list):
+            return all(compatible(child) for child in item)
+        if isinstance(item, dict):
+            return all(isinstance(key, str) and compatible(child) for key, child in item.items())
+        return False
+
+    if not compatible(value):
+        return ...
+    try:
+        json.dumps(value)
+    except (TypeError, ValueError):
+        return ...
+    return value
 
 
 def _root_name(node: ast.AST) -> str | None:
@@ -226,122 +585,107 @@ def _condition_table_variable(test: ast.AST, uses: list[str]) -> tuple[str | Non
     return table_variable, condition
 
 
-def _branch_children(statements: list[ast.stmt], source: str, branch: str) -> list[dict[str, Any]]:
-    children = []
+def _branch_children(statements: list[ast.stmt], source: str, branch: str, user_functions: dict[str, dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], bool]:
+    """Analyze one visual-structure branch.
+
+    A partially converted control-flow block is not semantically safe: executing
+    only the recognized statements silently drops the rest of the Python body.
+    Return an explicit completeness flag so callers can keep the *whole* block
+    as a notebook.code_cell whenever any child is not structurally representable.
+    """
+    children: list[dict[str, Any]] = []
+    complete = True
     for child_index, child in enumerate(statements):
-        child_result = _analyze_statement(child, source)
+        child_result = _analyze_statement(child, source, user_functions)
         if child_result.get("semantic"):
             children.append({**child_result, "branch": branch, "childIndex": child_index})
-    return children
+        else:
+            complete = False
+    return children, complete
 
 
-def _infer_parameter_annotation(name: str, default_node: ast.AST | None) -> ast.AST:
-    """根据参数名和默认值启发式推断类型标注节点。"""
-    lowered = name.lower()
-    if any(token in lowered for token in ("table", "df", "data", "frame")):
-        return ast.Constant(value="table")
-    if any(token in lowered for token in ("file", "path", "filename")):
-        return ast.Name(id="str")
-    if any(token in lowered for token in ("config", "params", "options", "settings")):
-        return ast.Name(id="dict")
-    if default_node is not None:
-        default = _literal(default_node)
-        if isinstance(default, bool):
-            return ast.Name(id="bool")
-        if isinstance(default, int) and not isinstance(default, bool):
-            return ast.Name(id="int")
-        if isinstance(default, float):
-            return ast.Name(id="float")
-        if isinstance(default, str):
-            return ast.Name(id="str")
-        if isinstance(default, list):
-            return ast.Subscript(value=ast.Name(id="list"), slice=ast.Name(id="int"))
-    return ast.Name(id="float")
+def _analyze_function_definition(statement: ast.stmt, source: str, base: dict[str, Any], function_id: str | None = None) -> dict[str, Any] | None:
+    """Recognize a Python definition without changing its execution semantics.
 
-
-def _infer_function_annotations(statement: ast.FunctionDef, source: str) -> str | None:
-    """给无标注的 def 参数和返回值补启发式标注，返回带标注的函数源码。"""
-    fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
-    try:
-        tree = ast.parse(fragment)
-        fn = tree.body[0] if tree.body and isinstance(tree.body[0], ast.FunctionDef) else None
-    except SyntaxError:
-        return None
-    if fn is None:
-        return None
-    args = list(fn.args.args)
-    defaults = [None] * (len(args) - len(fn.args.defaults)) + list(fn.args.defaults)
-    for arg, default in zip(args, defaults):
-        if arg.annotation is None:
-            arg.annotation = _infer_parameter_annotation(arg.arg, default)
-    if fn.returns is None:
-        fn.returns = ast.Constant(value="table")
-    return ast.unparse(fn)
-
-
-def _analyze_function_definition(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
-    """识别独立函数为 custom.python_function 节点；无标注时按启发式补全。"""
+    ``custom.python_function`` is an *invocation/transform* node.  Treating a
+    plain ``def`` statement as that node immediately calls the function and is
+    therefore incorrect.  Definitions stay in the shared notebook namespace;
+    later compiler passes may promote individual call sites once their complete
+    signature/dependency graph is known.
+    """
     if not isinstance(statement, ast.FunctionDef):
         return None
-    arguments = statement.args
-    if arguments.vararg is not None or arguments.kwarg is not None:
-        return None
-    parameters = list(arguments.posonlyargs) + list(arguments.args) + list(arguments.kwonlyargs)
-    if not parameters:
-        return None
-    if statement.returns is not None and all(parameter.annotation is not None for parameter in parameters):
-        fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
-    else:
-        fragment = _infer_function_annotations(statement, source)
-        if fragment is None:
-            return None
+    fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
+    compiled = _compile_workflow_function(statement, source, function_id or f"notebook-fn-{_identifier_slug(statement.name)}")
+    function_parameters: dict[str, Any] = {"source": fragment, "astKind": "FunctionDef"}
+    if compiled is not None:
+        function_parameters.update({
+            "workflowFunctionId": compiled["id"],
+            "workflowFunctionCode": compiled["code"],
+            "workflowFunctionInputsJson": json.dumps(compiled["inputNames"], ensure_ascii=False),
+            "workflowFunctionInputTypesJson": json.dumps(compiled["inputTypes"], ensure_ascii=False),
+            "workflowFunctionOutputsJson": json.dumps(compiled["outputIds"], ensure_ascii=False),
+            "workflowFunctionOutputTypesJson": json.dumps(compiled["outputTypes"], ensure_ascii=False),
+            "workflowFunctionDependenciesJson": json.dumps(compiled["dependencyNames"], ensure_ascii=False),
+        })
     return {
         **base,
-        "recognized": True, "semantic": True, "kind": "FunctionDef",
-        "nodeType": "custom.python_function",
-        "label": statement.name,
-        "parameters": {"code": fragment},
+        "recognized": True, "semantic": False, "kind": "FunctionDef",
+        "nodeType": "notebook.code_cell",
+        "label": f"定义函数 · {statement.name}",
+        "parameters": function_parameters,
         "defines": [statement.name],
         "uses": [],
+        "reason": "函数定义保留在 Notebook 共享命名空间；调用点在确认依赖后再结构化",
     }
 
 
-def _analyze_control_flow(statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any] | None:
+def _analyze_control_flow(
+    statement: ast.stmt,
+    source: str,
+    base: dict[str, Any],
+    user_functions: dict[str, dict[str, Any]] | None = None,
+    function_id: str | None = None,
+) -> dict[str, Any] | None:
     """识别导入、If/For/While 及暂不支持的控制结构；非控制流语句返回 None。"""
     if isinstance(statement, (ast.Import, ast.ImportFrom)):
-        return {**base, "recognized": False, "label": "导入模块", "reason": "导入语句由目标环境依赖处理"}
+        definitions: list[str] = []
+        if isinstance(statement, ast.Import):
+            definitions = [alias.asname or alias.name.split(".")[0] for alias in statement.names]
+        else:
+            definitions = [alias.asname or alias.name for alias in statement.names if alias.name != "*"]
+        return {
+            **base,
+            "recognized": True,
+            "semantic": False,
+            "nodeType": "notebook.code_cell",
+            "label": "导入模块",
+            "defines": definitions,
+            "reason": "导入语句保留在 Notebook 共享命名空间",
+        }
     if isinstance(statement, ast.FunctionDef):
-        definition = _analyze_function_definition(statement, source, base)
+        definition = _analyze_function_definition(statement, source, base, function_id)
         if definition is not None:
             return definition
         return {**base, "recognized": False, "reason": "函数无法自动转换为自定义节点（含 *args/**kwargs 或无法解析）", "label": "函数定义"}
     if isinstance(statement, ast.If):
-        table_variable, condition = _condition_table_variable(statement.test, base["uses"])
-        children = _branch_children(statement.body, source, "true") + _branch_children(statement.orelse, source, "false")
-        input_variable = table_variable or next((name for name in base["uses"] if name not in {"True", "False", "None"}), None)
-        return {**base, "recognized": True, "semantic": True, "nodeType": "logic.if_subflow", "label": "If 条件结构", "parameters": {"condition": condition}, "inputVariable": input_variable, "children": children}
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "If 条件 · 原样执行", "reason": "Python if 是标量控制流；当前 logic.if_subflow 是表格分支语义，不能自动视为等价"}
     if isinstance(statement, ast.For):
-        iterable = _root_name(statement.iter)
-        children = _branch_children(statement.body, source, "body")
-        if iterable:
-            body_has_read = any(
-                isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                and node.func.attr in {"read_csv", "read_table", "read_json", "read_excel", "read_parquet"}
-                for node in ast.walk(statement)
-            )
-            if body_has_read:
-                return {**base, "recognized": False, "reason": "多文件扫描循环（建议改用批量读取节点，运行时传入文件）", "label": "多文件扫描"}
-            return {**base, "recognized": True, "semantic": True, "nodeType": "logic.for_each_subflow", "label": "For 子流程", "parameters": {"maxIterations": 10000}, "inputVariable": iterable, "children": children}
+        body_has_read = any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"read_csv", "read_table", "read_json", "read_excel", "read_parquet"}
+            for node in ast.walk(statement)
+        )
+        if body_has_read:
+            return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "reason": "多文件扫描循环保留原始 Python；当前表格 for_each 节点不等价于 Python iterable 语义", "label": "多文件扫描 · 原样执行"}
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "For 循环 · 原样执行", "reason": "普通 Python for 与当前表格 for_each 子流程语义不同；仅可证明等价的函数映射模式自动提升"}
     if isinstance(statement, ast.While):
-        table_variable, condition = _condition_table_variable(statement.test, base["uses"])
-        children = _branch_children(statement.body, source, "body")
-        if table_variable or base["uses"]:
-            return {**base, "recognized": True, "semantic": True, "nodeType": "logic.while_subflow", "label": "While 子流程", "parameters": {"condition": condition, "maxIterations": 100}, "inputVariable": table_variable or next((name for name in base["uses"] if name not in {"True", "False", "None"}), None), "children": children}
-    # A notebook function, arbitrary control flow, imports, and filesystem code are
-    # deliberately not converted to a hidden code carrier. The importer records
-    # them as unmapped, rather than pretending that a flow is executable.
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "While 循环 · 原样执行", "reason": "Python while 与当前表格 while_subflow 查询语义不同，保留原始 Python"}
+    # Unsupported Python is deliberately kept as an explicit code carrier.  The
+    # importer must never claim a partial visual graph is equivalent to the
+    # original notebook while silently dropping executable statements.
     if isinstance(statement, (ast.AsyncFunctionDef, ast.With, ast.Try, ast.For, ast.While)):
-        return {**base, "recognized": False, "reason": "需要可复用默认节点", "label": CONTROL_LABELS.get(base["kind"], base["kind"])}
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "reason": "尚无等价默认节点，保留原始 Python", "label": CONTROL_LABELS.get(base["kind"], base["kind"])}
     return None
 
 
@@ -410,8 +754,395 @@ def _column_name(node: ast.AST) -> str | None:
     return None
 
 
-def _analyze_call(call: ast.Call, statement: ast.stmt, source: str, base: dict[str, Any]) -> dict[str, Any]:
+def _resolve_user_function_inputs(
+    call: ast.Call,
+    function_info: dict[str, Any],
+    *,
+    mapped_name: str | None = None,
+    mapped_iterable: ast.AST | None = None,
+) -> dict[str, Any] | None:
+    """Resolve one user-function invocation against its original signature.
+
+    The notebook compiler uses the same binding rules for a direct call and a
+    mapped/list-comprehension call.  ``mapped_name`` is deliberately strict: it
+    must be passed as one plain argument and the iterable must be a named value.
+    Expressions such as ``fn(item + 1)`` remain Python code until the map runtime
+    can represent per-item expressions without changing evaluation order.
+    """
+    function = function_info.get("function")
+    if not isinstance(function, ast.FunctionDef):
+        return None
+    if any(isinstance(argument, ast.Starred) for argument in call.args) or any(keyword.arg is None for keyword in call.keywords):
+        return None
+
+    positional_parameters = [*function.args.posonlyargs, *function.args.args]
+    keyword_only_parameters = list(function.args.kwonlyargs)
+    positional_defaults = [None] * (len(positional_parameters) - len(function.args.defaults)) + list(function.args.defaults)
+    keyword_defaults = list(function.args.kw_defaults)
+    supplied: dict[str, ast.AST] = {}
+    if len(call.args) > len(positional_parameters):
+        return None
+    for parameter, value in zip(positional_parameters, call.args):
+        supplied[parameter.arg] = value
+    allowed_keywords = {parameter.arg for parameter in [*function.args.args, *keyword_only_parameters]}
+    for keyword in call.keywords:
+        if keyword.arg not in allowed_keywords or keyword.arg in supplied:
+            return None
+        supplied[keyword.arg] = keyword.value
+
+    for parameter, default in zip(positional_parameters, positional_defaults):
+        if parameter.arg not in supplied:
+            if default is None:
+                return None
+            supplied[parameter.arg] = default
+    for parameter, default in zip(keyword_only_parameters, keyword_defaults):
+        if parameter.arg not in supplied:
+            if default is None:
+                return None
+            supplied[parameter.arg] = default
+
+    bindings: dict[str, str] = {}
+    literals: dict[str, Any] = {}
+    expressions: dict[str, str] = {}
+    uses: list[str] = []
+    mapped_parameter: str | None = None
+    iterable_name = mapped_iterable.id if isinstance(mapped_iterable, ast.Name) else None
+    if mapped_name is not None and iterable_name is None:
+        return None
+
+    for parameter_name in function_info.get("parameterNames", []):
+        value = supplied.get(parameter_name)
+        if value is None:
+            return None
+        if mapped_name is not None and isinstance(value, ast.Name) and value.id == mapped_name:
+            if mapped_parameter is not None:
+                return None
+            mapped_parameter = parameter_name
+            bindings[parameter_name] = iterable_name or ""
+            uses.append(iterable_name or "")
+            continue
+        # If the loop variable appears anywhere except as one direct argument,
+        # promotion would require per-item expression evaluation. Keep it as
+        # Python rather than pretending a single precomputed input is equivalent.
+        if mapped_name is not None and any(
+            isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id == mapped_name
+            for node in ast.walk(value)
+        ):
+            return None
+        if isinstance(value, ast.Name):
+            bindings[parameter_name] = value.id
+            uses.append(value.id)
+            continue
+        literal = _json_literal(value)
+        if literal is not ...:
+            literals[parameter_name] = literal
+            continue
+        if _safe_expression(value):
+            expressions[parameter_name] = ast.unparse(value)
+            for node in ast.walk(value):
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+                    uses.append(node.id)
+            continue
+        return None
+
+    for dependency in function_info.get("dependencyNames", []):
+        bindings[dependency] = dependency
+        uses.append(dependency)
+
+    if mapped_name is not None and mapped_parameter is None:
+        return None
+    return {
+        "bindings": bindings,
+        "literals": literals,
+        "expressions": expressions,
+        "uses": sorted({name for name in uses if name}),
+        "mappedParameter": mapped_parameter,
+    }
+
+
+def _analyze_user_function_call(
+    call: ast.Call,
+    statement: ast.stmt,
+    base: dict[str, Any],
+    function_info: dict[str, Any],
+) -> dict[str, Any] | None:
+    function = function_info.get("function")
+    if not isinstance(function, ast.FunctionDef):
+        return None
+    resolved = _resolve_user_function_inputs(call, function_info)
+    if resolved is None:
+        return None
+    bindings = resolved["bindings"]
+    literals = resolved["literals"]
+    expressions = resolved["expressions"]
+    uses = resolved["uses"]
+
+    output_ids = list(function_info.get("outputIds", ["output"]))
+    targets = _assignment_target_names(statement)
+    if len(output_ids) > 1 and targets and len(targets) != len(output_ids):
+        return None
+    if len(output_ids) == 1 and len(targets) > 1:
+        return None
+    defines = targets
+    output_variable = targets[0] if len(targets) == 1 else None
+    return {
+        **base,
+        "recognized": True,
+        "semantic": True,
+        "kind": "UserFunctionCall",
+        "nodeType": "function.call",
+        "label": function_info.get("name") or getattr(call.func, "id", "函数调用"),
+        "parameters": {
+            "functionId": function_info["id"],
+            "functionVersion": 1,
+            "notebookInputBindingsJson": json.dumps(bindings, ensure_ascii=False),
+            "notebookLiteralInputsJson": json.dumps(literals, ensure_ascii=False),
+            "notebookExpressionInputsJson": json.dumps(expressions, ensure_ascii=False),
+            "notebookFunctionInputsJson": json.dumps(function_info.get("inputNames", []), ensure_ascii=False),
+            "notebookFunctionInputTypesJson": json.dumps(function_info.get("inputTypes", []), ensure_ascii=False),
+            "notebookFunctionOutputsJson": json.dumps(output_ids, ensure_ascii=False),
+            "notebookFunctionOutputTypesJson": json.dumps(function_info.get("outputTypes", []), ensure_ascii=False),
+        },
+        "inputVariable": next(iter(bindings.values()), None),
+        "outputVariable": output_variable,
+        "defines": defines,
+        "uses": sorted(set(uses)),
+    }
+
+
+def _analyze_user_function_map_assignment(
+    statement: ast.stmt,
+    source: str,
+    base: dict[str, Any],
+    user_functions: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """Promote the safe subset of list comprehensions to ``function.map``.
+
+    Supported forms intentionally mirror the dominant scientific-notebook
+    patterns in the regression corpus::
+
+        values = [measure(path, sign) for path in paths]
+        frame = pd.DataFrame([measure(path, sign) for path in paths])
+
+    One generator, one plain loop variable, no filters, and a direct call to a
+    previously promoted user function are required.  Everything else stays as
+    lossless Python code.
+    """
+    if not user_functions or not isinstance(statement, (ast.Assign, ast.AnnAssign)):
+        return None
+    targets = _assignment_target_names(statement)
+    if len(targets) != 1:
+        return None
+    value = statement.value
+    collect_mode = "list"
+    comprehension: ast.ListComp | None = None
+    if isinstance(value, ast.ListComp):
+        comprehension = value
+    elif (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Attribute)
+        and isinstance(value.func.value, ast.Name)
+        and value.func.value.id in {"pd", "pandas"}
+        and value.func.attr == "DataFrame"
+        and len(value.args) == 1
+        and not value.keywords
+        and isinstance(value.args[0], ast.ListComp)
+    ):
+        comprehension = value.args[0]
+        collect_mode = "table"
+    if comprehension is None or len(comprehension.generators) != 1:
+        return None
+    generator = comprehension.generators[0]
+    if generator.is_async or generator.ifs or not isinstance(generator.target, ast.Name) or not isinstance(generator.iter, ast.Name):
+        return None
+    call = comprehension.elt
+    if not isinstance(call, ast.Call) or not isinstance(call.func, ast.Name):
+        return None
+    function_info = user_functions.get(call.func.id)
+    if not function_info:
+        return None
+    resolved = _resolve_user_function_inputs(
+        call,
+        function_info,
+        mapped_name=generator.target.id,
+        mapped_iterable=generator.iter,
+    )
+    if resolved is None or not resolved.get("mappedParameter"):
+        return None
+    output_ids = list(function_info.get("outputIds", ["output"]))
+    return {
+        **base,
+        "recognized": True,
+        "semantic": True,
+        "kind": "UserFunctionMap",
+        "nodeType": "function.map",
+        "label": f"映射 · {function_info.get('name') or call.func.id}",
+        "parameters": {
+            "functionId": function_info["id"],
+            "functionVersion": 1,
+            "mapInput": resolved["mappedParameter"],
+            "collectMode": collect_mode,
+            "maxIterations": 100000,
+            "notebookInputBindingsJson": json.dumps(resolved["bindings"], ensure_ascii=False),
+            "notebookLiteralInputsJson": json.dumps(resolved["literals"], ensure_ascii=False),
+            "notebookExpressionInputsJson": json.dumps(resolved["expressions"], ensure_ascii=False),
+            "notebookFunctionInputsJson": json.dumps(function_info.get("inputNames", []), ensure_ascii=False),
+            "notebookFunctionInputTypesJson": json.dumps(function_info.get("inputTypes", []), ensure_ascii=False),
+            "notebookFunctionOutputsJson": json.dumps(output_ids, ensure_ascii=False),
+            "notebookFunctionOutputTypesJson": json.dumps(function_info.get("outputTypes", []), ensure_ascii=False),
+        },
+        "inputVariable": generator.iter.id,
+        "outputVariable": targets[0],
+        "defines": targets,
+        "uses": resolved["uses"],
+    }
+
+
+def _analyze_user_function_concat_loop(
+    statement: ast.stmt,
+    source: str,
+    base: dict[str, Any],
+    user_functions: dict[str, dict[str, Any]] | None,
+) -> dict[str, Any] | None:
+    """Promote one exact ``map + concat(axis=1)`` scientific loop.
+
+    Supported forms are deliberately narrow::
+
+        for item in items:
+            frame = transform(item, factor)
+            result = pd.concat([result, frame], axis=1)
+
+        for item in items:
+            result = pd.concat([result, transform(item, factor)], axis=1)
+
+    Conditions, additional side effects, iterator-index expressions and concat
+    options other than ``axis=1`` remain lossless Python code.
+    """
+    if not user_functions or not isinstance(statement, ast.For):
+        return None
+    if statement.orelse or not isinstance(statement.target, ast.Name) or not isinstance(statement.iter, ast.Name):
+        return None
+    if len(statement.body) not in {1, 2}:
+        return None
+
+    call: ast.Call | None = None
+    temporary_name: str | None = None
+    concat_statement: ast.Assign | None = None
+    if len(statement.body) == 2:
+        first, second = statement.body
+        if not (
+            isinstance(first, ast.Assign)
+            and len(first.targets) == 1
+            and isinstance(first.targets[0], ast.Name)
+            and isinstance(first.value, ast.Call)
+            and isinstance(first.value.func, ast.Name)
+            and first.value.func.id in user_functions
+            and isinstance(second, ast.Assign)
+        ):
+            return None
+        temporary_name = first.targets[0].id
+        call = first.value
+        concat_statement = second
+    else:
+        only = statement.body[0]
+        if not isinstance(only, ast.Assign):
+            return None
+        concat_statement = only
+
+    if len(concat_statement.targets) != 1 or not isinstance(concat_statement.targets[0], ast.Name):
+        return None
+    accumulator = concat_statement.targets[0].id
+    concat_call = concat_statement.value
+    if not (
+        isinstance(concat_call, ast.Call)
+        and isinstance(concat_call.func, ast.Attribute)
+        and isinstance(concat_call.func.value, ast.Name)
+        and concat_call.func.value.id in {"pd", "pandas"}
+        and concat_call.func.attr == "concat"
+        and len(concat_call.args) == 1
+        and isinstance(concat_call.args[0], (ast.List, ast.Tuple))
+        and len(concat_call.args[0].elts) == 2
+    ):
+        return None
+    initial_item, mapped_item = concat_call.args[0].elts
+    if not isinstance(initial_item, ast.Name) or initial_item.id != accumulator:
+        return None
+    axis = 0
+    for keyword in concat_call.keywords:
+        if keyword.arg != "axis" or not isinstance(keyword.value, ast.Constant):
+            return None
+        axis = keyword.value.value
+    if axis != 1:
+        return None
+
+    if temporary_name is not None:
+        if not isinstance(mapped_item, ast.Name) or mapped_item.id != temporary_name:
+            return None
+    else:
+        if not (
+            isinstance(mapped_item, ast.Call)
+            and isinstance(mapped_item.func, ast.Name)
+            and mapped_item.func.id in user_functions
+        ):
+            return None
+        call = mapped_item
+    if call is None or not isinstance(call.func, ast.Name):
+        return None
+    function_info = user_functions.get(call.func.id)
+    if not function_info or len(function_info.get("outputIds", ["output"])) != 1:
+        return None
+    resolved = _resolve_user_function_inputs(
+        call,
+        function_info,
+        mapped_name=statement.target.id,
+        mapped_iterable=statement.iter,
+    )
+    if resolved is None or not resolved.get("mappedParameter"):
+        return None
+
+    output_ids = list(function_info.get("outputIds", ["output"]))
+    return {
+        **base,
+        "recognized": True,
+        "semantic": True,
+        "kind": "UserFunctionMapConcatColumns",
+        "nodeType": "function.map",
+        "label": f"映射合并 · {function_info.get('name') or call.func.id}",
+        "parameters": {
+            "functionId": function_info["id"],
+            "functionVersion": 1,
+            "mapInput": resolved["mappedParameter"],
+            "collectMode": "concat_columns",
+            "concatInitialVariable": accumulator,
+            **({"lastItemVariable": temporary_name} if temporary_name else {}),
+            "maxIterations": 100000,
+            "notebookInputBindingsJson": json.dumps(resolved["bindings"], ensure_ascii=False),
+            "notebookLiteralInputsJson": json.dumps(resolved["literals"], ensure_ascii=False),
+            "notebookExpressionInputsJson": json.dumps(resolved["expressions"], ensure_ascii=False),
+            "notebookFunctionInputsJson": json.dumps(function_info.get("inputNames", []), ensure_ascii=False),
+            "notebookFunctionInputTypesJson": json.dumps(function_info.get("inputTypes", []), ensure_ascii=False),
+            "notebookFunctionOutputsJson": json.dumps(output_ids, ensure_ascii=False),
+            "notebookFunctionOutputTypesJson": json.dumps(function_info.get("outputTypes", []), ensure_ascii=False),
+        },
+        "inputVariable": statement.iter.id,
+        "outputVariable": accumulator,
+        "defines": [accumulator, *([temporary_name] if temporary_name else [])],
+        "uses": sorted({*resolved["uses"], accumulator}),
+    }
+
+
+def _analyze_call(
+    call: ast.Call,
+    statement: ast.stmt,
+    source: str,
+    base: dict[str, Any],
+    user_functions: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     """把调用语句映射到节点：内置函数、专用函数、pandas/numpy 方法与转换。"""
+    if isinstance(call.func, ast.Name) and user_functions and call.func.id in user_functions:
+        converted = _analyze_user_function_call(call, statement, base, user_functions[call.func.id])
+        if converted is not None:
+            return converted
     if isinstance(call.func, ast.Attribute) and call.func.attr == "linregress" and len(call.args) >= 2:
         x_arg, y_arg = call.args[0], call.args[1]
         x_root = _root_name(x_arg)
@@ -524,11 +1255,22 @@ def _analyze_call(call: ast.Call, statement: ast.stmt, source: str, base: dict[s
     return {**base, "recognized": False}
 
 
-def _analyze_statement(statement: ast.stmt, source: str) -> dict[str, Any]:
+def _analyze_statement(
+    statement: ast.stmt,
+    source: str,
+    user_functions: dict[str, dict[str, Any]] | None = None,
+    function_id: str | None = None,
+) -> dict[str, Any]:
     base = _statement_base(statement, source)
-    control = _analyze_control_flow(statement, source, base)
+    mapped_loop = _analyze_user_function_concat_loop(statement, source, base, user_functions)
+    if mapped_loop is not None:
+        return mapped_loop
+    control = _analyze_control_flow(statement, source, base, user_functions, function_id)
     if control is not None:
         return control
+    mapped = _analyze_user_function_map_assignment(statement, source, base, user_functions)
+    if mapped is not None:
+        return mapped
     call = _call(statement)
     if call is None:
         if isinstance(statement, ast.Assign):
@@ -536,10 +1278,14 @@ def _analyze_statement(statement: ast.stmt, source: str) -> dict[str, Any]:
             if assignment is not None:
                 return assignment
         return {**base, "recognized": False}
-    return _analyze_call(call, statement, source, base)
+    return _analyze_call(call, statement, source, base, user_functions)
 
 
-def analyze_python_cell(source: str) -> dict[str, Any]:
+def analyze_python_cell(
+    source: str,
+    user_functions: dict[str, dict[str, Any]] | None = None,
+    cell_index: int = 0,
+) -> dict[str, Any]:
     try:
         tree = ast.parse(source)
     except SyntaxError as error:
@@ -553,11 +1299,19 @@ def analyze_python_cell(source: str) -> dict[str, Any]:
     if pulse is not None:
         return pulse
     operations = []
+    function_context = user_functions if user_functions is not None else {}
     for index, statement in enumerate(tree.body):
         # _analyze_statement walks only this statement, while retaining its exact source fragment.
-        operation = _analyze_statement(statement, source)
+        function_id = None
+        if isinstance(statement, ast.FunctionDef):
+            function_id = f"notebook-fn-{cell_index + 1}-{index + 1}-{_identifier_slug(statement.name)}"
+        operation = _analyze_statement(statement, source, function_context, function_id)
         operation["index"] = index
         operations.append(operation)
+        if isinstance(statement, ast.FunctionDef):
+            compiled = _compile_workflow_function(statement, source, function_id or f"notebook-fn-{_identifier_slug(statement.name)}")
+            if compiled is not None:
+                function_context[statement.name] = compiled
     definitions = sorted({name for operation in operations for name in operation.get("defines", [])})
     uses = sorted({name for operation in operations for name in operation.get("uses", [])})
     semantic = [operation for operation in operations if operation.get("semantic")]
@@ -570,11 +1324,12 @@ def analyze_notebook_json(notebook_json: str) -> str:
     notebook = json.loads(notebook_json)
     cells = notebook.get("cells", [])
     analyses = []
+    user_functions: dict[str, dict[str, Any]] = {}
     for index, cell in enumerate(cells):
         source = cell.get("source", "")
         if isinstance(source, list): source = "".join(source)
         if cell.get("cell_type") == "code":
-            analyses.append({"index": index, **analyze_python_cell(str(source))})
+            analyses.append({**analyze_python_cell(str(source), user_functions, index), "index": index})
         else:
             analyses.append({"index": index, "recognized": False, "reason": "markdown", "defines": [], "uses": []})
     return json.dumps({"cells": analyses}, ensure_ascii=False)

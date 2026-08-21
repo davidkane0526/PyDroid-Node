@@ -15,6 +15,12 @@ function portSpecs(ports: WorkflowGroupPort[]): PortSpec[] {
 export function functionInputSpecs(definition: WorkflowFunctionDefinition): PortSpec[] { return portSpecs(definition.inputs); }
 export function functionOutputSpecs(definition: WorkflowFunctionDefinition): PortSpec[] { return portSpecs(definition.outputs).map((port) => ({ ...port, required: undefined })); }
 
+function functionMapInputSpecs(definition: WorkflowFunctionDefinition, mapInput: string): PortSpec[] {
+  return functionInputSpecs(definition).map((port) => port.id === mapInput
+    ? { ...port, label: `${port.label} 列表`, valueType: "list" }
+    : port);
+}
+
 function descendantIds(groupId: string, nodes: WorkflowNode[]): Set<string> {
   const result = new Set<string>();
   let changed = true;
@@ -113,28 +119,33 @@ export function createFunctionCallNode(
 
 export function synchronizeFunctionCalls(nodes: WorkflowNode[], definition: WorkflowFunctionDefinition): WorkflowNode[] {
   return nodes.map((node) => {
-    if (node.data.nodeType !== "function.call" || String(node.data.parameters.functionId ?? "") !== definition.id) return node;
+    if (!["function.call", "function.map"].includes(node.data.nodeType) || String(node.data.parameters.functionId ?? "") !== definition.id) return node;
+    const mapped = node.data.nodeType === "function.map";
     return {
       ...node,
       data: {
         ...node.data,
-        label: definition.name,
+        label: mapped ? `映射 · ${definition.name}` : definition.name,
         parameters: { ...node.data.parameters, functionVersion: definition.version },
-        functionInputs: functionInputSpecs(definition),
-        functionOutputs: functionOutputSpecs(definition),
+        functionInputs: mapped ? functionMapInputSpecs(definition, String(node.data.parameters.mapInput ?? "")) : functionInputSpecs(definition),
+        functionOutputs: mapped ? (node.data.functionOutputs?.length ? node.data.functionOutputs : [{ id: "output", label: "结果", valueType: "any" }]) : functionOutputSpecs(definition),
       },
     };
   });
 }
 
 function synchronizeFunctionCallEdges(nodes: WorkflowNode[], edges: Edge[], target: WorkflowFunctionDefinition): Edge[] {
-  const callIds = new Set(nodes.filter((node) => node.data.nodeType === "function.call" && String(node.data.parameters.functionId ?? "") === target.id).map((node) => node.id));
+  const references = nodes.filter((node) => ["function.call", "function.map"].includes(node.data.nodeType) && String(node.data.parameters.functionId ?? "") === target.id);
+  const callIds = new Set(references.map((node) => node.id));
   if (!callIds.size) return edges;
   const inputIds = new Set(target.inputs.map((port) => port.id));
-  const outputIds = new Set(target.outputs.map((port) => port.id));
   return edges.filter((edge) => {
     if (callIds.has(edge.target) && edge.targetHandle && !inputIds.has(edge.targetHandle)) return false;
-    if (callIds.has(edge.source) && edge.sourceHandle && !outputIds.has(edge.sourceHandle)) return false;
+    if (callIds.has(edge.source) && edge.sourceHandle) {
+      const source = references.find((node) => node.id === edge.source);
+      const outputIds = new Set((source?.data.nodeType === "function.map" ? source.data.functionOutputs ?? [] : functionOutputSpecs(target)).map((port) => port.id));
+      if (!outputIds.has(edge.sourceHandle)) return false;
+    }
     return true;
   });
 }
@@ -194,5 +205,5 @@ export function materializeFunctionAsGroup(
 }
 
 export function functionCallCount(nodes: WorkflowNode[], functionId: string): number {
-  return nodes.filter((node) => node.data.nodeType === "function.call" && String(node.data.parameters.functionId ?? "") === functionId).length;
+  return nodes.filter((node) => ["function.call", "function.map"].includes(node.data.nodeType) && String(node.data.parameters.functionId ?? "") === functionId).length;
 }

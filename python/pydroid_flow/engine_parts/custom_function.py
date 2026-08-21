@@ -246,8 +246,11 @@ def _execute_custom_function(code: str, upstream: dict[str, Any], params: dict[s
         for name in (
             "abs", "all", "any", "bool", "complex", "dict", "divmod", "enumerate",
             "filter", "float", "frozenset", "getattr", "hasattr", "int", "isinstance",
-            "issubclass", "len", "list", "map", "max", "min", "pow", "range", "reversed",
-            "round", "set", "sorted", "str", "sum", "tuple", "zip",
+            "issubclass", "iter", "len", "list", "map", "max", "min", "next", "pow",
+            "print", "range", "reversed", "round", "set", "slice", "sorted", "str", "sum",
+            "tuple", "type", "zip", "Exception", "ArithmeticError", "LookupError",
+            "ValueError", "TypeError", "KeyError", "IndexError", "OSError", "RuntimeError",
+            "StopIteration", "NotImplementedError",
         )
     }
     safe_builtins["__import__"] = _restricted_import

@@ -46,7 +46,7 @@ export function reconcileWorkflowFunctionCalls(value: Record<string, unknown>): 
     const node = asRecord(rawNode);
     const data = asRecord(node?.data);
     const parameters = asRecord(data?.parameters);
-    if (!node || !data || data.nodeType !== "function.call" || !parameters || typeof parameters.functionId !== "string") return rawNode;
+    if (!node || !data || !["function.call", "function.map"].includes(String(data.nodeType)) || !parameters || typeof parameters.functionId !== "string") return rawNode;
     const definition = definitions.get(parameters.functionId);
     if (!definition) return rawNode; // validation owns missing-definition reporting.
     const definitionVersion = definition.version;
@@ -60,8 +60,14 @@ export function reconcileWorkflowFunctionCalls(value: Record<string, unknown>): 
         { nodeId: node.id, functionId: parameters.functionId, callVersion, definitionVersion },
       );
     }
-    const inputs = signaturePorts(definition.inputs, true);
-    const outputs = signaturePorts(definition.outputs, false);
+    const definitionInputs = signaturePorts(definition.inputs, true);
+    const mapInput = typeof parameters.mapInput === "string" ? parameters.mapInput : "";
+    const inputs = data.nodeType === "function.map"
+      ? definitionInputs.map((port) => port.id === mapInput ? { ...port, label: `${port.label} 列表`, valueType: "list" } : port)
+      : definitionInputs;
+    const outputs = data.nodeType === "function.map"
+      ? (signaturePorts(data.functionOutputs, false).length ? signaturePorts(data.functionOutputs, false) : [{ id: "output", label: "结果", valueType: "any" }])
+      : signaturePorts(definition.outputs, false);
     if (callVersion < definitionVersion && (!sameSignature(data.functionInputs, inputs) || !sameSignature(data.functionOutputs, outputs))) {
       throw new WorkflowCompatibilityError(
         "incompatible-function-signature",

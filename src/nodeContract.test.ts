@@ -16,6 +16,14 @@ describe("node contracts", () => {
     expect(contract?.runtimes.javascript).toBe(false);
   });
 
+  it("marks function.map as a Python-only workflow function caller", () => {
+    const contract = getNodeContract("function.map");
+    expect(contract?.executionModel).toBe("function");
+    expect(contract?.functionRole).toBe("call");
+    expect(contract?.runtimes.python).toBe(true);
+    expect(contract?.runtimes.javascript).toBe(false);
+  });
+
   it("marks temporary variable nodes with temporary state scope", () => {
     expect(getNodeContract("variable.set")?.stateScope).toBe("temporary");
     expect(getNodeContract("variable.get")?.stateScope).toBe("temporary");

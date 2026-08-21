@@ -1,4 +1,4 @@
-# PyDroid Node 1.4.94 环境约定
+# PyDroid Node 1.4.95 环境约定
 
 构建器默认采用**本机只读自动发现**。通常不需要手工填写 JDK、Android SDK 或 Python 路径；GUI 对应字段留空即可。
 

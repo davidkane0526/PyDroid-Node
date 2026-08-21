@@ -51,6 +51,37 @@ describe("workflow validation", () => {
     })).not.toThrow();
   });
 
+  it("validates function.map against its collected-list port instead of the scalar function input type", () => {
+    const functions = [{
+      id: "fn-abs-map", name: "Abs", version: 1,
+      inputs: [{ id: "table", label: "Table", valueType: "table", internalNodeId: "abs", internalHandle: "input" }],
+      outputs: [{ id: "result", label: "Result", valueType: "table", internalNodeId: "abs", internalHandle: "output" }],
+      nodes: [node("abs", "table.absolute")], edges: [],
+    }];
+    const mapNode = { id: "map", data: {
+      nodeType: "function.map", nodeVersion: 1, parameters: { functionId: "fn-abs-map", functionVersion: 1, mapInput: "table", collectMode: "list" },
+      functionInputs: [{ id: "table", label: "Table 列表", valueType: "list", required: true }],
+      functionOutputs: [{ id: "output", label: "结果列表", valueType: "list" }],
+    } };
+    expect(() => validateWorkflowDocument({
+      name: "function-map", functions,
+      nodes: [node("source", "generate.empty_list"), mapNode],
+      edges: [{ source: "source", target: "map", sourceHandle: "output", targetHandle: "table" }],
+    })).not.toThrow();
+    expect(() => validateWorkflowDocument({
+      name: "bad-function-map", functions,
+      nodes: [{ ...mapNode, data: { ...mapNode.data, parameters: { ...mapNode.data.parameters, mapInput: "missing" } } }], edges: [],
+    })).toThrow(/mapInput/);
+    expect(() => validateWorkflowDocument({
+      name: "bad-function-map-mode", functions,
+      nodes: [{ ...mapNode, data: { ...mapNode.data, parameters: { ...mapNode.data.parameters, collectMode: "mystery" } } }], edges: [],
+    })).toThrow(/collectMode/);
+    expect(() => validateWorkflowDocument({
+      name: "bad-function-map-concat", functions,
+      nodes: [{ ...mapNode, data: { ...mapNode.data, parameters: { ...mapNode.data.parameters, collectMode: "concat_columns" } } }], edges: [],
+    })).toThrow(/concatInitialVariable/);
+  });
+
   it("rejects function version drift and recursive definitions", () => {
     const definition = {
       id: "fn-rec", name: "Recursive", version: 2, inputs: [],

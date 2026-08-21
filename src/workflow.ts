@@ -194,7 +194,7 @@ export function collectReachableFunctionNodes(nodes: WorkflowNode[], functions: 
   const visited = new Set<string>();
   const visitNodes = (items: WorkflowNode[]) => {
     for (const node of items) {
-      if (node.data.nodeType !== "function.call") continue;
+      if (node.data.nodeType !== "function.call" && node.data.nodeType !== "function.map") continue;
       const functionId = String(node.data.parameters.functionId ?? "").trim();
       if (!functionId || visited.has(functionId)) continue;
       visited.add(functionId);

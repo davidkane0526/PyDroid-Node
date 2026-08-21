@@ -61,10 +61,12 @@ function functionDefinitionForCall(node: RawWorkflowNode, functions: FunctionMap
 
 function declaredPort(node: RawWorkflowNode, direction: "input" | "output", handle: string | null | undefined, functions: FunctionMap): PortSpec | undefined {
   if (node.data.nodeType === "workflow.group") return dynamicPort(direction === "input" ? node.data.groupInputs : node.data.groupOutputs, direction, handle);
-  if (node.data.nodeType === "function.call") {
-    const definitionPorts = functionSignaturePorts(functionDefinitionForCall(node, functions), direction);
+  if (node.data.nodeType === "function.call" || node.data.nodeType === "function.map") {
+    const definitionPorts = direction === "input" ? functionSignaturePorts(functionDefinitionForCall(node, functions), direction) : [];
     const savedPorts = normalizedPorts(direction === "input" ? node.data.functionInputs : node.data.functionOutputs);
-    const ports = definitionPorts.length ? definitionPorts : savedPorts;
+    const ports = node.data.nodeType === "function.map"
+      ? savedPorts
+      : direction === "input" && definitionPorts.length ? definitionPorts : savedPorts;
     if (typeof handle === "string" && handle) return ports.find((port) => port.id === handle);
     const conventional = ports.find((port) => port.id === (direction === "input" ? "input" : "output"));
     return conventional ?? (ports.length === 1 ? ports[0] : undefined);
@@ -80,7 +82,7 @@ function declaredPort(node: RawWorkflowNode, direction: "input" | "output", hand
 }
 
 function validateCallReference(node: RawWorkflowNode, functions: FunctionMap): void {
-  if (node.data.nodeType !== "function.call") return;
+  if (node.data.nodeType !== "function.call" && node.data.nodeType !== "function.map") return;
   const functionId = node.data.parameters?.functionId;
   const functionVersion = node.data.parameters?.functionVersion;
   if (typeof functionId !== "string" || !functionId.trim()) throw new Error(`函数调用 ${node.id} 缺少 functionId`);
@@ -89,6 +91,22 @@ function validateCallReference(node: RawWorkflowNode, functions: FunctionMap): v
   if (typeof functionVersion !== "number" || !Number.isInteger(functionVersion) || functionVersion < 1) throw new Error(`函数调用 ${node.id} 的版本无效`);
   if (functionVersion !== definition.version) {
     throw new Error(`函数调用 ${node.id} 使用 v${functionVersion}，但当前定义为 v${definition.version}；请更新调用节点`);
+  }
+  if (node.data.nodeType === "function.map") {
+    const mapInput = node.data.parameters?.mapInput;
+    if (typeof mapInput !== "string" || !functionSignaturePorts(definition, "input").some((port) => port.id === mapInput)) {
+      throw new Error(`函数映射 ${node.id} 的 mapInput 无效`);
+    }
+    const collectMode = node.data.parameters?.collectMode;
+    if (!new Set(["list", "table", "concat_columns"]).has(String(collectMode))) {
+      throw new Error(`函数映射 ${node.id} 的 collectMode 无效`);
+    }
+    if (collectMode === "concat_columns") {
+      const accumulator = node.data.parameters?.concatInitialVariable;
+      if (typeof accumulator !== "string" || !accumulator.trim()) {
+        throw new Error(`函数映射 ${node.id} 的 concat_columns 缺少 concatInitialVariable`);
+      }
+    }
   }
 }
 
@@ -191,7 +209,7 @@ function validateFunctionDefinitions(functions: FunctionMap): void {
     visiting.add(functionId);
     const definition = functions.get(functionId);
     for (const node of definition?.nodes ?? []) {
-      if (node.data.nodeType !== "function.call") continue;
+      if (node.data.nodeType !== "function.call" && node.data.nodeType !== "function.map") continue;
       const target = node.data.parameters?.functionId;
       if (typeof target === "string") visit(target);
     }
