@@ -394,15 +394,15 @@ button, input, select, textarea { font: inherit; }
 .plot-lightbox header button { flex: none; min-width: 38px; padding: 7px 10px; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text); background: var(--surface-hover); cursor: pointer; }
 .plot-lightbox__body { min-width: 0; min-height: 0; overflow: auto; padding: 24px; text-align: center; }
 .plot-lightbox__body img { display: inline-block; max-width: none; border-radius: 8px; background: #fff; box-shadow: 0 18px 50px #000a; }
-.workflow-node { position: relative; width: var(--node-width, 168px); min-height: calc(58px * var(--node-scale, 1)); padding: calc(6px * var(--node-scale, 1)) calc(8px * var(--node-scale, 1)); background: var(--surface-raised); border: 1px solid #3a4762; border-radius: 9px; box-shadow: 0 10px 24px #0005; }
+.workflow-node { position: relative; width: var(--node-width, 168px); min-height: var(--node-min-height, calc(58px * var(--node-scale, 1))); padding: calc(6px * var(--node-scale, 1)) calc(8px * var(--node-scale, 1)); background: var(--surface-raised); border: 1px solid #3a4762; border-radius: 9px; box-shadow: 0 10px 24px #0005; }
 .workflow-node__body { display: grid; align-content: center; min-width: 0; min-height: 46px; text-align: center; }
-.workflow-node.has-inputs .workflow-node__body { margin-left: 39px; }
-.workflow-node.has-outputs .workflow-node__body { margin-right: 39px; }
+.workflow-node.has-inputs .workflow-node__body { margin-left: calc(var(--port-label-width, 42px) + 14px); }
+.workflow-node.has-outputs .workflow-node__body { margin-right: calc(var(--port-label-width, 42px) + 14px); }
 .input-port, .output-port { position: absolute; transform: translateY(-50%); pointer-events: none; }
 .input-port { left: 0; }
 .output-port { right: 0; }
 .input-port .react-flow__handle, .output-port .react-flow__handle { pointer-events: all; }
-.input-port span, .output-port span { position: absolute; top: 50%; display: grid; width: 35px; transform: translateY(-50%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-xs); line-height: 1.15; }
+.input-port span, .output-port span { position: absolute; top: 50%; display: grid; width: var(--port-label-width, 42px); transform: translateY(-50%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-xs); line-height: 1.15; }
 .input-port span { left: 11px; color: var(--accent-soft); text-align: left; }
 .output-port span { right: 11px; color: #a7f3d0; text-align: right; }
 .input-port small, .output-port small { opacity: .65; font-size: 9px; }
@@ -410,6 +410,10 @@ button, input, select, textarea { font: inherit; }
 .node-selection-check, .node-delete-action { position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
 .node-selection-check { left: -11px; }
 .node-delete-action { right: -11px; border-color: #f87171; color: var(--danger-text); cursor: pointer; }
+.node-run-action { position: absolute; z-index: 9; top: 5px; right: 6px; display: grid; width: 21px; height: 21px; padding: 0 0 0 1px; place-items: center; border: 1px solid #22c55e88; border-radius: 6px; color: #bbf7d0; background: #052e16d9; box-shadow: 0 2px 8px #0005; cursor: pointer; font-size: 10px; line-height: 1; }
+.node-run-action:hover, .node-run-action:focus-visible { border-color: #4ade80; color: #f0fdf4; background: #166534e8; outline: none; }
+.node-run-action:disabled { opacity: .42; cursor: default; }
+.notebook-order-handle { width: 1px !important; height: 1px !important; min-width: 1px !important; min-height: 1px !important; opacity: 0 !important; border: 0 !important; box-shadow: none !important; pointer-events: none !important; }
 .node-delete-action:hover, .node-delete-action:focus-visible { background: var(--danger-deep); outline: none; }
 .node-selection-check.checked { border-color: var(--accent-hover); background: var(--accent); }
 .react-flow__node.node-entering { animation: node-drop-in .3s cubic-bezier(.16, 1.1, .3, 1); }
@@ -439,7 +443,7 @@ button, input, select, textarea { font: inherit; }
 .react-flow__controls button svg { fill: currentColor; }
 .react-flow__handle.connectingto { background: #f59e0b; }
 .react-flow__handle.valid { background: var(--success); }
-.workflow-node.direction-vertical { min-height: calc(92px * var(--node-scale, 1)); padding-block: calc(21px * var(--node-scale, 1)); }
+.workflow-node.direction-vertical { min-height: var(--node-min-height, calc(92px * var(--node-scale, 1))); padding-block: calc(21px * var(--node-scale, 1)); }
 .workflow-node.direction-vertical .workflow-node__body { margin-inline: 0; min-height: 46px; gap: calc(2px * var(--node-scale, 1)); }
 .workflow-node.direction-vertical .workflow-node__type { margin-bottom: 3px; font-size: calc(12px * var(--node-scale, 1)); line-height: 1.35; }
 .workflow-node.direction-vertical .workflow-node__label { line-height: 1.28; }
@@ -447,7 +451,7 @@ button, input, select, textarea { font: inherit; }
 .workflow-node.direction-vertical .input-port, .workflow-node.direction-vertical .output-port { right: auto; transform: translateX(-50%); }
 .workflow-node.direction-vertical .input-port { top: 0; bottom: auto; }
 .workflow-node.direction-vertical .output-port { top: auto; bottom: 0; }
-.workflow-node.direction-vertical .input-port span, .workflow-node.direction-vertical .output-port span { top: auto; right: auto; left: 50%; width: 62px; transform: translateX(-50%); text-align: center; }
+.workflow-node.direction-vertical .input-port span, .workflow-node.direction-vertical .output-port span { top: auto; right: auto; left: 50%; width: var(--vertical-port-label-width, 62px); transform: translateX(-50%); text-align: center; }
 .workflow-node.direction-vertical .input-port span { top: 8px; }
 .workflow-node.direction-vertical .output-port span { bottom: 8px; }
 .workflow-node.direction-vertical .output-port span { font-size: calc(9.5px * var(--node-scale, 1)); line-height: 1.25; }

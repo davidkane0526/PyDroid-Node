@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deleteNodesFromGraph, disconnectEdgesFromGraph, disconnectNodesFromGraph, upstreamSubgraph } from "./commands";
+import { deleteNodesFromGraph, disconnectEdgesFromGraph, disconnectNodesFromGraph, nodeExecutionSubgraph, upstreamSubgraph } from "./commands";
 import type { WorkflowNode } from "../workflow";
 
 const node = (id: string): WorkflowNode => ({ id, position: { x: 0, y: 0 }, data: { label: id, nodeType: "python.print", nodeVersion: 1, parameters: {}, status: "idle" } });
@@ -15,6 +15,38 @@ describe("upstreamSubgraph", () => {
     expect(slice.nodes.map((item) => item.id)).toEqual(["a", "b", "c"]);
     expect(slice.edges.map((item) => item.id)).toEqual(["ab", "bc"]);
   });
+});
+
+it("builds a node-scoped execution slice including notebook order context", () => {
+  const nodes = [node("import"), node("transform"), node("later")];
+  const edges = [
+    { id: "order", source: "import", target: "transform", data: { role: "notebook-order" } },
+    { id: "later", source: "transform", target: "later" },
+  ];
+  const slice = nodeExecutionSubgraph(nodes, edges, "transform");
+  expect(slice.nodes.map((item) => item.id)).toEqual(["import", "transform"]);
+  expect(slice.edges.map((item) => item.id)).toEqual(["order"]);
+});
+
+it("runs a workflow group through its member nodes and their upstream context", () => {
+  const group = { ...node("group"), data: { ...node("group").data, nodeType: "workflow.group" } };
+  const member = { ...node("member"), data: { ...node("member").data, canvasParentId: "group" } };
+  const nodes = [node("setup"), group, member, node("outside")];
+  const edges = [{ id: "setup-group", source: "setup", target: "group" }];
+  const slice = nodeExecutionSubgraph(nodes, edges, "group");
+  expect(slice.nodes.map((item) => item.id)).toEqual(["setup", "group", "member"]);
+});
+
+it("expands an upstream group implementation when running a downstream node", () => {
+  const group = { ...node("group"), data: { ...node("group").data, nodeType: "workflow.group" } };
+  const member = { ...node("member"), data: { ...node("member").data, canvasParentId: "group" } };
+  const nodes = [node("setup"), group, member, node("target")];
+  const edges = [
+    { id: "setup-group", source: "setup", target: "group" },
+    { id: "group-target", source: "group", target: "target" },
+  ];
+  const slice = nodeExecutionSubgraph(nodes, edges, "target");
+  expect(slice.nodes.map((item) => item.id)).toEqual(["setup", "group", "member", "target"]);
 });
 
 

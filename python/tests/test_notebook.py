@@ -61,9 +61,16 @@ def test_analyzes_ipynb_cells():
 def test_splits_compound_cell_into_classified_top_level_operations():
     result = analyze_python_cell("import pandas as pd\ndf = pd.read_csv('a.csv')\nfor value in range(3):\n    print(value)\n")
     assert [item["nodeType"] for item in result["operations"]] == ["notebook.code_cell", "io.read_csv", "notebook.code_cell"]
+    assert result["operations"][0]["defines"] == ["pd"]
     assert result["operations"][1]["semantic"] is True
     assert result["operations"][2]["recognized"] is True
     assert result["operations"][2]["semantic"] is False
+
+
+def test_import_and_from_import_bindings_are_recorded_as_notebook_definitions():
+    result = analyze_python_cell("import numpy as np\nfrom scipy.stats import linregress as lr\n")
+    assert result["operations"][0]["defines"] == ["np"]
+    assert result["operations"][1]["defines"] == ["lr"]
 
 
 def test_recognizes_chained_plot_and_clipboard_export():

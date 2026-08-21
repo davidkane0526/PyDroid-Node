@@ -178,6 +178,49 @@ describe("workflow notebook DSL", () => {
     expect(restored[0].executionCount).toBe(4);
   });
 
+  it("does not render pure Python comment cells as executable nodes but restores them for notebook round-trip", () => {
+    const cells = [
+      { id: "comment", cellType: "code" as const, source: "# Python\n# experiment setup" },
+      { id: "code", cellType: "code" as const, source: "value = 1" },
+    ];
+    const workflow = analyzedNotebookToWorkflow("注释", cells, [
+      { index: 0, recognized: false, semantic: false, operations: [] },
+      { index: 1, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = 1", defines: ["value"], uses: [], parameters: { source: "value = 1" }, operations: [
+        { index: 0, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = 1", defines: ["value"], uses: [], parameters: { source: "value = 1" } },
+      ] },
+    ]);
+    expect(workflow.nodes).toHaveLength(1);
+    expect(workflow.nodes[0].data.parameters.source).toBe("value = 1");
+    expect(workflow.nodes[0].data.parameters.notebookSkippedCommentCellsJson).toBeTruthy();
+    expect(workflowNotebookCells(workflow.nodes, workflow.edges).map((cell) => cell.source)).toEqual(["# Python\n# experiment setup", "value = 1"]);
+  });
+
+  it("adds visual-only execution order links when adjacent notebook operations have no data dependency", () => {
+    const cells = [{ id: "order", cellType: "code" as const, source: "import pandas as pd\nvalue = 1\nprint(value)" }];
+    const workflow = analyzedNotebookToWorkflow("顺序", cells, [{ index: 0, recognized: true, semantic: false, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "Import", nodeType: "notebook.code_cell", label: "导入模块", source: "import pandas as pd", defines: ["pd"], uses: [], parameters: { source: "import pandas as pd" } },
+      { index: 1, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = 1", defines: ["value"], uses: [], parameters: { source: "value = 1" } },
+      { index: 2, recognized: true, semantic: false, kind: "Expr", nodeType: "notebook.code_cell", label: "print", source: "print(value)", defines: [], uses: ["print", "value"], parameters: { source: "print(value)" } },
+    ] }]);
+    const orderEdges = workflow.edges.filter((edge) => edge.data?.role === "notebook-order");
+    expect(orderEdges.length).toBeGreaterThan(0);
+    expect(orderEdges.every((edge) => edge.sourceHandle === "__notebook_order_out" && edge.targetHandle === "__notebook_order_in")).toBe(true);
+  });
+
+  it("does not expose visual notebook dependencies as public workflow-group data ports", () => {
+    const cells = [{ id: "group-visual", cellType: "code" as const, source: "import pandas as pd\nvalue = 1\nprint(value)" }];
+    const workflow = analyzedNotebookToWorkflow("组合端口", cells, [{ index: 0, recognized: true, semantic: false, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "Import", nodeType: "notebook.code_cell", label: "导入", source: "import pandas as pd", defines: ["pd"], uses: [], parameters: { source: "import pandas as pd" } },
+      { index: 1, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = 1", defines: ["value"], uses: [], parameters: { source: "value = 1" } },
+      { index: 2, recognized: true, semantic: false, kind: "Expr", nodeType: "notebook.code_cell", label: "打印", source: "print(value)", defines: [], uses: ["print", "value"], parameters: { source: "print(value)" } },
+    ] }]);
+    const group = workflow.nodes.find((node) => node.data.nodeType === "workflow.group")!;
+    expect(group).toBeTruthy();
+    expect(group.data.groupInputs).toEqual([]);
+    expect(group.data.groupOutputs).toEqual([]);
+    expect(workflow.edges.some((edge) => edge.data?.role === "notebook-order")).toBe(true);
+  });
+
   it("auto-connects notebook data and scalar parameter dependencies without turning parameter lines into data edges", () => {
     const cells = [{ id: "links", cellType: "code" as const, source: "frame = make_frame()\ncount = 2\npicked = Pick(frame, count)\nanswer = use(picked)" }];
     const workflow = analyzedNotebookToWorkflow("连线", cells, [{ index: 0, recognized: true, semantic: true, operations: [

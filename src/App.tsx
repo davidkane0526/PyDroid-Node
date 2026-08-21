@@ -56,7 +56,7 @@ import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requ
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
-import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
+import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, nodeExecutionSubgraph, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
 import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, isEditorResourceUsable, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
@@ -179,6 +179,7 @@ const NodeInsightContext = createContext<{ visible: boolean; results: Record<str
 const NodeLayoutContext = createContext<"horizontal" | "vertical">("horizontal");
 const NodeAppearanceContext = createContext<{ nodeScale: number; endpointScale: number }>({ nodeScale: 1, endpointScale: 1 });
 const NodeSelectionContext = createContext<{ active: boolean; toggle: (nodeId: string) => void; remove: (nodeId: string) => void }>({ active: false, toggle: () => undefined, remove: () => undefined });
+const NodeRunContext = createContext<{ run: (nodeId: string) => void; busy: boolean }>({ run: () => undefined, busy: false });
 const BUNDLED_PACKAGES = [
   { name: "pandas", version: "2.1.3", purpose: "表格处理与 CSV" },
   { name: "matplotlib", version: "3.8.2", purpose: "绘图与热图" },
@@ -382,13 +383,25 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const direction = useContext(NodeLayoutContext);
   const { nodeScale, endpointScale } = useContext(NodeAppearanceContext);
   const selection = useContext(NodeSelectionContext);
+  const nodeRun = useContext(NodeRunContext);
   const updateNodeInternals = useUpdateNodeInternals();
+  const inputPorts = spec?.inputPorts ?? [];
+  const outputPorts = spec?.outputPorts ?? [];
   const labelLength = Array.from(data.label).length;
-  const nodeWidth = (data.nodeType === "workflow.group"
-    ? 230
-    : direction === "vertical"
-      ? Math.min(220, Math.max(154, 96 + labelLength * 12))
-      : Math.min(270, Math.max(168, 112 + labelLength * 16))) * nodeScale;
+  const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
+  const longestPortLabel = Math.max(0, ...[...inputPorts, ...outputPorts].map((port) => Array.from(port.label ?? "").length));
+  const horizontalPortLabelWidth = Math.min(86, Math.max(42, 22 + longestPortLabel * 6));
+  const verticalPortLabelWidth = Math.min(96, Math.max(62, 24 + longestPortLabel * 6));
+  const contentWidth = direction === "vertical"
+    ? Math.min(270, Math.max(154, 96 + labelLength * 12))
+    : Math.min(300, Math.max(168, 112 + labelLength * 16));
+  const portDrivenWidth = direction === "vertical"
+    ? Math.max(contentWidth, maxPortCount ? 28 + maxPortCount * (verticalPortLabelWidth + 12) : contentWidth)
+    : Math.max(contentWidth, 96 + horizontalPortLabelWidth * 2);
+  const nodeWidth = Math.min(direction === "vertical" ? 720 : 420, Math.max(data.nodeType === "workflow.group" ? 230 : 0, portDrivenWidth)) * nodeScale;
+  const nodeMinHeight = (direction === "horizontal" && maxPortCount
+    ? Math.max(58, 24 + maxPortCount * 34)
+    : direction === "vertical" ? 92 : 58) * nodeScale;
   const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(data.nodeType);
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
@@ -398,13 +411,14 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     const observer = new ResizeObserver(refresh);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [direction, endpointScale, id, nodeScale, nodeWidth, updateNodeInternals]);
-  const inputPorts = spec?.inputPorts ?? [];
-  const outputPorts = spec?.outputPorts ?? [];
+  }, [direction, endpointScale, horizontalPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node direction-${direction} ${isStructure ? "workflow-structure" : ""} ${data.nodeType === "logic.if_subflow" ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node direction-${direction} ${isStructure ? "workflow-structure" : ""} ${data.nodeType === "logic.if_subflow" ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
+      <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游上下文" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}>▶</button>
       {isStructure && <NodeResizer minWidth={360} minHeight={220} isVisible={selected} />}
+      <Handle className="notebook-order-handle" id="__notebook_order_in" type="target" position={direction === "horizontal" ? Position.Left : Position.Top} isConnectable={false} />
+      <Handle className="notebook-order-handle" id="__notebook_order_out" type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} isConnectable={false} />
       {inputPorts.map((port, index) => (
         <div className="input-port" style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
           <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
@@ -748,7 +762,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const [inputDialogValue, setInputDialogValue] = useState("");
   const [alertDialogNode, setAlertDialogNode] = useState<WorkflowNode | null>(null);
   const [alertDialogPreview, setAlertDialogPreview] = useState<NodeExecutionPreview | undefined>(undefined);
-  const interactiveRunContext = useRef<{ nodes: WorkflowNode[]; edges: Edge[]; completed: Set<string> } | null>(null);
+  const interactiveRunContext = useRef<{ nodes: WorkflowNode[]; edges: Edge[]; completed: Set<string>; runIntent?: { focusNodeId?: string; focusLabel?: string } } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const directoryInput = useRef<HTMLInputElement>(null);
   const workflowInput = useRef<HTMLInputElement>(null);
@@ -2519,6 +2533,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         ? `Android 待确认依赖 ${report.androidUnsupportedModules.slice(0, 4).join(", ")}${report.androidUnsupportedModules.length > 4 ? "…" : ""}`
         : "",
       report.windowsPathCells ? `Windows 路径 ${report.windowsPathCells} 个单元格` : "",
+      report.commentOnlyCodeCells ? `纯注释 ${report.commentOnlyCodeCells} 个单元格不生成节点` : "",
     ].filter(Boolean);
     return `已无损转换 ${report.totalCells} 个单元格：结构化 ${report.semanticOperations}/${report.operations} 步（${report.structuredPercent}%），原样保留 ${report.carrierOperations} 步${details.length ? `；${details.join("；")}` : ""}`;
   };
@@ -3026,7 +3041,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     const nextNodes = applyRuntimeNodeParameterOverride(context.nodes, inputDialogNode.id, { value: inputDialogValue });
     const completed = new Set<string>(context.completed).add(inputDialogNode.id);
     setInputDialogNode(null);
-    await runPrototype(nextNodes, context.edges, completed);
+    await runPrototype(nextNodes, context.edges, completed, undefined, context.runIntent);
   };
 
   const submitAlertDialog = async (response: boolean | null) => {
@@ -3036,7 +3051,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     const completed = new Set<string>(context.completed).add(alertDialogNode.id);
     setAlertDialogNode(null);
     setAlertDialogPreview(undefined);
-    await runPrototype(nextNodes, context.edges, completed);
+    await runPrototype(nextNodes, context.edges, completed, undefined, context.runIntent);
   };
 
   const stopCurrentExecution = async () => {
@@ -3063,7 +3078,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     if (status.executions.length <= 1) setHostTaskMenuOpen(false);
   };
 
-  async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string) {
+  async function runPrototype(workflowNodes: WorkflowNode[] = nodes, workflowEdges: Edge[] = edges, completedInteractiveNodes = new Set<string>(), requestedStopAt?: string, runIntent?: { focusNodeId?: string; focusLabel?: string }) {
     if (["queued", "running", "cancelling"].includes(getExecutionStatus(workspaceIdentity).phase)) return;
     const hostStatus = await getHostExecutionStatus().catch(() => emptyHostExecutionStatus(isNativePlatform() ? 1 : 4));
     setHostExecutionLifecycle(hostStatus);
@@ -3080,10 +3095,11 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       workflowNodes = workflowNodes.filter((node) => included.has(node.id));
       workflowEdges = workflowEdges.filter((edge) => included.has(edge.source) && included.has(edge.target));
     }
+    const scopedNodeIds = new Set(workflowNodes.map((node) => node.id));
     const interactiveNode = nodesInExecutionOrder(workflowNodes, workflowEdges).find((node) =>
       ["ui.input_dialog", "ui.alert"].includes(node.data.nodeType) && !completedInteractiveNodes.has(node.id));
     if (interactiveNode) {
-      interactiveRunContext.current = { nodes: workflowNodes, edges: workflowEdges, completed: completedInteractiveNodes };
+      interactiveRunContext.current = { nodes: workflowNodes, edges: workflowEdges, completed: completedInteractiveNodes, runIntent };
       if (interactiveNode.data.nodeType === "ui.input_dialog") {
         setInputDialogNode(interactiveNode);
         setInputDialogValue(String(interactiveNode.data.parameters.value ?? ""));
@@ -3109,10 +3125,12 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     }
     const runStartedAt = performance.now();
     const selectedRuntime = resolveExecutionRuntime(runtimePreference, workflowNodes, functions);
-    setMessage(`正在执行 ${selectedRuntime.label} 工作流…`);
+    setMessage(runIntent?.focusNodeId
+      ? `正在运行“${runIntent.focusLabel ?? runIntent.focusNodeId}” · 自动补齐 ${Math.max(0, workflowNodes.length - 1)} 个上游上下文节点…`
+      : `正在执行 ${selectedRuntime.label} 工作流…`);
     setExecutionError(null);
     setErrorDetailOpen(false);
-    setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "running" } })));
+    setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? { ...node, data: { ...node.data, status: "running" } } : node));
     try {
       const { effectiveCsvText, effectiveInputFiles } = workflowInputPayload(workflowNodes);
       const nextResult = await executeWorkflow(workflowNodes, workflowEdges, effectiveCsvText, effectiveInputFiles, runtimePreference, { workspaceId: tabId, workspaceLabel: tabName, clientId: executionClientId, workspaceIdentity, functions });
@@ -3122,22 +3140,28 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       setWorkspaceVariableRevision((value) => value + 1);
       setExecutionError(null);
       setDebugPausedAt(stopAt ?? null);
-      setMessage(stopAt ? `调试已暂停在 ${nodes.find((node) => node.id === stopAt)?.data.label ?? stopAt}` : `执行完成 · ${nextResult.runtimeId === "javascript" ? "JS" : "Python"}：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
+      setMessage(stopAt
+        ? `调试已暂停在 ${nodes.find((node) => node.id === stopAt)?.data.label ?? stopAt}`
+        : runIntent?.focusNodeId
+          ? `“${runIntent.focusLabel ?? runIntent.focusNodeId}”运行完成 · 已自动执行所需上游上下文`
+          : `执行完成 · ${nextResult.runtimeId === "javascript" ? "JS" : "Python"}：${nextResult.preview.totalRows} 行 × ${nextResult.preview.totalColumns} 列`);
       const completed = new Set(nextResult.executionOrder ?? workflowNodes.map((node) => node.id));
-      setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: completed.has(node.id) ? "success" : "idle" } })));
+      setNodes((current) => current.map((node) => scopedNodeIds.has(node.id)
+        ? { ...node, data: { ...node.data, status: runIntent?.focusNodeId || completed.has(node.id) ? "success" : "idle" } }
+        : node));
     } catch (error) {
       if (error instanceof ExecutionBusyError) {
         setMessage(`上一次执行仍在退出（${error.executionId}），请等待宿主释放后再运行`);
         setExecutionError(null);
-        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+        setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? { ...node, data: { ...node.data, status: "idle" } } : node));
       } else if (error instanceof ExecutionCancelledError) {
         setMessage("执行已取消");
         setExecutionError(null);
-        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+        setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? { ...node, data: { ...node.data, status: "idle" } } : node));
       } else if (error instanceof ExecutionTimeoutError) {
         setMessage(error.message);
         setExecutionError({ title: "工作流执行超时", message: error.message });
-        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+        setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? { ...node, data: { ...node.data, status: "idle" } } : node));
       } else if (error instanceof WorkflowExecutionError) {
         const failingNodeExists = nodes.some((node) => node.id === error.nodeId);
         if (failingNodeExists) setSelectedId(error.nodeId);
@@ -3147,20 +3171,32 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         const partialPreview = error.details?.preview;
         if (partialPreview || Object.keys(partialResults).length) setResult({ status: "success", preview: partialPreview ?? { columns: [], rows: [], totalRows: 0, totalColumns: 0 }, plotPngBase64: null, plotChart: null, exportCsv: null, exports: [], nodeResults: partialResults, nodeTimingsMs: error.details?.nodeTimingsMs, executionOrder: error.details?.executionOrder });
         const completed = new Set(error.details?.executionOrder ?? []);
-        setNodes((current) => current.map((node) => ({
+        setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? ({
           ...node,
           data: { ...node.data, status: node.id === error.nodeId ? "error" : completed.has(node.id) ? "success" : "idle" },
-        })));
+        }) : node));
       } else {
         const detail = error instanceof Error ? error.message : "执行失败";
         setMessage(detail);
         setExecutionError({ title: "工作流执行失败", message: detail });
-        setNodes((current) => current.map((node) => ({ ...node, data: { ...node.data, status: "idle" } })));
+        setNodes((current) => current.map((node) => scopedNodeIds.has(node.id) ? { ...node, data: { ...node.data, status: "idle" } } : node));
       }
     } finally {
       setLastRunDurationMs(performance.now() - runStartedAt);
     }
   }
+
+  const runNodeWithContext = async (nodeId: string) => {
+    if (isRunning) return;
+    const target = nodes.find((node) => node.id === nodeId);
+    if (!target) return;
+    const slice = nodeExecutionSubgraph(nodes, edges, nodeId);
+    if (!slice.nodes.length) {
+      setMessage(`无法构建“${target.data.label}”的执行上下文`);
+      return;
+    }
+    await runPrototype(slice.nodes, slice.edges, new Set(), undefined, { focusNodeId: nodeId, focusLabel: target.data.label });
+  };
 
   const runInAppAutomatedDiagnostics = async () => {
     if (automatedDiagnosticsRunning) return;
@@ -3468,7 +3504,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           onDrop={onCanvasDrop}
         >
           {touchMarquee && <div className="touch-marquee" aria-hidden="true" style={{ left: Math.min(touchMarquee.startX, touchMarquee.currentX), top: Math.min(touchMarquee.startY, touchMarquee.currentY), width: Math.abs(touchMarquee.currentX - touchMarquee.startX), height: Math.abs(touchMarquee.currentY - touchMarquee.startY) }} />}
-          {viewMode === "nodes" ? <NodeLayoutContext.Provider value={resolvedLayoutDirection}><NodeAppearanceContext.Provider value={{ nodeScale, endpointScale }}><NodeSelectionContext.Provider value={{ active: selectionMode, toggle: toggleNodeSelection, remove: (nodeId) => deleteNodes([nodeId]) }}><NodeInsightContext.Provider value={{ visible: showNodeInsights, results: result?.nodeResults ?? {} }}><EdgeActionsContext.Provider value={{ disconnect: (ids) => disconnectEdges(ids) }}><ReactFlow
+          {viewMode === "nodes" ? <NodeLayoutContext.Provider value={resolvedLayoutDirection}><NodeAppearanceContext.Provider value={{ nodeScale, endpointScale }}><NodeSelectionContext.Provider value={{ active: selectionMode, toggle: toggleNodeSelection, remove: (nodeId) => deleteNodes([nodeId]) }}><NodeRunContext.Provider value={{ run: (nodeId) => { void runNodeWithContext(nodeId); }, busy: isRunning }}><NodeInsightContext.Provider value={{ visible: showNodeInsights, results: result?.nodeResults ?? {} }}><EdgeActionsContext.Provider value={{ disconnect: (ids) => disconnectEdges(ids) }}><ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}
             nodeTypes={nodeTypes}
@@ -3531,7 +3567,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} />
             {showMiniMap && <MiniMap pannable zoomable />}
             <Controls />
-          </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
+          </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
             <header>
               <div><strong>Python Notebook</strong><span>可运行的 pandas / NumPy / Matplotlib 代码 · # %% 单元格</span></div>
               <div>

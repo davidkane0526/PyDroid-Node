@@ -568,6 +568,23 @@ def _statement_base(statement: ast.stmt, source: str) -> dict[str, Any]:
     """构建语句的基础描述（未映射时的默认记录）。"""
     definitions = sorted({node.id for node in ast.walk(statement) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)})
     uses = sorted({node.id for node in ast.walk(statement) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)})
+    # ``ast.Import`` / ``ast.ImportFrom`` store imported bindings in
+    # ``ast.alias`` objects rather than ``ast.Name(Store)`` nodes.  Missing
+    # those bindings meant e.g. ``import pandas as pd`` never became the
+    # producer of ``pd``, so later Notebook operations could execute in order
+    # but had no visible dependency back to the import statement.
+    if isinstance(statement, ast.Import):
+        definitions = sorted({
+            alias.asname or alias.name.split(".", 1)[0]
+            for alias in statement.names
+            if alias.name
+        })
+    elif isinstance(statement, ast.ImportFrom):
+        definitions = sorted({
+            alias.asname or alias.name
+            for alias in statement.names
+            if alias.name and alias.name != "*"
+        })
     fragment = ast.get_source_segment(source, statement) or ast.unparse(statement)
     kind = type(statement).__name__
     return {"recognized": True, "semantic": False, "kind": kind, "nodeType": "notebook.code_cell", "label": CONTROL_LABELS.get(kind, kind), "parameters": {"source": fragment, "astKind": kind}, "source": fragment, "defines": definitions, "uses": uses, "reason": f"尚未将 {kind} 映射为默认节点"}

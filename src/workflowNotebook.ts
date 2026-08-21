@@ -43,6 +43,7 @@ export type NotebookConversionReport = {
   importedModules: string[];
   androidUnsupportedModules: string[];
   windowsPathCells: number;
+  commentOnlyCodeCells: number;
 };
 
 const PYTHON_STDLIB_ROOTS = new Set([
@@ -75,6 +76,7 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
   const importedModules = [...new Set(cells.filter((cell) => cell.cellType === "code").flatMap((cell) => importedModuleRoots(cell.source)))].sort();
   const androidUnsupportedModules = importedModules.filter((module) => !PYTHON_STDLIB_ROOTS.has(module) && !ANDROID_PYTHON_PACKAGE_ROOTS.has(module));
   const windowsPathCells = cells.filter((cell) => cell.cellType === "code" && /(?:[A-Za-z]:\\|\\\\[^\\\s]+\\)/.test(cell.source)).length;
+  const commentOnlyCodeCells = cells.filter((cell) => cell.cellType === "code" && isPythonCommentOnly(cell.source)).length;
   const functionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef").length;
   const promotedFunctionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string").length;
   const producer = new Map<string, number>();
@@ -136,6 +138,7 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
     importedModules,
     androidUnsupportedModules,
     windowsPathCells,
+    commentOnlyCodeCells,
   };
 }
 
@@ -164,6 +167,11 @@ function connectablePort(node: WorkflowNode | undefined, direction: "input" | "o
   if (type === "notebook.markdown_cell") return "next";
   if (type === "notebook.code_cell") return "next";
   return "output";
+}
+
+function isPythonCommentOnly(source: string): boolean {
+  const meaningful = source.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  return meaningful.length > 0 && meaningful.every((line) => line.startsWith("#"));
 }
 
 export function splitWorkflowNotebookCells(source: string): NotebookCell[] {
@@ -223,7 +231,14 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     uses: operation?.uses ?? [],
     reason: operation?.reason,
   });
+  const skippedCommentCells = cells.flatMap((cell, index) => cell.cellType === "code" && isPythonCommentOnly(cell.source) ? [{ index, cell }] : []);
   const entries: Entry[] = cells.flatMap<Entry>((cell, index) => {
+    // Pure Python comments are Notebook annotations, not executable workflow
+    // steps.  Rendering them as ``notebook.code_cell`` previously gave labels
+    // such as ``# Python`` fake input/output ports and made the graph look as if
+    // comments participated in dataflow.  Keep them in round-trip metadata,
+    // but do not manufacture canvas nodes for them.
+    if (cell.cellType === "code" && isPythonCommentOnly(cell.source)) return [];
     const analysis = byIndex.get(index);
     if (cell.cellType === "markdown") {
       return [{ cell, cellIndex: index, operation: fallbackOperation(cell, 0), operationIndex: 0 }];
@@ -383,9 +398,10 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
           notebookCellIndex: cellIndex,
           notebookOperationIndex: operationIndex,
           ...(operationIndex === 0 ? { notebookCellJson: JSON.stringify(cell) } : {}),
-          ...(cellIndex === 0 && operationIndex === 0 ? {
+          ...(cellIndex === entries[0]?.cellIndex && operationIndex === entries[0]?.operationIndex ? {
             notebookMetadataJson: JSON.stringify(notebookMetadata),
             notebookConversionReportJson: JSON.stringify(conversionReport),
+            ...(skippedCommentCells.length ? { notebookSkippedCommentCellsJson: JSON.stringify(skippedCommentCells) } : {}),
           } : {}),
         }, status: "idle", branch,
         ...(functionDefinition ? {
@@ -549,6 +565,30 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
       }
     }
   });
+  // Preserve Notebook execution order as a *visual-only* relation.  This is
+  // intentionally separate from executable data edges: imports, constants and
+  // function definitions may not produce a user data port, but users still
+  // need to see that they belong to the upstream context.  The runtimes ignore
+  // ``notebook-order`` edges, while node-scoped execution can use them to pull
+  // in preceding Notebook context deterministically.
+  const topLevelNodes = nodes.filter((node) => !node.parentId).sort((left, right) => {
+    const cell = Number(left.data.parameters.notebookCellIndex ?? 0) - Number(right.data.parameters.notebookCellIndex ?? 0);
+    return cell || Number(left.data.parameters.notebookOperationIndex ?? 0) - Number(right.data.parameters.notebookOperationIndex ?? 0);
+  });
+  for (let index = 1; index < topLevelNodes.length; index += 1) {
+    const source = topLevelNodes[index - 1];
+    const target = topLevelNodes[index];
+    if (edges.some((edge) => edge.source === source.id && edge.target === target.id)) continue;
+    edges.push({
+      id: `notebook-order-${edges.length}`,
+      source: source.id,
+      sourceHandle: "__notebook_order_out",
+      target: target.id,
+      targetHandle: "__notebook_order_in",
+      data: { role: "notebook-order" },
+      style: { strokeDasharray: "1 7", opacity: 0.28 },
+    });
+  }
   // Execution order for analyzed notebooks is carried explicitly by
   // notebookCellIndex/notebookOperationIndex (see the Python graph planner).
   // Do not manufacture data edges merely to enforce sequence: a code carrier's
@@ -565,12 +605,46 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     if (members.length < 3 || members.some((node) => node.parentId || ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType))) continue;
     const memberIds = new Set(members.map((node) => node.id));
     const groupId = `notebook-cell-${cellIndex + 1}-group`;
-    const incoming = groupedEdges.filter((edge) => !memberIds.has(edge.source) && memberIds.has(edge.target));
-    const outgoing = groupedEdges.filter((edge) => memberIds.has(edge.source) && !memberIds.has(edge.target));
+    // Only real executable data edges become group interface ports. Notebook
+    // order/namespace/provenance edges are visual relations and must never
+    // inflate a group's public input/output endpoint count.
+    const incoming = groupedEdges.filter((edge) => !isNotebookVisualEdge(edge) && !memberIds.has(edge.source) && memberIds.has(edge.target));
+    const outgoing = groupedEdges.filter((edge) => !isNotebookVisualEdge(edge) && memberIds.has(edge.source) && !memberIds.has(edge.target));
+    const visualIncoming = groupedEdges.filter((edge) => isNotebookVisualEdge(edge) && !memberIds.has(edge.source) && memberIds.has(edge.target));
+    const visualOutgoing = groupedEdges.filter((edge) => isNotebookVisualEdge(edge) && memberIds.has(edge.source) && !memberIds.has(edge.target));
     const groupInputs = incoming.map((edge, index) => ({ id: `input-${index + 1}`, label: `输入 ${index + 1}`, valueType: "any" as const, internalNodeId: edge.target, internalHandle: edge.targetHandle }));
     const groupOutputs = outgoing.map((edge, index) => ({ id: `output-${index + 1}`, label: `输出 ${index + 1}`, valueType: "any" as const, internalNodeId: edge.source, internalHandle: edge.sourceHandle }));
     members.forEach((node) => { node.data.canvasParentId = groupId; });
     groupedNodes.push({ id: groupId, type: "workflow", position: { x: 70 + cellIndex * 285, y: 65 }, data: { label: `Notebook 单元格 ${cellIndex + 1}`, nodeType: "workflow.group", nodeVersion: 1, parameters: { description: `${members.length} 个可执行步骤` }, status: "idle", groupInputs, groupOutputs } });
+    const visualSummaryKeys = new Set<string>();
+    for (const edge of visualIncoming) {
+      const role = String(edge.data?.role ?? "notebook-order");
+      const key = `${edge.source}->${groupId}:${role}`;
+      if (visualSummaryKeys.has(key)) continue;
+      visualSummaryKeys.add(key);
+      groupedEdges.push({
+        ...edge,
+        id: `${edge.id}-group-in`,
+        target: groupId,
+        sourceHandle: "__notebook_order_out",
+        targetHandle: "__notebook_order_in",
+        data: { ...edge.data, relation: edge.data?.relation ?? "group-context" },
+      });
+    }
+    for (const edge of visualOutgoing) {
+      const role = String(edge.data?.role ?? "notebook-order");
+      const key = `${groupId}->${edge.target}:${role}`;
+      if (visualSummaryKeys.has(key)) continue;
+      visualSummaryKeys.add(key);
+      groupedEdges.push({
+        ...edge,
+        id: `${edge.id}-group-out`,
+        source: groupId,
+        sourceHandle: "__notebook_order_out",
+        targetHandle: "__notebook_order_in",
+        data: { ...edge.data, relation: edge.data?.relation ?? "group-context" },
+      });
+    }
     groupedEdges.splice(0, groupedEdges.length, ...groupedEdges.map((edge) => {
       const inputIndex = incoming.findIndex((item) => item.id === edge.id);
       if (inputIndex >= 0) return { ...edge, target: groupId, targetHandle: groupInputs[inputIndex].id };
@@ -592,7 +666,24 @@ export function workflowNotebookCells(nodes: WorkflowNode[], edges: Edge[], requ
   if (!nodes.length) return [];
   if (nodes.some((node) => typeof node.data.parameters.notebookCellJson === "string")) {
     const originals = nodes.filter((node) => typeof node.data.parameters.notebookCellJson === "string");
-    return originals.sort((left, right) => Number(left.data.parameters.notebookCellIndex ?? 0) - Number(right.data.parameters.notebookCellIndex ?? 0)).map((node) => JSON.parse(String(node.data.parameters.notebookCellJson)) as NotebookCell);
+    const restored = originals.sort((left, right) => Number(left.data.parameters.notebookCellIndex ?? 0) - Number(right.data.parameters.notebookCellIndex ?? 0)).map((node) => ({
+      index: Number(node.data.parameters.notebookCellIndex ?? 0),
+      cell: JSON.parse(String(node.data.parameters.notebookCellJson)) as NotebookCell,
+    }));
+    const rawSkipped = nodes.find((node) => typeof node.data.parameters.notebookSkippedCommentCellsJson === "string")?.data.parameters.notebookSkippedCommentCellsJson;
+    if (typeof rawSkipped === "string" && rawSkipped) {
+      try {
+        const parsed = JSON.parse(rawSkipped) as unknown;
+        if (Array.isArray(parsed)) {
+          for (const item of parsed) {
+            if (!item || typeof item !== "object") continue;
+            const candidate = item as { index?: unknown; cell?: unknown };
+            if (typeof candidate.index === "number" && candidate.cell && typeof candidate.cell === "object") restored.push({ index: candidate.index, cell: candidate.cell as NotebookCell });
+          }
+        }
+      } catch { /* malformed legacy round-trip metadata: return known cells */ }
+    }
+    return restored.sort((left, right) => left.index - right.index).map((entry) => entry.cell);
   }
   if (nodes.length && nodes.every((node) => node.data.nodeType === "notebook.code_cell" || node.data.nodeType === "notebook.markdown_cell")) {
     const incoming = new Map(nodes.map((node) => [node.id, 0]));

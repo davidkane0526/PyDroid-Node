@@ -69,5 +69,10 @@ assert.match(app, /exportTextFile\(fileName,[\s\S]*application\/json/, "automate
 assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must surface save/cancel/failure status inside the dialog");
 assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefinition, requestedPosition\?: \{ x: number; y: number \}\)/, "function resource drop must keep an optional explicit position in the UI helper contract");
 assert.match(app, /const position = requestedPosition \?\? fallbackPosition;/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
+assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游上下文/, "every canvas node/group should expose the compact node-scoped run action");
+assert.match(app, /nodeExecutionSubgraph\(nodes, edges, nodeId\)/, "node-scoped execution must derive its upstream context from the graph instead of running the whole workspace");
+assert.match(app, /maxPortCount[\s\S]*nodeMinHeight[\s\S]*horizontalPortLabelWidth/, "node geometry should adapt to endpoint count and endpoint-label width");
+assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");
+assert.match(css, /\.notebook-order-handle\s*\{[^}]*opacity:\s*0\s*!important;[^}]*pointer-events:\s*none\s*!important;/, "Notebook order handles must remain invisible and non-interactive");
 
 console.log("UI regression smoke passed.");

@@ -1,3 +1,17 @@
+## 1.4.97 (120) — Notebook context links + node-scoped execution — 2026-08-22
+
+- Stops pure-comment Python cells such as `# Python` from becoming executable canvas nodes or exposing fake input/output ports. Comment-only cells remain preserved in Notebook round-trip metadata instead of polluting the workflow graph.
+- Fixes Notebook import symbol analysis: `import pandas as pd`, plain imports and `from ... import ... as ...` now declare their actual bound names, allowing later operations that use `pd`/aliases to receive correct dependency/provenance relationships.
+- Adds visual-only Notebook execution-order edges on hidden non-connectable anchors. Setup steps such as imports, constants and function definitions now visibly belong to the execution chain even when they do not carry ordinary data; Python and JavaScript runtimes ignore these order edges as data inputs.
+- Keeps visual Notebook dependency/order/provenance edges out of group public-port derivation, so grouping imported Notebook steps does not create spurious group endpoints. Cross-group context remains visible through summary dependency edges.
+- Makes node/group cards adapt to endpoint count and endpoint-label length. Horizontal layouts grow mainly in height, vertical layouts grow mainly in width, reducing overlapping or crowded port labels.
+- Adds a compact top-right `▶` action to every canvas node and group for scoped execution. Running one node builds the minimal upstream execution subgraph required for that target; Notebook order context is included, while ordinary workflows follow real data dependencies.
+- Scoped group execution includes the group's implementation plus required upstream context. A downstream node that consumes a group output also expands the group's internal implementation, while running an individual child does not unnecessarily execute sibling nodes.
+- Scoped execution preserves target-specific status handling and interactive-node continuation; upstream Notebook context can therefore be recreated without marking unrelated workspace nodes as running.
+- Real corpus audit remains lossless: **186/186 notebooks, 5,418/5,418 operations classified, 0 analyzer failures**; 63 pure-comment code cells are now identified as non-node content.
+- Final local validation: **137 passed / 1 skipped Python tests, 73/73 runtime parity workflows, 80/80 JS-capable NodeContract coverage**, plus UI/Workflow/Editor/Runtime/NodeContract, Remote 8765/LAN and Phase 11 compatibility gates.
+- Build revision: `1.4.97-dev-r75-node-context-run`.
+
 ## 1.4.96 (119) — Notebook dataflow auto-connect + native helper lowering — 2026-08-21
 
 - Adds visible Notebook dependency/provenance edges so imported Jupyter graphs no longer appear as disconnected node clouds when data actually travels through the shared Python namespace. Native data edges remain executable; namespace-variable, dynamic-parameter and source/provenance edges are visual-only and are ignored by both Python and JavaScript runtime topology.

@@ -78,6 +78,9 @@ def main() -> int:
                 summary["non_code_cells"] += 1
                 continue
             summary["code_cells"] += 1
+            meaningful_lines = [line.strip() for line in source_text(cell).splitlines() if line.strip()]
+            if meaningful_lines and all(line.startswith("#") for line in meaningful_lines):
+                summary["comment_only_code_cells"] += 1
             source = source_text(cell)
             result = by_index.get(index, {})
             operations = result.get("operations", []) if isinstance(result, dict) else []
