@@ -3174,8 +3174,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         testRemoteHost: canHostRemoteServer() ? async () => {
           const beforeStatus = await platform.remote.getHostStatus();
           const alreadyRunning = beforeStatus.state === "running";
-          const startedInfo = await startRemoteServer(true);
-          const info = platform.id === "desktop" ? await startRemoteServer(true) : startedInfo;
+          const info = await startRemoteServer(true);
           try {
             const hostStatus = await platform.remote.getHostStatus();
             if (hostStatus.state !== "running" || !hostStatus.info) throw new Error(`宿主启动后生命周期状态异常：${hostStatus.state}`);

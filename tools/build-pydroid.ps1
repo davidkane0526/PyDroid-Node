@@ -142,7 +142,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.81-dev-r57-phase11-packaged-smoke-contract-hotfix"
+$script:BuildScriptRevision = "1.4.82-dev-r58-phase11-remote-baseline-restore"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

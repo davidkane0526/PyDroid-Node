@@ -202,3 +202,8 @@ The Phase 11 freeze audit explicitly permits only these defect-backed network fi
 ## 1.4.81 packaged smoke Host Contract hotfix
 
 The real Windows 1.4.80 build reached a fully packaged `win-unpacked` executable but the packaged renderer smoke failed before reporting success. The smoke referenced `getRemoteServerStatus()`, a bridge that does not exist; the canonical Host Contract and Desktop preload expose `getRemoteHostStatus()`. 1.4.81 fixes only this smoke/contract mismatch. `test:remote-web` now reads the Remote `getHostStatus` bridge and IPC channel from `src/platform/host-contract.json` and verifies that both `desktop/preload.cjs` and the packaged smoke use that exact contract. The obsolete bridge name is explicitly forbidden. No frozen Remote Web/LAN production file or UI copy changes in this hotfix.
+
+
+## 1.4.82 Remote baseline restore
+
+After repeated real-host regressions, Remote Web is simplified instead of further defended. The Desktop production server is restored byte-for-byte to the user-validated 1.4.76 implementation. Runtime firewall provisioning, PowerShell/UAC calls and heuristic external-client reachability proof are removed. The Phase 11 Workflow Compatibility & Migration implementation is unchanged. Same-host diagnostics still execute actual HTTP shell/asset, LAN-address health and discovery checks; successful same-host coverage is reported as skipped because cross-device reachability requires a real second device.

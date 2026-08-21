@@ -669,12 +669,7 @@ async function remoteHostE2ECase(deps: AutomatedDiagnosticsDependencies): Promis
   if (!deps.testRemoteHost) return { id: "remote-host-e2e", label, status: "skip", durationMs: 0, details: {} };
   try {
     const details = await deps.testRemoteHost();
-    const readiness = details.readiness as { externalClientObserved?: boolean } | undefined;
-    const durationMs = Math.round((performance.now() - started) * 100) / 100;
-    if (readiness?.externalClientObserved === false) {
-      return { id: "remote-host-e2e", label, status: "skip", durationMs, details };
-    }
-    return { id: "remote-host-e2e", label, status: "pass", durationMs, details };
+    return { id: "remote-host-e2e", label, status: "skip", durationMs: Math.round((performance.now() - started) * 100) / 100, details };
   } catch (error) {
     return { id: "remote-host-e2e", label, status: "fail", durationMs: Math.round((performance.now() - started) * 100) / 100, details: {}, error: error instanceof Error ? error.message : String(error) };
   }

@@ -1,10 +1,17 @@
+## 1.4.82 Remote baseline restore
+
+- Restored `desktop/services/remote-server.cjs` byte-for-byte to the user-validated 1.4.76 host implementation while retaining all Phase 11 migration/resource compatibility work.
+- Removed runtime PowerShell/UAC/firewall management from `desktop/lan/firewall.cjs`; the production Remote Web start path is fixed TCP 8765 + HTTP/discovery only.
+- Same-host Remote diagnostics still execute real host checks but report success as skip because cross-device reachability cannot be proven by one machine.
+- Version: **1.4.82 (105)**. Build revision: `1.4.82-dev-r58-phase11-remote-baseline-restore`.
+
 ## 1.4.81 packaged smoke Host Contract hotfix
 
 - Real Windows 1.4.80 build passed application/Desktop TypeScript, both Vite builds and electron-builder packaging, then failed only inside the packaged renderer smoke.
 - Root cause: the smoke called nonexistent `window.pyDroidDesktop.getRemoteServerStatus()` while `host-contract.json` and `desktop/preload.cjs` define `getRemoteHostStatus()`.
 - 1.4.81 fixes that mismatch and makes `test:remote-web` derive the expected bridge/channel from Host Contract, checking preload and packaged smoke together.
 - All ten frozen Remote Web/LAN production files remain unchanged.
-- Version: **1.4.81 (104)**. Build revision: `1.4.81-dev-r57-phase11-packaged-smoke-contract-hotfix`.
+- Version: **1.4.81 (104)**. Build revision: `1.4.82-dev-r58-phase11-remote-baseline-restore`.
 
 ## 1.4.80 production-path freeze correction
 

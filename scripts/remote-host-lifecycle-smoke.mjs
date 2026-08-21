@@ -37,10 +37,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
-const { createRemoteServerService, isExternalClientAddress } = require(path.join(root, "desktop/services/remote-server.cjs"));
-assert.equal(isExternalClientAddress("127.0.0.1", ["192.168.3.185"]), false, "loopback must never count as an external LAN client");
-assert.equal(isExternalClientAddress("192.168.3.185", ["192.168.3.185"]), false, "the host own LAN address must never satisfy external reachability evidence");
-assert.equal(isExternalClientAddress("192.168.3.42", ["192.168.3.185"]), true, "a distinct LAN peer must count as external reachability evidence");
+const { createRemoteServerService } = require(path.join(root, "desktop/services/remote-server.cjs"));
 const pythonService = {
   MAX_OUTPUT_BYTES: 8 * 1024 * 1024,
   DEFAULT_EXECUTION_TIMEOUT_MS: 10_000,

@@ -43,10 +43,11 @@ assert.match(source, /compatibility:\s*\{\s*schemaFromVersion:\s*migrated\.repor
 assert.match(source, /futureAutosavePreserved:\s*true/, "document lifecycle diagnostics must embed future-version preservation coverage");
 assert.match(source, /futureResourcePreserved:\s*true/, "resource persistence diagnostics must embed future-resource preservation coverage");
 assert.doesNotMatch(source, /workflow-compatibility-migration|workflow-compatibility-runtime-/, "Phase 11 must not add new user-visible diagnostic cases without UI approval");
-assert.match(docs, /22\s*\/\s*22|22\s*项/, "diagnostics documentation must describe the 22-case full-host contract");
+assert.match(docs, /22-case|22\s*cases|22\s*项/i, "diagnostics documentation must describe the 22-case full-host contract");
 
 const fullHostTotal = expectedCases.length + 4;
 assert.equal(fullHostTotal, 22, "full-host automated diagnostic contract must contain 22 cases");
 assert.doesNotMatch(source, /LAN_EXTERNAL_BOUNDARY_UNVERIFIED/, "diagnostics must not turn optional Windows boundary inspection into a production-host failure gate");
-assert.match(source, /externalClientObserved === false[\s\S]*status: "skip"/, "host diagnostics must not claim external LAN reachability until a real peer has been observed");
+assert.match(source, /const details = await deps\.testRemoteHost\(\);[\s\S]*status: "skip"/, "same-host Remote diagnostics must remain non-passing because they cannot prove cross-device reachability");
+assert.doesNotMatch(source, /externalClientObserved/, "diagnostics must not use heuristic external-client observations as proof of cross-device availability");
 console.log(`Automated diagnostics contract smoke passed (${fullHostTotal} full-host cases, Phase 11 coverage embedded without new UI cases).`);

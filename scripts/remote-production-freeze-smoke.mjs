@@ -3,8 +3,8 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const frozen = {
-  "desktop/services/remote-server.cjs": "2c35a425a817cc7df5a6db90f723414fd2fe1cfe6a702d8e862e2acf7c12ac22",
-  "desktop/lan/firewall.cjs": "49c614b680ca29646c46889114bf269df02df88249ca01f1bf50f7337b7863cb",
+  "desktop/services/remote-server.cjs": "913da0fe0b03beaa9647054bd4d4feb79c4ff343a523ecdf6c7ffd4ce0fe7e7c",
+  "desktop/lan/firewall.cjs": "37bc8a2d2aad3f220fe8e87d0d736530f00538fb6440de3f12695e07e5e13f11",
   "desktop/lan/LanDiscoveryService.cjs": "41b314b41160cab070916d0f5a0c352bc74b453f9043e03b2958cd741030963c",
   "desktop/lan/ssdp.cjs": "878be5e501e146ef103f1a993993fd3643677f611e8c2a91b89dbdc19a195b24",
   "desktop/lan/mdns.cjs": "c7f05cf0b80345846a5453a71cf9e76600c71db78e67afad00407a8b2fed9ad1",

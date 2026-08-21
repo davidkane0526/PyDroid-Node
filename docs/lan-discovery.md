@@ -100,3 +100,8 @@ This supersedes the 1.4.72 Private-profile startup experiment. 1.4.79 does **not
 ## 1.4.80 production-path freeze
 
 The 1.4.79 package-build failure showed that firewall/readiness verification must not control the production host. 1.4.80 therefore treats Windows firewall integration as asynchronous, best-effort OS integration after the Remote Web host has already started. Packaged smoke never starts a real LAN listener. External reachability evidence is observational only. `test:remote-production-freeze` hashes the accepted Desktop/Android host/discovery files to block unrelated future changes.
+
+
+## 1.4.82 runtime simplification
+
+The personal-use Desktop runtime no longer launches PowerShell/UAC or manages Windows firewall rules. Remote Web startup is restored to the accepted 1.4.76 server behavior: fixed TCP 8765, loopback shell/asset readiness, LAN-address readiness and best-effort SSDP/mDNS discovery. OS/network reachability remains an external acceptance condition and does not participate in production startup.

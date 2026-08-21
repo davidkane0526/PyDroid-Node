@@ -1,10 +1,10 @@
-# Current handoff — 1.4.81 / Phase 11 Workflow Compatibility & Migration
+# Current handoff — 1.4.82 / Phase 11 Workflow Compatibility & Migration
 
 The user physically validated the 1.4.73 Desktop Remote Web/LAN path, reported no regression in 1.4.74, and then completed a real Windows dependency-backed build plus **22/22** diagnostics on 1.4.76. Treat **1.4.76 as the frozen Phase 10 boundary** and **1.4.73 as the accepted network-behavior baseline**: fixed TCP 8765, current Remote UI/copy, PIN/token semantics, LAN HTTP readiness and SSDP/UPnP/mDNS behavior must not change without a concrete defect. Any new UI text still requires explicit user approval.
 
-1.4.81 is the final packaged-smoke contract hotfix candidate. The real Windows 1.4.80 build passed TypeScript, both Vite builds and electron-builder packaging, then failed because the packaged smoke called nonexistent `getRemoteServerStatus()` instead of the Host Contract/preload bridge `getRemoteHostStatus()`. 1.4.81 repairs only that verification mismatch and strengthens the gate so Host Contract, preload and packaged smoke cannot drift. All ten frozen Remote Web/LAN production files remain unchanged and no UI copy is added.
+1.4.82 is the final Remote baseline-restore candidate. Phase 11 Workflow Compatibility & Migration remains complete. The Desktop Remote Web production server is restored byte-for-byte to the user-validated 1.4.76 implementation; runtime PowerShell/UAC/firewall automation and heuristic external-client proof are removed. Same-host Remote diagnostics can fail on a real host error but otherwise stay skipped because one machine cannot certify a second physical device. No UI copy was added.
 
-Version: **1.4.81**, Android versionCode **104**. Build revision: `1.4.81-dev-r57-phase11-packaged-smoke-contract-hotfix`.
+Version: **1.4.82**, Android versionCode **105**. Build revision: `1.4.82-dev-r58-phase11-remote-baseline-restore`.
 
 # Development handoff
 
@@ -228,7 +228,7 @@ JavaScript limitation: the current JS engine still executes synchronously in the
 
 ## Next development task
 
-**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Workflow Compatibility & Migration is complete in the 1.4.81 packaged-smoke contract hotfix candidate; 1.4.77, 1.4.78, 1.4.79 and 1.4.80 are rejected final candidates. Final Desktop verification must start LAN service, allow at most one optional Windows system elevation if LocalSubnet rules are absent, reach `http://<LAN-IP>:8765/` from a second physical LAN device, and only then run diagnostics in the same app/network session. A missing external observation must skip rather than pass `remote-host-e2e`. Do not ask for additional intermediate Phase 11 tests. Do not modify other frozen Remote Web/LAN paths or add UI copy without a concrete defect and explicit user approval.
+**Final one-shot Phase 11 real-host verification, then freeze Phase 11.** Workflow Compatibility & Migration is complete in the 1.4.82 baseline-restore candidate. Build Desktop, start LAN service, confirm `http://<LAN-IP>:8765/` from a second physical LAN device, then run diagnostics. `remote-host-e2e` should be skipped after successful same-host checks rather than self-certifying external reachability; any actual host error still fails. No PowerShell/UAC/firewall automation is part of the runtime. Do not modify frozen Remote Web/LAN production code or add UI copy without a concrete defect and explicit user approval.
 
 ### Production TypeScript vs test TypeScript
 
