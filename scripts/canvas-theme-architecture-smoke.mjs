@@ -25,6 +25,7 @@ const checks = [
   [!css.includes("translateY(-1px)") && /workflow-node:not\(\.workflow-structure\):hover\s*\{[^}]*transform:\s*none\s*;/s.test(css), "soft node hover never changes node geometry"],
   [!/(?:width|height|min-height|max-height|padding|top|right|bottom|left|margin|font-size)\s*:/i.test(css), "canvas theme CSS is appearance-only and cannot change shared node geometry"],
   [!css.includes("385px") && !css.includes("268px") && !css.includes("46px"), "Theme Lab reference geometry is not copied into production theme overrides"],
+  [!css.includes(".canvas-panel") && !css.includes(".react-flow__background"), "canvas theme cannot replace or fade the shared canvas background/grid/masks"],
   [css.includes("Run button shares Classic geometry") && css.includes("transform: none !important"), "soft run control keeps shared placement and motion-free interaction"],
   [/node-run-action[^{]*\{[^}]*transform:\s*none\s*!important/s.test(css), "soft run action visibility does not use positional motion"],
   [css.includes("workflow-node__tag") && css.includes("workflow-node__meta-count"), "soft cards expose structured metadata and tag styling"],

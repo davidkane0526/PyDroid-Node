@@ -1,9 +1,9 @@
-# Current development handoff — 1.5.12 shared canvas geometry + settings alignment
+# Current development handoff — 1.5.13 canvas visual alignment + shared guides
 
-Branch: `fix/1.5.12-theme-geometry-settings`
-Version: **1.5.12**
-Android versionCode: **135**
-Build revision: `1.5.12-dev-r91-theme-geometry-settings`
+Branch: `fix/1.5.13-canvas-visual-alignment`
+Version: **1.5.13**
+Android versionCode: **136**
+Build revision: `1.5.13-dev-r92-canvas-visual-alignment`
 
 ## Non-negotiable continuation rules
 
@@ -18,15 +18,21 @@ Build revision: `1.5.12-dev-r91-theme-geometry-settings`
 
 `Soft` still uses the user-approved **PyDroid Canvas Theme Lab 1.6.7 · Flat Run Control** material language, but from 1.5.12 canvas themes are explicitly **appearance-only**. `Classic` and `Soft` share the exact production geometry from `styles.css`: node bounds, body layout, typography metrics, port positions, result-preview placement and run-control placement. Theme switching therefore must not move nodes or edge anchors.
 
-Shared visual-geometry refinements in 1.5.12:
+Shared visual-geometry refinements retained from 1.5.12:
 
 - endpoint sockets are 16 px at 100% endpoint scale;
 - port labels use 10.5 px shared text, with 11 px vertical labels;
 - dynamic port-label width budgeting is slightly wider for readability;
-- node run action uses one shared 24×24 control and a centered CSS play mark in both themes;
+- node run action uses one shared 24×24 control in both themes; 1.5.13 replaces the old CSS mark with an exact-centroid SVG play glyph;
 - desktop hover / native selected visibility behavior remains unchanged and motion-free.
 
 Canvas settings layout is now intentional: Canvas theme + Mini map share one row, while Result height + Show node results share one row. Theme selectors use compact label-to-dropdown spacing.
+
+1.5.13 visual alignment additions:
+
+- Node run control now uses an SVG whose triangle centroid is exactly the center of its viewBox; Classic and Soft share the same geometry and glyph.
+- `canvas-themes.css` no longer styles `.canvas-panel`, the base `.react-flow` background, or `.react-flow__background`; grid/marks/masks therefore remain equally visible when switching themes.
+- The floating Environment icon uses a lighter 1.10 stroke without changing the button dimensions.
 
 ## Notebook/Jupyter state
 
@@ -53,4 +59,4 @@ The development ZIP intentionally excludes `node_modules`; a complete pinned `pn
 
 ## Recommended next step
 
-After user visual acceptance of 1.5.12, freeze canvas geometry/theme and proceed to the 1.6.0 release-candidate stabilization matrix instead of adding more architecture.
+1.5.13 further freezes shared canvas guides/background across themes and corrects the run/environment icon optics. After user visual acceptance, proceed to the 1.6.0 release-candidate stabilization matrix instead of adding more architecture.

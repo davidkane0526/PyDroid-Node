@@ -1,3 +1,11 @@
+## 1.5.13 (136) — Canvas visual alignment and shared guides — 2026-08-22
+
+- Replaces the node run glyph with an exact-centroid SVG triangle shared by Classic and Soft, removing the remaining optical misalignment inside the run-button border.
+- Keeps the canvas background, React Flow grid/marks and spatial masks on the shared editor baseline; Soft can no longer fade or replace those canvas layers.
+- Reduces the floating Environment icon stroke from 1.35 to 1.10 while preserving the existing control geometry.
+- Extends UI/theme regression gates so theme CSS cannot take ownership of the shared canvas background/grid/masks and the run icon remains transform-free.
+- Build revision: `1.5.13-dev-r92-canvas-visual-alignment`.
+
 ## 1.5.12 (135) — Shared canvas geometry and canvas-settings alignment — 2026-08-22
 
 - Made Canvas Theme an appearance-only layer: Soft no longer overrides node width/height, body layout, text metrics, port positions, result-preview placement or run-control placement. Classic and Soft now share the same React Flow geometry, so theme switching does not move nodes or edge anchors.

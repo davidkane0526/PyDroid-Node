@@ -91,7 +91,9 @@ assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook ex
 assert.match(css, /\.notebook-order-handle\s*\{[^}]*opacity:\s*0\s*!important;[^}]*pointer-events:\s*none\s*!important;/, "Notebook order handles must remain invisible and non-interactive");
 
 assert.match(css, /\.node-run-action\s*\{[^}]*display:\s*grid;[^}]*width:\s*24px;[^}]*height:\s*24px;[^}]*place-items:\s*center;/, "shared node run button geometry should center the play mark in both canvas themes");
-assert.match(css, /\.node-run-action::before\s*\{[^}]*width:\s*9px;[^}]*height:\s*11px;[^}]*clip-path:[^}]*translateX\(1px\)/, "shared run button should use an optically centered CSS play mark");
+assert.match(app, /node-run-action__icon[\s\S]*viewBox="0 0 14 14"[\s\S]*M4 2 L13 7 L4 12 Z/, "shared run button should use the exact-centroid SVG play mark");
+assert.match(css, /\.node-run-action__icon\s*\{[^}]*width:\s*14px;[^}]*height:\s*14px;[^}]*fill:\s*currentColor;/, "shared run icon should be centered by the button grid without positional transforms");
+assert.match(css, /\.environment-float-button > svg\s*\{[^}]*stroke-width:\s*1\.1;/, "environment icon should use the lighter shared stroke weight");
 assert.match(css, /\.react-flow__handle\s*\{[^}]*width:\s*calc\(16px \* var\(--endpoint-scale, 1\)\);[^}]*height:\s*calc\(16px \* var\(--endpoint-scale, 1\)\)/, "shared endpoint geometry should be enlarged consistently across light/dark and canvas themes");
 assert.match(css, /\.input-port span, \.output-port span \{[^}]*font-size:\s*calc\(10\.5px \* var\(--node-scale, 1\)\)/, "port labels should use the enlarged shared type size");
 assert.match(dialogs, /settings-canvas-select-row[\s\S]*画布主题[\s\S]*缩略图/, "canvas theme and minimap selectors should share one aligned settings row");

@@ -11,8 +11,6 @@
  */
 
 .app-shell[data-canvas-theme="soft"] {
-  --canvas-bg: #eaf2fc;
-  --canvas-grid: #c6d5e8;
   --canvas-node-face: #fbfcfe;
   --canvas-node-border: #d8e5f6;
   --canvas-node-type: #71809d;
@@ -30,8 +28,6 @@
 }
 
 .app-shell[data-canvas-theme="soft"][data-theme="dark"] {
-  --canvas-bg: #101a28;
-  --canvas-grid: #2d4055;
   --canvas-node-face: #182638;
   --canvas-node-border: #3b526b;
   --canvas-node-type: #8ca0ba;
@@ -48,20 +44,9 @@
   --canvas-flow: #67baf4;
 }
 
-/* Canvas material only. No node dimensions are defined in this file. */
-.app-shell[data-canvas-theme="soft"] .canvas-panel,
-.app-shell[data-canvas-theme="soft"] .react-flow {
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,.78) 0%, rgba(247,250,255,.28) 31%, rgba(221,233,249,.12) 58%, transparent 76%),
-    var(--canvas-bg);
-}
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .canvas-panel,
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .react-flow {
-  background:
-    radial-gradient(ellipse at 50% 0%, rgba(93,139,188,.055) 0%, rgba(32,51,73,.025) 35%, transparent 68%),
-    var(--canvas-bg);
-}
-.app-shell[data-canvas-theme="soft"] .react-flow__background { opacity: .28; }
+/* Canvas background/grid/selection masks are shared by every theme.
+ * A canvas theme may skin nodes and controls, but must never fade or replace
+ * the editor's spatial guides, masks or React Flow background. */
 
 /* Shared-geometry card receives only the Theme Lab material treatment. */
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) {

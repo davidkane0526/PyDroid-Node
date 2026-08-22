@@ -414,7 +414,8 @@ button, input, select, textarea { font: inherit; }
 .node-selection-check { left: -11px; }
 .node-delete-action { right: -11px; border-color: #f87171; color: var(--danger-text); cursor: pointer; }
 .node-run-action { position: absolute; z-index: 9; top: 6px; right: 6px; display: grid; width: 24px; height: 24px; padding: 0; place-items: center; border: 1px solid color-mix(in srgb, var(--info) 46%, var(--border-strong)); border-radius: 7px; color: var(--info); background: color-mix(in srgb, var(--surface-raised) 94%, transparent); box-shadow: none; cursor: pointer; font-size: 0; line-height: 0; opacity: 0; visibility: hidden; pointer-events: none; transform: none; transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease; }
-.node-run-action::before { width: 9px; height: 11px; background: currentColor; clip-path: polygon(0 0, 100% 50%, 0 100%); content: ""; transform: translateX(1px); }
+.node-run-action__icon { display: block; width: 14px; height: 14px; overflow: visible; fill: currentColor; pointer-events: none; }
+.node-run-action__icon path { vector-effect: non-scaling-stroke; }
 .workflow-node:hover > .node-run-action, .workflow-node:focus-within > .node-run-action { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
 .node-run-action:hover, .node-run-action:focus-visible { border-color: var(--info-soft); color: #a5f3fc; background: color-mix(in srgb, var(--info) 13%, var(--surface-raised)); outline: none; }
 .node-run-action:disabled { opacity: .42; cursor: default; }
@@ -3687,7 +3688,7 @@ button.smb-file-row { cursor: pointer; }
 /* 1.4.98 · Per-tab workflow environment floats inside the actually visible canvas area. */
 .environment-float-button { position: absolute; z-index: 16; display: inline-flex; width: 62px; height: 30px; padding: 0 9px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-muted); background: color-mix(in srgb, var(--surface-raised) 94%, transparent); box-shadow: none; cursor: pointer; font-size: 11px; font-weight: 650; line-height: 1; transition: border-color .14s ease, background .14s ease, color .14s ease; }
 .environment-float-button:hover, .environment-float-button.active { border-color: var(--accent-hover); color: var(--text-highlight); background: var(--surface-hover); }
-.environment-float-button > svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.environment-float-button > svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; }
 .environment-floating-panel { position: absolute; z-index: 17; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text); background: var(--surface-overlay); box-shadow: 0 10px 28px #0005; }
 .environment-floating-panel > header { display: flex; min-height: 45px; padding: 8px 10px 8px 12px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-soft); }
 .environment-floating-panel > header > div { display: grid; min-width: 0; gap: 2px; }
