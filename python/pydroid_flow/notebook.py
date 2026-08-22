@@ -733,6 +733,305 @@ def _simple_for_iterable(node: ast.AST) -> tuple[dict[str, str], dict[str, Any]]
     return None
 
 
+
+def _portable_numeric_map_expression(node: ast.AST, item_name: str) -> str | None:
+    """Translate a proven numeric loop expression into the shared map language.
+
+    The JavaScript and Python sequence runtimes intentionally support only the
+    small arithmetic/boolean expression language used by ``logicExpression``.
+    Do not lower arbitrary Python calls, attributes or subscripts merely to
+    increase the visual-node count.
+    """
+    allowed_nodes = (
+        ast.Expression, ast.Constant, ast.Name, ast.BinOp, ast.UnaryOp,
+        ast.BoolOp, ast.Compare, ast.Add, ast.Sub, ast.Mult, ast.Div,
+        ast.FloorDiv, ast.Mod, ast.Pow, ast.UAdd, ast.USub, ast.Not,
+        ast.And, ast.Or, ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq,
+        ast.Load,
+    )
+    for item in ast.walk(node):
+        if not isinstance(item, allowed_nodes):
+            return None
+        if isinstance(item, ast.Constant) and not isinstance(item.value, (int, float, bool)):
+            return None
+        if isinstance(item, ast.Name) and item.id != item_name:
+            return None
+
+    class RenameItem(ast.NodeTransformer):
+        def visit_Name(self, candidate: ast.Name) -> ast.AST:  # noqa: N802
+            if candidate.id == item_name:
+                return ast.copy_location(ast.Name(id="value", ctx=candidate.ctx), candidate)
+            return candidate
+
+    rewritten = RenameItem().visit(ast.fix_missing_locations(ast.parse(ast.unparse(node), mode="eval")))
+    ast.fix_missing_locations(rewritten)
+    return ast.unparse(rewritten.body) if isinstance(rewritten, ast.Expression) else None
+
+
+def _numeric_literal_sequence(value: Any) -> bool:
+    return isinstance(value, (list, tuple)) and all(
+        isinstance(item, (int, float)) and not isinstance(item, bool)
+        for item in value
+    )
+
+
+def _portable_sequence_iterable(
+    node: ast.AST,
+    known_literals: dict[str, Any],
+) -> tuple[dict[str, str], dict[str, Any]] | None:
+    """Return a sequence-node input only when numeric-list semantics are proven."""
+    if isinstance(node, ast.Name):
+        value = known_literals.get(node.id, ...)
+        if value is ... or not _numeric_literal_sequence(value):
+            return None
+        return {"notebookInputBindingsJson": json.dumps({"input": node.id}, ensure_ascii=False)}, {"uses": [node.id]}
+    if isinstance(node, ast.List):
+        try:
+            value = ast.literal_eval(node)
+        except (ValueError, TypeError):
+            return None
+        if not _numeric_literal_sequence(value):
+            return None
+        return {"notebookLiteralInputsJson": json.dumps({"input": list(value)}, ensure_ascii=False)}, {"uses": []}
+    return None
+
+
+def _loop_update_method(statement: ast.stmt, accumulator: str, item_name: str) -> str | None:
+    """Recognize identity-based ``sum``/``product`` scalar loop updates."""
+    if isinstance(statement, ast.AugAssign):
+        if not isinstance(statement.target, ast.Name) or statement.target.id != accumulator:
+            return None
+        if not isinstance(statement.value, ast.Name) or statement.value.id != item_name:
+            return None
+        if isinstance(statement.op, ast.Add):
+            return "sum"
+        if isinstance(statement.op, ast.Mult):
+            return "product"
+        return None
+    if not isinstance(statement, ast.Assign) or len(statement.targets) != 1:
+        return None
+    if not isinstance(statement.targets[0], ast.Name) or statement.targets[0].id != accumulator:
+        return None
+    value = statement.value
+    if not isinstance(value, ast.BinOp) or not isinstance(value.op, (ast.Add, ast.Mult)):
+        return None
+    pairs = ((value.left, value.right), (value.right, value.left))
+    if not any(
+        isinstance(left, ast.Name) and left.id == accumulator
+        and isinstance(right, ast.Name) and right.id == item_name
+        for left, right in pairs
+    ):
+        return None
+    return "sum" if isinstance(value.op, ast.Add) else "product"
+
+
+def _while_update_expression(statement: ast.While) -> tuple[str, ast.AST] | None:
+    """Return the single scalar state update carried by a strict numeric while."""
+    if statement.orelse or len(statement.body) != 1:
+        return None
+    update = statement.body[0]
+    if isinstance(update, ast.Assign) and len(update.targets) == 1 and isinstance(update.targets[0], ast.Name):
+        return update.targets[0].id, update.value
+    if isinstance(update, ast.AugAssign) and isinstance(update.target, ast.Name) and isinstance(
+        update.op, (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.FloorDiv, ast.Mod, ast.Pow)
+    ):
+        return update.target.id, ast.BinOp(
+            left=ast.Name(id=update.target.id, ctx=ast.Load()),
+            op=update.op,
+            right=update.value,
+        )
+    return None
+
+
+def _prove_numeric_while_termination(
+    start: int | float,
+    condition: str,
+    update: str,
+) -> tuple[int, float] | None:
+    """Simulate the exact guarded-expression runtime and prove finite termination."""
+    from .engine_parts.analysis_nodes import _logic_expression
+
+    current = float(start)
+    try:
+        for iteration in range(10_001):
+            if not bool(_logic_expression(condition, current, iteration)):
+                return iteration, current
+            if iteration == 10_000:
+                return None
+            next_value = _logic_expression(update, current, iteration)
+            if isinstance(next_value, bool):
+                return None
+            current = float(next_value)
+            if current != current or current in {float("inf"), float("-inf")}:
+                return None
+    except (ArithmeticError, OverflowError, ValueError, TypeError):
+        return None
+    return None
+
+
+def _analyze_numeric_while(
+    statement: ast.stmt,
+    base: dict[str, Any],
+    known_literals: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Lower only a one-state while whose finite execution is statically proven."""
+    if not isinstance(statement, ast.While):
+        return None
+    state_update = _while_update_expression(statement)
+    if state_update is None:
+        return None
+    state_name, update_node = state_update
+    start = known_literals.get(state_name, ...)
+    if start is ... or isinstance(start, bool) or not isinstance(start, (int, float)):
+        return None
+    try:
+        start_number = float(start)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if start_number != start_number or start_number in {float("inf"), float("-inf")}:
+        return None
+
+    condition = _portable_numeric_map_expression(statement.test, state_name)
+    update = _portable_numeric_map_expression(update_node, state_name)
+    if condition is None or update is None:
+        return None
+    proof = _prove_numeric_while_termination(start, condition, update)
+    if proof is None:
+        return None
+    iterations, _ = proof
+    return {
+        **base,
+        "recognized": True,
+        "semantic": True,
+        "kind": "WhileNumber",
+        "nodeType": "logic.while_number",
+        "label": f"While 数值循环 · {state_name}",
+        "parameters": {
+            "start": start,
+            "condition": condition,
+            "update": update,
+            "maxIterations": max(1, iterations),
+            "notebookOutputPortBindingsJson": json.dumps({state_name: "last"}, ensure_ascii=False),
+        },
+        "defines": [state_name],
+        "uses": [],
+        "outputVariable": state_name,
+        "reason": f"单状态数值 While 已静态证明在 {iterations} 次迭代后终止",
+    }
+
+
+def _analyze_sequence_loop(
+    statement: ast.stmt,
+    base: dict[str, Any],
+    known_literals: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Classify strict Python loop idioms as Map / Reduce / Accumulator.
+
+    This pass runs before the generic For Each lowering.  It requires explicit
+    identity/empty initializers and a statically known numeric list so the
+    produced node has the same Python and JavaScript contract.  Anything less
+    certain falls through to generic For Each or the lossless Python carrier.
+    """
+    if not isinstance(statement, ast.For) or statement.orelse or not isinstance(statement.target, ast.Name):
+        return None
+    item_name = statement.target.id
+    iterable = _portable_sequence_iterable(statement.iter, known_literals)
+    if iterable is None:
+        return None
+    input_metadata, extra = iterable
+
+    # result = [] ; for item in values: result.append(<portable numeric expr>)
+    if len(statement.body) == 1 and isinstance(statement.body[0], ast.Expr):
+        call = statement.body[0].value
+        if (
+            isinstance(call, ast.Call) and not call.keywords and len(call.args) == 1
+            and isinstance(call.func, ast.Attribute) and call.func.attr == "append"
+            and isinstance(call.func.value, ast.Name)
+        ):
+            output_name = call.func.value.id
+            if known_literals.get(output_name, ...) == []:
+                expression = _portable_numeric_map_expression(call.args[0], item_name)
+                if expression is not None:
+                    return {
+                        **base,
+                        "recognized": True,
+                        "semantic": True,
+                        "kind": "ForMap",
+                        "nodeType": "sequence.map_expression",
+                        "label": f"列表映射 · {output_name}",
+                        "parameters": {
+                            "expression": expression,
+                            "notebookOutputPortBindingsJson": json.dumps({output_name: "output"}, ensure_ascii=False),
+                            **input_metadata,
+                        },
+                        "defines": [output_name],
+                        "uses": list(extra.get("uses", [])),
+                        "outputVariable": output_name,
+                        "reason": "空列表 append 的纯数值逐项变换已安全分类为 Map",
+                    }
+
+    # total = 0 ; for item in values: total += item
+    if len(statement.body) == 1:
+        for accumulator, initial in list(known_literals.items()):
+            method = _loop_update_method(statement.body[0], accumulator, item_name)
+            identity = 0 if method == "sum" else 1 if method == "product" else None
+            if method and initial == identity:
+                return {
+                    **base,
+                    "recognized": True,
+                    "semantic": True,
+                    "kind": "ForReduce",
+                    "nodeType": "sequence.reduce",
+                    "label": f"列表归约 · {accumulator}",
+                    "parameters": {
+                        "method": method,
+                        "notebookOutputPortBindingsJson": json.dumps({accumulator: "output"}, ensure_ascii=False),
+                        **input_metadata,
+                    },
+                    "defines": [accumulator],
+                    "uses": list(extra.get("uses", [])),
+                    "outputVariable": accumulator,
+                    "reason": "带标准单位元的标量累加/累乘循环已安全分类为 Reduce",
+                }
+
+    # running = [] ; total = 0 ; for item in values:
+    #     total += item
+    #     running.append(total)
+    if len(statement.body) == 2:
+        update = statement.body[0]
+        append_statement = statement.body[1]
+        if isinstance(append_statement, ast.Expr) and isinstance(append_statement.value, ast.Call):
+            append_call = append_statement.value
+            if (
+                not append_call.keywords and len(append_call.args) == 1
+                and isinstance(append_call.func, ast.Attribute) and append_call.func.attr == "append"
+                and isinstance(append_call.func.value, ast.Name)
+                and isinstance(append_call.args[0], ast.Name)
+            ):
+                history_name = append_call.func.value.id
+                accumulator = append_call.args[0].id
+                method = _loop_update_method(update, accumulator, item_name)
+                identity = 0 if method == "sum" else 1 if method == "product" else None
+                if method and known_literals.get(history_name, ...) == [] and known_literals.get(accumulator, ...) == identity:
+                    return {
+                        **base,
+                        "recognized": True,
+                        "semantic": True,
+                        "kind": "ForAccumulate",
+                        "nodeType": "sequence.accumulate",
+                        "label": f"列表累计 · {history_name}",
+                        "parameters": {
+                            "method": method,
+                            "notebookOutputPortBindingsJson": json.dumps({history_name: "output", accumulator: "last"}, ensure_ascii=False),
+                            **input_metadata,
+                        },
+                        "defines": [history_name, accumulator],
+                        "uses": list(extra.get("uses", [])),
+                        "reason": "显式运行总量与历史列表已安全分类为 Accumulator",
+                    }
+    return None
+
+
 def _loop_has_carried_state(statements: list[ast.stmt], item_name: str) -> bool:
     """Reject map lowering when an assignment depends on a previous iteration.
 
@@ -1750,12 +2049,13 @@ def analyze_python_cell(
     source: str,
     user_functions: dict[str, dict[str, Any]] | None = None,
     cell_index: int = 0,
+    literal_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         tree = ast.parse(source)
     except SyntaxError as error:
         return {"recognized": False, "reason": f"syntax: {error.msg}", "defines": [], "uses": [], "operations": []}
-    assignment_values: dict[str, Any] = {}
+    assignment_values: dict[str, Any] = dict(literal_context or {})
     for statement in tree.body:
         if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
             value = _literal(statement.value)
@@ -1765,18 +2065,35 @@ def analyze_python_cell(
         return pulse
     operations = []
     function_context = user_functions if user_functions is not None else {}
+    known_literals: dict[str, Any] = dict(literal_context or {})
     for index, statement in enumerate(tree.body):
         # _analyze_statement walks only this statement, while retaining its exact source fragment.
         function_id = None
         if isinstance(statement, ast.FunctionDef):
             function_id = f"notebook-fn-{cell_index + 1}-{index + 1}-{_identifier_slug(statement.name)}"
-        operation = _analyze_statement(statement, source, function_context, function_id)
+        base = _statement_base(statement, source)
+        operation = _analyze_numeric_while(statement, base, known_literals)
+        if operation is None:
+            operation = _analyze_sequence_loop(statement, base, known_literals)
+        if operation is None:
+            operation = _analyze_statement(statement, source, function_context, function_id)
         operation["index"] = index
         operations.append(operation)
         if isinstance(statement, ast.FunctionDef):
             compiled = _compile_workflow_function(statement, source, function_id or f"notebook-fn-{_identifier_slug(statement.name)}")
             if compiled is not None:
                 function_context[statement.name] = compiled
+
+        definitions = {
+            node.id for node in ast.walk(statement)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+        }
+        for definition in definitions:
+            known_literals.pop(definition, None)
+        if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
+            value = _literal(statement.value)
+            if value is not None:
+                known_literals[statement.targets[0].id] = value
     definitions = sorted({name for operation in operations for name in operation.get("defines", [])})
     uses = sorted({name for operation in operations for name in operation.get("uses", [])})
     semantic = [operation for operation in operations if operation.get("semantic")]
@@ -1790,11 +2107,29 @@ def analyze_notebook_json(notebook_json: str) -> str:
     cells = notebook.get("cells", [])
     analyses = []
     user_functions: dict[str, dict[str, Any]] = {}
+    literal_context: dict[str, Any] = {}
     for index, cell in enumerate(cells):
         source = cell.get("source", "")
         if isinstance(source, list): source = "".join(source)
         if cell.get("cell_type") == "code":
-            analyses.append({**analyze_python_cell(str(source), user_functions, index), "index": index})
+            text = str(source)
+            analyses.append({**analyze_python_cell(text, user_functions, index, literal_context), "index": index})
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                tree = None
+            if tree is not None:
+                for statement in tree.body:
+                    definitions = {
+                        node.id for node in ast.walk(statement)
+                        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+                    }
+                    for definition in definitions:
+                        literal_context.pop(definition, None)
+                    if isinstance(statement, ast.Assign) and len(statement.targets) == 1 and isinstance(statement.targets[0], ast.Name):
+                        value = _literal(statement.value)
+                        if value is not None:
+                            literal_context[statement.targets[0].id] = value
         else:
             analyses.append({"index": index, "recognized": False, "reason": "markdown", "defines": [], "uses": []})
     return json.dumps({"cells": analyses}, ensure_ascii=False)

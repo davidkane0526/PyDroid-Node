@@ -551,3 +551,128 @@ def test_notebook_analysis_keeps_cell_index_distinct_from_statement_index():
     assert [cell["index"] for cell in cells] == [0, 1, 2, 3]
     assert cells[2]["operations"][0]["index"] == 0
     assert [operation["index"] for operation in cells[3]["operations"]] == [0, 1]
+
+
+def test_classifies_strict_numeric_loops_as_map_reduce_and_accumulator():
+    mapped = analyze_python_cell(
+        "values = [1, 2, 3]\n"
+        "mapped = []\n"
+        "for value in values:\n"
+        "    mapped.append(value * 2 + 1)\n"
+    )["operations"][2]
+    assert mapped["nodeType"] == "sequence.map_expression"
+    assert mapped["kind"] == "ForMap"
+    assert mapped["parameters"]["expression"] == "value * 2 + 1"
+    assert json.loads(mapped["parameters"]["notebookOutputPortBindingsJson"]) == {"mapped": "output"}
+
+    reduced = analyze_python_cell(
+        "values = [1, 2, 3]\n"
+        "total = 0\n"
+        "for value in values:\n"
+        "    total += value\n"
+    )["operations"][2]
+    assert reduced["nodeType"] == "sequence.reduce"
+    assert reduced["kind"] == "ForReduce"
+    assert reduced["parameters"]["method"] == "sum"
+    assert reduced["defines"] == ["total"]
+
+    accumulated = analyze_python_cell(
+        "values = [1, 2, 3]\n"
+        "history = []\n"
+        "total = 0\n"
+        "for value in values:\n"
+        "    total += value\n"
+        "    history.append(total)\n"
+    )["operations"][3]
+    assert accumulated["nodeType"] == "sequence.accumulate"
+    assert accumulated["kind"] == "ForAccumulate"
+    assert json.loads(accumulated["parameters"]["notebookOutputPortBindingsJson"]) == {"history": "output", "total": "last"}
+    assert accumulated["defines"] == ["history", "total"]
+
+
+def test_sequence_loop_lowering_keeps_python_when_portability_is_not_proven():
+    unknown_items = analyze_python_cell(
+        "mapped = []\n"
+        "for value in values:\n"
+        "    mapped.append(value * 2)\n"
+    )["operations"][1]
+    assert unknown_items["nodeType"] == "notebook.code_cell"
+    assert unknown_items["semantic"] is False
+
+    nonempty_target = analyze_python_cell(
+        "values = [1, 2]\n"
+        "mapped = [10]\n"
+        "for value in values:\n"
+        "    mapped.append(value * 2)\n"
+    )["operations"][2]
+    assert nonempty_target["nodeType"] == "notebook.code_cell"
+
+    external_expression = analyze_python_cell(
+        "values = [1, 2]\n"
+        "factor = 3\n"
+        "mapped = []\n"
+        "for value in values:\n"
+        "    mapped.append(value * factor)\n"
+    )["operations"][3]
+    assert external_expression["nodeType"] == "notebook.code_cell"
+
+    nonidentity_reduce = analyze_python_cell(
+        "values = [1, 2]\n"
+        "total = 5\n"
+        "for value in values:\n"
+        "    total += value\n"
+    )["operations"][2]
+    assert nonidentity_reduce["nodeType"] == "notebook.code_cell"
+    assert nonidentity_reduce["semantic"] is False
+
+
+def test_notebook_literal_context_allows_safe_sequence_lowering_across_cells():
+    raw = json.dumps({"cells": [
+        {"cell_type": "code", "source": ["values = [1, 2, 3]\n"]},
+        {"cell_type": "code", "source": ["mapped = []\n", "for value in values:\n", "    mapped.append(value * 4)\n"]},
+    ]})
+    result = json.loads(analyze_notebook_json(raw))
+    loop = result["cells"][1]["operations"][1]
+    assert loop["nodeType"] == "sequence.map_expression"
+    assert loop["parameters"]["expression"] == "value * 4"
+
+
+def test_strict_finite_numeric_while_lowers_to_native_while_number():
+    loop = analyze_python_cell(
+        "value = 1\n"
+        "while value < 20:\n"
+        "    value *= 2\n"
+    )["operations"][1]
+    assert loop["nodeType"] == "logic.while_number"
+    assert loop["kind"] == "WhileNumber"
+    assert loop["parameters"]["start"] == 1
+    assert loop["parameters"]["condition"] == "value < 20"
+    assert loop["parameters"]["update"] == "value * 2"
+    assert loop["parameters"]["maxIterations"] == 5
+    assert json.loads(loop["parameters"]["notebookOutputPortBindingsJson"]) == {"value": "last"}
+
+
+def test_numeric_while_lowering_requires_a_static_finite_single_state_loop():
+    infinite = analyze_python_cell(
+        "value = 0\n"
+        "while value >= 0:\n"
+        "    value += 1\n"
+    )["operations"][1]
+    assert infinite["nodeType"] == "notebook.code_cell"
+    assert infinite["semantic"] is False
+
+    external_condition = analyze_python_cell(
+        "value = 0\n"
+        "limit = 5\n"
+        "while value < limit:\n"
+        "    value += 1\n"
+    )["operations"][2]
+    assert external_condition["nodeType"] == "notebook.code_cell"
+
+    multi_statement = analyze_python_cell(
+        "value = 0\n"
+        "while value < 5:\n"
+        "    value += 1\n"
+        "    print(value)\n"
+    )["operations"][1]
+    assert multi_statement["nodeType"] == "notebook.code_cell"

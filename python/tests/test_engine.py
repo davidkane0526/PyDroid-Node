@@ -818,10 +818,12 @@ def test_sequence_map_reduce_accumulate_nodes():
     values = [1, 2, 3, 4]
     mapped = _execute_node("sequence.map_expression", {"expression": "value * 2 + iteration"}, values, "", [])[0]["output"]
     reduced = _execute_node("sequence.reduce", {"method": "mean"}, mapped, "", [])[0]["output"]
-    accumulated = _execute_node("sequence.accumulate", {"method": "sum"}, values, "", [])[0]["output"]
+    accumulated_outputs = _execute_node("sequence.accumulate", {"method": "sum"}, values, "", [])[0]
+    accumulated = accumulated_outputs["output"]
     assert mapped == [2.0, 5.0, 8.0, 11.0]
     assert reduced == 6.5
     assert accumulated == [1.0, 3.0, 6.0, 10.0]
+    assert accumulated_outputs["last"] == 10.0
 
 
 def test_group_aggregate_resets_index_before_bucketing():
@@ -1141,3 +1143,33 @@ def test_generic_structures_can_be_nested():
     )
     assert result["status"] == "success"
     assert result["nodeResults"]["count"]["value"] == 2
+
+
+def test_sequence_identity_methods_preserve_empty_loop_semantics():
+    sum_outputs = _execute_node("sequence.reduce", {"method": "sum"}, [], "", [])[0]
+    product_outputs = _execute_node("sequence.reduce", {"method": "product"}, [], "", [])[0]
+    accumulate_sum = _execute_node("sequence.accumulate", {"method": "sum"}, [], "", [])[0]
+    accumulate_product = _execute_node("sequence.accumulate", {"method": "product"}, [], "", [])[0]
+    assert sum_outputs["output"] == 0.0
+    assert product_outputs["output"] == 1.0
+    assert accumulate_sum == {"output": [], "last": 0.0}
+    assert accumulate_product == {"output": [], "last": 1.0}
+
+
+def test_while_number_exposes_final_state_and_iteration_count():
+    outputs, table, _, _ = _execute_node(
+        "logic.while_number",
+        {"start": 1, "condition": "value < 20", "update": "value * 2", "maxIterations": 5},
+        None, "", [],
+    )
+    assert table is not None
+    assert table.values.tolist() == [[0.0, 1.0], [1.0, 2.0], [2.0, 4.0], [3.0, 8.0], [4.0, 16.0]]
+    assert outputs["last"] == 32.0
+    assert outputs["iterations"] == 5
+
+
+def test_logic_expression_python_reference_uses_short_circuit_floor_mod_and_power():
+    assert _logic_expression("value // 2", -5, 0) == -3
+    assert _logic_expression("value % 2", -5, 0) == 1
+    assert _logic_expression("value ** 2", -5, 0) == 25
+    assert _logic_expression("value != 0 and 1 / value > 0.1", 0, 0) is False

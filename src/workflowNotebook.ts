@@ -989,16 +989,22 @@ function isNotebookVisualEdge(edge: Edge): boolean {
   return role === "notebook-order" || role === "notebook-variable" || role === "notebook-parameter" || role === "notebook-provenance";
 }
 
-function edgeValueExpression(edge: Edge): string {
+function edgeValueExpression(edge: Edge, nodes: WorkflowNode[] = []): string {
   const source = variableName(edge.source);
+  const sourceNode = nodes.find((node) => node.id === edge.source);
+  const outputHandles = sourceNode ? resolvedNodePorts(sourceNode, "output") : [];
+  const primaryIsOneOfSeveral = outputHandles.length > 1 && outputHandles.includes("output");
+  if (primaryIsOneOfSeveral && (!edge.sourceHandle || edge.sourceHandle === "output")) {
+    return `${source}["output"]`;
+  }
   return edge.sourceHandle && edge.sourceHandle !== "output" ? `${source}[${JSON.stringify(edge.sourceHandle)}]` : source;
 }
 
-function inputExpression(nodeId: string, edges: Edge[]): string {
+function inputExpression(nodeId: string, edges: Edge[], nodes: WorkflowNode[] = []): string {
   const incoming = edges.filter((edge) => edge.target === nodeId && !isNotebookVisualEdge(edge));
   if (!incoming.length) return "None";
-  if (incoming.length === 1) return edgeValueExpression(incoming[0]);
-  return `{${incoming.map((edge) => `${JSON.stringify(edge.targetHandle ?? "input")}: ${edgeValueExpression(edge)}`).join(", ")}}`;
+  if (incoming.length === 1) return edgeValueExpression(incoming[0], nodes);
+  return `{${incoming.map((edge) => `${JSON.stringify(edge.targetHandle ?? "input")}: ${edgeValueExpression(edge, nodes)}`).join(", ")}}`;
 }
 
 function orderedContainerChildren(children: WorkflowNode[], edges: Edge[]): WorkflowNode[] {
@@ -1031,7 +1037,7 @@ function indentPython(source: string, spaces = 4): string {
 function structureOperationCode(node: WorkflowNode, edges: Edge[], nodes: WorkflowNode[]): string {
   const name = variableName(node.id);
   const params = `${name}_params`;
-  const input = inputExpression(node.id, edges);
+  const input = inputExpression(node.id, edges, nodes);
   const allChildren = nodes.filter((child) => child.parentId === node.id || child.data.canvasParentId === node.id);
   const internalIds = new Set(allChildren.map((child) => child.id));
   const internalEdges = edges.filter((edge) => !isNotebookVisualEdge(edge) && internalIds.has(edge.source) && internalIds.has(edge.target));
@@ -1044,7 +1050,7 @@ function structureOperationCode(node: WorkflowNode, edges: Edge[], nodes: Workfl
     for (const child of children) {
       const childName = variableName(child.id);
       const incoming = branchEdges.filter((edge) => edge.target === child.id);
-      const childInput = incoming.length ? inputExpression(child.id, branchEdges) : "_seed";
+      const childInput = incoming.length ? inputExpression(child.id, branchEdges, nodes) : "_seed";
       lines.push(`    ${childName}_params = ${pythonLiteral(child.data.parameters)}`);
       lines.push(indentPython(operationCode(child, branchEdges, nodes, childInput, true)));
       lines.push(`    _child_values[${JSON.stringify(child.id)}] = ${childName}`);
@@ -1103,7 +1109,7 @@ ${name} = {"done": _loop_current, "iterations": _loop_iterations, "output": _loo
 function operationCode(node: WorkflowNode, edges: Edge[], nodes: WorkflowNode[] = [], inputOverride?: string, inlineChild = false): string {
   const name = variableName(node.id);
   const params = `${name}_params`;
-  const input = inputOverride ?? inputExpression(node.id, edges);
+  const input = inputOverride ?? inputExpression(node.id, edges, nodes);
   const type = node.data.nodeType;
   const parent = !inlineChild && (node.parentId || node.data.canvasParentId) ? nodes.find((candidate) => candidate.id === (node.parentId ?? node.data.canvasParentId)) : undefined;
   if (parent && isVisualStructureNodeType(parent.data.nodeType)) {
@@ -1173,17 +1179,17 @@ ${name} = [eval(_expression, {"__builtins__": {}}, {"value": value, "iteration":
   if (type === "sequence.reduce") return `_method = str(${params}.get("method", "sum"))
 _values = list(${input})
 if _method == "count": ${name} = len(_values)
-elif not _values: raise ValueError(f"Reduce method {_method} requires at least one value")
 elif _method == "sum": ${name} = sum(_values)
-elif _method == "mean": ${name} = sum(_values) / len(_values)
-elif _method == "min": ${name} = min(_values)
-elif _method == "max": ${name} = max(_values)
 elif _method == "product":
     ${name} = 1
     for _value in _values: ${name} *= _value
+elif not _values: raise ValueError(f"Reduce method {_method} requires at least one value")
+elif _method == "mean": ${name} = sum(_values) / len(_values)
+elif _method == "min": ${name} = min(_values)
+elif _method == "max": ${name} = max(_values)
 else: raise ValueError(f"Unsupported reduce method: {_method}")`;
   if (type === "sequence.accumulate") return `_method = str(${params}.get("method", "sum"))
-${name}, _current = [], None
+_accumulated, _current = [], None
 for _value in ${input}:
     if _current is None: _current = _value
     elif _method == "sum": _current += _value
@@ -1191,7 +1197,10 @@ for _value in ${input}:
     elif _method == "min": _current = min(_current, _value)
     elif _method == "max": _current = max(_current, _value)
     else: raise ValueError(f"Unsupported accumulate method: {_method}")
-    ${name}.append(_current)`;
+    _accumulated.append(_current)
+if _current is None and _method == "sum": _current = 0
+elif _current is None and _method == "product": _current = 1
+${name} = {"output": _accumulated, "last": _current}`;
   if (type === "sequence.consecutive_segments") return `_items = sorted(set(${input}))
 ${name} = []
 if _items:
@@ -1232,11 +1241,16 @@ ${name} = {"true": _matching.reset_index(drop=True), "false": ${input}.loc[~${in
   if (type === "logic.for_range") return `_values = list(range(int(${params}.get("start", 0)), int(${params}.get("stop", 10)), int(${params}.get("step", 1))))
 ${name} = pd.DataFrame({"iteration": range(len(_values)), "value": _values})`;
   if (type === "logic.while_number") return `_value, _rows = float(${params}.get("start", 0)), []
-for _iteration in range(int(${params}.get("maxIterations", 100))):
+_maximum = int(${params}.get("maxIterations", 100))
+for _iteration in range(_maximum):
     if not eval(${params}["condition"], {"__builtins__": {}}, {"value": _value, "iteration": _iteration}): break
     _rows.append({"iteration": _iteration, "value": _value})
-    _value = eval(${params}["update"], {"__builtins__": {}}, {"value": _value, "iteration": _iteration})
-${name} = pd.DataFrame(_rows)`;
+    _next = eval(${params}["update"], {"__builtins__": {}}, {"value": _value, "iteration": _iteration})
+    if isinstance(_next, bool): raise ValueError("While update expression must produce a number")
+    _value = float(_next)
+else:
+    if eval(${params}["condition"], {"__builtins__": {}}, {"value": _value, "iteration": _maximum}): raise ValueError(f"While reached the safety limit of {_maximum} iterations")
+${name} = {"output": pd.DataFrame(_rows, columns=["iteration", "value"]), "last": _value, "iterations": len(_rows)}`;
   if (type === "analysis.ter_matrix") return `${name} = calculate_ter(${input}, ${params})`;
   if (type === "pulse.generate_waveform") return `_vmax, _step = float(${params}.get("voltageMax", 3)), abs(float(${params}.get("voltageStep", 0.2)))
 _read_v, _read_t, _pulse_t = float(${params}.get("readVoltage", 0.1)), float(${params}.get("readTime", 0.01)), float(${params}.get("pulseTime", 0.01))
@@ -1333,7 +1347,7 @@ ${name} = ${input}`;
     for (const port of signature.inputPorts) {
       const edge = incoming.find((candidate) => (candidate.targetHandle ?? "input") === port.id)
         ?? (signature.inputPorts.length === 1 && incoming.length === 1 ? incoming[0] : undefined);
-      if (edge) values.push(`${JSON.stringify(port.id)}: ${edgeValueExpression(edge)}`);
+      if (edge) values.push(`${JSON.stringify(port.id)}: ${edgeValueExpression(edge, nodes)}`);
     }
     for (const parameter of signature.parameters) {
       if (Object.prototype.hasOwnProperty.call(node.data.parameters, parameter.key)) {

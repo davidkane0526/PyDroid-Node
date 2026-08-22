@@ -101,6 +101,9 @@ def main() -> int:
     android_unsupported_modules = Counter()
     failures: list[dict[str, object]] = []
     isolated_kinds = Counter()
+    control_scopes = Counter()
+    control_lowerings = Counter()
+    control_carriers = Counter()
     for path in files:
         try:
             notebook = json.loads(path.read_text(encoding="utf-8"))
@@ -165,6 +168,13 @@ def main() -> int:
                 if node_type == "function.map" and semantic:
                     summary["promoted_function_maps"] += 1
                     function_maps[str(operation.get("label") or "function.map")] += 1
+                if semantic and node_type in {
+                    "logic.if_value", "logic.for_each_value", "logic.while_state", "logic.while_number",
+                    "sequence.map_expression", "sequence.reduce", "sequence.accumulate",
+                }:
+                    control_lowerings[node_type] += 1
+                if not semantic and operation.get("kind") in {"If", "For", "While"}:
+                    control_carriers[str(operation.get("kind"))] += 1
             if result.get("recognized"):
                 summary["recognized_cells"] += 1
             else:
@@ -174,6 +184,40 @@ def main() -> int:
                 cell_modules: set[str] = set()
                 for statement in tree.body:
                     statements[type(statement).__name__] += 1
+
+                class ControlScopeVisitor(ast.NodeVisitor):
+                    def __init__(self) -> None:
+                        self.function_depth = 0
+
+                    def _record(self, node: ast.AST) -> None:
+                        scope = "function" if self.function_depth else "topLevel"
+                        control_scopes[f"{scope}.{type(node).__name__}"] += 1
+
+                    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+                        self.function_depth += 1
+                        for child in node.body:
+                            self.visit(child)
+                        self.function_depth -= 1
+
+                    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+                        self.function_depth += 1
+                        for child in node.body:
+                            self.visit(child)
+                        self.function_depth -= 1
+
+                    def visit_If(self, node: ast.If) -> None:  # noqa: N802
+                        self._record(node)
+                        self.generic_visit(node)
+
+                    def visit_For(self, node: ast.For) -> None:  # noqa: N802
+                        self._record(node)
+                        self.generic_visit(node)
+
+                    def visit_While(self, node: ast.While) -> None:  # noqa: N802
+                        self._record(node)
+                        self.generic_visit(node)
+
+                ControlScopeVisitor().visit(tree)
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Call):
                         calls[call_name(node)] += 1
@@ -274,6 +318,9 @@ def main() -> int:
         "statements": statements.most_common(),
         "calls": calls.most_common(100),
         "isolatedOperationKinds": isolated_kinds.most_common(),
+        "controlScopes": control_scopes.most_common(),
+        "controlLowerings": control_lowerings.most_common(),
+        "controlCarriers": control_carriers.most_common(),
         "failures": failures,
     }
     if args.json:

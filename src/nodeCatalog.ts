@@ -905,7 +905,11 @@ export const NODE_CATALOG: NodeSpec[] = [
     category: "逻辑控制",
     defaults: { start: 0, condition: "value < 10", update: "value + 1", maxIterations: 100 },
     inputPorts: [],
-    outputPorts: TABLE_OUTPUT,
+    outputPorts: [
+      { id: "output", label: "迭代轨迹", valueType: "table" },
+      { id: "last", label: "最终值", valueType: "number" },
+      { id: "iterations", label: "迭代次数", valueType: "number" },
+    ],
     parameters: [
       { key: "start", label: "初始值 · value", kind: "number" },
       { key: "condition", label: "继续条件", kind: "text", required: true, placeholder: "value < 10", description: "可使用 value、iteration、算术和比较运算。" },
@@ -1108,7 +1112,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     description: "返回逐项累计结果，可用于累加、累乘、运行最小值或运行最大值。",
     tags: ["列表", "累计", "accumulate", "scan", "running"], category: "列表处理", defaults: { method: "sum" },
     inputPorts: [{ id: "input", label: "数字列表", valueType: "list", required: true }],
-    outputPorts: [{ id: "output", label: "累计列表", valueType: "list" }],
+    outputPorts: [{ id: "output", label: "累计列表", valueType: "list" }, { id: "last", label: "最终累计值", valueType: "number" }],
     parameters: [{ key: "method", label: "累计方式", kind: "select", options: [{ label: "累加", value: "sum" }, { label: "累乘", value: "product" }, { label: "运行最小值", value: "min" }, { label: "运行最大值", value: "max" }] }],
   },
   {

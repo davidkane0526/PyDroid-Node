@@ -71,21 +71,21 @@ def execute(
         method = str(params.get("method", "sum"))
         if method == "count":
             result = len(values)
-        elif not values:
-            raise ValueError(f"Reduce method {method} requires at least one value")
         elif method == "sum":
             result = float(sum(values))
+        elif method == "product":
+            product = 1.0
+            for value in values:
+                product *= value
+            result = float(product)
+        elif not values:
+            raise ValueError(f"Reduce method {method} requires at least one value")
         elif method == "mean":
             result = float(sum(values) / len(values))
         elif method == "min":
             result = float(min(values))
         elif method == "max":
             result = float(max(values))
-        elif method == "product":
-            product = 1.0
-            for value in values:
-                product *= value
-            result = float(product)
         else:
             raise ValueError(f"Unsupported reduce method: {method}")
     elif node_type == "sequence.accumulate":
@@ -107,6 +107,11 @@ def execute(
             else:
                 raise ValueError(f"Unsupported accumulate method: {method}")
             result.append(float(current))
+        if current is None and method == "sum":
+            current = 0.0
+        elif current is None and method == "product":
+            current = 1.0
+        return {"output": result, "last": current}, None, None, None
     elif node_type == "sequence.consecutive_segments":
         values = _sorted_unique_integers(upstream)
         segments: list[tuple[int, int, int]] = []

@@ -38,13 +38,13 @@ export function executeSequenceNode(nodeType: string, params: Record<string, unk
     const values = numericSequence(upstream);
     const method = String(params.method ?? "sum");
     if (method === "count") result = values.length;
+    else if (method === "sum") result = values.reduce((total, value) => total + value, 0);
+    else if (method === "product") result = values.reduce((total, value) => total * value, 1);
     else {
       if (!values.length) throw new Error(`Reduce method ${method} requires at least one value`);
-      if (method === "sum") result = values.reduce((total, value) => total + value, 0);
-      else if (method === "mean") result = values.reduce((total, value) => total + value, 0) / values.length;
+      if (method === "mean") result = values.reduce((total, value) => total + value, 0) / values.length;
       else if (method === "min") result = Math.min(...values);
       else if (method === "max") result = Math.max(...values);
-      else if (method === "product") result = values.reduce((total, value) => total * value, 1);
       else throw new Error(`Unsupported reduce method: ${method}`);
     }
   } else if (nodeType === "sequence.accumulate") {
@@ -61,7 +61,8 @@ export function executeSequenceNode(nodeType: string, params: Record<string, unk
       else throw new Error(`Unsupported accumulate method: ${method}`);
       accumulated.push(current);
     }
-    result = accumulated;
+    const last = current ?? (method === "sum" ? 0 : method === "product" ? 1 : null);
+    return { outputs: { output: accumulated, last }, tableResult: null, plotResult: null, exportResult: null };
   } else {
     const values = integerSequence(upstream);
     if (nodeType === "sequence.consecutive_segments") {

@@ -1,3 +1,15 @@
+## 1.5.1 (124) — Notebook loop semantics + deterministic JS expressions — 2026-08-22
+
+- Classifies strict Notebook loop idioms before generic For Each: empty-list `append` loops become `sequence.map_expression`, identity-based scalar `+=` / `*=` loops become `sequence.reduce`, and running-history loops become `sequence.accumulate`. Unknown iterables, non-identity accumulators, external expression dependencies, side effects and ambiguous carried state remain executable Python.
+- Carries proven static numeric-list literals across Notebook cells so safe loop lowering is not limited to same-cell setup code.
+- Promotes only single-state numeric `while` loops whose complete execution can be statically proven to terminate within 10,000 iterations. The native `logic.while_number` node now exposes `last` and `iterations` in addition to its trace table; non-provable While loops remain Python.
+- Replaces JavaScript control-expression string rewriting with a deterministic parser matching the Python guarded-expression language, including Python floor division, signed modulo, exponentiation precedence and boolean short-circuit behavior.
+- Preserves empty-loop identities across runtimes: Reduce sum/product return `0`/`1`, and Accumulator exposes both the running list and final state (`0`/`1` for empty sum/product).
+- Makes Notebook Python export route primary and side outputs correctly for nodes that expose `output` plus additional ports; `sequence.accumulate` and `logic.while_number` export their side outputs without breaking the primary value.
+- Extends Notebook auditing with top-level/function control-scope counts, native control lowerings and retained control carriers.
+- Local validation: Python **149 passed / 1 skipped**; Runtime Parity **81/81**; JS-capable NodeContract coverage **84/84**; Runtime Engine, NodeContract, Workflow Core and strict workflow-compatibility architecture gates pass.
+- Build revision: `1.5.1-dev-r79-notebook-loop-lowering`.
+
 ## 1.5.0 (123) — Generic control flow + JavaScript parity baseline — 2026-08-22
 
 - Replaces the retired DataFrame-specific visual control structures with three language-level structures: `logic.if_value`, `logic.for_each_value`, and `logic.while_state`. The removed `logic.if_subflow`, `logic.for_each_subflow`, and `logic.while_subflow` NodeSpecs/runtime paths are not aliased, migrated, or bridged.

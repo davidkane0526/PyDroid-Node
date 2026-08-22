@@ -632,6 +632,341 @@
           ]
         }
       }
+    },
+    {
+      "id": "sequence_map_python_floor_mod",
+      "description": "Python-compatible floor division and modulo",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "values.json",
+          "text": "[-5,-4,5]"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Python-compatible floor division and modulo",
+        "nodes": [
+          {
+            "id": "text",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取文本",
+              "nodeType": "io.read_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "json",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "解析 JSON",
+              "nodeType": "convert.json_parse",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "Python-compatible floor division and modulo",
+              "nodeType": "sequence.map_expression",
+              "nodeVersion": 1,
+              "parameters": {
+                "expression": "value // 2 + value % 2"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "text",
+            "target": "json"
+          },
+          {
+            "id": "e2",
+            "source": "json",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "text",
+          "json",
+          "op"
+        ],
+        "semanticValueResults": {
+          "op": [
+            -2,
+            -2,
+            3
+          ]
+        }
+      }
+    },
+    {
+      "id": "sequence_map_python_power",
+      "description": "Python-compatible exponentiation",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "values.json",
+          "text": "[2,3,4]"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Python-compatible exponentiation",
+        "nodes": [
+          {
+            "id": "text",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取文本",
+              "nodeType": "io.read_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "json",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "解析 JSON",
+              "nodeType": "convert.json_parse",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "Python-compatible exponentiation",
+              "nodeType": "sequence.map_expression",
+              "nodeVersion": 1,
+              "parameters": {
+                "expression": "value ** 2"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "text",
+            "target": "json"
+          },
+          {
+            "id": "e2",
+            "source": "json",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "text",
+          "json",
+          "op"
+        ],
+        "semanticValueResults": {
+          "op": [
+            4,
+            9,
+            16
+          ]
+        }
+      }
+    },
+    {
+      "id": "sequence_map_python_short_circuit",
+      "description": "Python-compatible boolean short circuit",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "values.json",
+          "text": "[0,10]"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "Python-compatible boolean short circuit",
+        "nodes": [
+          {
+            "id": "text",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "读取文本",
+              "nodeType": "io.read_text",
+              "nodeVersion": 1,
+              "parameters": {
+                "fileIndex": 0,
+                "encoding": "utf-8"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "json",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "解析 JSON",
+              "nodeType": "convert.json_parse",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "Python-compatible boolean short circuit",
+              "nodeType": "sequence.map_expression",
+              "nodeVersion": 1,
+              "parameters": {
+                "expression": "value != 0 and 1 / value > 0.05"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "text",
+            "target": "json"
+          },
+          {
+            "id": "e2",
+            "source": "json",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "text",
+          "json",
+          "op"
+        ],
+        "semanticValueResults": {
+          "op": [
+            false,
+            true
+          ]
+        }
+      }
+    },
+    {
+      "id": "while_number_final_state_port",
+      "description": "While number exposes final state as a typed side output",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "While final state",
+        "nodes": [
+          {
+            "id": "while",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "While",
+              "nodeType": "logic.while_number",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 1,
+                "condition": "value < 20",
+                "update": "value * 2",
+                "maxIterations": 5
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "number",
+            "position": {
+              "x": 220,
+              "y": 0
+            },
+            "data": {
+              "label": "最终值",
+              "nodeType": "convert.to_number",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "while",
+            "sourceHandle": "last",
+            "target": "number",
+            "targetHandle": "input"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "while",
+          "number"
+        ],
+        "semanticValueResults": {
+          "number": 32
+        }
+      }
     }
   ]
 }

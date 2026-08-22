@@ -47,6 +47,7 @@ describe("node function signatures", () => {
     expect(getNodeSpec("table.merge_rows")!.inputPorts.map((port) => port.id)).toEqual(["left", "right"]);
     expect(getNodeSpec("logic.for_range")!.inputPorts).toHaveLength(0);
     expect(getNodeSpec("logic.while_number")!.parameters.map((parameter) => parameter.key)).toContain("maxIterations");
+    expect(getNodeSpec("logic.while_number")!.outputPorts.map((port) => port.id)).toEqual(["output", "last", "iterations"]);
     expect(getNodeSpec("logic.if_subflow")).toBeUndefined();
     expect(getNodeSpec("logic.for_each_subflow")).toBeUndefined();
     expect(getNodeSpec("logic.while_subflow")).toBeUndefined();
@@ -54,6 +55,7 @@ describe("node function signatures", () => {
     expect(getNodeSpec("logic.if_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "true", "false"]);
     expect(getNodeSpec("logic.for_each_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "last", "lastItem"]);
     expect(getNodeSpec("logic.while_state")!.parameters.map((parameter) => parameter.key)).toEqual(["conditionMode", "condition", "maxIterations"]);
+    expect(getNodeSpec("sequence.accumulate")!.outputPorts.map((port) => port.id)).toEqual(["output", "last"]);
     expect(getNodeSpec("plot.heatmap")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "rowLabelColumn", "xTickInterval", "yTickInterval", "xTickRotation", "origin", "aspect",
       "interpolation", "colorMap", "colorMin", "colorMax", "showColorBar", "colorBarLabel", "figureWidth", "dpi",

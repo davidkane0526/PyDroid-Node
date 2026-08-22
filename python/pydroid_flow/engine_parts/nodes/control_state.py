@@ -80,6 +80,7 @@ def execute(
                 raise ValueError(f"While reached the safety limit of {maximum} iterations")
         value = pd.DataFrame(rows, columns=["iteration", "value"])
         table_result = value
+        return {"output": value, "last": current, "iterations": len(rows)}, table_result, None, None
     elif node_type in {"variable.set", "variable.set_workspace"}:
         name = str(params.get("name", "")).strip()
         if not name:

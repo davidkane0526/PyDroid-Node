@@ -65,7 +65,8 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
           throw new Error(`While reached the safety limit of ${maximum} iterations`);
         }
       }
-      return { outputs: { output: new Table(["iteration", "value"], rows) }, tableResult: new Table(["iteration", "value"], rows), plotResult, exportResult };
+      const trace = new Table(["iteration", "value"], rows);
+      return { outputs: { output: trace, last: current, iterations: rows.length }, tableResult: trace, plotResult, exportResult };
     }
     case "table.group_mean":
     case "table.group_aggregate": {

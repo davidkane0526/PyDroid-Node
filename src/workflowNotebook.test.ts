@@ -18,6 +18,27 @@ describe("workflow notebook DSL", () => {
     expect(workflowNotebookCells([], [])).toEqual([]);
   });
 
+  it("serializes nodes with primary plus side outputs without collapsing their ports", () => {
+    const accumulate = {
+      id: "acc", type: "workflow", position: { x: 0, y: 0 },
+      data: { label: "累计", nodeType: "sequence.accumulate", nodeVersion: 1, parameters: { method: "sum" }, status: "idle" },
+    } as WorkflowNode;
+    const number = {
+      id: "number", type: "workflow", position: { x: 200, y: 0 },
+      data: { label: "数字", nodeType: "convert.to_number", nodeVersion: 1, parameters: {}, status: "idle" },
+    } as WorkflowNode;
+    const sideSource = serializeWorkflowNotebook("side", [accumulate, number], [
+      { id: "e1", source: "acc", sourceHandle: "last", target: "number", targetHandle: "input" },
+    ]);
+    expect(sideSource).toContain('node_acc = {"output": _accumulated, "last": _current}');
+    expect(sideSource).toContain('node_acc["last"]');
+
+    const primarySource = serializeWorkflowNotebook("primary", [accumulate, number], [
+      { id: "e2", source: "acc", sourceHandle: "output", target: "number", targetHandle: "input" },
+    ]);
+    expect(primarySource).toContain('node_acc["output"]');
+  });
+
   it("round-trips nodes, edges and package requirements", () => {
     const source = serializeWorkflowNotebook("测试", [sampleNode], [], ["scipy==1.12.0"]);
     expect(source).toContain("import pandas as pd");
