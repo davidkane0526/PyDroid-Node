@@ -429,8 +429,8 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const labelLength = Array.from(data.label).length;
   const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
   const longestPortLabel = Math.max(0, ...[...inputPorts, ...outputPorts].map((port) => Array.from(port.label ?? "").length));
-  const horizontalPortLabelWidth = Math.min(86, Math.max(42, 22 + longestPortLabel * 6));
-  const verticalPortLabelWidth = Math.min(96, Math.max(62, 24 + longestPortLabel * 6));
+  const horizontalPortLabelWidth = Math.min(96, Math.max(48, 24 + longestPortLabel * 6.5));
+  const verticalPortLabelWidth = Math.min(108, Math.max(68, 26 + longestPortLabel * 6.5));
   const contentWidth = direction === "vertical"
     ? Math.min(270, Math.max(154, 96 + labelLength * 12))
     : Math.min(300, Math.max(168, 112 + labelLength * 16));

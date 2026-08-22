@@ -1,13 +1,13 @@
 /*
- * Canvas themes are isolated from the application shell theme.
- * data-theme controls light/dark mode; data-canvas-theme controls canvas visual language.
- * "classic" receives no node overrides, preserving the stable pre-theme canvas path.
+ * Canvas visual themes are intentionally appearance-only.
+ * Shared node geometry (size, body layout, ports, run-control placement) lives in styles.css
+ * so switching Classic <-> Soft never changes React Flow node bounds or edge anchors.
  *
- * Soft theme source: PyDroid Canvas Theme Lab 1.6.7 · Flat Run Control.
- * Production adaptations are intentionally minimal:
- *   1) React Flow nodes never move on hover (prevents pointer hit-test oscillation).
- *   2) Rules target the real production node DOM, where every node carries status-*.
- *   3) Only the first semantic tag is shown on the fixed reference card to avoid overlap.
+ * Soft appearance source: PyDroid Canvas Theme Lab 1.6.7 · Flat Run Control.
+ * Production adaptations:
+ *   1) zero geometry changes on hover;
+ *   2) real status-* / semantic node classes;
+ *   3) Theme Lab material translated onto the shared production geometry.
  */
 
 .app-shell[data-canvas-theme="soft"] {
@@ -15,20 +15,18 @@
   --canvas-grid: #c6d5e8;
   --canvas-node-face: #fbfcfe;
   --canvas-node-border: #d8e5f6;
-  --canvas-node-type: #7f8ba8;
+  --canvas-node-type: #71809d;
   --canvas-node-label: #1c2a43;
-  --canvas-node-meta: #6d7995;
-  --canvas-selection: #8cbcff;
-  --canvas-run: #036bfe;
-  --canvas-run-hover: #005ce6;
+  --canvas-node-meta: #64728d;
+  --canvas-selection: #78adf2;
+  --canvas-run: #0877f9;
+  --canvas-run-hover: #005fda;
   --canvas-edge: #8fa6bf;
-  --canvas-edge-selected: #4ea7ef;
+  --canvas-edge-selected: #3698e6;
   --canvas-handle-ring: #ffffff;
-  --canvas-function: #8b5cf6;
-  --canvas-group: #16a36a;
-  --canvas-flow: #4ea7ef;
-  --canvas-card-radius: 23px;
-  --canvas-container-radius: 26px;
+  --canvas-function: #8059e8;
+  --canvas-group: #12965e;
+  --canvas-flow: #3698e6;
 }
 
 .app-shell[data-canvas-theme="soft"][data-theme="dark"] {
@@ -36,7 +34,7 @@
   --canvas-grid: #2d4055;
   --canvas-node-face: #182638;
   --canvas-node-border: #3b526b;
-  --canvas-node-type: #8499b5;
+  --canvas-node-type: #8ca0ba;
   --canvas-node-label: #f0f4fa;
   --canvas-node-meta: #9aaac0;
   --canvas-selection: #63b1fb;
@@ -50,6 +48,7 @@
   --canvas-flow: #67baf4;
 }
 
+/* Canvas material only. No node dimensions are defined in this file. */
 .app-shell[data-canvas-theme="soft"] .canvas-panel,
 .app-shell[data-canvas-theme="soft"] .react-flow {
   background:
@@ -64,264 +63,116 @@
 }
 .app-shell[data-canvas-theme="soft"] .react-flow__background { opacity: .28; }
 
-/* Theme Lab 1.6.7 reference geometry: 1155×804 scaled to 1/3 for production. */
+/* Shared-geometry card receives only the Theme Lab material treatment. */
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) {
-  width: calc(385px * var(--node-scale, 1)) !important;
-  height: calc(268px * var(--node-scale, 1));
-  min-height: calc(268px * var(--node-scale, 1));
-  padding: 0;
   overflow: visible;
-  border: 1px solid var(--canvas-node-border);
-  border-radius: calc(var(--canvas-card-radius) * var(--node-scale, 1));
+  border-color: var(--canvas-node-border);
+  border-radius: calc(12px * var(--node-scale, 1));
   color: var(--canvas-node-label);
-  background: var(--canvas-node-face);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.66) 0, rgba(255,255,255,.18) 34%, rgba(255,255,255,0) 72%),
+    var(--canvas-node-face);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.98),
-    inset 0 -1px 0 rgba(180,202,230,.32),
-    0 5px 12px rgba(91,119,159,.10),
-    0 17px 36px rgba(91,119,159,.22);
+    inset 0 1px 0 rgba(255,255,255,.96),
+    inset 0 -1px 0 rgba(170,194,224,.24),
+    0 2px 5px rgba(74,104,145,.08),
+    0 10px 22px rgba(74,104,145,.16);
   transform: none;
   transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-  border-color: #c8dbf3;
+  border-color: #c1d7ef;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,1),
-    inset 0 -1px 0 rgba(180,202,230,.35),
-    0 7px 16px rgba(91,119,159,.12),
-    0 21px 43px rgba(91,119,159,.25);
+    inset 0 -1px 0 rgba(170,194,224,.27),
+    0 3px 7px rgba(74,104,145,.09),
+    0 12px 26px rgba(74,104,145,.18);
   transform: none;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
   outline: none !important;
-  border-color: #cbdff6;
+  border-color: #9fc5ee;
   box-shadow:
-    0 0 0 1px rgba(130,178,236,.10),
+    0 0 0 1px rgba(54,152,230,.10),
     inset 0 1px 0 rgba(255,255,255,.98),
-    inset 0 -1px 0 rgba(180,202,230,.32),
-    0 5px 12px rgba(91,119,159,.10),
-    0 17px 36px rgba(91,119,159,.22);
+    inset 0 -1px 0 rgba(170,194,224,.25),
+    0 3px 7px rgba(74,104,145,.09),
+    0 12px 26px rgba(74,104,145,.18);
 }
 
-/* The card body is a measured positioning plane from the accepted Theme Lab. */
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) > .workflow-node__body {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  display: block;
-  min-height: 0;
-  margin: 0 !important;
-  padding: 0;
-  text-align: center;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__type {
-  position: absolute;
-  top: calc(59px * var(--node-scale, 1));
-  right: 0;
-  left: 0;
-  margin: 0;
-  overflow: hidden;
-  color: var(--canvas-node-type);
-  font-family: Consolas, "SFMono-Regular", "Liberation Mono", "Courier New", monospace;
-  font-size: calc(21px * var(--node-scale, 1));
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: calc(.55px * var(--node-scale, 1));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__label {
-  position: absolute;
-  top: calc(104px * var(--node-scale, 1));
-  right: calc(24px * var(--node-scale, 1));
-  left: calc(24px * var(--node-scale, 1));
-  overflow: hidden;
-  color: var(--canvas-node-label);
-  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
-  font-size: calc(42px * var(--node-scale, 1));
-  font-weight: 700;
-  line-height: 1.06;
-  letter-spacing: calc(-1.2px * var(--node-scale, 1));
-  text-overflow: ellipsis;
-  text-shadow: none;
-  white-space: nowrap;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__label::before { content: none; }
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__meta {
-  position: static;
-  display: block;
-  margin: 0;
-  padding: 0;
-  overflow: visible;
-  color: var(--canvas-node-meta);
-  font-family: "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", Arial, sans-serif;
-  line-height: 1;
-  white-space: normal;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__meta-count,
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__meta > span:first-child {
-  position: absolute;
-  top: calc(175px * var(--node-scale, 1));
-  right: 0;
-  left: 0;
-  overflow: hidden;
-  color: var(--canvas-node-meta);
-  font-size: calc(22px * var(--node-scale, 1));
-  font-weight: 400;
-  line-height: 1;
-  letter-spacing: calc(.1px * var(--node-scale, 1));
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__tag {
-  position: absolute;
-  top: calc(213px * var(--node-scale, 1));
-  right: 0;
-  left: 0;
-  padding: 0;
-  border: 0;
-  border-radius: 0;
-  color: #0da55a;
-  background: transparent;
-  font-size: calc(20px * var(--node-scale, 1));
-  font-weight: 650;
-  line-height: 1;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__tag::before { content: none; }
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .workflow-node__tag ~ .workflow-node__tag { display: none; }
+/* Typography keeps shared sizes/positions; themes only change visual identity. */
+.app-shell[data-canvas-theme="soft"] .workflow-node__type { color: var(--canvas-node-type); }
+.app-shell[data-canvas-theme="soft"] .workflow-node__label { color: var(--canvas-node-label); }
+.app-shell[data-canvas-theme="soft"] .workflow-node__meta { color: var(--canvas-node-meta); }
+.app-shell[data-canvas-theme="soft"] .workflow-node__tag { color: #0d9c57; }
+.app-shell[data-canvas-theme="soft"] .node-kind-function .workflow-node__type,
 .app-shell[data-canvas-theme="soft"] .node-kind-function .workflow-node__tag { color: var(--canvas-function); }
+.app-shell[data-canvas-theme="soft"] .node-kind-group .workflow-node__type,
 .app-shell[data-canvas-theme="soft"] .node-kind-group .workflow-node__meta-count { color: var(--canvas-group); }
 
-/* Flat run control from Theme Lab 1.6.7. Visibility is still governed by the production desktop/mobile rules. */
+/* Run button shares Classic geometry; Soft only changes material/color. */
 .app-shell[data-canvas-theme="soft"] .node-run-action {
-  position: absolute;
-  z-index: 9;
-  top: calc(17px * var(--node-scale, 1));
-  right: calc(18px * var(--node-scale, 1));
-  display: grid;
-  width: calc(46px * var(--node-scale, 1));
-  height: calc(46px * var(--node-scale, 1));
-  padding: 0;
-  place-items: center;
-  border: 2px solid #d7e6fb;
-  border-radius: calc(13px * var(--node-scale, 1));
-  color: transparent;
-  background: rgba(255,255,255,.76);
-  box-shadow: 0 5px 14px rgba(77,133,205,.10), inset 0 1px 0 rgba(255,255,255,.96);
-  font-size: 0;
-  line-height: 0;
+  border-color: #c9dcf4;
+  color: var(--canvas-run);
+  background: rgba(255,255,255,.84);
+  box-shadow: 0 3px 8px rgba(55,112,182,.09), inset 0 1px 0 rgba(255,255,255,.96);
   transform: none !important;
-  transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, box-shadow .14s ease;
-}
-.app-shell[data-canvas-theme="soft"] .node-run-action::before {
-  display: block;
-  width: 0;
-  height: 0;
-  margin-left: calc(2px * var(--node-scale, 1));
-  border-top: calc(8px * var(--node-scale, 1)) solid transparent;
-  border-bottom: calc(8px * var(--node-scale, 1)) solid transparent;
-  border-left: calc(14px * var(--node-scale, 1)) solid var(--canvas-run);
-  content: "";
 }
 .app-shell[data-canvas-theme="soft"] .node-run-action:hover,
 .app-shell[data-canvas-theme="soft"] .node-run-action:focus-visible {
-  border-color: #c5dcfa;
+  border-color: #a9ccef;
+  color: var(--canvas-run-hover);
   background: #ffffff;
-  box-shadow: 0 7px 17px rgba(77,133,205,.14), inset 0 1px 0 rgba(255,255,255,1);
+  box-shadow: 0 4px 10px rgba(55,112,182,.12), inset 0 1px 0 rgba(255,255,255,1);
   outline: none;
   transform: none !important;
 }
 
-/* Side ports from the accepted lab: larger readable labels and tangible sockets. */
+/* Ports keep shared size/label geometry and receive tangible Soft sockets. */
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .input-port,
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .output-port {
-  color: var(--canvas-node-meta);
-  font-size: calc(15px * var(--node-scale, 1));
-  font-weight: 650;
-  line-height: 1.02;
-  letter-spacing: .08px;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure).direction-horizontal .input-port span,
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure).direction-horizontal .output-port span {
-  top: calc(-15px * var(--node-scale, 1));
-  width: calc(72px * var(--node-scale, 1));
-}
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure).direction-horizontal .input-port span { left: calc(25px * var(--node-scale, 1)); }
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure).direction-horizontal .output-port span { right: calc(25px * var(--node-scale, 1)); }
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .input-port small,
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .output-port small {
-  margin-top: calc(3px * var(--node-scale, 1));
-  font-size: calc(12px * var(--node-scale, 1));
-  font-weight: 500;
-  line-height: 1;
-  opacity: .84;
-}
+.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .output-port { color: var(--canvas-node-meta); }
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .react-flow__handle {
-  width: calc(18px * var(--endpoint-scale, 1));
-  height: calc(18px * var(--endpoint-scale, 1));
-  border: calc(4px * var(--endpoint-scale, 1)) solid var(--canvas-handle-ring);
-  border-radius: 50%;
+  border-color: var(--canvas-handle-ring);
   background: var(--port-color, var(--canvas-selection));
-  box-shadow: 0 3px 9px rgba(63,87,120,.14);
+  box-shadow: 0 2px 7px rgba(63,87,120,.16);
 }
 
-/* Result insight is a separate floating surface and never consumes the reference card layout. */
+/* Result preview shares the exact same box geometry as Classic. */
 .app-shell[data-canvas-theme="soft"] .node-insight {
-  position: absolute;
-  z-index: 3;
-  top: calc(100% + 35px);
-  left: 50%;
-  min-width: 132px;
-  margin: 0;
-  padding: 8px 11px;
-  transform: translateX(-50%);
-  border: 1px solid #d8e5f4;
-  border-radius: 14px;
+  border-color: #d8e5f4;
   color: var(--canvas-node-meta);
   background: rgba(251,253,255,.97);
-  box-shadow: 0 10px 26px rgba(91,119,159,.16);
-  font-size: 10px;
-  line-height: 1.35;
+  box-shadow: 0 6px 16px rgba(91,119,159,.11);
 }
-.app-shell[data-canvas-theme="soft"] .node-insight--plot { width: 140px; padding: 4px; }
 
-/* Function and reusable group retain semantic identity through typography only; the card material remains unified. */
+/* Function/group remain one material system with semantic accents. */
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function:not(.workflow-structure),
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure) {
-  border: 1px solid var(--canvas-node-border) !important;
-  background: var(--canvas-node-face) !important;
+  border-color: var(--canvas-node-border) !important;
+  background-color: var(--canvas-node-face) !important;
 }
-.app-shell[data-canvas-theme="soft"] .node-kind-function .workflow-node__type { color: var(--canvas-function); }
-.app-shell[data-canvas-theme="soft"] .node-kind-group .workflow-node__type { color: var(--canvas-group); }
 
-/* If / For / While containers keep compact functional geometry while sharing the accepted material language. */
+/* If / For / While: shared resizable geometry, Soft container material only. */
 .app-shell[data-canvas-theme="soft"] .workflow-node.workflow-structure {
-  border: 1px solid #cbdcf0;
-  border-radius: var(--canvas-container-radius);
+  border-color: #cbdcf0;
+  border-radius: 14px;
   background: rgba(251,253,255,.98);
-  box-shadow: 0 5px 12px rgba(91,119,159,.08), 0 17px 36px rgba(91,119,159,.15);
+  box-shadow: 0 3px 8px rgba(91,119,159,.07), 0 13px 30px rgba(91,119,159,.13);
 }
 .app-shell[data-canvas-theme="soft"] .workflow-structure > .workflow-node__body {
-  min-height: 84px;
-  margin: 0;
-  padding: 14px 62px 12px;
-  border-bottom: 1px solid #dbe7f5;
-  border-radius: calc(var(--canvas-container-radius) - 1px) calc(var(--canvas-container-radius) - 1px) 0 0;
+  border-color: #dbe7f5;
   background: rgba(246,250,255,.94);
   box-shadow: none;
 }
-.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__type { margin-bottom: 7px; color: #7185a3; font-size: calc(11px * var(--node-scale, 1)); }
-.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__label { color: var(--canvas-node-label); font-size: calc(21px * var(--node-scale, 1)); font-weight: 700; }
-.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__meta { margin-top: 7px; color: var(--canvas-node-meta); font-size: calc(10px * var(--node-scale, 1)); }
+.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__type { color: #7185a3; }
+.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__label { color: var(--canvas-node-label); }
+.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__meta { color: var(--canvas-node-meta); }
 .app-shell[data-canvas-theme="soft"] .workflow-structure__lane { border-color: #cadaee; background: rgba(235,244,253,.58); }
 .app-shell[data-canvas-theme="soft"] .workflow-structure__lane > span { color: #6f819c; background: #f8fbff; }
 
-/* Edges, Controls and MiniMap use the same restrained theme hierarchy. */
+/* Edges, Controls and MiniMap. */
 .app-shell[data-canvas-theme="soft"] .react-flow__edge-path,
-.app-shell[data-canvas-theme="soft"] .react-flow__connection-path {
-  stroke: var(--canvas-edge);
-  stroke-linecap: round;
-}
+.app-shell[data-canvas-theme="soft"] .react-flow__connection-path { stroke: var(--canvas-edge); stroke-linecap: round; }
 .app-shell[data-canvas-theme="soft"] .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--canvas-edge-selected);
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--canvas-edge-selected) 30%, transparent));
@@ -330,7 +181,7 @@
 .app-shell[data-canvas-theme="soft"] .react-flow__minimap {
   border-color: #d6e4f4;
   background: rgba(251,253,255,.96);
-  box-shadow: 0 10px 24px rgba(91,119,159,.14);
+  box-shadow: 0 8px 20px rgba(91,119,159,.12);
 }
 .app-shell[data-canvas-theme="soft"] .react-flow__controls button {
   color: var(--canvas-node-label);
@@ -338,82 +189,74 @@
   background: rgba(251,253,255,.96);
 }
 
-/* Production status keeps semantic colors without replacing the accepted card material. */
+/* Execution status changes appearance without changing border-box dimensions. */
 .app-shell[data-canvas-theme="soft"] .workflow-node.status-running { border-color: #38bdf8 !important; }
 .app-shell[data-canvas-theme="soft"] .workflow-node.status-success { border-color: #22c55e !important; }
 .app-shell[data-canvas-theme="soft"] .workflow-node.status-error {
-  border: 2px solid #ef4444 !important;
-  box-shadow: 0 0 0 2px rgba(239,68,68,.15), 0 17px 36px rgba(127,29,29,.18) !important;
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 2px rgba(239,68,68,.15), 0 12px 26px rgba(127,29,29,.16) !important;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node.status-disabled { opacity: .48; filter: saturate(.55); }
 
-/* 1.6.7 dark material: flat face, single contour, contact + broad cast shadow. */
+/* Dark Soft material: same geometry, flatter face and deeper contact shadow. */
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) {
-  border: 1px solid #3b526b;
+  border-color: var(--canvas-node-border);
   background:
-    linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 42px, rgba(255,255,255,0) 92px),
+    linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 34%, rgba(255,255,255,0) 74%),
     linear-gradient(180deg, #1a293b 0%, #182738 100%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.070),
     inset 0 -1px 0 rgba(0,0,0,.28),
-    0 2px 4px rgba(0,0,0,.40),
-    0 10px 22px rgba(0,0,0,.30),
-    0 28px 54px rgba(0,0,0,.34);
+    0 2px 4px rgba(0,0,0,.36),
+    0 10px 22px rgba(0,0,0,.28);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
   border-color: #496682;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.026) 0, rgba(255,255,255,.008) 42px, rgba(255,255,255,0) 92px),
+    linear-gradient(180deg, rgba(255,255,255,.026) 0, rgba(255,255,255,.008) 34%, rgba(255,255,255,0) 74%),
     linear-gradient(180deg, #1c2c3f 0%, #19293b 100%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.082),
     inset 0 -1px 0 rgba(0,0,0,.30),
-    0 3px 6px rgba(0,0,0,.42),
-    0 12px 26px rgba(0,0,0,.32),
-    0 32px 62px rgba(0,0,0,.36);
+    0 3px 6px rgba(0,0,0,.39),
+    0 12px 25px rgba(0,0,0,.30);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
   border-color: #5480a7;
-  outline: none !important;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.075),
     inset 0 -1px 0 rgba(0,0,0,.28),
-    0 2px 5px rgba(0,0,0,.41),
-    0 11px 24px rgba(0,0,0,.31),
-    0 29px 56px rgba(0,0,0,.35),
-    0 0 18px rgba(79,155,224,.075);
+    0 2px 5px rgba(0,0,0,.38),
+    0 11px 24px rgba(0,0,0,.29),
+    0 0 16px rgba(79,155,224,.07);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.node-kind-function:not(.workflow-structure),
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure) {
-  border: 1px solid #3b526b !important;
+  border-color: var(--canvas-node-border) !important;
   background:
-    linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 42px, rgba(255,255,255,0) 92px),
+    linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 34%, rgba(255,255,255,0) 74%),
     linear-gradient(180deg, #1a293b 0%, #182738 100%) !important;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__type { color: var(--canvas-node-type); }
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-function .workflow-node__type { color: var(--canvas-function); }
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-group .workflow-node__type { color: var(--canvas-group); }
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-function .workflow-node__type,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-function .workflow-node__tag { color: var(--canvas-function); }
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-group .workflow-node__type,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-group .workflow-node__meta-count { color: var(--canvas-group); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__label { color: var(--canvas-node-label); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__meta { color: var(--canvas-node-meta); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__tag { color: #32d284; }
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-function .workflow-node__tag { color: #b39cff; }
-
-/* 1.6.7 specifically removes button bulge in dark mode. */
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action {
-  border: 1px solid #334b68;
+  border-color: #334b68;
+  color: var(--canvas-run);
   background: #192536;
   box-shadow: none;
-}
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action::before {
-  border-left-color: var(--canvas-run);
-  filter: none;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action:hover,
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action:focus-visible {
   border-color: #496784;
+  color: var(--canvas-run-hover);
   background: #1d2c3e;
   box-shadow: none;
-  transform: none !important;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .react-flow__handle {
   border-color: #d9e7f5;
@@ -423,12 +266,12 @@
   border-color: #31465f;
   color: #9aaac0;
   background: linear-gradient(180deg, #1a293a 0%, #172536 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.050), inset 0 -1px 0 rgba(0,0,0,.24), 0 2px 4px rgba(0,0,0,.34), 0 12px 28px rgba(0,0,0,.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.050), 0 7px 18px rgba(0,0,0,.25);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-structure {
-  border: 1px solid #344b63;
+  border-color: #344b63;
   background: linear-gradient(180deg, rgba(255,255,255,.014) 0, rgba(255,255,255,0) 52px), #142334;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), inset 0 -1px 0 rgba(0,0,0,.26), 0 2px 4px rgba(0,0,0,.36), 0 9px 20px rgba(0,0,0,.27), 0 24px 46px rgba(0,0,0,.31);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.055), 0 9px 20px rgba(0,0,0,.27);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-structure > .workflow-node__body {
   border-color: #31465f;
@@ -443,7 +286,7 @@
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .react-flow__minimap {
   border-color: #2b4057;
   background: linear-gradient(180deg, #1a293a 0%, #172536 100%);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.050), inset 0 -1px 0 rgba(0,0,0,.24), 0 2px 4px rgba(0,0,0,.34), 0 12px 28px rgba(0,0,0,.28);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.050), 0 8px 20px rgba(0,0,0,.26);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .react-flow__controls button {
   color: #cdd8e6;
@@ -451,22 +294,3 @@
   background: #111c2a;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .react-flow__controls button:hover { background: #182638; }
-
-/* Canvas-theme setting itself belongs to the application shell, not to either canvas skin. */
-.settings-canvas-theme {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, .75fr);
-  gap: 12px;
-  align-items: end;
-  margin-bottom: 14px;
-  padding: 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-raised) 86%, transparent);
-}
-.settings-canvas-theme label { display: grid; gap: 6px; min-width: 0; }
-.settings-canvas-theme label > span { color: var(--text-muted); font-size: var(--font-xs); font-weight: 600; }
-.settings-canvas-theme small { color: var(--text-faint); font-size: var(--font-xs); line-height: 1.45; }
-@media (max-width: 680px) {
-  .settings-canvas-theme { grid-template-columns: 1fr; align-items: start; }
-}

@@ -1,3 +1,12 @@
+## 1.5.12 (135) — Shared canvas geometry and canvas-settings alignment — 2026-08-22
+
+- Made Canvas Theme an appearance-only layer: Soft no longer overrides node width/height, body layout, text metrics, port positions, result-preview placement or run-control placement. Classic and Soft now share the same React Flow geometry, so theme switching does not move nodes or edge anchors.
+- Enlarged shared endpoint sockets and port labels for readability in both light/dark and Classic/Soft modes.
+- Rebuilt the node run action as one shared 24×24 control with a geometrically centered CSS play mark; desktop hover and native selected visibility remain motion-free.
+- Reorganized Canvas settings: Canvas theme + Mini map share one aligned row, Result height + Show node results share one aligned row, and theme dropdown spacing is compact.
+- Added regression gates that reject theme-level geometry overrides and lock the new settings alignment.
+- Build revision: `1.5.12-dev-r91-theme-geometry-settings`.
+
 ## 1.5.11 (134) — Canvas Theme Lab 1.6.7 production absorption — 2026-08-22
 
 - Replaced the production `Soft` canvas skin with the user-approved **Canvas Theme Lab 1.6.7 · Flat Run Control** visual system while preserving the existing `soft` theme id, settings persistence and `Classic` rollback path.

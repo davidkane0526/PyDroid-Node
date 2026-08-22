@@ -1,9 +1,9 @@
-# Current development handoff — 1.5.11 Theme Lab 1.6.7 absorption
+# Current development handoff — 1.5.12 shared canvas geometry + settings alignment
 
-Branch: `feature/1.5.11-theme-lab-1.6.7`
-Version: **1.5.11**
-Android versionCode: **134**
-Build revision: `1.5.11-dev-r90-theme-lab-1.6.7`
+Branch: `fix/1.5.12-theme-geometry-settings`
+Version: **1.5.12**
+Android versionCode: **135**
+Build revision: `1.5.12-dev-r91-theme-geometry-settings`
 
 ## Non-negotiable continuation rules
 
@@ -12,12 +12,21 @@ Build revision: `1.5.11-dev-r90-theme-lab-1.6.7`
 3. Notebook conversion is correctness-first. Unproven code remains executable Python instead of being force-lowered.
 4. Do not restore removed `logic.*_subflow`, retired `notebook.*_block`, hidden source-execution bridges, name-triggered scientific helper lowering or edge-order port guessing.
 5. Do not delete persistent workflow schema migrations/future-version protection; these protect user data and are distinct from obsolete runtime bridges.
-6. Remote Web/LAN production paths are accepted baselines. Unrelated compiler/runtime work must not redesign them.
-
+6. Remote Web/LAN production paths are accepted baselines. Unrelated UI/compiler/runtime work must not redesign them.
 
 ## Canvas theme state
 
-`Soft` now uses the user-approved **PyDroid Canvas Theme Lab 1.6.7 · Flat Run Control**. Production keeps the lab's 385×268 reference-card proportions, 23 px radius, 46 px run button, enlarged port labels, flat dark material and light/dark hierarchy. Two deliberate production adaptations remain: nodes never translate on hover, and selectors target the real `status-*` node DOM. `Classic` remains an untouched rollback path.
+`Soft` still uses the user-approved **PyDroid Canvas Theme Lab 1.6.7 · Flat Run Control** material language, but from 1.5.12 canvas themes are explicitly **appearance-only**. `Classic` and `Soft` share the exact production geometry from `styles.css`: node bounds, body layout, typography metrics, port positions, result-preview placement and run-control placement. Theme switching therefore must not move nodes or edge anchors.
+
+Shared visual-geometry refinements in 1.5.12:
+
+- endpoint sockets are 16 px at 100% endpoint scale;
+- port labels use 10.5 px shared text, with 11 px vertical labels;
+- dynamic port-label width budgeting is slightly wider for readability;
+- node run action uses one shared 24×24 control and a centered CSS play mark in both themes;
+- desktop hover / native selected visibility behavior remains unchanged and motion-free.
+
+Canvas settings layout is now intentional: Canvas theme + Mini map share one row, while Result height + Show node results share one row. Theme selectors use compact label-to-dropdown spacing.
 
 ## Notebook/Jupyter state
 
@@ -25,34 +34,23 @@ Both `.ipynb` entry points use the same parse → analyze → compile → instal
 
 Top-level and portable-function lowering currently covers proven native chains plus Map / Reduce / Accumulator and strict If / For / finite numeric While structures. Unsupported/dynamic/free-global/side-effecting cases retain Python.
 
-Removed in 1.5.10:
-
-- generic `notebookSource` execution on arbitrary native nodes;
-- `notebook.if_block`, `notebook.for_block`, `notebook.while_block`;
-- `table.group_mean` compatibility alias;
-- over-specialized `table.periodic_group_mean`;
-- function-name-triggered lowering for project-specific helpers;
-- multi-input `left/right` guessing from edge insertion order.
-
 ## Python / JavaScript parity
 
-NodeContract now has A/B/C parity classes and a parameter-level runtime compatibility gate. Auto mode chooses JavaScript only when the node and current parameters are portable.
+NodeContract has A/B/C parity classes and a parameter-level runtime compatibility gate. Auto mode chooses JavaScript only when the node and current parameters are portable.
 
-Checkpoint results:
+Latest accepted checkpoint before this UI-only change:
 
 - Runtime parity: **102/102** golden workflows.
 - JavaScript-capable NodeContract coverage: **82/82**.
 - Runtime parameter-selection smoke: **6/6**.
 - Python suite: **153 passed, 1 skipped**.
 
-1.5.10 specifically tightened CSV/Table semantics including pandas `header="infer" + names`, `nRows`, whitespace, duplicate headers, boolean/mixed inference, usecols ordering, negative slicing/head/tail, bool abs/diff, half-even round, groupby missing keys, column-label sort-index and pivot ordering/text aggregation.
-
 ## Validation expected before delivery
 
-In addition to Python/parity tests, run Notebook canonical import, Workflow Compatibility/Core, Runtime Engine, NodeContract, Editor/ownership, UI/Plot/Theme/Demo, Host/Remote/LAN and Execution architecture gates. Finish with `git diff --check`, clean `git status` and `git fsck`.
+Run Canvas Theme/UI regression plus the existing Notebook, Workflow Compatibility/Core, Runtime Engine, NodeContract, parity, Editor/ownership, Plot/Demo, Host/Remote/LAN and Execution architecture gates. Finish with `git diff --check`, clean `git status` and `git fsck`.
 
 The development ZIP intentionally excludes `node_modules`; a complete pinned `pnpm` renderer/desktop package build remains the responsibility of a dependency-installed Node 24 build environment. Do not report that build as passing when it was not executed.
 
 ## Recommended next step
 
-Freeze architecture and theme after user visual acceptance. The next engineering work should be a **1.6.0 release-candidate stabilization pass**: real scientific workflow acceptance on Windows/Android, renderer/runtime performance and memory-leak checks, repeated Python↔JS execution, PlotView lifecycle stress, project save/reopen, Remote Web/LAN/SMB smoke, and complete dependency-installed Node 24 desktop + Android packaging. Only fix failures found by that matrix; do not add new architecture before RC.
+After user visual acceptance of 1.5.12, freeze canvas geometry/theme and proceed to the 1.6.0 release-candidate stabilization matrix instead of adding more architecture.

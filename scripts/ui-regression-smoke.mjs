@@ -90,4 +90,12 @@ assert.match(app, /maxPortCount[\s\S]*nodeMinHeight[\s\S]*horizontalPortLabelWid
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");
 assert.match(css, /\.notebook-order-handle\s*\{[^}]*opacity:\s*0\s*!important;[^}]*pointer-events:\s*none\s*!important;/, "Notebook order handles must remain invisible and non-interactive");
 
+assert.match(css, /\.node-run-action\s*\{[^}]*display:\s*grid;[^}]*width:\s*24px;[^}]*height:\s*24px;[^}]*place-items:\s*center;/, "shared node run button geometry should center the play mark in both canvas themes");
+assert.match(css, /\.node-run-action::before\s*\{[^}]*width:\s*9px;[^}]*height:\s*11px;[^}]*clip-path:[^}]*translateX\(1px\)/, "shared run button should use an optically centered CSS play mark");
+assert.match(css, /\.react-flow__handle\s*\{[^}]*width:\s*calc\(16px \* var\(--endpoint-scale, 1\)\);[^}]*height:\s*calc\(16px \* var\(--endpoint-scale, 1\)\)/, "shared endpoint geometry should be enlarged consistently across light/dark and canvas themes");
+assert.match(css, /\.input-port span, \.output-port span \{[^}]*font-size:\s*calc\(10\.5px \* var\(--node-scale, 1\)\)/, "port labels should use the enlarged shared type size");
+assert.match(dialogs, /settings-canvas-select-row[\s\S]*画布主题[\s\S]*缩略图/, "canvas theme and minimap selectors should share one aligned settings row");
+assert.match(dialogs, /settings-canvas-result-row[\s\S]*结果区高度[\s\S]*显示节点运行结果/, "node-result visibility should align with the result-height control row");
+assert.match(css, /\.settings-canvas-select\s*\{[^}]*grid-template-columns:\s*max-content minmax\(138px, 164px\)[^}]*gap:\s*8px;/, "canvas selector labels should sit close to their dropdowns");
+
 console.log("UI regression smoke passed.");

@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.11-dev-r90-theme-lab-1.6.7"
+$script:BuildScriptRevision = "1.5.12-dev-r91-theme-geometry-settings"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
