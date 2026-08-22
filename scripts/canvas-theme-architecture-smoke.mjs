@@ -9,6 +9,7 @@ const dialogs = read("src/dialogs.tsx");
 const main = read("src/main.tsx");
 const registry = read("src/canvas-theme.ts");
 const css = read("src/canvas-themes.css");
+const sharedStyles = read("src/styles.css");
 
 const checks = [
   [registry.includes('"classic"') && registry.includes('"soft"'), "canvas theme registry exposes classic and soft themes"],
@@ -26,6 +27,9 @@ const checks = [
   [!/(?:width|height|min-height|max-height|padding|top|right|bottom|left|margin|font-size)\s*:/i.test(css), "canvas theme CSS is appearance-only and cannot change shared node geometry"],
   [!css.includes("385px") && !css.includes("268px") && !css.includes("46px"), "Theme Lab reference geometry is not copied into production theme overrides"],
   [!css.includes(".canvas-panel") && !css.includes(".react-flow__background"), "canvas theme cannot replace or fade the shared canvas background/grid/masks"],
+  [app.includes('<Background variant={BackgroundVariant.Dots} gap={20} size={1.25} />') && !/Background[^>]+canvasTheme/.test(app), "React Flow dot background is identical across Classic and Soft themes"],
+  [app.includes('M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45') && sharedStyles.includes('top: -0.5px') && sharedStyles.includes('width: 12px; height: 12px'), "run glyph is smaller, softly rounded and optically centered"],
+  [sharedStyles.includes('.environment-float-button > svg circle { fill: currentColor; stroke: none; }') && sharedStyles.includes('stroke-width: 1;'), "environment icon uses crisp one-pixel rails with solid controls"],
   [css.includes("Run button shares Classic geometry") && css.includes("transform: none !important"), "soft run control keeps shared placement and motion-free interaction"],
   [/node-run-action[^{]*\{[^}]*transform:\s*none\s*!important/s.test(css), "soft run action visibility does not use positional motion"],
   [css.includes("workflow-node__tag") && css.includes("workflow-node__meta-count"), "soft cards expose structured metadata and tag styling"],

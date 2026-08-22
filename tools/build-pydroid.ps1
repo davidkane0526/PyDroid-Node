@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.13-dev-r92-canvas-visual-alignment"
+$script:BuildScriptRevision = "1.5.14-dev-r93-canvas-optical-alignment"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

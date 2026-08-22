@@ -1,9 +1,9 @@
-# Current development handoff — 1.5.13 canvas visual alignment + shared guides
+# Current development handoff — 1.5.14 canvas optical alignment + shared background
 
-Branch: `fix/1.5.13-canvas-visual-alignment`
-Version: **1.5.13**
-Android versionCode: **136**
-Build revision: `1.5.13-dev-r92-canvas-visual-alignment`
+Branch: `fix/1.5.14-canvas-optical-alignment`
+Version: **1.5.14**
+Android versionCode: **137**
+Build revision: `1.5.14-dev-r93-canvas-optical-alignment`
 
 ## Non-negotiable continuation rules
 
@@ -23,10 +23,16 @@ Shared visual-geometry refinements retained from 1.5.12:
 - endpoint sockets are 16 px at 100% endpoint scale;
 - port labels use 10.5 px shared text, with 11 px vertical labels;
 - dynamic port-label width budgeting is slightly wider for readability;
-- node run action uses one shared 24×24 control in both themes; 1.5.13 replaces the old CSS mark with an exact-centroid SVG play glyph;
+- node run action uses one shared 24×24 control in both themes; 1.5.14 uses a smaller rounded SVG play glyph with a 0.5 px optical upward correction;
 - desktop hover / native selected visibility behavior remains unchanged and motion-free.
 
 Canvas settings layout is now intentional: Canvas theme + Mini map share one row, while Result height + Show node results share one row. Theme selectors use compact label-to-dropdown spacing.
+
+1.5.14 optical alignment additions:
+
+- React Flow `<Background>` no longer receives a Soft-specific color; Classic and Soft now share the exact same canvas dot/background configuration.
+- The Environment control icon uses a native 14×14 SVG grid, one-pixel rails and filled knobs so a thinner icon remains crisp instead of becoming hollow/fuzzy.
+- The node run glyph is slightly smaller, has subtly rounded corners, and is optically shifted upward by 0.5 px inside the unchanged shared button box.
 
 1.5.13 visual alignment additions:
 
@@ -59,4 +65,4 @@ The development ZIP intentionally excludes `node_modules`; a complete pinned `pn
 
 ## Recommended next step
 
-1.5.13 further freezes shared canvas guides/background across themes and corrects the run/environment icon optics. After user visual acceptance, proceed to the 1.6.0 release-candidate stabilization matrix instead of adding more architecture.
+1.5.14 makes Classic/Soft share the exact React Flow background configuration and refines the run/environment icon optics. After user visual acceptance, proceed to the 1.6.0 release-candidate stabilization matrix instead of adding more architecture.

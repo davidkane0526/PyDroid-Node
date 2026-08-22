@@ -1,3 +1,11 @@
+## 1.5.14 (137) — Canvas optical alignment and shared background — 2026-08-22
+
+- Makes React Flow dot/background rendering identical between Classic and Soft by removing the remaining theme-dependent `<Background>` color prop.
+- Rebuilds the floating Environment icon on a native 14×14 grid with one-pixel rails and solid control knobs, avoiding the fuzzy subpixel scaling introduced in 1.5.13.
+- Replaces the node run glyph with a smaller rounded SVG play mark and applies a 0.5 px optical upward correction while keeping the shared 24×24 button geometry unchanged.
+- Extends theme/UI regression gates so canvas background parity, run-glyph optics and Environment icon sharpness cannot regress silently.
+- Build revision: `1.5.14-dev-r93-canvas-optical-alignment`.
+
 ## 1.5.13 (136) — Canvas visual alignment and shared guides — 2026-08-22
 
 - Replaces the node run glyph with an exact-centroid SVG triangle shared by Classic and Soft, removing the remaining optical misalignment inside the run-button border.
