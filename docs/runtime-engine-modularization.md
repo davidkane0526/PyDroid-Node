@@ -4,7 +4,7 @@ Phase 6 architecture rules for Python and JavaScript runtimes.
 
 ## Python
 
-`python/pydroid_flow/engine.py` is a compatibility facade, not an implementation bucket. External callers may continue importing `execute_workflow`, `analyze_signature_json`, environment/cache helpers and the historical custom-import policy facade from this module.
+`python/pydroid_flow/engine.py` is the current Python host entry surface, not an implementation bucket. It exposes only the operations used by the active desktop/Android hosts: `execute_workflow`, `analyze_signature_json`, `environment_info_json` and `allow_all_custom_imports`. Internal helpers are imported from their owning `engine_parts` modules and are not re-exported through `engine.py`.
 
 Implementation lives under `python/pydroid_flow/engine_parts/`:
 
@@ -14,7 +14,7 @@ engine_parts/
 ├─ node_dispatch.py        # transitional node-family dispatcher
 ├─ notebook_execution.py   # raw notebook cell execution
 ├─ graph.py                # ordering, edges, upstream resolution, container discovery
-├─ cache.py                # node-result cache persistence/digests
+├─ cache.py                # in-memory node-result cache/digests
 ├─ values.py               # column/value/parameter coercion helpers
 ├─ random_portable.py      # locked portable-v1 RNG/sample semantics
 ├─ io_readers.py           # CSV/batch CSV parsing
@@ -28,7 +28,7 @@ As of 1.4.40, `node_dispatch.py` is no longer a transitional implementation file
 
 As of 1.4.41, JavaScript `engine/nodes.ts` follows the same architectural rule: it is a routing facade only. Concrete JS families live in `engine/nodes/`, while reusable helpers are split under `engine/nodes/support/` (`types`, `common`, `io`, `table_ops`, `control`, `analysis`, `pulse`, `serialization`). This is intentionally not a requirement for file-name symmetry with Python; the invariant is that domain logic is isolated and parity-protected.
 
-As of 1.4.42, JavaScript workflow orchestration is also modularized. `engine/engine.ts` is a compatibility facade; concrete workflow responsibilities live under `engine/workflow/`:
+As of 1.4.42, JavaScript workflow orchestration is also modularized. `engine/engine.ts` is the current routing entry; concrete workflow responsibilities live under `engine/workflow/`:
 
 ```text
 workflow/
@@ -42,7 +42,7 @@ workflow/
 
 ## JavaScript
 
-The JavaScript runtime now has stable facade/routing boundaries for both node dispatch and workflow execution. Do not force file-by-file symmetry with Python. Behavior symmetry is enforced by NodeContract plus the Phase 5 golden parity gate. `engine.ts` and `nodes.ts` must remain small compatibility/routing facades; new workflow responsibilities belong under `engine/workflow/`, and new node algorithms belong under `engine/nodes/`.
+The JavaScript runtime now has stable routing boundaries for both node dispatch and workflow execution. Do not force file-by-file symmetry with Python. Behavior symmetry is enforced by NodeContract plus the parity gate. `engine.ts` and `nodes.ts` must remain small routing entries; new workflow responsibilities belong under `engine/workflow/`, and new node algorithms belong under `engine/nodes/`.
 
 ## Non-negotiable behavior locks
 

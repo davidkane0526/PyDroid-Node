@@ -250,8 +250,3 @@ export function canSafelyPreExecuteNodes(nodes: NodeTypeCarrier[]): { safe: bool
   )].sort();
   return { safe: blockingNodeTypes.length === 0, blockingNodeTypes };
 }
-
-
-export function getNodeContractVersion(nodeType: string): number | null {
-  return getNodeContract(nodeType)?.version ?? null;
-}

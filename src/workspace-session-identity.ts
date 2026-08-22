@@ -25,10 +25,6 @@ export function createWorkspaceSessionIdentity(workspaceId: string, clientId: st
   };
 }
 
-export function workspaceSessionKey(identity: Pick<WorkspaceSessionIdentity, "workspaceId" | "clientId" | "source">): string {
-  return createWorkspaceSessionIdentity(identity.workspaceId, identity.clientId, identity.source).key;
-}
-
 export function matchesHostExecution(identity: Pick<WorkspaceSessionIdentity, "workspaceId" | "clientId" | "source">, entry: Pick<HostExecutionEntry, "workspaceId" | "clientId" | "source">): boolean {
   return identity.workspaceId === entry.workspaceId && identity.clientId === entry.clientId && identity.source === entry.source;
 }

@@ -6,6 +6,5 @@ export * from "./node-migrations";
 export * from "./schema-migrations";
 export * from "./model";
 export * from "./persistence";
-export * from "./serialization";
 export * from "./session";
 export * from "./validation";

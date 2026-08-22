@@ -1,4 +1,4 @@
-import { parseWorkflow, serializeWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowNode } from "../workflow";
+import { parseWorkflow, WORKFLOW_SCHEMA_VERSION, type WorkflowNode } from "../workflow";
 import { getNodeContract } from "../nodeContract";
 import { getNodeSpec } from "../nodeCatalog";
 import { isWorkflowCompatibilityError, normalizeWorkflowNodeVersions, WorkflowCompatibilityError } from "../workflow-core/migrations";
@@ -98,9 +98,4 @@ export function migrateFlowEntry(entry: FlowLibraryEntry): FlowLibraryEntry {
   } catch (error) {
     return { ...entry, compatibility: compatibilityForError(error) };
   }
-}
-
-export function canonicalFlowDocument(name: string, document: string): string {
-  const parsed = parseWorkflow(document);
-  return JSON.stringify(serializeWorkflow(name || parsed.name, parsed.nodes, parsed.edges, parsed.requirements, parsed.functions, parsed.environment, parsed.parameters), null, 2);
 }

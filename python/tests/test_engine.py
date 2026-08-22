@@ -5,20 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pydroid_flow.engine import (
-    _clear_node_result_cache,
-    _execute_node,
-    _group_aggregate,
-    _logic_expression,
-    _node_result_cache,
-    _pulse_combine_channels,
-    _pulse_segment_measurement,
-    _round_half_away,
-    analyze_signature_json,
-    execute_workflow,
-    load_node_result_cache,
-    save_node_result_cache,
-)
+from pydroid_flow.engine import analyze_signature_json, execute_workflow
+from pydroid_flow.engine_parts.analysis_nodes import _group_aggregate, _logic_expression
+from pydroid_flow.engine_parts.cache import _node_result_cache
+from pydroid_flow.engine_parts.node_dispatch import _execute_node
+from pydroid_flow.engine_parts.pulse_nodes import _pulse_combine_channels, _pulse_segment_measurement
+from pydroid_flow.engine_parts.values import _round_half_away
+from pydroid_flow.engine_parts.workflow_execution import _run_with_cancel_trace
 
 
 def node(node_id, node_type, parameters=None):
@@ -949,7 +942,7 @@ def test_analyze_signature_json_matches_frontend_shape():
 
 
 def test_execution_cache_reuses_unchanged_pure_nodes():
-    _clear_node_result_cache()
+    _node_result_cache.clear()
     workflow = [node("read", "io.read_csv", {"header": "infer"}), node("abs", "table.absolute")]
     edges = [edge("read", "abs")]
     execute(workflow, edges, "x\n-1\n2\n")
@@ -959,7 +952,7 @@ def test_execution_cache_reuses_unchanged_pure_nodes():
 
 
 def test_execution_cache_recomputes_when_input_changes():
-    _clear_node_result_cache()
+    _node_result_cache.clear()
     workflow = [node("read", "io.read_csv", {"header": "infer"}), node("abs", "table.absolute")]
     edges = [edge("read", "abs")]
     execute(workflow, edges, "x\n-1\n2\n")
@@ -968,35 +961,19 @@ def test_execution_cache_recomputes_when_input_changes():
     assert result["preview"]["rows"] == [[5], [6]]
 
 
-def test_execution_cache_round_trips_to_disk(tmp_path):
-    _clear_node_result_cache()
-    workflow = [node("read", "io.read_csv", {"header": "infer"}), node("abs", "table.absolute")]
-    edges = [edge("read", "abs")]
-    execute(workflow, edges, "x\n-1\n2\n")
-    assert len(_node_result_cache) == 1
-    cache_file = tmp_path / "execution-cache.json"
-    save_node_result_cache(str(cache_file))
-    _clear_node_result_cache()
-    assert len(_node_result_cache) == 0
-    load_node_result_cache(str(cache_file))
-    assert len(_node_result_cache) == 1
-    execute(workflow, edges, "x\n-1\n2\n")
-    assert len(_node_result_cache) == 1  # 反序列化后的缓存命中，不新增条目
-
-
 def test_custom_import_policy_is_platform_aware():
-    import pydroid_flow.engine as engine
-    engine._CUSTOM_ALLOW_ALL_IMPORTS = False  # 重置为移动端默认（避免 desktop_bridge 副作用污染）
-    assert engine._import_root_allowed("statistics") is True
-    assert engine._import_root_allowed("requests") is False  # 移动端白名单
-    assert engine._import_root_allowed("os") is False  # 危险模块始终禁止
-    engine.allow_all_custom_imports()
+    from pydroid_flow.engine_parts import custom_function
+    custom_function._CUSTOM_ALLOW_ALL_IMPORTS = False  # 重置为移动端默认（避免 desktop_bridge 副作用污染）
+    assert custom_function._import_root_allowed("statistics") is True
+    assert custom_function._import_root_allowed("requests") is False  # 移动端白名单
+    assert custom_function._import_root_allowed("os") is False  # 危险模块始终禁止
+    custom_function.allow_all_custom_imports()
     try:
-        assert engine._import_root_allowed("requests") is True  # 桌面端放宽
-        assert engine._import_root_allowed("os") is False  # 危险模块仍禁止
-        assert engine._import_root_allowed("subprocess") is False
+        assert custom_function._import_root_allowed("requests") is True  # 桌面端放宽
+        assert custom_function._import_root_allowed("os") is False  # 危险模块仍禁止
+        assert custom_function._import_root_allowed("subprocess") is False
     finally:
-        engine._CUSTOM_ALLOW_ALL_IMPORTS = False
+        custom_function._CUSTOM_ALLOW_ALL_IMPORTS = False
 
 
 def test_groupby_aggregate_groups_by_column_values():
@@ -1025,8 +1002,6 @@ def test_linear_fit_computes_linregress_statistics():
 def test_android_notebook_cancel_trace_interrupts_pure_python(monkeypatch):
     import sys
     import types
-    from pydroid_flow import engine as engine_module
-
     class Cancellation:
         checks = 0
 
@@ -1050,7 +1025,7 @@ def test_android_notebook_cancel_trace_interrupts_pure_python(monkeypatch):
         return total
 
     with pytest.raises(KeyboardInterrupt, match="cancelled"):
-        engine_module._run_with_cancel_trace("exec-cancel", busy_python)
+        _run_with_cancel_trace("exec-cancel", busy_python)
 
 
 def test_workflow_context_initializes_imports_parameters_and_functions_before_canvas_nodes():

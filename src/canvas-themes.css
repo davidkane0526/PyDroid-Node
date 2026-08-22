@@ -22,7 +22,6 @@
   --canvas-handle-ring: #ffffff;
   --canvas-function: #8059e8;
   --canvas-group: #12965e;
-  --canvas-flow: #3698e6;
 }
 
 .app-shell[data-canvas-theme="soft"][data-theme="dark"] {
@@ -37,7 +36,6 @@
   --canvas-handle-ring: #22364c;
   --canvas-function: #b39cff;
   --canvas-group: #39d48c;
-  --canvas-flow: #67baf4;
 }
 
 /* Canvas background/grid/selection masks are shared by every theme.

@@ -17,7 +17,7 @@ const androidPythonService = read("android/app/src/main/java/com/dk/pydroidflow/
 const androidController = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutionController.java");
 const androidRemote = read("android/app/src/main/java/com/dk/pydroidflow/RemoteWorkflowServer.java");
 const androidCancellation = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutionCancellation.java");
-const pythonEngine = read("python/pydroid_flow/engine.py");
+const pythonWorkflowExecution = read("python/pydroid_flow/engine_parts/workflow_execution.py");
 const desktopProcessController = read("desktop/execution/PythonProcessController.cjs");
 const desktopScheduler = read("desktop/execution/WorkflowExecutionScheduler.cjs");
 const app = read("src/App.tsx");
@@ -49,7 +49,7 @@ assert.match(androidController, /Executors\.newSingleThreadExecutor/, "Android P
 assert.match(androidController, /Phase\.QUEUED/, "Android must expose queued workspace execution state");
 assert.doesNotMatch(androidController, /EXECUTION_BUSY.*已有工作流正在执行/s, "Android should queue a second workspace instead of rejecting it as globally busy");
 assert.match(androidCancellation, /ConcurrentHashMap/, "Android cancellation tokens must be visible to embedded Python");
-assert.match(pythonEngine, /_run_with_cancel_trace/, "pure-Python notebook execution should cooperatively observe Android cancellation");
+assert.match(pythonWorkflowExecution, /_run_with_cancel_trace/, "pure-Python notebook execution should cooperatively observe Android cancellation");
 assert.match(androidController, /EXECUTION_TIMEOUT/, "Android controller must classify timeouts");
 assert.match(androidController, /EXECUTION_CANCELLED/, "Android controller must classify cancellations");
 assert.match(app, /cancelActiveExecution/, "UI must consume the unified controller cancellation API");

@@ -22,7 +22,7 @@ const checks = [
   [dialogs.includes('L("画布主题", "Canvas theme")'), "settings UI exposes canvas theme selection"],
   [css.includes('[data-canvas-theme="soft"]') && !css.includes('[data-canvas-theme="classic"] .workflow-node'), "classic remains the unmodified baseline while soft is isolated"],
   [!dialogs.includes("Theme Lab") && !registry.includes("descriptionZh") && !registry.includes("descriptionEn"), "canvas theme selector exposes product labels without development provenance notes"],
-  [css.includes("--canvas-function") && css.includes("--canvas-group") && css.includes("--canvas-flow"), "soft theme keeps semantic function/group/flow tokens"],
+  [css.includes("--canvas-function") && css.includes("--canvas-group") && css.includes(".workflow-node.workflow-structure"), "soft theme keeps semantic function/group/flow styling"],
   [!css.includes("translateY(-1px)") && /workflow-node:not\(\.workflow-structure\):hover\s*\{[^}]*transform:\s*none\s*;/s.test(css), "soft node hover never changes node geometry"],
   [!/(?:width|height|min-height|max-height|padding|top|right|bottom|left|margin|font-size)\s*:/i.test(css), "canvas theme CSS is appearance-only and cannot change shared node geometry"],
   [!css.includes("385px") && !css.includes("268px") && !css.includes("46px"), "Theme Lab reference geometry is not copied into production theme overrides"],

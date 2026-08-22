@@ -29,7 +29,7 @@ runtimeSupport: ["python", "javascript"]
 
 Do not create another `JAVASCRIPT_SUPPORTED_NODE_TYPES`-style independent list. `src/runtime/javascript/support.ts` derives support from NodeContract.
 
-Legacy node types which are intentionally accepted for backwards compatibility but no longer appear in the visible catalog belong in the compatibility-contract section of `nodeContract.ts`, with an explicit note.
+Non-catalog structural/function node types that are part of the current workflow model belong in the special-contract section of `nodeContract.ts`. Removed node types are not kept there solely for historical compatibility.
 
 ## 3. Function nodes — reserved architecture
 
@@ -122,6 +122,6 @@ Phase 4 is complete once the following invariants are maintained:
 - JavaScript unsupported-node diagnostics use NodeContract helpers;
 - workflow import validation resolves node identity/version and declared port compatibility through NodeSpec/NodeContract;
 - speculative UI execution must call `canSafelyPreExecuteNodes()` and must not pre-run stateful or side-effecting slices;
-- no independent JavaScript support table may be introduced; compatibility exports may exist only as derived views over NodeContract.
+- no independent JavaScript support table may be introduced; runtime capability views must be derived from NodeContract.
 
 Future function/global-variable work must extend this contract rather than adding runtime-specific flags elsewhere.

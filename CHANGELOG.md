@@ -1,3 +1,13 @@
+## 1.5.16 (139) — Dead-code audit and stale-path removal — 2026-08-23
+
+- Removed three unreachable frontend patch modules (`catalog-overrides`, `settings-version`, `ui-runtime`) and the test that only exercised the unused catalog override.
+- Removed zero-reference runtime helpers from Notebook analysis, JavaScript table handling, NodeContract, workspace identity, workflow structure helpers, editor resource migrations and Workflow Core serialization.
+- Reduced `python/pydroid_flow/engine.py` to the four operations used by the active desktop/Android hosts; internal test helpers now import from their owning modules instead of relying on historical facade re-exports.
+- Removed the unused disk persistence layer for the Python node-result cache; the active in-memory execution cache remains unchanged.
+- Removed unreachable CSS for superseded SMB layouts, result-toolbar/data-grid counters, old node-delete/statusbar controls and other classes with no production DOM owner, plus unused theme/font tokens.
+- Kept current schema migration, Remote/LAN/SMB, diagnostics, Theme Lab and runtime paths because they still have active callers; this release adds no new fallback, retry, recovery or compatibility mechanism.
+- Build revision: `1.5.16-dev-r95-dead-code-audit`.
+
 ## 1.5.15 (138) — Production UI copy cleanup and unified run control — 2026-08-23
 
 - Removed Canvas Theme Lab/version/migration notes and other development-only guidance from user-facing settings and status messages.

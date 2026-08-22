@@ -981,18 +981,6 @@ def _statement_base(statement: ast.stmt, source: str) -> dict[str, Any]:
     return {"recognized": True, "semantic": False, "kind": kind, "nodeType": "notebook.code_cell", "label": CONTROL_LABELS.get(kind, kind), "parameters": {"source": fragment, "astKind": kind}, "source": fragment, "defines": definitions, "uses": uses, "reason": f"尚未将 {kind} 映射为默认节点"}
 
 
-def _condition_table_variable(test: ast.AST, uses: list[str]) -> tuple[str | None, str]:
-    """推导条件里的表格变量（`frame['voltage']` / `frame.voltage`），并把列引用改写为反引号形式。"""
-    candidates = [name for name in uses if name not in {"True", "False", "None"}]
-    table_candidates = [_root_name(item.value) for item in ast.walk(test) if isinstance(item, ast.Subscript)]
-    table_variable = next((name for name in table_candidates if name), None)
-    condition = ast.unparse(test)
-    if table_variable:
-        condition = re.sub(rf"\b{re.escape(table_variable)}\[['\"]([^'\"]+)['\"]\]", r"`\1`", condition)
-        condition = re.sub(rf"\b{re.escape(table_variable)}\.([A-Za-z_]\w*)", r"\1", condition)
-    return table_variable, condition
-
-
 def _branch_children(statements: list[ast.stmt], source: str, branch: str, user_functions: dict[str, dict[str, Any]] | None = None) -> tuple[list[dict[str, Any]], bool]:
     """Analyze one visual-structure branch.
 

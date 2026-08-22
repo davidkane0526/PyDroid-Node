@@ -20,10 +20,6 @@ export function toNumber(value: unknown): number | null {
   return Number.isNaN(parsed) ? null : parsed;
 }
 
-export function isNumericColumn(values: unknown[]): boolean {
-  return values.length > 0 && values.every((value) => value === null || value === undefined || value === "" || typeof value === "number" || typeof value === "boolean" || !Number.isNaN(Number(String(value).trim())));
-}
-
 function compareValues(a: unknown, b: unknown): number {
   const an = toNumber(a);
   const bn = toNumber(b);
