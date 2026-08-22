@@ -22,8 +22,8 @@ export const CANVAS_THEMES: readonly CanvasThemeDefinition[] = [
     id: "soft",
     labelZh: "柔和卡片",
     labelEn: "Soft cards",
-    descriptionZh: "柔和圆角、分层容器与青蓝强调的新版画布",
-    descriptionEn: "Soft rounded cards, layered containers and cyan-blue accents",
+    descriptionZh: "Theme Lab 1.6.7 平面卡片、扁平运行按钮与统一亮暗色材质",
+    descriptionEn: "Theme Lab 1.6.7 flat cards, flat run controls and unified light/dark materials",
   },
 ] as const;
 

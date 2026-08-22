@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.10-dev-r89-notebook-parity-cleanup"
+$script:BuildScriptRevision = "1.5.11-dev-r90-theme-lab-1.6.7"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

@@ -1,9 +1,9 @@
-# Current development handoff — 1.5.10 Notebook / JS parity cleanup
+# Current development handoff — 1.5.11 Theme Lab 1.6.7 absorption
 
-Branch: `feature/1.5.10-notebook-parity-cleanup`
-Version: **1.5.10**
-Android versionCode: **133**
-Build revision: `1.5.10-dev-r89-notebook-parity-cleanup`
+Branch: `feature/1.5.11-theme-lab-1.6.7`
+Version: **1.5.11**
+Android versionCode: **134**
+Build revision: `1.5.11-dev-r90-theme-lab-1.6.7`
 
 ## Non-negotiable continuation rules
 
@@ -13,6 +13,11 @@ Build revision: `1.5.10-dev-r89-notebook-parity-cleanup`
 4. Do not restore removed `logic.*_subflow`, retired `notebook.*_block`, hidden source-execution bridges, name-triggered scientific helper lowering or edge-order port guessing.
 5. Do not delete persistent workflow schema migrations/future-version protection; these protect user data and are distinct from obsolete runtime bridges.
 6. Remote Web/LAN production paths are accepted baselines. Unrelated compiler/runtime work must not redesign them.
+
+
+## Canvas theme state
+
+`Soft` now uses the user-approved **PyDroid Canvas Theme Lab 1.6.7 · Flat Run Control**. Production keeps the lab's 385×268 reference-card proportions, 23 px radius, 46 px run button, enlarged port labels, flat dark material and light/dark hierarchy. Two deliberate production adaptations remain: nodes never translate on hover, and selectors target the real `status-*` node DOM. `Classic` remains an untouched rollback path.
 
 ## Notebook/Jupyter state
 
@@ -50,4 +55,4 @@ The development ZIP intentionally excludes `node_modules`; a complete pinned `pn
 
 ## Recommended next step
 
-Do not expand the architecture immediately. Use real Notebook/scientific workflows to identify remaining high-value conversion or parity failures. Fix common exact semantics in native runtimes; gate genuinely pandas/Python-specific parameter combinations to Python. Continue deleting only obsolete execution paths, never user-data migration protection.
+Freeze architecture and theme after user visual acceptance. The next engineering work should be a **1.6.0 release-candidate stabilization pass**: real scientific workflow acceptance on Windows/Android, renderer/runtime performance and memory-leak checks, repeated Python↔JS execution, PlotView lifecycle stress, project save/reopen, Remote Web/LAN/SMB smoke, and complete dependency-installed Node 24 desktop + Android packaging. Only fix failures found by that matrix; do not add new architecture before RC.

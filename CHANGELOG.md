@@ -1,3 +1,12 @@
+## 1.5.11 (134) — Canvas Theme Lab 1.6.7 production absorption — 2026-08-22
+
+- Replaced the production `Soft` canvas skin with the user-approved **Canvas Theme Lab 1.6.7 · Flat Run Control** visual system while preserving the existing `soft` theme id, settings persistence and `Classic` rollback path.
+- Ported the accepted 385×268 reference-card geometry, 23 px card radius, measured typography hierarchy, 46 px run control, larger port labels/sockets, floating result insight surface, control-flow containers, edges, Controls and MiniMap treatment for both light and dark appearance modes.
+- Adapted the static Theme Lab selectors to the real React Flow DOM: production nodes always carry `status-*`, multiple semantic tags are collapsed to the first visible tag on the fixed card, and node dimensions continue to respect the user node-scale variable.
+- Preserved the previously accepted zero-geometry-hover rule: the Theme Lab's static-page `translateY(-1px)` hover lift is deliberately not imported because it causes React Flow pointer hit-test oscillation. The 1.6.7 dark run control remains completely flat with no button bulge or positional hover motion.
+- Updated `test:canvas-theme` to lock the accepted Theme Lab source/version, 385×268 reference geometry, 46 px flat run control, Classic isolation and no-hover-motion production adaptations.
+- Build revision: `1.5.11-dev-r90-theme-lab-1.6.7`.
+
 ## 1.5.10 (133) — Notebook import convergence + strict JS parity + legacy-path cleanup — 2026-08-22
 
 - Unified both `.ipynb` entry points behind one compile/install path, deduplicated managed imports, and classified comment-only / bare-string / triple-quoted annotation code cells as non-executable `AnnotationOnly` content while preserving the original Notebook for round-trip metadata.

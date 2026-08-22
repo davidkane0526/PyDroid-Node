@@ -20,12 +20,13 @@ const checks = [
   [app.includes("setCanvasTheme(imported.canvasTheme)"), "settings import restores canvas theme"],
   [dialogs.includes('L("画布主题", "Canvas theme")'), "settings UI exposes canvas theme selection"],
   [css.includes('[data-canvas-theme="soft"]') && !css.includes('[data-canvas-theme="classic"] .workflow-node'), "classic remains the unmodified baseline while soft is isolated"],
-  [css.includes("--canvas-function") && css.includes("--canvas-group") && css.includes("--canvas-flow"), "soft theme defines distinct function/group/flow tokens"],
-  [!css.includes("translateY(-1px)") && !/workflow-node:not\(\.workflow-structure\):hover\s*\{[^}]*transform:/s.test(css), "soft node hover never changes node geometry"],
-  [css.includes("--canvas-node-rim") && css.includes("0 3px 0 var(--canvas-node-rim)"), "soft cards use a persistent material rim instead of hover lift"],
-  [/data-canvas-theme="soft"[^}]*\.node-run-action[^{]*\{[^}]*transform:\s*none/s.test(css), "soft run action visibility does not use positional motion"],
+  [css.includes("Theme Lab 1.6.7") && css.includes("Flat Run Control"), "soft theme is sourced from the accepted Theme Lab 1.6.7"],
+  [css.includes("--canvas-function") && css.includes("--canvas-group") && css.includes("--canvas-flow"), "soft theme keeps semantic function/group/flow tokens"],
+  [!css.includes("translateY(-1px)") && /workflow-node:not\(\.workflow-structure\):hover\s*\{[^}]*transform:\s*none\s*;/s.test(css), "soft node hover never changes node geometry"],
+  [css.includes("width: calc(385px * var(--node-scale, 1))") && css.includes("height: calc(268px * var(--node-scale, 1))"), "soft cards use the accepted 385 by 268 reference geometry"],
+  [css.includes("width: calc(46px * var(--node-scale, 1))") && css.includes("box-shadow: none") && css.toLowerCase().includes("flat run control"), "soft run control uses the accepted 46px flat treatment"],
+  [/node-run-action[^{]*\{[^}]*transform:\s*none\s*!important/s.test(css), "soft run action visibility does not use positional motion"],
   [css.includes("workflow-node__tag") && css.includes("workflow-node__meta-count"), "soft cards expose structured metadata and tag styling"],
-  [css.includes("::before") && css.includes("--canvas-node-highlight"), "soft cards include an inner surface highlight for material depth"],
   [app.includes("WORKFLOW_DEMOS") && app.includes("flow-library-item--demo"), "built-in demos are exposed in the flow palette"],
 ];
 
