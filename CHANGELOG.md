@@ -1,3 +1,11 @@
+## 1.5.3 (126) — Notebook analysis contract build fix — 2026-08-22
+
+- Fixed the desktop TypeScript build failure where `App.tsx` consumed `analysis.operations` through the stale, narrower `execution.ts` Notebook analysis type.
+- Added one canonical transport-safe `NotebookCellAnalysis` contract shared by execution, workflow lowering, and the UI import path; removed the duplicate incompatible declarations.
+- Added a strict `test:notebook-analysis-contract` gate that rejects duplicate declarations and type-checks `operations`, structured children, and dependency metadata without requiring the full renderer build.
+- Kept the JavaScript notebook engine's internal analysis type local so runtime-parity compilation remains self-contained.
+- Build revision: `1.5.3-dev-r81-notebook-analysis-contract`.
+
 ## 1.5.2 (125) — Portable Notebook functions + strict reader semantics — 2026-08-22
 
 - Promotes only provably portable Jupyter top-level `def` bodies into real multi-node Workflow Functions. Function-local operations must already lower to ordinary native NodeContracts, every function argument must enter through an explicit data port, the return value must originate from a native node, and free globals, dynamic node parameters, control flow, side effects or unmapped Python arithmetic keep the existing executable-Python implementation.

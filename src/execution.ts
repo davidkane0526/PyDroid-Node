@@ -1,4 +1,5 @@
 import type { Edge } from "@xyflow/react";
+import type { NotebookCellAnalysis } from "./notebook-analysis";
 import { PythonExecutor } from "./platform/android-plugin";
 import { getPlatformAdapter, isRemoteRuntime } from "./platform";
 import { executionManager, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, type ExecutionControl } from "./execution-controller";
@@ -67,16 +68,7 @@ async function waitForHostRelease(getStatus: () => Promise<HostExecutionStatus>,
     await new Promise((resolve) => setTimeout(resolve, 40));
   }
 }
-export type NotebookCellAnalysis = {
-  index: number;
-  recognized: boolean;
-  reason?: string;
-  nodeType?: string;
-  label?: string;
-  parameters?: Record<string, string | number | boolean | null>;
-  inputVariable?: string | null;
-  outputVariable?: string | null;
-};
+export type { NotebookCellAnalysis } from "./notebook-analysis";
 export type PythonSignatureAnalysis = {
   functionName?: string;
   inputPorts: Array<{ id: string; label: string; valueType: string; required?: boolean }>;

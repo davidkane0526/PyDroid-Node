@@ -76,14 +76,8 @@ export function normalizeNotebookCellsForWorkflow(cells: NotebookCell[]): Notebo
   return { cells: output, removedBlankCells: cells.length - nonBlank.length, mergedAnnotationCells };
 }
 
-export type NotebookCellAnalysis = {
-  index: number; recognized: boolean; reason?: string; nodeType?: string; label?: string;
-  parameters?: Record<string, string | number | boolean | null>;
-  inputVariable?: string | null; outputVariable?: string | null;
-  semantic?: boolean; source?: string; kind?: string; defines?: string[]; uses?: string[];
-  operations?: Array<Omit<NotebookCellAnalysis, "operations"> & { index: number }>;
-  children?: Array<Omit<NotebookCellAnalysis, "operations"> & { branch: "true" | "false" | "body"; childIndex: number }>;
-};
+export type { NotebookCellAnalysis } from "./notebook-analysis";
+import type { NotebookCellAnalysis } from "./notebook-analysis";
 
 export type NotebookConversionReport = {
   totalCells: number;
