@@ -556,3 +556,13 @@
   .plot-lightbox__body--raster { padding: 8px; }
   .result-exports__list { grid-template-columns: 1fr; }
 }
+
+/* 1.5.9: node plot insights use a lightweight canvas thumbnail, never a full ECharts instance. */
+.node-insight--plot .plot-thumbnail {
+  display: block;
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  border-radius: 4px;
+  background: #fff;
+}

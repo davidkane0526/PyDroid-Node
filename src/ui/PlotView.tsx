@@ -122,8 +122,12 @@ function prepareOption(chart: PlotChart, width: number, height: number): Record<
   if (chart.type === "heatmap" && heatmapMeta) {
     const xLabels = heatmapMeta.xLabels ?? [];
     const yLabels = heatmapMeta.yLabels ?? [];
-    xAxisLabelPatch.formatter = heatmapFormatter(xLabels, Number(heatmapMeta.xTickInterval ?? 1));
-    yAxisLabelPatch.formatter = heatmapFormatter(yLabels, Number(heatmapMeta.yTickInterval ?? 1));
+    const targetXTicks = width < 420 ? 5 : width < 760 ? 8 : 12;
+    const targetYTicks = height < 280 ? 5 : height < 520 ? 8 : 12;
+    const xInterval = Math.max(Number(heatmapMeta.xTickInterval ?? 1), Math.ceil(xLabels.length / Math.max(1, targetXTicks)));
+    const yInterval = Math.max(Number(heatmapMeta.yTickInterval ?? 1), Math.ceil(yLabels.length / Math.max(1, targetYTicks)));
+    xAxisLabelPatch.formatter = heatmapFormatter(xLabels, xInterval);
+    yAxisLabelPatch.formatter = heatmapFormatter(yLabels, yInterval);
     xAxisLabelPatch.overflow = "truncate";
     xAxisLabelPatch.ellipsis = "…";
     yAxisLabelPatch.overflow = "truncate";
@@ -169,7 +173,7 @@ function prepareOption(chart: PlotChart, width: number, height: number): Record<
         fontSize: width < 420 ? 12 : width < 760 ? 14 : 16,
         fontWeight: 650,
         overflow: "truncate",
-        width: Math.max(120, width - 36),
+        width: "92%",
         ...asRecord(asRecord(option.title).textStyle),
       },
     };
@@ -187,6 +191,16 @@ function prepareOption(chart: PlotChart, width: number, height: number): Record<
   }
 
   if (chart.type === "heatmap") {
+    if (Array.isArray(option.series)) {
+      next.series = option.series.map((series) => {
+        if (!series || typeof series !== "object") return series;
+        const item = series as Record<string, unknown>;
+        const points = Array.isArray(item.data) ? item.data.length : 0;
+        return points >= 8_000
+          ? { ...item, progressive: 4_000, progressiveThreshold: 8_000, animation: false }
+          : item;
+      });
+    }
     if (visualMapPresent) {
       next.visualMap = {
         ...asRecord(option.visualMap),
@@ -194,7 +208,7 @@ function prepareOption(chart: PlotChart, width: number, height: number): Record<
         right: dense ? 4 : 10,
         top: "middle",
         itemWidth: dense ? 8 : 10,
-        itemHeight: Math.max(72, Math.min(dense ? 116 : 168, height - (titlePresent ? 96 : 72))),
+        itemHeight: dense ? 104 : 152,
         textStyle: { fontFamily: UI_FONT, fontSize: Math.max(9, fontSize - 1), ...asRecord(asRecord(option.visualMap).textStyle) },
       };
     }
@@ -241,64 +255,114 @@ function prepareOption(chart: PlotChart, width: number, height: number): Record<
   return next;
 }
 
+function optionSeries(chart: PlotChart): Array<Record<string, unknown>> {
+  const series = asRecord(chart.option).series;
+  return Array.isArray(series)
+    ? series.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+    : [];
+}
+
+function plotPointCount(chart: PlotChart): number {
+  return optionSeries(chart).reduce((total, series) => total + (Array.isArray(series.data) ? series.data.length : 0), 0);
+}
+
+function preferredDevicePixelRatio(chart: PlotChart): number {
+  const native = Math.max(1, window.devicePixelRatio || 1);
+  const points = plotPointCount(chart);
+  if (chart.type === "heatmap" && points >= 12_000) return Math.min(1.5, native);
+  if (chart.type === "heatmap" && points >= 4_000) return Math.min(1.75, native);
+  return Math.min(2, native);
+}
+
+function responsiveLayoutSignature(chart: PlotChart, width: number, height: number): string {
+  const compact = width > 0 && height > 0 && (width < 180 || height < 88);
+  const widthTier = width < 420 ? "narrow" : width < 760 ? "medium" : "wide";
+  const densityTier = width < 560 || height < 360 ? "dense" : "roomy";
+  const heightTier = height < 280 ? "short" : height < 520 ? "medium" : "tall";
+  return `${chart.type}:${compact ? "compact" : "full"}:${widthTier}:${densityTier}:${heightTier}`;
+}
+
 export function PlotView({ chart, className, style }: { chart: PlotChart; className?: string; style?: CSSProperties }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const instanceRef = useRef<echarts.ECharts | null>(null);
   const chartRef = useRef(chart);
   const resizeFrameRef = useRef<number | null>(null);
   const resizeTimerRef = useRef<number | null>(null);
+  const layoutSignatureRef = useRef("");
+  const rendererDprRef = useRef(0);
   chartRef.current = chart;
 
-  const render = () => {
+  const createInstance = () => {
     const container = containerRef.current;
-    const instance = instanceRef.current;
-    if (!container || !instance) return;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-    instance.setOption(prepareOption(chartRef.current, width, height) as never, true);
-    instance.resize({ width, height });
+    if (!container) return null;
+    const dpr = preferredDevicePixelRatio(chartRef.current);
+    rendererDprRef.current = dpr;
+    const instance = echarts.init(container, undefined, { renderer: "canvas", devicePixelRatio: dpr });
+    instanceRef.current = instance;
+    layoutSignatureRef.current = "";
+    return instance;
+  };
+
+  const render = (forceOption = false) => {
+    const container = containerRef.current;
+    let instance = instanceRef.current;
+    if (!container) return;
+    const desiredDpr = preferredDevicePixelRatio(chartRef.current);
+    if (instance && Math.abs(desiredDpr - rendererDprRef.current) > 0.01) {
+      instance.dispose();
+      instanceRef.current = null;
+      instance = createInstance();
+      forceOption = true;
+    }
+    if (!instance) instance = createInstance();
+    if (!instance) return;
+    const width = Math.max(1, container.clientWidth);
+    const height = Math.max(1, container.clientHeight);
+    const signature = responsiveLayoutSignature(chartRef.current, width, height);
+
+    // Ordinary panel resizing is cheap: resize the existing canvas only.  Rebuild the
+    // responsive option only when the chart changes or crosses a layout breakpoint.
+    instance.resize({ width, height, animation: { duration: 0 } });
+    if (forceOption || signature !== layoutSignatureRef.current) {
+      layoutSignatureRef.current = signature;
+      instance.setOption(prepareOption(chartRef.current, width, height) as never, { notMerge: true, lazyUpdate: true, silent: true });
+    }
   };
 
   const scheduleResize = () => {
     if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
     if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
     resizeFrameRef.current = requestAnimationFrame(() => {
-      resizeFrameRef.current = requestAnimationFrame(() => {
-        resizeFrameRef.current = null;
-        render();
-      });
+      resizeFrameRef.current = null;
+      render(false);
     });
     // Android WebView can report the new viewport one beat after orientationchange.
     resizeTimerRef.current = window.setTimeout(() => {
       resizeTimerRef.current = null;
-      render();
+      render(false);
     }, 120);
   };
 
   useEffect(() => {
     if (!containerRef.current) return;
-    const instance = echarts.init(containerRef.current, undefined, {
-      renderer: "canvas",
-      devicePixelRatio: Math.min(3, Math.max(1, window.devicePixelRatio || 1)),
-    });
-    instanceRef.current = instance;
+    createInstance();
     const observer = new ResizeObserver(scheduleResize);
     observer.observe(containerRef.current);
     window.addEventListener("resize", scheduleResize, { passive: true });
     window.addEventListener("orientationchange", scheduleResize, { passive: true });
-    render();
+    // The chart-dependent effect below performs the single initial setOption call.
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", scheduleResize);
       window.removeEventListener("orientationchange", scheduleResize);
       if (resizeFrameRef.current !== null) cancelAnimationFrame(resizeFrameRef.current);
       if (resizeTimerRef.current !== null) window.clearTimeout(resizeTimerRef.current);
-      instance.dispose();
+      instanceRef.current?.dispose();
       instanceRef.current = null;
     };
   }, []);
 
-  useEffect(render, [chart]);
+  useEffect(() => render(true), [chart]);
 
   return <div ref={containerRef} className={["plot-view", className].filter(Boolean).join(" ")} style={style} role="img" aria-label="交互式图表（支持缩放与悬停）" />;
 }

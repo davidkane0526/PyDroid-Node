@@ -485,7 +485,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         </div>
       ))}
       {insight.visible && nodeResult && <div className={`node-insight node-insight--${nodeResult.kind} ${data.nodeType === "python.print" ? "node-insight--print" : ""}`}>
-        {nodeResult.kind === "plot" && <PlotPreview preview={nodeResult} alt={`${data.label} 中间结果`} />}
+        {nodeResult.kind === "plot" && <PlotPreview preview={nodeResult} mode="thumbnail" alt={`${data.label} 中间结果`} />}
         {nodeResult.kind === "table" && <><strong>{nodeResult.preview.totalRows}×{nodeResult.preview.totalColumns}</strong><span>{nodeResult.preview.columns.slice(0, 3).join(" · ")}</span></>}
         {nodeResult.kind === "value" && <><strong>{data.nodeType === "python.print" ? "打印结果" : "结果"}</strong><span>{nodeResult.text}</span></>}
       </div>}

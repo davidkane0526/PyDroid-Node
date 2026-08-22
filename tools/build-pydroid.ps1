@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.8-dev-r86-result-preview-adaptive-plots-theme-lab"
+$script:BuildScriptRevision = "1.5.9-dev-r87-js-plot-performance"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

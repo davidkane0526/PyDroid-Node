@@ -1,3 +1,12 @@
+## 1.5.9 (132) — JS plot rendering performance recovery — 2026-08-22
+
+- Node-level JS plot insights no longer instantiate full ECharts canvases. They use a lightweight Canvas thumbnail renderer; heatmaps are visually downsampled to at most 96×48 cells with source sampling bounded to 24,000 points while preserving the runtime colormap.
+- Interactive PlotView resize is now geometry-only for ordinary panel resizing. Responsive ECharts options are rebuilt only when a chart changes or crosses a layout breakpoint, eliminating full heatmap relayout on every ResizeObserver tick.
+- Large heatmaps use a data-aware renderer DPR cap and progressive rendering to reduce high-DPI raster cost without changing underlying chart data.
+- Heatmap category labels are thinned against the current responsive size tier so large matrices remain readable without repeatedly measuring every label.
+- Added permanent plot-presentation performance gates covering lightweight thumbnails, ECharts-free node insights, breakpoint-only option rebuilds and large-heatmap progressive rendering.
+- Build revision: `1.5.9-dev-r87-js-plot-performance`.
+
 ## 1.5.8 (131) — Result export layout + adaptive plot presentation + standalone theme lab — 2026-08-22
 
 - Export-node files moved out of the result header into a dedicated responsive export surface, so filenames cannot squeeze preview controls.
