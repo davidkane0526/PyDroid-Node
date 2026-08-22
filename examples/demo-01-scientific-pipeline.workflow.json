@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 01 · 科学数据流水线",
+  "nodes": [
+    {
+      "id": "source",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 130
+      },
+      "data": {
+        "label": "生成可复现数据",
+        "nodeType": "generate.random_table",
+        "nodeVersion": 1,
+        "parameters": {
+          "count": 120,
+          "distribution": "normal",
+          "min": -2,
+          "max": 2,
+          "mean": 0,
+          "std": 1,
+          "seed": 26,
+          "indexColumn": "index",
+          "valueColumn": "value"
+        },
+        "status": "idle",
+        "tags": [
+          "数据源",
+          "表格"
+        ]
+      }
+    },
+    {
+      "id": "abs",
+      "type": "workflow",
+      "position": {
+        "x": 340,
+        "y": 130
+      },
+      "data": {
+        "label": "绝对值清洗",
+        "nodeType": "table.absolute",
+        "nodeVersion": 1,
+        "parameters": {},
+        "status": "idle",
+        "tags": [
+          "清洗",
+          "表格"
+        ]
+      }
+    },
+    {
+      "id": "describe",
+      "type": "workflow",
+      "position": {
+        "x": 620,
+        "y": 55
+      },
+      "data": {
+        "label": "描述性统计",
+        "nodeType": "pandas.describe",
+        "nodeVersion": 1,
+        "parameters": {
+          "percentiles": "0.25,0.5,0.75",
+          "include": "",
+          "exclude": ""
+        },
+        "status": "idle",
+        "tags": [
+          "统计",
+          "表格"
+        ]
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 620,
+        "y": 235
+      },
+      "data": {
+        "label": "绘制数据曲线",
+        "nodeType": "plot.line",
+        "nodeVersion": 1,
+        "parameters": {
+          "xColumn": "index",
+          "yColumns": "value",
+          "title": "Soft Theme Demo",
+          "xLabel": "Index",
+          "yLabel": "Value",
+          "legend": false,
+          "grid": true,
+          "logX": false,
+          "logY": false,
+          "scientificNotation": true,
+          "lineStyle": "-",
+          "marker": "",
+          "lineWidth": 1.7,
+          "figureWidth": 8,
+          "figureHeight": 4.5,
+          "dpi": 120
+        },
+        "status": "idle",
+        "tags": [
+          "绘图",
+          "输出"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "source",
+      "sourceHandle": "output",
+      "target": "abs",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "abs",
+      "sourceHandle": "output",
+      "target": "describe",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e3",
+      "source": "abs",
+      "sourceHandle": "output",
+      "target": "plot",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

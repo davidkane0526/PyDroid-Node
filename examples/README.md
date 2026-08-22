@@ -1,0 +1,11 @@
+# PyDroid Node built-in demos
+
+这些工作流同时作为软件“流程 → 内置 Demo”入口的数据源，也可以直接通过顶部“导入”打开。
+
+- `demo-01-scientific-pipeline.workflow.json`：无需外部文件，生成随机表格，进行清洗、统计和绘图。
+- `demo-02-native-function.workflow.json`：展示原生 Workflow Function，函数内部只含 Python/JavaScript 双运行时节点。
+- `demo-03-composite-group.workflow.json`：展示组合节点与嵌套画布，双击组合后可检查内部节点。
+- `demo-04-control-flow.workflow.json`：展示 If / For / While 原生结构。
+- `logic-control-demo.workflow.json`、`periodic-oscillating-pulse.workflow.json`、`ter-matrix.workflow.json`：保留的专项示例。
+
+建议验收时在 **Soft + Light**、**Soft + Dark**、**Classic + Light/Dark** 之间切换，重点观察节点厚度、文字层级、端口、运行按钮、函数/组合/控制流区分以及 hover 是否稳定。

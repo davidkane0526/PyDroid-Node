@@ -1,0 +1,179 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 03 · 组合节点与嵌套画布",
+  "nodes": [
+    {
+      "id": "source",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 125
+      },
+      "data": {
+        "label": "生成组合测试数据",
+        "nodeType": "generate.random_table",
+        "nodeVersion": 1,
+        "parameters": {
+          "count": 64,
+          "distribution": "normal",
+          "min": -1,
+          "max": 1,
+          "mean": 0,
+          "std": 1,
+          "seed": 13,
+          "indexColumn": "index",
+          "valueColumn": "value"
+        },
+        "status": "idle",
+        "tags": [
+          "数据源"
+        ]
+      }
+    },
+    {
+      "id": "group",
+      "type": "workflow",
+      "position": {
+        "x": 355,
+        "y": 125
+      },
+      "data": {
+        "label": "数据预处理组合",
+        "nodeType": "workflow.group",
+        "nodeVersion": 1,
+        "parameters": {
+          "description": "双击进入组合内部：绝对值处理 → 重建索引。"
+        },
+        "status": "idle",
+        "groupInputs": [
+          {
+            "id": "input-1",
+            "label": "原始表格",
+            "valueType": "table",
+            "internalNodeId": "g-abs",
+            "internalHandle": "input"
+          }
+        ],
+        "groupOutputs": [
+          {
+            "id": "output-1",
+            "label": "清洗表格",
+            "valueType": "table",
+            "internalNodeId": "g-reset",
+            "internalHandle": "output"
+          }
+        ],
+        "tags": [
+          "组合"
+        ]
+      }
+    },
+    {
+      "id": "g-abs",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 100
+      },
+      "data": {
+        "label": "组合内 · 绝对值",
+        "nodeType": "table.absolute",
+        "nodeVersion": 1,
+        "parameters": {},
+        "status": "idle",
+        "canvasParentId": "group",
+        "tags": [
+          "内部节点"
+        ]
+      }
+    },
+    {
+      "id": "g-reset",
+      "type": "workflow",
+      "position": {
+        "x": 340,
+        "y": 100
+      },
+      "data": {
+        "label": "组合内 · 重建索引",
+        "nodeType": "table.reset_index",
+        "nodeVersion": 1,
+        "parameters": {
+          "drop": true
+        },
+        "status": "idle",
+        "canvasParentId": "group",
+        "tags": [
+          "内部节点"
+        ]
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 675,
+        "y": 125
+      },
+      "data": {
+        "label": "组合输出曲线",
+        "nodeType": "plot.line",
+        "nodeVersion": 1,
+        "parameters": {
+          "xColumn": "index",
+          "yColumns": "value",
+          "title": "Group Output",
+          "xLabel": "Index",
+          "yLabel": "Value",
+          "legend": false,
+          "grid": true,
+          "logX": false,
+          "logY": false,
+          "scientificNotation": true,
+          "lineStyle": "-",
+          "marker": "",
+          "lineWidth": 1.5,
+          "figureWidth": 8,
+          "figureHeight": 4.5,
+          "dpi": 120
+        },
+        "status": "idle",
+        "tags": [
+          "输出",
+          "绘图"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "source",
+      "sourceHandle": "output",
+      "target": "group",
+      "targetHandle": "input-1"
+    },
+    {
+      "id": "ge1",
+      "source": "g-abs",
+      "sourceHandle": "output",
+      "target": "g-reset",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "group",
+      "sourceHandle": "output-1",
+      "target": "plot",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

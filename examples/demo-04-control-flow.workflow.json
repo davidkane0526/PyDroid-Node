@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 04 · If / For / While 控制流",
+  "nodes": [
+    {
+      "id": "range-for",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 80
+      },
+      "data": {
+        "label": "生成 0..6",
+        "nodeType": "logic.for_range",
+        "nodeVersion": 1,
+        "parameters": {
+          "start": 0,
+          "stop": 7,
+          "step": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "for",
+      "type": "workflow",
+      "position": {
+        "x": 300,
+        "y": 60
+      },
+      "style": {
+        "width": 520,
+        "height": 260
+      },
+      "data": {
+        "label": "逐项处理",
+        "nodeType": "logic.for_each_value",
+        "nodeVersion": 1,
+        "parameters": {
+          "maxIterations": 100
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "for-abs",
+      "type": "workflow",
+      "parentId": "for",
+      "extent": "parent",
+      "position": {
+        "x": 40,
+        "y": 100
+      },
+      "data": {
+        "label": "绝对值",
+        "nodeType": "table.absolute",
+        "nodeVersion": 1,
+        "parameters": {},
+        "status": "idle",
+        "branch": "body"
+      }
+    },
+    {
+      "id": "count",
+      "type": "workflow",
+      "position": {
+        "x": 870,
+        "y": 90
+      },
+      "data": {
+        "label": "结果数量",
+        "nodeType": "python.len",
+        "nodeVersion": 1,
+        "parameters": {},
+        "status": "idle"
+      }
+    },
+    {
+      "id": "if",
+      "type": "workflow",
+      "position": {
+        "x": 1120,
+        "y": 60
+      },
+      "style": {
+        "width": 520,
+        "height": 300
+      },
+      "data": {
+        "label": "结果非空",
+        "nodeType": "logic.if_value",
+        "nodeVersion": 1,
+        "parameters": {
+          "invert": false
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "if-true",
+      "type": "workflow",
+      "parentId": "if",
+      "extent": "parent",
+      "position": {
+        "x": 35,
+        "y": 105
+      },
+      "data": {
+        "label": "True",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "结果数量：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle",
+        "branch": "true"
+      }
+    },
+    {
+      "id": "if-false",
+      "type": "workflow",
+      "parentId": "if",
+      "extent": "parent",
+      "position": {
+        "x": 285,
+        "y": 105
+      },
+      "data": {
+        "label": "False",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "没有结果：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle",
+        "branch": "false"
+      }
+    },
+    {
+      "id": "range-while",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 420
+      },
+      "data": {
+        "label": "生成状态表",
+        "nodeType": "logic.for_range",
+        "nodeVersion": 1,
+        "parameters": {
+          "start": 0,
+          "stop": 3,
+          "step": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "while",
+      "type": "workflow",
+      "position": {
+        "x": 300,
+        "y": 390
+      },
+      "style": {
+        "width": 520,
+        "height": 260
+      },
+      "data": {
+        "label": "直到状态为空",
+        "nodeType": "logic.while_state",
+        "nodeVersion": 1,
+        "parameters": {
+          "conditionMode": "notEmpty",
+          "condition": "value < 10",
+          "maxIterations": 10
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "while-drop",
+      "type": "workflow",
+      "parentId": "while",
+      "extent": "parent",
+      "position": {
+        "x": 40,
+        "y": 100
+      },
+      "data": {
+        "label": "删除首行",
+        "nodeType": "table.slice",
+        "nodeVersion": 1,
+        "parameters": {
+          "rowStart": "1",
+          "rowStop": "",
+          "rowStep": 1,
+          "columnStart": "",
+          "columnStop": "",
+          "columnStep": 1
+        },
+        "status": "idle",
+        "branch": "body"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "range-for",
+      "target": "for",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "for",
+      "sourceHandle": "done",
+      "target": "count",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e3",
+      "source": "count",
+      "target": "if",
+      "targetHandle": "condition"
+    },
+    {
+      "id": "e4",
+      "source": "range-while",
+      "target": "while",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

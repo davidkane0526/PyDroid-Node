@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 02 · 原生可复用函数",
+  "nodes": [
+    {
+      "id": "source",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 125
+      },
+      "data": {
+        "label": "生成含负值数据",
+        "nodeType": "generate.random_table",
+        "nodeVersion": 1,
+        "parameters": {
+          "count": 80,
+          "distribution": "normal",
+          "min": -2,
+          "max": 2,
+          "mean": 0,
+          "std": 1.2,
+          "seed": 7,
+          "indexColumn": "index",
+          "valueColumn": "value"
+        },
+        "status": "idle",
+        "tags": [
+          "数据源"
+        ]
+      }
+    },
+    {
+      "id": "call",
+      "type": "workflow",
+      "position": {
+        "x": 355,
+        "y": 125
+      },
+      "data": {
+        "label": "清洗并取整",
+        "nodeType": "function.call",
+        "nodeVersion": 1,
+        "parameters": {
+          "functionId": "demo-clean-function",
+          "functionVersion": 1
+        },
+        "status": "idle",
+        "functionInputs": [
+          {
+            "id": "table",
+            "label": "输入表格",
+            "valueType": "table",
+            "required": true
+          }
+        ],
+        "functionOutputs": [
+          {
+            "id": "result",
+            "label": "处理结果",
+            "valueType": "table"
+          }
+        ],
+        "functionSourceId": "demo-clean-function",
+        "tags": [
+          "函数",
+          "portable"
+        ]
+      }
+    },
+    {
+      "id": "describe",
+      "type": "workflow",
+      "position": {
+        "x": 665,
+        "y": 125
+      },
+      "data": {
+        "label": "检查函数输出",
+        "nodeType": "pandas.describe",
+        "nodeVersion": 1,
+        "parameters": {
+          "percentiles": "0.25,0.5,0.75",
+          "include": "",
+          "exclude": ""
+        },
+        "status": "idle",
+        "tags": [
+          "验证",
+          "统计"
+        ]
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "source",
+      "sourceHandle": "output",
+      "target": "call",
+      "targetHandle": "table"
+    },
+    {
+      "id": "e2",
+      "source": "call",
+      "sourceHandle": "result",
+      "target": "describe",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [
+    {
+      "id": "demo-clean-function",
+      "name": "清洗并取整",
+      "version": 1,
+      "description": "完全由 Python/JavaScript 双运行时原生节点组成的可复用函数。",
+      "inputs": [
+        {
+          "id": "table",
+          "label": "输入表格",
+          "valueType": "table",
+          "internalNodeId": "fn-abs",
+          "internalHandle": "input"
+        }
+      ],
+      "outputs": [
+        {
+          "id": "result",
+          "label": "处理结果",
+          "valueType": "table",
+          "internalNodeId": "fn-round",
+          "internalHandle": "output"
+        }
+      ],
+      "nodes": [
+        {
+          "id": "fn-abs",
+          "type": "workflow",
+          "position": {
+            "x": 60,
+            "y": 95
+          },
+          "data": {
+            "label": "函数内 · 绝对值",
+            "nodeType": "table.absolute",
+            "nodeVersion": 1,
+            "parameters": {},
+            "status": "idle"
+          }
+        },
+        {
+          "id": "fn-round",
+          "type": "workflow",
+          "position": {
+            "x": 320,
+            "y": 95
+          },
+          "data": {
+            "label": "函数内 · 保留三位小数",
+            "nodeType": "pandas.round",
+            "nodeVersion": 1,
+            "parameters": {
+              "decimals": 3
+            },
+            "status": "idle"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "fe1",
+          "source": "fn-abs",
+          "sourceHandle": "output",
+          "target": "fn-round",
+          "targetHandle": "input"
+        }
+      ]
+    }
+  ],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

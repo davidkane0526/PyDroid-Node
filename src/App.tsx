@@ -64,6 +64,7 @@ import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagn
 import { APP_VERSION } from "./app-version";
 import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "./canvas-theme";
+import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -469,7 +470,10 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
       <div className="workflow-node__body">
         <div className="workflow-node__type" title={data.nodeType}>{data.nodeType}</div>
         <div className="workflow-node__label" title={data.label}>{data.label}</div>
-        <div className="workflow-node__meta">{data.nodeType === "workflow.group" ? `${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作` : `${spec?.parameters.length ?? 0} 参数${data.tags?.length ? ` · ${data.tags.join(" · ")}` : ""}`}</div>
+        <div className="workflow-node__meta">
+          <span className="workflow-node__meta-count">{data.nodeType === "workflow.group" ? `${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作` : `${spec?.parameters.length ?? 0} 参数`}</span>
+          {data.nodeType !== "workflow.group" && data.tags?.map((tag) => <span className="workflow-node__tag" key={tag}>{tag}</span>)}
+        </div>
       </div>
       {isStructure && <div className="workflow-structure__interior">
         {isIfStructureNodeType(data.nodeType) ? <><div className="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span></div><div className="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span></div></> : <div className="workflow-structure__lane workflow-structure__lane--body"><span>循环体 · 每次迭代的数据由左侧隧道进入</span></div>}
@@ -2737,19 +2741,25 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     clearCurrentWorkflow();
   };
 
+  const openSerializedCanvasWorkflow = (documentText: string, successMessage: string) => {
+    lifecycle.openSerialized(session, documentText, (document) => ({
+      nodes: repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
+        const hydrated = hydrateNodeDefaults(node);
+        return { ...hydrated, type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrated.data, status: "idle" as const } };
+      }), document.edges), edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [], environment: document.environment ?? { pythonImports: [], pythonDefinitions: [] }, parameters: document.parameters ?? [],
+    }));
+    clearExecutionResult();
+    setViewMode("nodes"); setCurrentCanvasId(null);
+    window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
+    setMessage(successMessage);
+  };
   const openLibraryFlow = (entry: FlowLibraryEntry) => {
-    try {
-      lifecycle.openSerialized(session, entry.document, (document) => {
-        const nextNodes = repairWorkflowGroupInterfaces(normalizeNodePositions(document.nodes).map((node) => {
-          const hydrated = hydrateNodeDefaults(node);
-          return { ...hydrated, type: "workflow", className: "node-entering node-entering--flow", data: { ...hydrated.data, status: "idle" as const } };
-        }), document.edges);
-        return { nodes: nextNodes, edges: document.edges, functions: document.functions ?? [], requirements: document.requirements ?? [], environment: document.environment ?? { pythonImports: [], pythonDefinitions: [] }, parameters: document.parameters ?? [] };
-      });
-      clearExecutionResult();
-      window.setTimeout(() => setNodes((current) => current.map((node) => ({ ...node, className: undefined }))), 480);
-      setMessage(`已打开流程“${entry.name}”`);
-    } catch { setMessage("流程库条目已损坏，无法打开"); }
+    try { openSerializedCanvasWorkflow(entry.document, `已打开流程“${entry.name}”`); }
+    catch { setMessage("流程库条目已损坏，无法打开"); }
+  };
+  const openWorkflowDemo = (demo: WorkflowDemo) => {
+    try { openSerializedCanvasWorkflow(demo.document, `已载入内置示例“${demo.label}”；可直接运行或切换画布主题对比`); }
+    catch (error) { setMessage(error instanceof Error ? `示例加载失败：${error.message}` : "示例加载失败"); }
   };
 
   const dropPaletteResource = (resource: PaletteResource, clientX: number, clientY: number) => {
@@ -3557,7 +3567,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
               {functions.map((definition) => { const resource = describeFunction(definition); return <section className="palette-group palette-group--custom workflow-function-card" key={resource.id}><h3>{resource.label}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{resource.description && <p className="muted">{resource.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button><button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>; })}
               {!functions.length && <p className="muted">{ui("当前没有可复用函数。将一组已经验证的节点保存为函数后，可通过“调用”在多个位置重复使用同一套逻辑。", "No reusable functions yet. Save a verified node group as a function to call the same logic from multiple places.")}</p>}
             </>}
-            {paletteTab === "flows" && <><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const descriptor = describeFlow(entry); const resource = resourceRef(descriptor); return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
+            {paletteTab === "flows" && <><section className="flow-demo-section"><h3>{ui("内置 Demo", "Built-in demos")}<small>{WORKFLOW_DEMOS.length}</small></h3>{WORKFLOW_DEMOS.map((demo) => <button type="button" draggable={false} className="flow-library-item flow-library-item--demo" key={demo.id} onClick={() => openWorkflowDemo(demo)}><strong>▷ {demo.label}</strong><small>{demo.description}</small></button>)}</section><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const descriptor = describeFlow(entry); const resource = resourceRef(descriptor); return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
           </div>
         </aside>
 
@@ -3632,7 +3642,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             fitView
             minZoom={0.25}
           >
-            <Background variant={BackgroundVariant.Dots} gap={18} size={1.4} color={canvasTheme === "soft" ? (resolvedTheme === "dark" ? "#334155" : "#c9d5e4") : undefined} />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1.25} color={canvasTheme === "soft" ? (resolvedTheme === "dark" ? "#304257" : "#c9d6e7") : undefined} />
             {showMiniMap && <MiniMap pannable zoomable />}
             <Controls />
           </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">

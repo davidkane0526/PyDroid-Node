@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.6-dev-r84-soft-card-depth-stability"
+$script:BuildScriptRevision = "1.5.7-dev-r85-soft-card-material-demos"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

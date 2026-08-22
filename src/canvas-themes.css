@@ -1,227 +1,308 @@
 /*
- * Canvas themes are intentionally isolated from the application shell theme.
+ * Canvas themes are isolated from the application shell theme.
  * data-theme controls light/dark mode; data-canvas-theme controls the canvas visual language.
  * "classic" receives no overrides, preserving the 1.5.4 baseline exactly.
+ *
+ * Soft 2.0 design rule: nodes never move on hover. Perceived material depth comes from a
+ * persistent lower rim, ambient shadow and inner highlights, so React Flow hit-testing remains stable.
  */
 
 .app-shell[data-canvas-theme="soft"] {
-  --canvas-bg: #101827;
-  --canvas-grid: #334155;
-  --canvas-node-bg: linear-gradient(145deg, #1c2939 0%, #172231 100%);
-  --canvas-node-border: #3d5065;
-  --canvas-node-depth: #0a1220cc;
-  --canvas-node-ambient: #02061766;
-  --canvas-node-shadow: 0 2px 0 var(--canvas-node-depth), 0 10px 24px var(--canvas-node-ambient), inset 0 1px 0 #ffffff0d, inset 0 -1px 0 #02061735;
-  --canvas-node-shadow-hover: 0 2px 0 var(--canvas-node-depth), 0 12px 28px #02061770, 0 0 0 1px #38bdf824, inset 0 1px 0 #ffffff12, inset 0 -1px 0 #02061735;
-  --canvas-node-type: #8da5bd;
-  --canvas-node-label: #f2f7fb;
-  --canvas-node-meta: #8296aa;
+  --canvas-bg: #111b29;
+  --canvas-grid: #304257;
+  --canvas-node-face: #1d2a3a;
+  --canvas-node-face-2: #172333;
+  --canvas-node-border: #40556c;
+  --canvas-node-rim: #0a1320;
+  --canvas-node-ambient: #02061770;
+  --canvas-node-highlight: #ffffff12;
+  --canvas-node-lowlight: #02061755;
+  --canvas-node-shadow: 0 3px 0 var(--canvas-node-rim), 0 8px 18px #02061754, 0 20px 42px var(--canvas-node-ambient), inset 0 1px 0 var(--canvas-node-highlight), inset 0 -1px 0 var(--canvas-node-lowlight);
+  --canvas-node-shadow-hover: 0 3px 0 var(--canvas-node-rim), 0 10px 22px #02061760, 0 24px 46px #02061778, 0 0 0 1px #38bdf826, inset 0 1px 0 #ffffff18, inset 0 -1px 0 var(--canvas-node-lowlight);
+  --canvas-node-type: #8fa3bb;
+  --canvas-node-label: #f4f8fc;
+  --canvas-node-meta: #8296ad;
   --canvas-selection: #38bdf8;
-  --canvas-run: #38bdf8;
+  --canvas-run: #35c4e8;
   --canvas-run-hover: #67e8f9;
-  --canvas-edge: #6f879e;
-  --canvas-edge-selected: #38bdf8;
-  --canvas-handle-ring: #d9f5ff;
+  --canvas-edge: #71879e;
+  --canvas-edge-selected: #41c7ed;
+  --canvas-handle-ring: #e4f8ff;
   --canvas-function: #a78bfa;
-  --canvas-function-bg: linear-gradient(145deg, #25243a 0%, #1b2435 100%);
-  --canvas-function-glow: #8b5cf633;
-  --canvas-group: #48d597;
-  --canvas-group-bg: linear-gradient(150deg, #17312d 0%, #17282d 48%, #172431 100%);
-  --canvas-group-glow: #22c55e24;
-  --canvas-flow: #38bdf8;
-  --canvas-flow-bg: linear-gradient(155deg, #172b3b 0%, #182737 52%, #172331 100%);
-  --canvas-flow-header: #1a3042f2;
-  --canvas-flow-lane: #0d1824a8;
-  --canvas-card-radius: 14px;
-  --canvas-container-radius: 18px;
+  --canvas-function-face: #25233a;
+  --canvas-function-face-2: #1b2435;
+  --canvas-function-rim: #111125;
+  --canvas-group: #43d391;
+  --canvas-group-face: #18342e;
+  --canvas-group-face-2: #172b30;
+  --canvas-group-rim: #0b211c;
+  --canvas-flow: #42bce8;
+  --canvas-flow-face: #172c3d;
+  --canvas-flow-face-2: #172536;
+  --canvas-flow-rim: #0b1824;
+  --canvas-flow-header: #1b3448f4;
+  --canvas-flow-lane: #0d1926b0;
+  --canvas-card-radius: 18px;
+  --canvas-container-radius: 22px;
 }
 
 .app-shell[data-canvas-theme="soft"][data-theme="light"] {
-  --canvas-bg: #f1f5fa;
-  --canvas-grid: #c9d5e4;
-  --canvas-node-bg: linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
-  --canvas-node-border: #d4dfec;
-  --canvas-node-depth: #c8d5e3;
-  --canvas-node-ambient: #617b951c;
-  --canvas-node-shadow: 0 2px 0 var(--canvas-node-depth), 0 9px 22px var(--canvas-node-ambient), inset 0 1px 0 #ffffff, inset 0 -1px 0 #9fb2c529;
-  --canvas-node-shadow-hover: 0 2px 0 var(--canvas-node-depth), 0 11px 26px #526d8724, 0 0 0 1px #38bdf824, inset 0 1px 0 #ffffff, inset 0 -1px 0 #9fb2c529;
-  --canvas-node-type: #71849b;
-  --canvas-node-label: #14263e;
-  --canvas-node-meta: #667a91;
+  --canvas-bg: #eef4fb;
+  --canvas-grid: #c9d6e7;
+  --canvas-node-face: #ffffff;
+  --canvas-node-face-2: #f9fbfe;
+  --canvas-node-border: #d6e1ef;
+  --canvas-node-rim: #c8d6e7;
+  --canvas-node-ambient: #55708d24;
+  --canvas-node-highlight: #ffffff;
+  --canvas-node-lowlight: #8da5bf24;
+  --canvas-node-shadow: 0 3px 0 var(--canvas-node-rim), 0 7px 14px #6b83a114, 0 18px 38px var(--canvas-node-ambient), inset 0 1px 0 #ffffff, inset 0 -1px 0 var(--canvas-node-lowlight);
+  --canvas-node-shadow-hover: 0 3px 0 var(--canvas-node-rim), 0 8px 17px #5c76931b, 0 21px 42px #55708d2b, 0 0 0 1px #38bdf828, inset 0 1px 0 #ffffff, inset 0 -1px 0 #86a1bc28;
+  --canvas-node-type: #73859e;
+  --canvas-node-label: #11243d;
+  --canvas-node-meta: #6c7f97;
   --canvas-selection: #168fd0;
-  --canvas-run: #168fd0;
-  --canvas-run-hover: #0ea5c6;
-  --canvas-edge: #829bb4;
+  --canvas-run: #147fca;
+  --canvas-run-hover: #0797bd;
+  --canvas-edge: #849cb6;
   --canvas-edge-selected: #168fd0;
   --canvas-handle-ring: #ffffff;
-  --canvas-function: #8265df;
-  --canvas-function-bg: linear-gradient(145deg, #ffffff 0%, #faf8ff 100%);
-  --canvas-function-glow: #8b5cf61f;
-  --canvas-group: #25a873;
-  --canvas-group-bg: linear-gradient(150deg, #f8fffc 0%, #f2fbf7 100%);
-  --canvas-group-glow: #22c55e1a;
-  --canvas-flow: #369bd2;
-  --canvas-flow-bg: linear-gradient(155deg, #fbfdff 0%, #f4f9fd 100%);
-  --canvas-flow-header: #f4f9fdf2;
-  --canvas-flow-lane: #eaf3f9b8;
+  --canvas-function: #7b61d8;
+  --canvas-function-face: #ffffff;
+  --canvas-function-face-2: #fbf9ff;
+  --canvas-function-rim: #cfc7e8;
+  --canvas-group: #24a96f;
+  --canvas-group-face: #fbfffd;
+  --canvas-group-face-2: #f3fbf7;
+  --canvas-group-rim: #c4dfd2;
+  --canvas-flow: #2f94cc;
+  --canvas-flow-face: #fcfeff;
+  --canvas-flow-face-2: #f4f9fd;
+  --canvas-flow-rim: #c4d9e6;
+  --canvas-flow-header: #f2f8fcf7;
+  --canvas-flow-lane: #e9f3f9c4;
 }
 
 .app-shell[data-canvas-theme="soft"] .canvas-panel,
 .app-shell[data-canvas-theme="soft"] .react-flow {
-  background: var(--canvas-bg);
+  background:
+    radial-gradient(circle at 50% 4%, color-mix(in srgb, var(--canvas-selection) 5%, transparent), transparent 34%),
+    var(--canvas-bg);
 }
 
+/* Ordinary material card. */
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) {
+  overflow: visible;
+  padding: calc(10px * var(--node-scale, 1)) calc(12px * var(--node-scale, 1));
   border: 1px solid var(--canvas-node-border);
   border-radius: var(--canvas-card-radius);
-  background: var(--canvas-node-bg);
+  background: linear-gradient(155deg, var(--canvas-node-face) 0%, var(--canvas-node-face-2) 100%);
   box-shadow: var(--canvas-node-shadow);
   transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
 }
 
-.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-  border-color: color-mix(in srgb, var(--canvas-selection) 38%, var(--canvas-node-border));
-  box-shadow: var(--canvas-node-shadow-hover);
+.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure)::before {
+  position: absolute;
+  z-index: 0;
+  inset: 1px 2px auto;
+  height: 36%;
+  border-radius: calc(var(--canvas-card-radius) - 2px) calc(var(--canvas-card-radius) - 2px) 50% 50%;
+  background: linear-gradient(180deg, #ffffff0b, transparent);
+  content: "";
+  pointer-events: none;
+}
+.app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node:not(.workflow-structure)::before {
+  background: linear-gradient(180deg, #ffffffd9 0%, #ffffff42 42%, transparent 100%);
 }
 
+.app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
+  border-color: color-mix(in srgb, var(--canvas-selection) 34%, var(--canvas-node-border));
+  box-shadow: var(--canvas-node-shadow-hover);
+}
 .app-shell[data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
-  border-color: color-mix(in srgb, var(--canvas-selection) 78%, var(--canvas-node-border));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--canvas-selection) 22%, transparent), var(--canvas-node-shadow-hover);
+  border-color: color-mix(in srgb, var(--canvas-selection) 76%, var(--canvas-node-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--canvas-selection) 18%, transparent), var(--canvas-node-shadow-hover);
 }
 
 .app-shell[data-canvas-theme="soft"] .workflow-node__body {
-  padding: calc(3px * var(--node-scale, 1)) 0;
+  position: relative;
+  z-index: 1;
+  min-height: calc(62px * var(--node-scale, 1));
+  padding: calc(2px * var(--node-scale, 1)) 0;
+  align-content: center;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node__type {
-  margin-bottom: calc(5px * var(--node-scale, 1));
+  margin-bottom: calc(7px * var(--node-scale, 1));
   color: var(--canvas-node-type);
-  letter-spacing: .025em;
+  font-size: calc(10.5px * var(--node-scale, 1));
+  font-weight: 520;
+  letter-spacing: .045em;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node__label {
   color: var(--canvas-node-label);
-  font-weight: 680;
-  letter-spacing: -.01em;
+  font-size: calc(17px * var(--node-scale, 1));
+  font-weight: 735;
+  line-height: 1.15;
+  letter-spacing: -.018em;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node__meta {
-  margin-top: calc(6px * var(--node-scale, 1));
+  display: flex;
+  min-height: calc(17px * var(--node-scale, 1));
+  margin-top: calc(9px * var(--node-scale, 1));
+  align-items: center;
+  justify-content: center;
+  gap: calc(5px * var(--node-scale, 1));
+  overflow: hidden;
   color: var(--canvas-node-meta);
+  font-size: calc(9.5px * var(--node-scale, 1));
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.app-shell[data-canvas-theme="soft"] .workflow-node__meta-count { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.app-shell[data-canvas-theme="soft"] .workflow-node__tag {
+  flex: none;
+  padding: 2px 5px;
+  border: 1px solid color-mix(in srgb, var(--canvas-group) 25%, transparent);
+  border-radius: 999px;
+  color: color-mix(in srgb, var(--canvas-group) 82%, var(--canvas-node-label));
+  background: color-mix(in srgb, var(--canvas-group) 9%, transparent);
+  font-weight: 650;
+}
+.app-shell[data-canvas-theme="soft"] .workflow-node__tag::before { content: none; }
+.app-shell[data-canvas-theme="soft"] .workflow-node__tag:nth-child(n + 4) { display: none; }
 
-/* Function call nodes and editable function groups share one violet identity. */
+/* Function cards keep the same material model, but violet identifies semantics. */
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function:not(.workflow-structure) {
-  border-color: color-mix(in srgb, var(--canvas-function) 62%, var(--canvas-node-border));
-  background: var(--canvas-function-bg);
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-function) 18%, var(--canvas-node-depth)), 0 10px 24px var(--canvas-node-ambient), 0 0 16px var(--canvas-function-glow), inset 0 1px 0 #ffffff0f, inset 0 -1px 0 #02061730;
+  border-color: color-mix(in srgb, var(--canvas-function) 54%, var(--canvas-node-border));
+  background: linear-gradient(155deg, var(--canvas-function-face) 0%, var(--canvas-function-face-2) 100%);
+  box-shadow: 0 3px 0 var(--canvas-function-rim), 0 8px 18px #0206174d, 0 20px 42px var(--canvas-node-ambient), 0 0 18px color-mix(in srgb, var(--canvas-function) 9%, transparent), inset 0 1px 0 var(--canvas-node-highlight), inset 0 -1px 0 var(--canvas-node-lowlight);
 }
 .app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node.node-kind-function:not(.workflow-structure) {
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-function) 14%, var(--canvas-node-depth)), 0 9px 22px var(--canvas-node-ambient), 0 0 16px var(--canvas-function-glow), inset 0 1px 0 #fff, inset 0 -1px 0 #9f8fca1f;
+  box-shadow: 0 3px 0 var(--canvas-function-rim), 0 7px 14px #7565a512, 0 18px 38px #74649a22, 0 0 18px color-mix(in srgb, var(--canvas-function) 8%, transparent), inset 0 1px 0 #fff, inset 0 -1px 0 #a18bd226;
 }
-.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function .workflow-node__type {
+.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function .workflow-node__type { color: var(--canvas-function); }
+.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function .workflow-node__label::before {
+  margin-right: .34em;
   color: var(--canvas-function);
+  content: "ƒ";
+  font-family: Georgia, serif;
+  font-weight: 700;
 }
 
-/* Reusable combinations are containers, not oversized ordinary nodes. */
+/* Reusable groups are compact portals into a nested canvas. */
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.node-kind-function) {
-  border: 1.5px solid color-mix(in srgb, var(--canvas-group) 72%, var(--canvas-node-border));
+  border: 1.5px solid color-mix(in srgb, var(--canvas-group) 58%, var(--canvas-node-border));
   border-radius: var(--canvas-container-radius);
-  background: var(--canvas-group-bg);
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-group) 16%, var(--canvas-node-depth)), 0 11px 26px var(--canvas-node-ambient), 0 0 20px var(--canvas-group-glow), inset 0 1px 0 #ffffff0f, inset 0 -1px 0 #02061730;
+  background: linear-gradient(155deg, var(--canvas-group-face) 0%, var(--canvas-group-face-2) 100%);
+  box-shadow: 0 3px 0 var(--canvas-group-rim), 0 9px 20px #0206174e, 0 22px 44px var(--canvas-node-ambient), 0 0 20px color-mix(in srgb, var(--canvas-group) 8%, transparent), inset 0 1px 0 var(--canvas-node-highlight), inset 0 -1px 0 var(--canvas-node-lowlight);
 }
 .app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node.node-kind-group:not(.node-kind-function) {
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-group) 13%, var(--canvas-node-depth)), 0 10px 23px var(--canvas-node-ambient), 0 0 18px var(--canvas-group-glow), inset 0 1px 0 #fff, inset 0 -1px 0 #7eb79c20;
+  box-shadow: 0 3px 0 var(--canvas-group-rim), 0 8px 16px #5f8b7712, 0 19px 40px #648b7720, 0 0 18px color-mix(in srgb, var(--canvas-group) 7%, transparent), inset 0 1px 0 #fff, inset 0 -1px 0 #80b69b24;
 }
-.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.node-kind-function) .workflow-node__type {
-  color: var(--canvas-group);
-}
+.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.node-kind-function) .workflow-node__type { color: var(--canvas-group); }
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.node-kind-function)::after {
+  position: absolute;
   inset: 6px;
-  border-color: color-mix(in srgb, var(--canvas-group) 24%, transparent);
-  border-radius: calc(var(--canvas-container-radius) - 5px);
+  border: 1px solid color-mix(in srgb, var(--canvas-group) 20%, transparent);
+  border-radius: calc(var(--canvas-container-radius) - 6px);
+  content: "";
+  pointer-events: none;
 }
 
-/* If/For/While are first-class flow containers. */
+/* If / For / While are true flow containers. */
 .app-shell[data-canvas-theme="soft"] .workflow-node.workflow-structure {
-  border: 1.5px solid color-mix(in srgb, var(--canvas-flow) 68%, var(--canvas-node-border));
+  border: 1.5px solid color-mix(in srgb, var(--canvas-flow) 58%, var(--canvas-node-border));
   border-radius: var(--canvas-container-radius);
-  background: var(--canvas-flow-bg);
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-flow) 14%, var(--canvas-node-depth)), 0 12px 28px var(--canvas-node-ambient), 0 0 22px color-mix(in srgb, var(--canvas-flow) 10%, transparent), inset 0 1px 0 #ffffff0e, inset 0 -1px 0 #02061730;
-
+  background: linear-gradient(155deg, var(--canvas-flow-face) 0%, var(--canvas-flow-face-2) 100%);
+  box-shadow: 0 3px 0 var(--canvas-flow-rim), 0 10px 22px #02061750, 0 24px 48px var(--canvas-node-ambient), 0 0 22px color-mix(in srgb, var(--canvas-flow) 7%, transparent), inset 0 1px 0 var(--canvas-node-highlight), inset 0 -1px 0 var(--canvas-node-lowlight);
 }
 .app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node.workflow-structure {
-  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-flow) 11%, var(--canvas-node-depth)), 0 11px 25px var(--canvas-node-ambient), 0 0 18px color-mix(in srgb, var(--canvas-flow) 8%, transparent), inset 0 1px 0 #fff, inset 0 -1px 0 #7aa8c21f;
+  box-shadow: 0 3px 0 var(--canvas-flow-rim), 0 8px 17px #5e809615, 0 20px 42px #66879b22, 0 0 18px color-mix(in srgb, var(--canvas-flow) 6%, transparent), inset 0 1px 0 #fff, inset 0 -1px 0 #7aa8c224;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-structure > .workflow-node__body {
-  border-bottom-color: color-mix(in srgb, var(--canvas-flow) 23%, var(--canvas-node-border));
+  min-height: 74px;
+  padding: 10px 52px 10px;
+  border-bottom-color: color-mix(in srgb, var(--canvas-flow) 20%, var(--canvas-node-border));
+  border-radius: calc(var(--canvas-container-radius) - 1px) calc(var(--canvas-container-radius) - 1px) 0 0;
   background: var(--canvas-flow-header);
-  box-shadow: 0 7px 18px #02061730;
+  box-shadow: 0 6px 14px #0206172e, inset 0 1px 0 var(--canvas-node-highlight);
 }
-.app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-structure > .workflow-node__body {
-  box-shadow: 0 7px 18px #6c829714;
-}
-.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__type {
-  color: var(--canvas-flow);
-}
-.app-shell[data-canvas-theme="soft"] .workflow-structure__interior {
-  background: transparent;
-}
+.app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-structure > .workflow-node__body { box-shadow: 0 6px 14px #647d9512, inset 0 1px 0 #fff; }
+.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__type { color: var(--canvas-flow); }
+.app-shell[data-canvas-theme="soft"] .workflow-structure .workflow-node__label { font-size: calc(16px * var(--node-scale, 1)); }
+.app-shell[data-canvas-theme="soft"] .workflow-structure__interior { background: transparent; }
 .app-shell[data-canvas-theme="soft"] .workflow-structure__lane {
-  border-color: color-mix(in srgb, var(--canvas-flow) 22%, transparent);
+  border-color: color-mix(in srgb, var(--canvas-flow) 18%, transparent);
   background: var(--canvas-flow-lane);
 }
+.app-shell[data-canvas-theme="soft"] .workflow-structure__lane > span {
+  border-radius: 7px;
+  box-shadow: 0 2px 7px #02061720;
+}
 
+/* The floating run affordance mirrors the reference card: inset, quiet, blue/cyan, never moves geometry. */
 .app-shell[data-canvas-theme="soft"] .node-run-action {
-  border-color: color-mix(in srgb, var(--canvas-run) 45%, var(--canvas-node-border));
-  border-radius: 8px;
+  top: 8px;
+  right: 9px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid color-mix(in srgb, var(--canvas-run) 28%, var(--canvas-node-border));
+  border-radius: 10px;
   color: var(--canvas-run);
-  background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--canvas-run) 10%, transparent);
+  background: color-mix(in srgb, var(--canvas-node-face) 90%, transparent);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-node-rim) 68%, transparent), 0 5px 13px color-mix(in srgb, var(--canvas-run) 10%, transparent), inset 0 1px 0 var(--canvas-node-highlight);
+  font-size: 12px;
   transform: none;
   transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease, box-shadow .14s ease;
 }
+.app-shell[data-canvas-theme="soft"][data-theme="light"] .node-run-action { background: #ffffffeb; }
 .app-shell[data-canvas-theme="soft"] .workflow-node:hover > .node-run-action,
 .app-shell[data-canvas-theme="soft"] .workflow-node:focus-within > .node-run-action,
 .app-shell[data-canvas-theme="soft"].native-platform .workflow-node > .node-run-action,
-.app-shell[data-canvas-theme="soft"].native-platform .workflow-node.selected > .node-run-action {
-  transform: none;
-}
+.app-shell[data-canvas-theme="soft"].native-platform .workflow-node.selected > .node-run-action { transform: none; }
 .app-shell[data-canvas-theme="soft"] .node-run-action:hover,
 .app-shell[data-canvas-theme="soft"] .node-run-action:focus-visible {
-  border-color: var(--canvas-run-hover);
+  border-color: color-mix(in srgb, var(--canvas-run-hover) 68%, var(--canvas-node-border));
   color: var(--canvas-run-hover);
-  background: color-mix(in srgb, var(--canvas-run) 12%, var(--canvas-bg));
+  background: color-mix(in srgb, var(--canvas-run) 8%, var(--canvas-node-face));
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-node-rim) 68%, transparent), 0 7px 16px color-mix(in srgb, var(--canvas-run) 15%, transparent), 0 0 0 2px color-mix(in srgb, var(--canvas-run) 7%, transparent), inset 0 1px 0 var(--canvas-node-highlight);
 }
 
+/* Ports are tangible sockets: a white/soft outer ring plus a colored core. */
 .app-shell[data-canvas-theme="soft"] .react-flow__handle {
+  width: calc(14px * var(--endpoint-scale, 1));
+  height: calc(14px * var(--endpoint-scale, 1));
   background: var(--port-color, var(--canvas-selection));
-  border-color: var(--canvas-handle-ring);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--port-color, var(--canvas-selection)) 45%, transparent), 0 2px 7px color-mix(in srgb, var(--port-color, var(--canvas-selection)) 28%, transparent);
+  border: calc(3px * var(--endpoint-scale, 1)) solid var(--canvas-handle-ring);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--port-color, var(--canvas-selection)) 42%, transparent), 0 2px 7px color-mix(in srgb, var(--port-color, var(--canvas-selection)) 32%, transparent), 0 0 10px color-mix(in srgb, var(--port-color, var(--canvas-selection)) 12%, transparent);
 }
+.app-shell[data-canvas-theme="soft"] .input-port span,
+.app-shell[data-canvas-theme="soft"] .output-port span { color: var(--canvas-node-meta); font-weight: 560; }
 .app-shell[data-canvas-theme="soft"] .react-flow__edge-path,
-.app-shell[data-canvas-theme="soft"] .react-flow__connection-path {
-  stroke: var(--canvas-edge);
-}
+.app-shell[data-canvas-theme="soft"] .react-flow__connection-path { stroke: var(--canvas-edge); stroke-linecap: round; }
 .app-shell[data-canvas-theme="soft"] .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--canvas-edge-selected);
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--canvas-edge-selected) 38%, transparent));
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--canvas-edge-selected) 36%, transparent));
 }
 
 .app-shell[data-canvas-theme="soft"] .react-flow__controls {
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--canvas-node-border) 90%, transparent);
-  border-radius: 11px;
-  box-shadow: var(--canvas-node-shadow);
+  border: 1px solid color-mix(in srgb, var(--canvas-node-border) 86%, transparent);
+  border-radius: 13px;
+  box-shadow: 0 3px 0 var(--canvas-node-rim), 0 12px 28px var(--canvas-node-ambient), inset 0 1px 0 var(--canvas-node-highlight);
 }
 .app-shell[data-canvas-theme="soft"] .react-flow__controls button {
   color: var(--canvas-node-label);
-  background: color-mix(in srgb, var(--canvas-bg) 78%, var(--surface-raised));
-  border-color: color-mix(in srgb, var(--canvas-node-border) 75%, transparent);
+  background: color-mix(in srgb, var(--canvas-node-face) 90%, var(--canvas-bg));
+  border-color: color-mix(in srgb, var(--canvas-node-border) 72%, transparent);
 }
 .app-shell[data-canvas-theme="soft"] .react-flow__minimap {
   overflow: hidden;
   border: 1px solid var(--canvas-node-border);
-  border-radius: 12px;
+  border-radius: 14px;
   background: color-mix(in srgb, var(--canvas-bg) 92%, transparent);
-  box-shadow: var(--canvas-node-shadow);
+  box-shadow: 0 3px 0 var(--canvas-node-rim), 0 12px 28px var(--canvas-node-ambient), inset 0 1px 0 var(--canvas-node-highlight);
 }
 
 .settings-canvas-theme { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .75fr); gap: 12px; align-items: end; margin-bottom: 14px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: color-mix(in srgb, var(--surface-raised) 86%, transparent); }

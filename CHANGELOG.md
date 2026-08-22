@@ -1,3 +1,14 @@
+## 1.5.7 (130) — Soft card material refresh + built-in acceptance demos — 2026-08-22
+
+- Rebuilt the Soft canvas theme around a persistent material model: 3 px lower rim, layered ambient shadow, top-surface highlight and restrained inner lowlight. Hover changes only paint, never node geometry.
+- Increased Soft card radius, spacing and typography hierarchy to better match the supplied reference while retaining compact workflow density.
+- Enlarged the per-node run affordance into an inset cyan/blue material button; desktop hover and mobile selected-node visibility rules are unchanged.
+- Added structured node metadata/tags plus distinct but consistent function, group and control-flow material identities for both light and dark modes.
+- Added four self-contained built-in acceptance demos under `examples/` and exposed them directly in the **流程 / Flows** palette: scientific pipeline, native reusable function, composite group, and If/For/While control flow.
+- Added `test:demos` and expanded the canvas-theme architecture gate so demo registry drift, hover geometry motion, missing material rim/highlight, and metadata styling regressions fail automatically.
+- Classic canvas theme remains untouched as the rollback baseline.
+- Build revision: `1.5.7-dev-r85-soft-card-material-demos`.
+
 ## 1.5.6 (129) — Soft canvas hover stability + subtle card depth — 2026-08-22
 
 - Removes Soft Theme node hover translation entirely. Workflow cards keep a fixed geometry under pointer hover so React Flow hit-testing cannot oscillate at node edges or handles.
