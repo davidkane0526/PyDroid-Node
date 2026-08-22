@@ -201,16 +201,19 @@ export function PlotLightbox({ open, preview, zoom, onZoom, onClose }: {
 }) {
   if (!open) return null;
   const interactive = Boolean(preview.chart);
+  const safeZoom = Math.min(3, Math.max(.5, zoom));
+  const rasterStageScale = Math.max(1, safeZoom);
+  const rasterImageScale = safeZoom < 1 ? safeZoom : 1;
   return <div className="plot-lightbox" role="dialog" aria-modal="true" aria-label="图表放大预览">
     <header>
-      <div><strong>图表预览</strong>{interactive && <span>交互式 · 可缩放 / 悬停查看数据</span>}</div>
-      <div>
-        {!interactive && <><button onClick={() => onZoom(Math.max(.5, zoom - .25))}>−</button><button onClick={() => onZoom(1)}>{Math.round(zoom * 100)}%</button><button onClick={() => onZoom(Math.min(4, zoom + .25))}>＋</button></>}
+      <div><strong>图表预览</strong><span>{interactive ? "交互式 · 图表随面板自适应" : "Python 图像 · 100% 为适应面板"}</span></div>
+      <div className="plot-lightbox__tools">
+        {!interactive && <label className="plot-lightbox__zoom" title="相对于自适应尺寸缩放"><span>缩放</span><input type="range" min="50" max="300" step="5" value={Math.round(safeZoom * 100)} onChange={(event) => onZoom(Number(event.target.value) / 100)} aria-label="图表缩放"/><output>{Math.round(safeZoom * 100)}%</output></label>}
         <button onClick={onClose}>关闭</button>
       </div>
     </header>
-    <div className={`plot-lightbox__body ${interactive ? "plot-lightbox__body--interactive" : ""}`}>
-      {interactive ? <PlotPreview preview={preview} className="plot-lightbox__chart" /> : <div style={{ width: zoom === 1 ? "100%" : `${zoom * 100}%`, maxWidth: zoom === 1 ? "100%" : "none" }}><PlotPreview preview={preview} alt="放大的绘图结果" /></div>}
+    <div className={`plot-lightbox__body ${interactive ? "plot-lightbox__body--interactive" : "plot-lightbox__body--raster"}`}>
+      {interactive ? <PlotPreview preview={preview} className="plot-lightbox__chart" /> : <div className="plot-lightbox__raster-stage" style={{ width: `${rasterStageScale * 100}%`, height: `${rasterStageScale * 100}%` }}><PlotPreview preview={preview} className="plot-lightbox__raster-image" style={{ width: `${rasterImageScale * 100}%`, height: `${rasterImageScale * 100}%` }} alt="放大的绘图结果" /></div>}
     </div>
   </div>;
 }

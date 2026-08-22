@@ -1,3 +1,13 @@
+## 1.5.8 (131) — Result export layout + adaptive plot presentation + standalone theme lab — 2026-08-22
+
+- Export-node files moved out of the result header into a dedicated responsive export surface, so filenames cannot squeeze preview controls.
+- Python raster plot lightbox now fits the panel at 100% and uses a 50–300% zoom slider instead of `− / 50% / +` buttons.
+- JS heatmaps now keep color mapping in compact node thumbnails, serialize heatmap labels safely, rebuild tooltip/tick formatters in the UI layer, reserve space for the color bar, thin overlapping category labels, and render with explicit device pixel ratio.
+- JS heatmap now honors `showColorBar` and carries X/Y axis labels like the Python backend.
+- Added dependency-free `theme-lab/` (`index.html`, `theme.css`, `theme.js`) covering canvas, ordinary/function/group/control-flow nodes, ports, edges, run action, insights, controls, minimap and execution states for isolated theme review.
+- Added `test:plot-presentation` architectural smoke gate.
+- Build revision: `1.5.8-dev-r86-result-preview-adaptive-plots-theme-lab`.
+
 ## 1.5.7 (130) — Soft card material refresh + built-in acceptance demos — 2026-08-22
 
 - Rebuilt the Soft canvas theme around a persistent material model: 3 px lower rim, layered ambient shadow, top-surface highlight and restrained inner lowlight. Hover changes only paint, never node geometry.

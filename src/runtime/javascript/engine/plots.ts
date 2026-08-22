@@ -39,6 +39,7 @@ const COLOR_MAPS: Record<string, string[]> = {
   magma: ["#000004", "#180f3d", "#440f76", "#721f81", "#9e2f7f", "#cd4071", "#f1605d", "#fd9668", "#feca8d", "#fcfdbf"],
   jet: ["#00007f", "#0000ff", "#007fff", "#00ffff", "#7fff7f", "#ffff00", "#ff7f00", "#ff0000", "#7f0000"],
   coolwarm: ["#3b4cc0", "#5f7bc9", "#8faadc", "#c7d7ee", "#e8e8e8", "#f2c8c8", "#e89a9a", "#d96464", "#b40426"],
+  rdbu_r: ["#053061", "#2166ac", "#4393c3", "#92c5de", "#d1e5f0", "#f7f7f7", "#fddbc7", "#f4a582", "#d6604d", "#b2182b", "#67001f"],
   gray: ["#000000", "#1f1f1f", "#3f3f3f", "#5f5f5f", "#7f7f7f", "#9f9f9f", "#bfbfbf", "#dfdfdf", "#ffffff"],
   blues: ["#f7fbff", "#deebf7", "#c6dbef", "#9ecae1", "#6baed6", "#4292c6", "#2171b5", "#08519c", "#08306b"],
   greens: ["#f7fcf5", "#e5f5e0", "#c7e9c0", "#a1d99b", "#74c476", "#41ab5d", "#238b45", "#006d2c", "#00441b"],
@@ -297,34 +298,37 @@ export function heatmapPlot(table: Table, params: Record<string, unknown>): Plot
 
   const xAxisData = matrixColumns;
   const yAxisData = origin === "lower" ? [...labels].reverse() : labels;
-  const xLabels = xAxisData.map((label, index) => (index % xTickInterval === 0 ? label : ""));
-  const yLabels = yAxisData.map((label, index) => (index % yTickInterval === 0 ? label : ""));
+  const showColorBar = asBool(params.showColorBar ?? true);
 
+  // Keep the runtime payload JSON-only.  Axis/tooltip formatter functions are injected by PlotView
+  // after transport so JS-runtime charts survive JSON serialization without silently losing behavior.
   const option: Record<string, unknown> = {
     animation: false,
-    tooltip: {
-      position: "top",
-      formatter: (item: { value: [number, number, number | null] }) => {
-        const [c, r] = item.value;
-        const value = item.value[2];
-        return `${yAxisData[r] ?? ""} · ${xAxisData[c] ?? ""}<br/>${value === null || value === undefined ? "NaN" : Number(value).toPrecision(6)}`;
-      },
+    tooltip: { trigger: "item", confine: true },
+    grid: { left: 72, right: showColorBar ? 96 : 24, top: 44, bottom: 60, containLabel: true },
+    xAxis: {
+      type: "category", data: xAxisData, name: String(params.xLabel ?? ""), nameLocation: "middle", nameGap: 38,
+      axisLabel: { rotate: xTickRotation, interval: "auto", hideOverlap: true }, splitArea: { show: true },
     },
-    grid: { left: 72, right: 24, top: 40, bottom: 60 },
-    xAxis: { type: "category", data: xAxisData, axisLabel: { rotate: xTickRotation, interval: 0, formatter: (label: string, index: number) => xLabels[index] ?? "" }, splitArea: { show: true } },
-    yAxis: { type: "category", data: yAxisData, axisLabel: { formatter: (label: string, index: number) => yLabels[index] ?? "" }, splitArea: { show: true } },
-    visualMap: {
+    yAxis: {
+      type: "category", data: yAxisData, name: String(params.yLabel ?? ""), nameLocation: "middle", nameGap: 46,
+      axisLabel: { interval: "auto", hideOverlap: true }, splitArea: { show: true },
+    },
+    visualMap: showColorBar ? {
       min,
       max,
       calculable: true,
       orient: "vertical",
-      right: 0,
+      right: 8,
       top: "middle",
       inRange: { color: colorMapColors(String(params.colorMap ?? "viridis")) },
       ...(String(params.colorBarLabel ?? "").trim() ? { text: [String(params.colorBarLabel).trim(), ""] } : {}),
-    },
+    } : undefined,
     series: [{ type: "heatmap", data, emphasis: { itemStyle: { borderColor: "#333", borderWidth: 1 } } }],
     ...(String(params.title ?? "").trim() ? { title: { text: String(params.title).trim(), left: "center" } } : {}),
+    __pydroidHeatmapMeta: {
+      xLabels: xAxisData, yLabels: yAxisData, xTickInterval, yTickInterval,
+    },
   };
   return { type: "heatmap", option: { ...option, __pydroidScientificNotation: asBool(params.scientificNotation ?? true) } };
 }

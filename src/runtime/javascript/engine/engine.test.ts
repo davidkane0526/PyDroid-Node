@@ -241,13 +241,17 @@ describe("工作流执行", () => {
     expect((result.preview as { rows: unknown[][] }).rows).toEqual([[1], [2]]);
   });
 
-  it("heatmap 产出可视化配置", () => {
+  it("heatmap 产出可序列化且可自适应的可视化配置", () => {
     const table = new Table(["row", "a", "b"], [["r1", 1, 2], ["r2", 3, 4]]);
-    const chart = heatmapPlot(table, { rowLabelColumn: "row" });
+    const chart = heatmapPlot(table, { rowLabelColumn: "row", xTickInterval: 2, showColorBar: true });
     expect(chart.type).toBe("heatmap");
     expect(chart.option.series).toHaveLength(1);
     const data = (chart.option.series as Array<{ data: unknown[] }>)[0].data;
     expect(data).toHaveLength(4);
+    expect(chart.option.__pydroidHeatmapMeta).toEqual(expect.objectContaining({ xLabels: ["a", "b"], xTickInterval: 2 }));
+    expect(JSON.parse(JSON.stringify(chart)).option.__pydroidHeatmapMeta.xLabels).toEqual(["a", "b"]);
+    expect(JSON.stringify(chart)).not.toContain("formatter");
+    expect(heatmapPlot(table, { rowLabelColumn: "row", showColorBar: false }).option.visualMap).toBeUndefined();
   });
 
   it("linePlot 校验参数范围", () => {

@@ -3443,6 +3443,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const basicParameters = selectedSpec?.parameters.filter((parameter) => !parameter.advanced) ?? [];
   const advancedParameters = selectedSpec?.parameters.filter((parameter) => parameter.advanced) ?? [];
   const rememberedParameterCount = selectedSpec?.parameters.filter((parameter) => parameter.rememberDefault).length ?? 0;
+  const resultExportItems = result
+    ? (result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : [])
+    : [];
   const resultPanel = result ? (
     <section className={`result-panel ${resultDock === "bottom" ? "result-panel--bottom" : ""}`}>
       {resultDock === "bottom" && <div className="result-resizer" role="separator" aria-orientation="horizontal" aria-label="调整底部结果区高度" onPointerDown={startResultResize} />}
@@ -3454,9 +3457,12 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             <button className={resultDock === "right" ? "active" : ""} title="结果显示在参数栏右侧" aria-label="结果显示在右侧" onClick={() => { setResultDock("right"); setInspectorCollapsed(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
             <button className={resultDock === "bottom" ? "active" : ""} title="结果显示在画布底部" aria-label="结果显示在底部" onClick={() => setResultDock("bottom")}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></svg></button>
           </div>
-          {(result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : []).map((item) => <button className="download-link" key={item.nodeId} onClick={() => { void downloadText(item.content, item.fileName, "text/csv;charset=utf-8"); }}>{isNativePlatform() ? "保存" : "下载"} {item.fileName}</button>)}
         </div>
       </div>
+      {resultExportItems.length > 0 && <section className="result-exports" aria-label="导出文件">
+        <header><strong>{ui("导出文件", "Exports")}</strong><span>{resultExportItems.length}</span></header>
+        <div className="result-exports__list">{resultExportItems.map((item) => <button className="result-export-card" key={`${item.nodeId}-${item.fileName}`} title={`${isNativePlatform() ? "保存" : "下载"} ${item.fileName}`} onClick={() => { void downloadText(item.content, item.fileName, "text/csv;charset=utf-8"); }}><span className="result-export-card__icon" aria-hidden="true">⇩</span><span className="result-export-card__name">{item.fileName}</span><span className="result-export-card__action">{isNativePlatform() ? "保存" : "下载"}</span></button>)}</div>
+      </section>}
       <p className="result-summary">{result.preview.totalRows} 行 × {result.preview.totalColumns} 列</p>
       {Object.entries(result.nodeResults).filter(([nodeId]) => nodes.find((node) => node.id === nodeId)?.data.nodeType === "python.print").length > 0 && <section className="print-results" aria-label="打印结果"><strong>打印结果</strong>{Object.entries(result.nodeResults).filter(([nodeId]) => nodes.find((node) => node.id === nodeId)?.data.nodeType === "python.print").map(([nodeId, preview]) => <article key={nodeId}><span>{nodes.find((node) => node.id === nodeId)?.data.label ?? "打印输出"}</span><code>{preview.kind === "value" ? preview.text : ""}</code></article>)}</section>}
       <div className="result-content">

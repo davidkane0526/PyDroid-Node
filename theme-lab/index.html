@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PyDroid Canvas Theme Lab</title>
+  <link rel="stylesheet" href="theme.css" />
+</head>
+<body>
+  <main class="app-shell" data-theme="light" data-canvas-theme="soft">
+    <header class="lab-toolbar">
+      <div><strong>PyDroid Canvas Theme Lab</strong><span>只用于调画布主题 · 不依赖 React / ECharts / 网络</span></div>
+      <div class="lab-toolbar__actions">
+        <label>明暗<select id="mode"><option value="light">亮色</option><option value="dark">暗色</option></select></label>
+        <label>主题<select id="canvas-theme"><option value="soft">柔和卡片</option><option value="classic">经典参考</option></select></label>
+        <button id="toggle-insights">结果卡片</button>
+        <button id="reset">恢复示例</button>
+      </div>
+    </header>
+
+    <section class="lab-note">
+      <strong>调试方式</strong>
+      <span>直接修改 <code>theme.css</code> 顶部的 Soft Theme tokens 与对应选择器。节点 hover 请直接把鼠标移入卡片；选中、运行、成功、错误等状态已常驻展示。</span>
+    </section>
+
+    <section class="canvas-panel">
+      <div class="react-flow">
+        <div class="canvas-grid" aria-hidden="true"></div>
+        <svg class="edge-layer" viewBox="0 0 1280 760" preserveAspectRatio="none" aria-hidden="true">
+          <path class="react-flow__edge-path" d="M270 175 C340 175 330 175 400 175" />
+          <path class="react-flow__edge-path edge-selected" d="M610 175 C680 175 690 175 760 175" />
+          <path class="react-flow__edge-path" d="M970 175 C1040 175 1010 330 1080 330" />
+          <path class="react-flow__connection-path" d="M305 485 C390 485 400 485 485 485" />
+          <circle cx="270" cy="175" r="4" class="edge-dot"/><circle cx="400" cy="175" r="4" class="edge-dot"/>
+          <circle cx="610" cy="175" r="4" class="edge-dot selected"/><circle cx="760" cy="175" r="4" class="edge-dot selected"/>
+        </svg>
+
+        <article class="workflow-node node-kind-node selected" style="left:70px;top:95px">
+          <button class="node-run-action" title="运行">▶</button>
+          <div class="input-port" style="--port-color:#22c55e"><i class="react-flow__handle"></i><span>表格<small>table</small></span></div>
+          <div class="workflow-node__body"><div class="workflow-node__type">io.read_csv</div><div class="workflow-node__label">读取 CSV</div><div class="workflow-node__meta"><span class="workflow-node__meta-count">35 参数</span><span class="workflow-node__tag">表格</span></div></div>
+          <div class="output-port" style="--port-color:#22c55e"><span>表格<small>table</small></span><i class="react-flow__handle"></i></div>
+          <div class="node-insight node-insight--table"><strong>240×18</strong><span>Vg · Vd · TER</span></div>
+        </article>
+
+        <article class="workflow-node node-kind-function" style="left:400px;top:95px">
+          <button class="node-run-action">▶</button>
+          <div class="input-port" style="--port-color:#22c55e"><i class="react-flow__handle"></i><span>输入<small>table</small></span></div>
+          <div class="workflow-node__body"><div class="workflow-node__type">function.call</div><div class="workflow-node__label">计算指标</div><div class="workflow-node__meta"><span class="workflow-node__meta-count">18 参数</span><span class="workflow-node__tag">函数</span></div></div>
+          <div class="output-port" style="--port-color:#a855f7"><span>图像<small>plot</small></span><i class="react-flow__handle"></i></div>
+          <div class="node-insight node-insight--plot"><div class="fake-heatmap"></div></div>
+        </article>
+
+        <article class="workflow-node node-kind-group" style="left:760px;top:88px;width:230px">
+          <button class="node-run-action">▶</button>
+          <div class="input-port" style="--port-color:#22c55e"><i class="react-flow__handle"></i><span>输入<small>table</small></span></div>
+          <div class="workflow-node__body"><div class="workflow-node__type">workflow.group</div><div class="workflow-node__label">特征工程</div><div class="workflow-node__meta"><span class="workflow-node__meta-count">2 输入 · 1 输出</span><span class="workflow-node__tag">组合</span></div></div>
+          <div class="output-port" style="--port-color:#3b82f6"><span>输出<small>any</small></span><i class="react-flow__handle"></i></div>
+        </article>
+
+        <article class="workflow-node workflow-structure node-kind-flow workflow-structure--if" style="left:70px;top:350px;width:520px;height:260px">
+          <button class="node-run-action">▶</button>
+          <div class="workflow-node__body"><div class="workflow-node__type">logic.if_value</div><div class="workflow-node__label">条件分支</div><div class="workflow-node__meta"><span>原生控制流容器</span></div></div>
+          <div class="workflow-structure__interior">
+            <div class="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span><div class="mini-node">清洗数据</div></div>
+            <div class="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span><div class="mini-node">保留原值</div></div>
+          </div>
+        </article>
+
+        <article class="workflow-node workflow-structure node-kind-flow" style="left:655px;top:350px;width:260px;height:220px">
+          <button class="node-run-action">▶</button>
+          <div class="workflow-node__body"><div class="workflow-node__type">logic.for_each_value</div><div class="workflow-node__label">For Each</div><div class="workflow-node__meta"><span>循环容器</span></div></div>
+          <div class="workflow-structure__interior"><div class="workflow-structure__lane workflow-structure__lane--body"><span>循环体</span><div class="mini-node">Map / Reduce</div></div></div>
+        </article>
+
+        <article class="workflow-node workflow-structure node-kind-flow" style="left:960px;top:350px;width:250px;height:220px">
+          <button class="node-run-action">▶</button>
+          <div class="workflow-node__body"><div class="workflow-node__type">logic.while_number</div><div class="workflow-node__label">While</div><div class="workflow-node__meta"><span>状态推进</span></div></div>
+          <div class="workflow-structure__interior"><div class="workflow-structure__lane workflow-structure__lane--body"><span>循环体</span><div class="mini-node">state += 1</div></div></div>
+        </article>
+
+        <div class="status-strip">
+          <article class="workflow-node node-kind-node status-idle"><div class="workflow-node__label">Idle</div></article>
+          <article class="workflow-node node-kind-node status-running"><div class="workflow-node__label">Running</div></article>
+          <article class="workflow-node node-kind-node status-success"><div class="workflow-node__label">Success</div></article>
+          <article class="workflow-node node-kind-node status-error"><div class="workflow-node__label">Error</div></article>
+          <article class="workflow-node node-kind-node status-disabled"><div class="workflow-node__label">Disabled</div></article>
+        </div>
+
+        <div class="react-flow__controls"><button>＋</button><button>⌂</button><button>－</button></div>
+        <div class="react-flow__minimap"><span class="mini-map-node a"></span><span class="mini-map-node b"></span><span class="mini-map-node c"></span></div>
+      </div>
+    </section>
+
+    <footer class="coverage">
+      <strong>覆盖元素</strong>
+      <span>画布 / 点阵背景</span><span>普通节点</span><span>函数节点</span><span>组合节点</span><span>If</span><span>For</span><span>While</span><span>运行按钮</span><span>输入/输出端口</span><span>普通/选中连线</span><span>标签/元信息</span><span>结果缩略卡</span><span>Controls</span><span>MiniMap</span><span>Idle/Running/Success/Error/Disabled</span>
+    </footer>
+  </main>
+  <script src="theme.js"></script>
+</body>
+</html>
