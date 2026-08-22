@@ -291,10 +291,15 @@ export function notebookCellsToWorkflow(name: string, cells: NotebookCell[], not
 }
 
 
+type PortableFunctionOperation = Omit<NotebookCellAnalysis, "operations" | "index"> & {
+  index?: number;
+  portableFunctionBodyIndex?: number;
+};
+
 type PortableFunctionBody = {
   version: number;
   inputNames: string[];
-  operations: Array<Omit<NotebookCellAnalysis, "operations"> & { portableFunctionBodyIndex?: number }>;
+  operations: PortableFunctionOperation[];
   returns: Array<{ port: string; variable: string }>;
 };
 
@@ -302,7 +307,7 @@ function parsePortableFunctionBody(value: unknown): PortableFunctionBody | null 
   if (typeof value !== "string" || !value.trim()) return null;
   try {
     const parsed = JSON.parse(value) as Partial<PortableFunctionBody>;
-    if (parsed.version !== 1 || !Array.isArray(parsed.inputNames) || !Array.isArray(parsed.operations) || !Array.isArray(parsed.returns)) return null;
+    if (![1, 2].includes(Number(parsed.version)) || !Array.isArray(parsed.inputNames) || !Array.isArray(parsed.operations) || !Array.isArray(parsed.returns)) return null;
     if (!parsed.inputNames.every((item) => typeof item === "string" && Boolean(item))) return null;
     if (!parsed.operations.length || !parsed.operations.every((item) => item && typeof item === "object" && typeof item.nodeType === "string" && item.semantic === true)) return null;
     if (!parsed.returns.length || !parsed.returns.every((item) => item && typeof item.port === "string" && Boolean(item.port) && typeof item.variable === "string" && Boolean(item.variable))) return null;
@@ -348,18 +353,109 @@ function buildPortableFunctionDefinition(options: {
   const producer = new Map<string, { nodeId: string; handle: string }>();
   const externalTargets = new Map<string, { nodeId: string; handle: string }>();
   const declaredInputs = new Set(inputNames);
+  let topLevelX = 80;
+
+  const validateNativeContract = (nodeType: string, allowStructure = false) => {
+    const contract = getNodeContract(nodeType);
+    if (!contract?.runtimes.python || !contract.runtimes.javascript || contract.sideEffect || contract.stateScope !== "none") return null;
+    if (nodeType.startsWith("notebook.") || nodeType === "custom.python_function" || nodeType === "function.call" || nodeType === "function.map") return null;
+    if (allowStructure ? !["standard", "control-flow"].includes(contract.executionModel) : contract.executionModel !== "standard") return null;
+    return contract;
+  };
+
+  const outputBindingsFor = (operation: PortableFunctionBody["operations"][number], node: WorkflowNode): Array<[string, string]> | null => {
+    const outputPorts = resolvedNodePorts(node, "output");
+    const explicitOutputs = parsePortableStringMap(operation.parameters?.notebookOutputPortBindingsJson);
+    const definitions = [...new Set([...(operation.defines ?? []), operation.outputVariable]
+      .filter((item): item is string => typeof item === "string" && Boolean(item)))];
+    if (!definitions.length || !outputPorts.length) return null;
+    const result: Array<[string, string]> = [];
+    for (const [definitionIndex, variable] of definitions.entries()) {
+      const handle = Object.keys(explicitOutputs).length
+        ? explicitOutputs[variable]
+        : outputPorts[definitionIndex] ?? (definitions.length === 1 ? outputPorts[0] : undefined);
+      if (!handle || !outputPorts.includes(handle)) return null;
+      result.push([variable, handle]);
+    }
+    return result;
+  };
+
+  const buildStructureChildren = (
+    operation: PortableFunctionBody["operations"][number],
+    parent: WorkflowNode,
+    parentBindings: Record<string, string>,
+  ): boolean => {
+    const children = operation.children ?? [];
+    if (!children.length) return false;
+    const branches = [...new Set(children.map((child) => child.branch))];
+    for (const branch of branches) {
+      const branchChildren = children.filter((child) => child.branch === branch).sort((left, right) => left.childIndex - right.childIndex);
+      if (!branchChildren.length) return false;
+      const seedVariable = parent.data.nodeType === "logic.if_value"
+        ? parentBindings.input
+        : parent.data.nodeType === "logic.for_each_value"
+          ? String(parent.data.parameters.itemVariable ?? "")
+          : parentBindings.input;
+      if (!seedVariable) return false;
+      const branchProducer = new Map<string, { nodeId: string; handle: string }>();
+      let previousOutput = seedVariable;
+      for (const [childOrder, child] of branchChildren.entries()) {
+        const nodeType = String(child.nodeType ?? "");
+        const contract = validateNativeContract(nodeType, false);
+        if (!contract || child.children?.length) return false;
+        const childId = `${parent.id}-${branch}-${childOrder + 1}`;
+        const childNode: WorkflowNode = {
+          id: childId,
+          type: "workflow",
+          parentId: parent.id,
+          extent: "parent",
+          position: { x: branch === "false" ? 285 : 35, y: 92 + childOrder * 78 },
+          data: {
+            label: child.label || nodeType,
+            nodeType,
+            nodeVersion: contract.version,
+            parameters: portableNodeParameters(child.parameters),
+            status: "idle",
+            branch,
+          },
+        };
+        const inputPorts = resolvedNodePorts(childNode, "input");
+        const explicitInputs = parsePortableStringMap(child.parameters?.notebookInputBindingsJson);
+        const bindings = Object.keys(explicitInputs).length
+          ? explicitInputs
+          : typeof child.inputVariable === "string" && child.inputVariable
+            ? { [inputPorts[0] ?? ""]: child.inputVariable }
+            : {};
+        if (Object.keys(bindings).length !== 1 || Object.keys(bindings).some((handle) => !handle || !inputPorts.includes(handle))) return false;
+        const [[targetHandle, variable]] = Object.entries(bindings);
+        const source = branchProducer.get(variable);
+        if (source) {
+          edges.push({ id: `${id}-edge-${edges.length + 1}`, source: source.nodeId, sourceHandle: source.handle, target: childId, targetHandle });
+        } else if (childOrder !== 0 || variable !== previousOutput) {
+          return false;
+        }
+        const outputs = outputBindingsFor(child, childNode);
+        if (!outputs || outputs.length !== 1) return false;
+        for (const [variableName, handle] of outputs) branchProducer.set(variableName, { nodeId: childId, handle });
+        previousOutput = outputs[0][0];
+        nodes.push(childNode);
+      }
+    }
+    return true;
+  };
 
   for (const [index, operation] of body.operations.entries()) {
     const nodeType = String(operation.nodeType ?? "");
-    const contract = getNodeContract(nodeType);
-    if (!contract?.runtimes.python || !contract.runtimes.javascript || contract.sideEffect || contract.stateScope !== "none" || contract.executionModel !== "standard") return null;
-    if (nodeType.startsWith("notebook.") || nodeType === "custom.python_function" || nodeType === "function.call" || nodeType === "function.map") return null;
+    const structure = isVisualStructureNodeType(nodeType);
+    const contract = validateNativeContract(nodeType, structure);
+    if (!contract) return null;
 
     const nodeId = `${id}-native-${index + 1}`;
     const node: WorkflowNode = {
       id: nodeId,
       type: "workflow",
-      position: { x: 80 + index * 220, y: 80 },
+      position: { x: topLevelX, y: 80 },
+      ...(structure ? { style: { width: 520, height: Math.max(300, 122 + (operation.children?.length ?? 1) * 78) } } : {}),
       data: {
         label: operation.label || nodeType,
         nodeType,
@@ -368,8 +464,8 @@ function buildPortableFunctionDefinition(options: {
         status: "idle",
       },
     };
+    topLevelX += structure ? 590 : 220;
     const inputPorts = resolvedNodePorts(node, "input");
-    const outputPorts = resolvedNodePorts(node, "output");
     const explicitInputs = parsePortableStringMap(operation.parameters?.notebookInputBindingsJson);
     const bindings = Object.keys(explicitInputs).length
       ? explicitInputs
@@ -392,18 +488,24 @@ function buildPortableFunctionDefinition(options: {
       externalTargets.set(variable, { nodeId, handle: targetHandle });
     }
 
-    const explicitOutputs = parsePortableStringMap(operation.parameters?.notebookOutputPortBindingsJson);
-    const definitions = [...new Set([...(operation.defines ?? []), operation.outputVariable]
-      .filter((item): item is string => typeof item === "string" && Boolean(item)))];
-    if (!definitions.length || !outputPorts.length) return null;
-    for (const [definitionIndex, variable] of definitions.entries()) {
-      const handle = Object.keys(explicitOutputs).length
-        ? explicitOutputs[variable]
-        : outputPorts[definitionIndex] ?? (definitions.length === 1 ? outputPorts[0] : undefined);
-      if (!handle || !outputPorts.includes(handle)) return null;
-      producer.set(variable, { nodeId, handle });
+    if (structure) {
+      if (nodeType === "logic.for_each_value") {
+        const itemVariable = operation.children?.[0]?.inputVariable;
+        if (!itemVariable) return null;
+        node.data.parameters.itemVariable = itemVariable;
+      }
+      // React Flow expects a parent to precede its contained children.  Keep
+      // function definitions in that canonical order so "展开编辑" renders a
+      // native structure immediately instead of repairing node order in UI.
+      nodes.push(node);
+      if (!buildStructureChildren(operation, node, bindings)) return null;
+    } else {
+      nodes.push(node);
     }
-    nodes.push(node);
+
+    const outputs = outputBindingsFor(operation, node);
+    if (!outputs) return null;
+    for (const [variable, handle] of outputs) producer.set(variable, { nodeId, handle });
   }
 
   if (inputNames.some((input) => !externalTargets.has(input))) return null;
@@ -424,7 +526,9 @@ function buildPortableFunctionDefinition(options: {
     id,
     name,
     version: 1,
-    description: "由 Jupyter 顶层函数定义自动生成；函数体已严格提升为 Python/JavaScript 共用原生工作流。",
+    description: body.version >= 2
+      ? "由 Jupyter 顶层函数定义自动生成；Map/Reduce/Accumulator 与已证明安全的控制流已提升为 Python/JavaScript 共用原生工作流。"
+      : "由 Jupyter 顶层函数定义自动生成；函数体已严格提升为 Python/JavaScript 共用原生工作流。",
     inputs: inputNames.map((input, index) => {
       const target = externalTargets.get(input)!;
       return { id: input, label: input, valueType: inputTypes[index] ?? "any", internalNodeId: target.nodeId, internalHandle: target.handle };
@@ -434,6 +538,7 @@ function buildPortableFunctionDefinition(options: {
     edges,
   };
 }
+
 
 export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], analyses: NotebookCellAnalysis[], notebookMetadata: Record<string, unknown> = {}): WorkflowDocument {
   const conversionReport = summarizeNotebookConversion(cells, analyses);

@@ -711,7 +711,7 @@ def test_numeric_while_lowering_requires_a_static_finite_single_state_loop():
 def test_marks_pure_native_function_body_as_portable_workflow_graph():
     result = analyze_python_cell("def clean(frame):\n    cleaned = frame.dropna()\n    return cleaned.reset_index(drop=True)\n")
     body = json.loads(result["parameters"]["workflowFunctionPortableBodyJson"])
-    assert body["version"] == 1
+    assert body["version"] == 2
     assert body["inputNames"] == ["frame"]
     assert [item["nodeType"] for item in body["operations"]] == ["pandas.dropna", "table.reset_index"]
     assert body["returns"] == [{"port": "output", "variable": "__pydroid_return_1"}]
@@ -722,6 +722,124 @@ def test_marks_builtin_return_function_as_portable_workflow_graph():
     body = json.loads(result["parameters"]["workflowFunctionPortableBodyJson"])
     assert [item["nodeType"] for item in body["operations"]] == ["python.len"]
     assert body["inputNames"] == ["frame"]
+
+
+
+def test_portable_function_lowers_map_reduce_accumulate_and_proven_numeric_while():
+    mapped = analyze_python_cell(
+        "def scale(values: list[float]):\n"
+        "    out = []\n"
+        "    for item in values:\n"
+        "        out.append(item * 2)\n"
+        "    return out\n"
+    )
+    mapped_body = json.loads(mapped["parameters"]["workflowFunctionPortableBodyJson"])
+    assert [item["nodeType"] for item in mapped_body["operations"]] == ["sequence.map_expression"]
+
+    reduced = analyze_python_cell(
+        "def total(values: list[float]):\n"
+        "    value = 0\n"
+        "    for item in values:\n"
+        "        value += item\n"
+        "    return value\n"
+    )
+    reduced_body = json.loads(reduced["parameters"]["workflowFunctionPortableBodyJson"])
+    assert [item["nodeType"] for item in reduced_body["operations"]] == ["sequence.reduce"]
+
+    accumulated = analyze_python_cell(
+        "def running(values: list[float]):\n"
+        "    value = 0\n"
+        "    history = []\n"
+        "    for item in values:\n"
+        "        value += item\n"
+        "        history.append(value)\n"
+        "    return history, value\n"
+    )
+    accumulated_body = json.loads(accumulated["parameters"]["workflowFunctionPortableBodyJson"])
+    operation = accumulated_body["operations"][0]
+    assert operation["nodeType"] == "sequence.accumulate"
+    assert json.loads(operation["parameters"]["notebookOutputPortBindingsJson"]) == {"history": "output", "value": "last"}
+
+    loop = analyze_python_cell(
+        "def count():\n"
+        "    value = 0\n"
+        "    while value < 4:\n"
+        "        value += 1\n"
+        "    return value\n"
+    )
+    loop_body = json.loads(loop["parameters"]["workflowFunctionPortableBodyJson"])
+    assert [item["nodeType"] for item in loop_body["operations"]] == ["logic.while_number"]
+    assert loop_body["operations"][0]["parameters"]["maxIterations"] == 4
+
+
+def test_portable_function_lowers_strict_if_and_multistep_for_structures():
+    conditional = analyze_python_cell(
+        "def choose(frame, flag: bool):\n"
+        "    if flag:\n"
+        "        result = frame.dropna()\n"
+        "    else:\n"
+        "        result = frame.reset_index(drop=True)\n"
+        "    return result\n"
+    )
+    conditional_body = json.loads(conditional["parameters"]["workflowFunctionPortableBodyJson"])
+    operation = conditional_body["operations"][0]
+    assert operation["nodeType"] == "logic.if_value"
+    assert [(child["branch"], child["nodeType"]) for child in operation["children"]] == [
+        ("true", "pandas.dropna"), ("false", "table.reset_index")
+    ]
+    assert json.loads(operation["parameters"]["notebookInputBindingsJson"]) == {"condition": "flag", "input": "frame"}
+
+    loop = analyze_python_cell(
+        "def clean_all(frames: list):\n"
+        "    result = []\n"
+        "    for frame in frames:\n"
+        "        cleaned = frame.dropna()\n"
+        "        result.append(cleaned.reset_index(drop=True))\n"
+        "    return result\n"
+    )
+    loop_body = json.loads(loop["parameters"]["workflowFunctionPortableBodyJson"])
+    operation = loop_body["operations"][0]
+    assert operation["nodeType"] == "logic.for_each_value"
+    assert [child["nodeType"] for child in operation["children"]] == ["pandas.dropna", "table.reset_index"]
+    assert json.loads(operation["parameters"]["notebookOutputPortBindingsJson"]) == {"result": "done"}
+
+
+def test_portable_function_keeps_ambiguous_control_flow_on_python_kernel():
+    no_else = analyze_python_cell(
+        "def maybe(frame, flag):\n"
+        "    if flag:\n"
+        "        result = frame.dropna()\n"
+        "    return result\n"
+    )
+    assert "workflowFunctionPortableBodyJson" not in no_else["parameters"]
+
+    untyped_numeric = analyze_python_cell(
+        "def scale(values):\n"
+        "    out = []\n"
+        "    for item in values:\n"
+        "        out.append(item * 2)\n"
+        "    return out\n"
+    )
+    assert "workflowFunctionPortableBodyJson" not in untyped_numeric["parameters"]
+
+    stale_literal_shadow = analyze_python_cell(
+        "def reset_after_native(frame):\n"
+        "    value = len(frame)\n"
+        "    value = 0\n"
+        "    return value\n"
+    )
+    assert "workflowFunctionPortableBodyJson" not in stale_literal_shadow["parameters"]
+
+    chained_while = analyze_python_cell(
+        "def count_twice():\n"
+        "    value = 0\n"
+        "    while value < 4:\n"
+        "        value += 1\n"
+        "    while value < 8:\n"
+        "        value += 1\n"
+        "    return value\n"
+    )
+    assert "workflowFunctionPortableBodyJson" not in chained_while["parameters"]
 
 
 def test_keeps_dynamic_function_parameters_and_free_globals_on_python_kernel():

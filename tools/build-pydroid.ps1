@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.3-dev-r81-notebook-analysis-contract"
+$script:BuildScriptRevision = "1.5.4-dev-r82-portable-function-control-flow-ui"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

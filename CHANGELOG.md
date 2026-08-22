@@ -1,3 +1,14 @@
+## 1.5.4 (127) — Portable function control flow + node action UI — 2026-08-22
+
+- Centers Workflow Function card actions with a real flex layout so `调用 / 展开编辑 / 删除` labels remain vertically aligned instead of relying on inherited line-height.
+- Recolors the per-node run action from the previous success green to the application information/cyan palette. The action is hidden by default, appears on desktop node hover/focus, and on the native mobile host only when the node is selected/focused. Light mode receives the matching lake-blue treatment.
+- Extends portable Jupyter function-body lowering from straight native chains to strict Map, Reduce, Accumulator and statically-proven finite numeric While operations. Numeric sequence arithmetic is promoted only for explicitly numeric sequence annotations; ambiguous/untyped arithmetic remains Python.
+- Adds native structured portable functions: strict two-branch If regions lower to `logic.if_value`, and collect-style multi-step loops lower to `logic.for_each_value` with pure native child nodes. Free globals, dynamic parameters, side effects, missing Else branches, unsupported carried state or nested ambiguous control flow keep the executable Python implementation.
+- Materializes portable structure children inside Workflow Function definitions with canonical parent-before-child React Flow ordering, explicit parent/branch ownership, typed port wiring and a second TypeScript NodeContract validation pass.
+- Adds an analyzer-to-workflow portable-function gate covering Map / Reduce / Accumulator / While / If / For, and adds a structured For Workflow Function to Python/JavaScript runtime parity fixtures.
+- Local validation: Python **158 passed / 1 skipped**; portable-function analyzer/builder smoke **6/6**; Runtime Parity **83/83**; JS-capable NodeContract coverage **84/84**; Notebook analysis contract, UI, Workflow Compatibility/Core, Runtime Engine, NodeContract, baseline/build-tool/platform/host/Remote Web/Android host/LAN/diagnostics/execution/editor architecture gates pass.
+- Build revision: `1.5.4-dev-r82-portable-function-control-flow-ui`.
+
 ## 1.5.3 (126) — Notebook analysis contract build fix — 2026-08-22
 
 - Fixed the desktop TypeScript build failure where `App.tsx` consumed `analysis.operations` through the stale, narrower `execution.ts` Notebook analysis type.

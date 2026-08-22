@@ -413,9 +413,12 @@ button, input, select, textarea { font: inherit; }
 .node-selection-check, .node-delete-action { position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
 .node-selection-check { left: -11px; }
 .node-delete-action { right: -11px; border-color: #f87171; color: var(--danger-text); cursor: pointer; }
-.node-run-action { position: absolute; z-index: 9; top: 5px; right: 6px; display: grid; width: 21px; height: 21px; padding: 0 0 0 1px; place-items: center; border: 1px solid var(--border-strong); border-radius: 6px; color: #86efac; background: color-mix(in srgb, var(--surface-raised) 92%, transparent); box-shadow: none; cursor: pointer; font-size: 10px; line-height: 1; transition: border-color .14s ease, background .14s ease, color .14s ease; }
-.node-run-action:hover, .node-run-action:focus-visible { border-color: #4ade80; color: #bbf7d0; background: color-mix(in srgb, var(--success) 12%, var(--surface-raised)); outline: none; }
+.node-run-action { position: absolute; z-index: 9; top: 5px; right: 6px; display: inline-flex; width: 21px; height: 21px; padding: 0; align-items: center; justify-content: center; border: 1px solid color-mix(in srgb, var(--info) 46%, var(--border-strong)); border-radius: 6px; color: var(--info); background: color-mix(in srgb, var(--surface-raised) 94%, transparent); box-shadow: none; cursor: pointer; font-size: 10px; line-height: 1; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-2px) scale(.94); transition: opacity .12s ease, transform .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease; }
+.workflow-node:hover > .node-run-action, .workflow-node:focus-within > .node-run-action { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0) scale(1); }
+.node-run-action:hover, .node-run-action:focus-visible { border-color: var(--info-soft); color: #a5f3fc; background: color-mix(in srgb, var(--info) 13%, var(--surface-raised)); outline: none; }
 .node-run-action:disabled { opacity: .42; cursor: default; }
+.app-shell.native-platform .workflow-node > .node-run-action { opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-2px) scale(.94); }
+.app-shell.native-platform .workflow-node.selected > .node-run-action { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0) scale(1); }
 .notebook-order-handle { width: 1px !important; height: 1px !important; min-width: 1px !important; min-height: 1px !important; opacity: 0 !important; border: 0 !important; box-shadow: none !important; pointer-events: none !important; }
 .node-delete-action:hover, .node-delete-action:focus-visible { background: var(--danger-deep); outline: none; }
 .node-selection-check.checked { border-color: var(--accent-hover); background: var(--accent); }
@@ -3644,7 +3647,7 @@ button.smb-file-row { cursor: pointer; }
 .workflow-variable-list code { max-width: 100%; overflow: hidden; padding: 3px 6px; border: 1px solid var(--border-soft); border-radius: 5px; color: var(--text-highlight); background: var(--surface-deep); font-size: var(--font-xs); text-overflow: ellipsis; white-space: nowrap; }
 .workflow-language-state > button { width: 100%; }
 .workflow-function-card .flow-library-actions { grid-template-columns: minmax(0, .8fr) minmax(0, 1.4fr) minmax(0, .8fr); gap: 4px; }
-.workflow-function-card .flow-library-actions button { min-width: 0; padding-inline: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-function-card .flow-library-actions button { display: inline-flex; min-width: 0; min-height: 32px; padding-inline: 3px; align-items: center; justify-content: center; overflow: hidden; line-height: 1; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
 .function-call-settings > strong, .function-call-settings > small { display: block; }
 .app-shell[data-theme="light"] .workflow-variable-list code { border-color: #cbd5e1; color: #1e3a5f; background: #f8fafc; }
 
@@ -3700,8 +3703,8 @@ button.smb-file-row { cursor: pointer; }
 .app-shell[data-theme="light"] .environment-float-button { border-color: #cbd5e1; color: #52677f; background: #ffffff; box-shadow: none; }
 .app-shell[data-theme="light"] .environment-float-button:hover, .app-shell[data-theme="light"] .environment-float-button.active { border-color: #60a5fa; color: #1e3a5f; background: #eff6ff; }
 .app-shell[data-theme="light"] .environment-floating-panel { border-color: #cbd5e1; background: #ffffff; box-shadow: 0 10px 28px #64748b38; }
-.app-shell[data-theme="light"] .node-run-action { border-color: #cbd5e1; color: #16803b; background: #ffffff; box-shadow: none; }
-.app-shell[data-theme="light"] .node-run-action:hover, .app-shell[data-theme="light"] .node-run-action:focus-visible { border-color: #86efac; color: #166534; background: #ecfdf5; }
+.app-shell[data-theme="light"] .node-run-action { border-color: #7dd3fc; color: #0284c7; background: #ffffff; box-shadow: none; }
+.app-shell[data-theme="light"] .node-run-action:hover, .app-shell[data-theme="light"] .node-run-action:focus-visible { border-color: #38bdf8; color: #0369a1; background: #f0f9ff; }
 .app-shell[data-theme="light"] .workflow-environment-section,
 .app-shell[data-theme="light"] .workflow-environment-item,
 .app-shell[data-theme="light"] .workflow-parameter-item,

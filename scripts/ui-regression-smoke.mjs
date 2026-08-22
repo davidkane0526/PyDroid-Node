@@ -80,6 +80,11 @@ assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must su
 assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefinition, requestedPosition\?: \{ x: number; y: number \}\)/, "function resource drop must keep an optional explicit position in the UI helper contract");
 assert.match(app, /const position = requestedPosition \?\? fallbackPosition;/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
 assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游依赖/, "every canvas node/group should expose the compact node-scoped run action");
+assert.match(css, /\.workflow-function-card \.flow-library-actions button \{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/, "workflow function action labels should be centered by layout rather than line-height compensation");
+assert.match(css, /\.node-run-action \{[^}]*color:\s*var\(--info\);[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/, "node run action should use the cyan-blue info token and stay hidden by default");
+assert.match(css, /\.workflow-node:hover > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "desktop node hover should reveal the run action");
+assert.match(css, /app-shell\.native-platform \.workflow-node\.selected > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "native touch UI should reveal the run action only for the selected node");
+assert.match(css, /app-shell\[data-theme="light"\] \.node-run-action \{[^}]*color:\s*#0284c7;/, "light mode should use the matching lake-blue run action color");
 assert.match(app, /nodeExecutionSubgraph\(nodes, edges, nodeId\)/, "node-scoped execution must derive its upstream context from the graph instead of running the whole workspace");
 assert.match(app, /maxPortCount[\s\S]*nodeMinHeight[\s\S]*horizontalPortLabelWidth/, "node geometry should adapt to endpoint count and endpoint-label width");
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");

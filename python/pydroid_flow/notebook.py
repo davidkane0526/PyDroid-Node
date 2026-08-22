@@ -103,7 +103,27 @@ def _annotation_value_type(annotation: ast.AST | None) -> str:
     if normalized.startswith("optional[") or normalized.startswith("typing.optional["):
         inner = normalized[normalized.find("[") + 1:-1]
         return _VALUE_TYPE_ANNOTATIONS.get(inner, "any")
+    if "[" in normalized and normalized.endswith("]"):
+        base = normalized.split("[", 1)[0]
+        generic = _VALUE_TYPE_ANNOTATIONS.get(base)
+        if generic in {"list", "object"}:
+            return generic
     return _VALUE_TYPE_ANNOTATIONS.get(normalized, "any")
+
+
+def _numeric_sequence_annotation(annotation: ast.AST | None) -> bool:
+    if annotation is None:
+        return False
+    try:
+        raw = annotation.value if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str) else ast.unparse(annotation)
+    except Exception:
+        return False
+    normalized = str(raw).strip(" \'\"").replace(" ", "").lower()
+    if "[" not in normalized or not normalized.endswith("]"):
+        return False
+    base, inner = normalized.split("[", 1)
+    inner = inner[:-1]
+    return base in {"list", "typing.list", "sequence", "typing.sequence"} and inner in {"int", "float", "number"}
 
 
 def _dotted_name(node: ast.AST) -> str | None:
@@ -414,17 +434,177 @@ def _analyze_portable_function_statement(statement: ast.stmt, source: str) -> di
     return operation
 
 
+def _portable_single_output(operation: dict[str, Any]) -> str | None:
+    definitions = [name for name in operation.get("defines", []) if isinstance(name, str) and name]
+    output = operation.get("outputVariable")
+    if isinstance(output, str) and output and output not in definitions:
+        definitions.append(output)
+    unique = list(dict.fromkeys(definitions))
+    return unique[0] if len(unique) == 1 else None
+
+
+def _portable_linear_children(
+    statements: list[ast.stmt],
+    source: str,
+    seed_name: str,
+    branch: str,
+) -> tuple[list[dict[str, Any]], str] | None:
+    """Compile a pure single-input transform chain for one structure branch."""
+    current = seed_name
+    children: list[dict[str, Any]] = []
+    for child_index, child_statement in enumerate(statements):
+        operation = _analyze_portable_function_statement(child_statement, source)
+        if operation is None:
+            return None
+        data_variables = _portable_operation_data_variables(operation)
+        if data_variables != {current}:
+            return None
+        output = _portable_single_output(operation)
+        if output is None:
+            return None
+        children.append({**operation, "branch": branch, "childIndex": child_index})
+        current = output
+    return (children, current) if children else None
+
+
+def _portable_if_operation(
+    statement: ast.If,
+    source: str,
+    local_names: set[str],
+) -> dict[str, Any] | None:
+    """Lower a strict value-selecting If to a native structure with pure branches."""
+    if not statement.orelse:
+        return None
+    binding = _simple_boolean_binding(statement.test)
+    if binding is None:
+        return None
+    condition_name, invert = binding
+    if condition_name not in local_names:
+        return None
+
+    def first_input(statements: list[ast.stmt]) -> str | None:
+        if not statements:
+            return None
+        first = _analyze_portable_function_statement(statements[0], source)
+        if first is None:
+            return None
+        variables = _portable_operation_data_variables(first)
+        return next(iter(variables)) if len(variables) == 1 else None
+
+    true_seed = first_input(statement.body)
+    false_seed = first_input(statement.orelse)
+    if not true_seed or true_seed != false_seed or true_seed not in local_names or true_seed == condition_name:
+        return None
+    true_chain = _portable_linear_children(statement.body, source, true_seed, "true")
+    false_chain = _portable_linear_children(statement.orelse, source, false_seed, "false")
+    if true_chain is None or false_chain is None:
+        return None
+    true_children, true_output = true_chain
+    false_children, false_output = false_chain
+    if true_output != false_output:
+        return None
+    return {
+        "recognized": True,
+        "semantic": True,
+        "kind": "PortableIf",
+        "nodeType": "logic.if_value",
+        "label": f"If 条件 · {true_output}",
+        "parameters": {
+            "invert": invert,
+            "notebookInputBindingsJson": json.dumps({"condition": condition_name, "input": true_seed}, ensure_ascii=False),
+            "notebookOutputPortBindingsJson": json.dumps({true_output: "done"}, ensure_ascii=False),
+        },
+        "defines": [true_output],
+        "uses": [condition_name, true_seed],
+        "outputVariable": true_output,
+        "children": [*true_children, *false_children],
+        "source": ast.get_source_segment(source, statement) or ast.unparse(statement),
+        "reason": "显式布尔条件与两条纯单输入分支已提升为 Workflow Function 内原生 If 子图",
+    }
+
+
+def _portable_for_structure_operation(
+    statement: ast.For,
+    source: str,
+    known_literals: dict[str, Any],
+    portable_sequence_inputs: set[str],
+) -> dict[str, Any] | None:
+    """Lower a collect-style multi-step loop to For Each + native child graph.
+
+    Accepted form::
+
+        result = []
+        for item in items:
+            step = <native transform of item>
+            result.append(<native transform of step>)
+
+    The structure runtime already collects the final child result for every
+    iteration, making it exactly equivalent to the explicit Python append list.
+    """
+    if statement.orelse or not isinstance(statement.target, ast.Name) or not isinstance(statement.iter, ast.Name):
+        return None
+    iterable_name = statement.iter.id
+    if iterable_name not in portable_sequence_inputs or len(statement.body) < 2:
+        return None
+    final_statement = statement.body[-1]
+    if not isinstance(final_statement, ast.Expr) or not isinstance(final_statement.value, ast.Call):
+        return None
+    append_call = final_statement.value
+    if append_call.keywords or len(append_call.args) != 1:
+        return None
+    if not isinstance(append_call.func, ast.Attribute) or append_call.func.attr != "append" or not isinstance(append_call.func.value, ast.Name):
+        return None
+    result_name = append_call.func.value.id
+    if known_literals.get(result_name, ...) != []:
+        return None
+
+    chain_statements = list(statement.body[:-1])
+    appended = append_call.args[0]
+    if isinstance(appended, ast.Name):
+        expected_final = appended.id
+    else:
+        temporary = f"__pydroid_for_value_{statement.lineno}"
+        synthetic = ast.Assign(targets=[ast.Name(id=temporary, ctx=ast.Store())], value=appended)
+        ast.fix_missing_locations(synthetic)
+        chain_statements.append(synthetic)
+        expected_final = temporary
+    chain = _portable_linear_children(chain_statements, source, statement.target.id, "body")
+    if chain is None:
+        return None
+    children, final_output = chain
+    if final_output != expected_final:
+        return None
+    return {
+        "recognized": True,
+        "semantic": True,
+        "kind": "PortableFor",
+        "nodeType": "logic.for_each_value",
+        "label": f"For Each · {result_name}",
+        "parameters": {
+            "maxIterations": 10000,
+            "notebookInputBindingsJson": json.dumps({"input": iterable_name}, ensure_ascii=False),
+            "notebookOutputPortBindingsJson": json.dumps({result_name: "done"}, ensure_ascii=False),
+        },
+        "defines": [result_name],
+        "uses": [iterable_name],
+        "outputVariable": result_name,
+        "children": children,
+        "source": ast.get_source_segment(source, statement) or ast.unparse(statement),
+        "reason": "显式 append 收集的多步纯变换循环已提升为 Workflow Function 内 For Each 子图",
+    }
+
+
 def _compile_portable_function_body(
     statement: ast.FunctionDef,
     source: str,
     compiled: dict[str, Any],
 ) -> dict[str, Any] | None:
-    """Compile the provably-native subset of a Python ``def`` into graph IR.
+    """Compile a provably portable Python ``def`` into native graph IR.
 
-    The emitted IR is runtime-agnostic.  TypeScript validates every referenced
-    NodeContract against the JavaScript runtime before replacing the Python
-    kernel.  Any ambiguity returns ``None`` and therefore preserves the existing
-    ``custom.python_function`` fallback.
+    Local literal initializers are treated as compile-time state only when a
+    proven Map/Reduce/Accumulator/While/For lowering consumes them.  Structured
+    If/For nodes carry pure child transforms; all other ambiguity falls back to
+    the Python kernel.
     """
     if compiled.get("dependencyNames"):
         return None
@@ -432,13 +612,23 @@ def _compile_portable_function_body(
         return None
 
     input_names = [str(name) for name in compiled.get("inputNames", []) if isinstance(name, str) and name]
+    input_types = [str(value) for value in compiled.get("inputTypes", [])]
+    portable_sequence_inputs = {
+        name for name, value_type in zip(input_names, input_types)
+        if value_type == "list"
+    }
+    original_arguments = [*statement.args.posonlyargs, *statement.args.args, *statement.args.kwonlyargs]
+    portable_numeric_sequence_inputs = {
+        argument.arg for argument in original_arguments
+        if _numeric_sequence_annotation(argument.annotation)
+    }
     local_names = set(input_names)
+    known_literals: dict[str, Any] = {}
     operations: list[dict[str, Any]] = []
     return_variables: list[str] | None = None
 
     for body_index, body_statement in enumerate(statement.body):
         if isinstance(body_statement, ast.Return):
-            # A strict portable body has exactly one final top-level return.
             if body_index != len(statement.body) - 1 or body_statement.value is None:
                 return None
             values = list(body_statement.value.elts) if isinstance(body_statement.value, ast.Tuple) else [body_statement.value]
@@ -452,14 +642,12 @@ def _compile_portable_function_body(
                 temporary = f"__pydroid_return_{output_index + 1}"
                 synthetic = ast.Assign(targets=[ast.Name(id=temporary, ctx=ast.Store())], value=value)
                 ast.fix_missing_locations(synthetic)
-                synthetic_source = ast.unparse(synthetic)
-                operation = _analyze_portable_function_statement(synthetic, synthetic_source)
+                operation = _analyze_portable_function_statement(synthetic, ast.unparse(synthetic))
                 if operation is None:
                     return None
                 loads = {
                     node.id for node in ast.walk(value)
-                    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-                    and node.id in local_names
+                    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in local_names
                 }
                 if not loads.issubset(_portable_operation_data_variables(operation)):
                     return None
@@ -471,26 +659,69 @@ def _compile_portable_function_body(
                 return_variables.append(temporary)
             break
 
-        operation = _analyze_portable_function_statement(body_statement, source)
+        # Literal list/identity initializers are compile-time state for strict
+        # collection/reduction/while patterns.  They are never emitted as fake
+        # variable nodes and must later be consumed by a native operation.
+        if isinstance(body_statement, ast.Assign) and len(body_statement.targets) == 1 and isinstance(body_statement.targets[0], ast.Name):
+            literal = _literal(body_statement.value)
+            if literal is not None:
+                target_name = body_statement.targets[0].id
+                # A compile-time initializer is safe only before the variable
+                # has any runtime producer.  Treating a later reassignment as
+                # metadata would leave the earlier graph edge alive and could
+                # return stale data instead of the Python literal.
+                if target_name in input_names or any(target_name in operation.get("defines", []) for operation in operations):
+                    return None
+                known_literals[target_name] = literal
+                local_names.add(target_name)
+                continue
+
+        base = _statement_base(body_statement, source)
+        operation: dict[str, Any] | None = None
+        if isinstance(body_statement, ast.While):
+            operation = _analyze_numeric_while(body_statement, base, known_literals)
+        elif isinstance(body_statement, ast.For):
+            operation = _analyze_sequence_loop(body_statement, base, known_literals, portable_numeric_sequence_inputs)
+            if operation is None:
+                operation = _portable_for_structure_operation(body_statement, source, known_literals, portable_sequence_inputs)
+        elif isinstance(body_statement, ast.If):
+            operation = _portable_if_operation(body_statement, source, local_names)
         if operation is None:
+            operation = _analyze_portable_function_statement(body_statement, source)
+        if operation is None or _portable_operation_has_dynamic_parameters(operation):
             return None
-        loads = {
-            node.id for node in ast.walk(body_statement)
-            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
-            and node.id in local_names
-        }
-        if not loads.issubset(_portable_operation_data_variables(operation)):
-            return None
+
+        if operation.get("kind") not in {"ForMap", "ForReduce", "ForAccumulate", "WhileNumber", "PortableIf", "PortableFor"}:
+            loads = {
+                node.id for node in ast.walk(body_statement)
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load) and node.id in local_names
+            }
+            if not loads.issubset(_portable_operation_data_variables(operation)):
+                return None
+        else:
+            represented = _portable_operation_data_variables(operation)
+            unresolved = {
+                node.id for node in ast.walk(body_statement)
+                if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                and node.id in local_names
+                and node.id not in represented
+                and node.id not in known_literals
+            }
+            if isinstance(body_statement, ast.For):
+                unresolved.discard(body_statement.target.id)
+            if unresolved:
+                return None
+
         operation["portableFunctionBodyIndex"] = len(operations)
         operations.append(operation)
-        local_names.update(name for name in operation.get("defines", []) if isinstance(name, str) and name)
+        definitions = [name for name in operation.get("defines", []) if isinstance(name, str) and name]
+        local_names.update(definitions)
+        for definition in definitions:
+            known_literals.pop(definition, None)
 
     output_ids = [str(item) for item in compiled.get("outputIds", []) if isinstance(item, str) and item]
     if return_variables is None or len(return_variables) != len(output_ids) or not operations:
         return None
-    # Workflow function outputs must originate from an internal node.  Returning
-    # an input directly is therefore kept as the Python kernel until an explicit
-    # generic identity NodeContract exists.
     defined_by_operations = {
         name for operation in operations for name in operation.get("defines", [])
         if isinstance(name, str) and name
@@ -499,7 +730,7 @@ def _compile_portable_function_body(
         return None
 
     return {
-        "version": 1,
+        "version": 2,
         "inputNames": input_names,
         "operations": operations,
         "returns": [
@@ -942,11 +1173,16 @@ def _numeric_literal_sequence(value: Any) -> bool:
 def _portable_sequence_iterable(
     node: ast.AST,
     known_literals: dict[str, Any],
+    portable_inputs: set[str] | None = None,
 ) -> tuple[dict[str, str], dict[str, Any]] | None:
     """Return a sequence-node input only when numeric-list semantics are proven."""
     if isinstance(node, ast.Name):
         value = known_literals.get(node.id, ...)
-        if value is ... or not _numeric_literal_sequence(value):
+        if value is ...:
+            if portable_inputs and node.id in portable_inputs:
+                return {"notebookInputBindingsJson": json.dumps({"input": node.id}, ensure_ascii=False)}, {"uses": [node.id]}
+            return None
+        if not _numeric_literal_sequence(value):
             return None
         return {"notebookInputBindingsJson": json.dumps({"input": node.id}, ensure_ascii=False)}, {"uses": [node.id]}
     if isinstance(node, ast.List):
@@ -1088,6 +1324,7 @@ def _analyze_sequence_loop(
     statement: ast.stmt,
     base: dict[str, Any],
     known_literals: dict[str, Any],
+    portable_inputs: set[str] | None = None,
 ) -> dict[str, Any] | None:
     """Classify strict Python loop idioms as Map / Reduce / Accumulator.
 
@@ -1099,7 +1336,7 @@ def _analyze_sequence_loop(
     if not isinstance(statement, ast.For) or statement.orelse or not isinstance(statement.target, ast.Name):
         return None
     item_name = statement.target.id
-    iterable = _portable_sequence_iterable(statement.iter, known_literals)
+    iterable = _portable_sequence_iterable(statement.iter, known_literals, portable_inputs)
     if iterable is None:
         return None
     input_metadata, extra = iterable

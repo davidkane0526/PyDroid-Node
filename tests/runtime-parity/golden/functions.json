@@ -504,6 +504,204 @@
           }
         }
       }
+    },
+    {
+      "id": "workflow_function_structured_for",
+      "description": "Portable workflow function executes a native For Each child graph identically in Python and JavaScript",
+      "csvText": "x,y\n1,2\n3,4\n",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Function structured for",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "call",
+            "position": {
+              "x": 220,
+              "y": 0
+            },
+            "data": {
+              "label": "clean_all",
+              "nodeType": "function.call",
+              "nodeVersion": 1,
+              "parameters": {
+                "functionId": "fn-clean-all",
+                "functionVersion": 1
+              },
+              "status": "idle",
+              "functionInputs": [
+                {
+                  "id": "frames",
+                  "label": "frames",
+                  "valueType": "table"
+                }
+              ],
+              "functionOutputs": [
+                {
+                  "id": "output",
+                  "label": "output",
+                  "valueType": "list"
+                }
+              ]
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "output",
+            "target": "call",
+            "targetHandle": "frames"
+          }
+        ],
+        "functions": [
+          {
+            "id": "fn-clean-all",
+            "name": "clean_all",
+            "version": 1,
+            "inputs": [
+              {
+                "id": "frames",
+                "label": "frames",
+                "valueType": "table",
+                "internalNodeId": "loop",
+                "internalHandle": "input"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "output",
+                "label": "output",
+                "valueType": "list",
+                "internalNodeId": "loop",
+                "internalHandle": "done"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "loop",
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "style": {
+                  "width": 520,
+                  "height": 300
+                },
+                "data": {
+                  "label": "For Each",
+                  "nodeType": "logic.for_each_value",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "maxIterations": 10000,
+                    "itemVariable": "frame"
+                  },
+                  "status": "idle"
+                }
+              },
+              {
+                "id": "drop",
+                "parentId": "loop",
+                "extent": "parent",
+                "position": {
+                  "x": 35,
+                  "y": 92
+                },
+                "data": {
+                  "label": "dropna",
+                  "nodeType": "pandas.dropna",
+                  "nodeVersion": 1,
+                  "parameters": {},
+                  "status": "idle",
+                  "branch": "body"
+                }
+              },
+              {
+                "id": "reset",
+                "parentId": "loop",
+                "extent": "parent",
+                "position": {
+                  "x": 35,
+                  "y": 170
+                },
+                "data": {
+                  "label": "reset",
+                  "nodeType": "table.reset_index",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "drop": true
+                  },
+                  "status": "idle",
+                  "branch": "body"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "id": "f1",
+                "source": "drop",
+                "sourceHandle": "output",
+                "target": "reset",
+                "targetHandle": "input"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "call"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              3,
+              4
+            ]
+          ],
+          "totalRows": 1,
+          "totalColumns": 2
+        },
+        "nodePreviews": {
+          "call": {
+            "columns": [
+              "x",
+              "y"
+            ],
+            "rows": [
+              [
+                3,
+                4
+              ]
+            ],
+            "totalRows": 1,
+            "totalColumns": 2
+          }
+        }
+      }
     }
   ]
 }
