@@ -66,10 +66,8 @@ function upstreamValue(nodeId: string, workflow: Workflow, values: Map<string, R
 function upstreamTables(nodeId: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): Record<string, Table> {
   const incoming = dataEdges(workflow).filter((edge) => edge.target === nodeId);
   const ports: Record<string, Table> = {};
-  const fallback = ["left", "right"];
-  let fallbackIndex = 0;
   for (const edge of incoming) {
-    const port = edge.targetHandle || fallback[fallbackIndex++] || "";
+    const port = edge.targetHandle || "";
     if (port !== "left" && port !== "right") throw new Error(`Unknown concat input port: ${port}`);
     if (port in ports) throw new Error(`Concat input ${port} has more than one connection`);
     ports[port] = requireTable(edgeValue(edge, values), `Concat input ${port}`);

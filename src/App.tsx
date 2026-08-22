@@ -2531,7 +2531,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       return { document: parseWorkflowNotebook(source, name), cells, analyses: [] as Awaited<ReturnType<typeof analyzeNotebook>>, report: null as NotebookConversionReport | null, normalization };
     }
     const analyses = await analyzeNotebook(serializeJupyterNotebookCells(name, cells, metadata));
-    const hasStatementAnalysis = analyses.some((analysis) => Boolean(analysis.operations?.length || analysis.nodeType));
+    const hasStatementAnalysis = analyses.some((analysis) => Boolean(analysis.operations?.length || analysis.nodeType || analysis.kind === "AnnotationOnly"));
     const document = hasStatementAnalysis
       ? analyzedNotebookToWorkflow(name, cells, analyses, metadata)
       : notebookCellsToWorkflow(name, cells, metadata);
@@ -2543,6 +2543,21 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     setMessage(`${title}：${detail}`);
     setExecutionError({ title, message: detail, traceback: error instanceof Error ? error.stack ?? null : null });
     setErrorDetailOpen(false);
+  };
+
+  const installCompiledNotebook = (
+    compiled: Awaited<ReturnType<typeof compileNotebookDocument>>,
+    metadata: Record<string, unknown>,
+    fallbackMessage: string,
+  ) => {
+    setNotebookCells(compiled.cells);
+    setNotebookCellResults({});
+    setNotebookMetadata(metadata);
+    replaceWorkflowContent(prepareImportedWorkflow(compiled.document));
+    setNotebookError(null);
+    setExecutionError(null);
+    setViewMode("nodes");
+    setMessage(compiled.report ? notebookConversionMessage(compiled.report, compiled.normalization) : fallbackMessage);
   };
 
   const applyNotebook = async () => {
@@ -2615,7 +2630,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         ? `Android 待确认依赖 ${report.androidUnsupportedModules.slice(0, 4).join(", ")}${report.androidUnsupportedModules.length > 4 ? "…" : ""}`
         : "",
       report.windowsPathCells ? `Windows 路径 ${report.windowsPathCells} 个单元格` : "",
-      report.commentOnlyCodeCells ? `纯注释 ${report.commentOnlyCodeCells} 个单元格不生成节点` : "",
+      report.annotationOnlyCodeCells ? `说明/注释 ${report.annotationOnlyCodeCells} 个单元格不生成节点` : "",
     ].filter(Boolean);
     return `已无损转换 ${report.totalCells} 个单元格：结构化 ${report.semanticOperations}/${report.operations} 步（${report.structuredPercent}%），原样保留 ${report.carrierOperations} 步${details.length ? `；${details.join("；")}` : ""}`;
   };
@@ -2626,14 +2641,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     try {
       const imported = parseJupyterNotebook(await file.text());
       const compiled = await compileNotebookDocument(imported.name, imported.cells, imported.metadata);
-      setNotebookCells(compiled.cells);
-      setNotebookCellResults({});
-      setNotebookMetadata(imported.metadata);
-      replaceWorkflowContent(prepareImportedWorkflow(compiled.document));
-      setNotebookError(null);
-      setExecutionError(null);
-      setViewMode("nodes");
-      setMessage(compiled.report ? notebookConversionMessage(compiled.report, compiled.normalization) : `已自动识别并恢复 ${compiled.document.nodes.length} 个功能节点`);
+      installCompiledNotebook(compiled, imported.metadata, `已自动识别并恢复 ${compiled.document.nodes.length} 个功能节点`);
     } catch (error) {
       showImportError("Jupyter 导入失败", error, "Jupyter 导入失败");
     } finally {
@@ -2857,14 +2865,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       if (file.name.toLocaleLowerCase().endsWith(".ipynb")) {
         const imported = parseJupyterNotebook(text);
         const compiled = await compileNotebookDocument(imported.name, imported.cells, imported.metadata);
-        setNotebookCells(compiled.cells);
-        setNotebookCellResults({});
-        setNotebookMetadata(imported.metadata);
-        replaceWorkflowContent(prepareImportedWorkflow(compiled.document));
-        setNotebookError(null);
-        setExecutionError(null);
-        setViewMode("nodes");
-        setMessage(compiled.report ? notebookConversionMessage(compiled.report, compiled.normalization) : `已从 Jupyter 自动恢复 ${compiled.document.nodes.length} 个功能节点`);
+        installCompiledNotebook(compiled, imported.metadata, `已从 Jupyter 自动恢复 ${compiled.document.nodes.length} 个功能节点`);
         return;
       }
       const opened = lifecycle.openSerialized(session, text, prepareImportedWorkflow);
@@ -3653,7 +3654,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             <Controls />
           </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
             <header>
-              <div className="notebook-view__title"><strong>Python Notebook</strong><span><b>pandas · NumPy · Matplotlib</b><small># %% 单元格</small></span></div>
+              <div className="notebook-view__title"><strong>Python Notebook</strong></div>
               <div>
                 <button className="primary" disabled={notebookRunningCell !== null} onClick={() => void runNotebook()}>{notebookRunningCell === "all" ? "运行中…" : "▶ 运行全部"}</button>
                 <button onClick={() => notebookInput.current?.click()}>导入 .ipynb</button>

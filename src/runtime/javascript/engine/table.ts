@@ -38,6 +38,46 @@ function median(values: number[]): number {
   return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 }
 
+function pythonSliceIndexes(length: number, start: number | null, stop: number | null, step: number): number[] {
+  if (!Number.isInteger(step) || step === 0) throw new Error("Slice step cannot be zero");
+  const lower = step < 0 ? -1 : 0;
+  const upper = step < 0 ? length - 1 : length;
+  const normalize = (value: number | null, isStart: boolean): number => {
+    if (value === null) return isStart ? (step < 0 ? upper : lower) : (step < 0 ? lower : upper);
+    let index = Math.trunc(value);
+    if (index < 0) index += length;
+    if (index < lower) return lower;
+    if (index > upper) return upper;
+    return index;
+  };
+  const first = normalize(start, true);
+  const last = normalize(stop, false);
+  const result: number[] = [];
+  if (step > 0) for (let index = first; index < last; index += step) result.push(index);
+  else for (let index = first; index > last; index += step) result.push(index);
+  return result;
+}
+
+function roundHalfEven(value: number, decimals: number): number {
+  if (!Number.isFinite(value)) return value;
+  const factor = 10 ** decimals;
+  const scaled = value * factor;
+  const floor = Math.floor(scaled);
+  const fraction = scaled - floor;
+  const epsilon = Number.EPSILON * Math.max(1, Math.abs(scaled)) * 4;
+  let rounded: number;
+  if (Math.abs(fraction - 0.5) <= epsilon) rounded = floor % 2 === 0 ? floor : floor + 1;
+  else rounded = Math.round(scaled);
+  return rounded / factor;
+}
+
+function arithmeticDifference(a: CellValue, b: CellValue): CellValue {
+  if (isMissing(a) || isMissing(b)) return MISSING;
+  if (typeof a === "boolean" && typeof b === "boolean") return a !== b;
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  throw new Error(`Difference is not defined for ${typeof a} and ${typeof b}`);
+}
+
 export class Table {
   readonly columns: string[];
   // data[columnIndex][rowIndex]
@@ -128,21 +168,19 @@ export class Table {
   }
 
   head(n = 5): Table {
-    return this.sliceRows(0, n);
+    const count = Math.trunc(n);
+    return count >= 0 ? this.takeRows(pythonSliceIndexes(this.rowCount, 0, count, 1)) : this.takeRows(pythonSliceIndexes(this.rowCount, 0, count, 1));
   }
 
   tail(n = 5): Table {
-    const count = Math.max(0, Math.min(n, this.rowCount));
-    return this.sliceRows(this.rowCount - count, this.rowCount);
+    const count = Math.trunc(n);
+    if (count === 0) return this.takeRows([]);
+    if (count > 0) return this.takeRows(pythonSliceIndexes(this.rowCount, -count, null, 1));
+    return this.takeRows(pythonSliceIndexes(this.rowCount, -count, null, 1));
   }
 
-  sliceRows(start: number, stop: number, step = 1): Table {
-    if (step === 0) throw new Error("Slice step cannot be zero");
-    const indexes: number[] = [];
-    for (let i = start; i < stop && i < this.rowCount; i += step) {
-      if (i >= 0) indexes.push(i);
-    }
-    return this.takeRows(indexes);
+  sliceRows(start: number | null, stop: number | null, step = 1): Table {
+    return this.takeRows(pythonSliceIndexes(this.rowCount, start, stop, step));
   }
 
   takeRows(indexes: number[]): Table {
@@ -182,52 +220,45 @@ export class Table {
     return new Table(
       this.columns,
       this.rows().map((row) => row.map((value) => {
-        const number = toNumber(value);
-        return number === null ? MISSING : Math.abs(number);
+        if (isMissing(value)) return MISSING;
+        if (typeof value === "boolean") return value;
+        if (typeof value === "number") return Math.abs(value);
+        throw new Error("Absolute value is only defined for numeric/boolean table values");
       })),
     );
   }
 
   diff(periods = 1, axis = 0): Table {
+    const offset = Math.trunc(periods);
     if (axis === 0) {
       return new Table(
         this.columns,
-        this.rows().map((row, r) => {
-          const previous = r - periods >= 0 ? this.row(r - periods) : null;
-          return row.map((value, c) => {
-            const a = toNumber(value);
-            const b = previous ? toNumber(previous[c]) : null;
-            return a === null || b === null ? MISSING : a - b;
-          });
-        }),
+        this.rows().map((row, r) => row.map((value, c) => {
+          const prior = r - offset;
+          return prior < 0 || prior >= this.rowCount ? MISSING : arithmeticDifference(value, this.data[c][prior]);
+        })),
       );
     }
-    // axis=1：逐行对相邻列做差分
+    if (axis !== 1) throw new Error("Difference axis must be 0 or 1");
     return new Table(
       this.columns,
       this.rows().map((row) => row.map((value, c) => {
-        const a = toNumber(value);
-        const b = toNumber(row[c - periods]);
-        return a === null || b === null ? MISSING : a - b;
+        const prior = c - offset;
+        return prior < 0 || prior >= row.length ? MISSING : arithmeticDifference(value, row[prior]);
       })),
     );
   }
 
   sortIndex(ascending = true, axis = 0): Table {
     if (axis === 1) {
-      const order = this.columns.map((_, c) => c).sort((a, b) => {
-        const columnA = this.data[a];
-        const columnB = this.data[b];
-        const firstDiff = Array.from({ length: Math.min(columnA.length, columnB.length) }, (_, r) => compareValues(columnA[r], columnB[r])).find((value) => value !== 0) ?? 0;
-        return ascending ? firstDiff : -firstDiff;
+      const order = this.columns.map((_, index) => index).sort((left, right) => {
+        const diff = compareValues(this.columns[left], this.columns[right]);
+        return ascending ? diff : -diff;
       });
-      return new Table(order.map((c) => this.columns[c]), this.rows().map((row) => order.map((c) => row[c])));
+      return new Table(order.map((index) => this.columns[index]), this.rows().map((row) => order.map((index) => row[index])));
     }
-    const indexes = Array.from({ length: this.rowCount }, (_, r) => r).sort((a, b) => {
-      const diff = compareValues(a, b);
-      return ascending ? diff : -diff;
-    });
-    return this.takeRows(indexes);
+    if (axis !== 0) throw new Error("Sort index axis must be 0 or 1");
+    return this.copy(); // JS Table has a RangeIndex only, already sorted.
   }
 
   sortValues(by: Array<string | number>, ascending = true, naPosition: "first" | "last" = "last"): Table {
@@ -310,10 +341,11 @@ export class Table {
   }
 
   round(decimals = 2): Table {
-    const factor = 10 ** decimals;
     return new Table(this.columns, this.rows().map((row) => row.map((value) => {
-      const number = toNumber(value);
-      return number === null ? MISSING : Math.round(number * factor) / factor;
+      if (isMissing(value)) return MISSING;
+      if (typeof value === "boolean") return value;
+      if (typeof value !== "number") return value;
+      return roundHalfEven(value, Math.trunc(decimals));
     })));
   }
 
@@ -427,25 +459,38 @@ export class Table {
     const indexC = this.columnIndex(index);
     const columnsC = this.columnIndex(columns);
     const valuesC = this.columnIndex(values);
-    const rowKeys = [...new Set(this.data[indexC].map((value) => String(value)))].sort();
-    const columnKeys = [...new Set(this.data[columnsC].map((value) => String(value)))].sort();
+    const sourceRows = this.rows().filter((row) => !isMissing(row[indexC]) && !isMissing(row[columnsC]));
+    const uniqueSorted = (columnIndex: number): CellValue[] => {
+      const values: CellValue[] = [];
+      for (const row of sourceRows) if (!values.some((item) => compareValues(item, row[columnIndex]) === 0)) values.push(row[columnIndex]);
+      return values.sort(compareValues);
+    };
+    const rowKeys = uniqueSorted(indexC);
+    const columnKeys = uniqueSorted(columnsC);
     const result = rowKeys.map((rowKey) => {
       const row: CellValue[] = [rowKey];
       for (const columnKey of columnKeys) {
-        const matching = this.rows().filter((r) => String(r[indexC]) === rowKey && String(r[columnsC]) === columnKey);
-        const numbers = matching.map((r) => toNumber(r[valuesC])).filter((value): value is number => value !== null);
+        const matching = sourceRows.filter((item) => compareValues(item[indexC], rowKey) === 0 && compareValues(item[columnsC], columnKey) === 0);
+        const present = matching.map((item) => item[valuesC]).filter((item) => !isMissing(item));
         let value: CellValue = MISSING;
-        if (numbers.length) {
-          if (aggregate === "mean") value = numbers.reduce((a, b) => a + b, 0) / numbers.length;
-          else if (aggregate === "first") value = numbers[0];
-          else if (aggregate === "max") value = Math.max(...numbers);
-          else value = Math.min(...numbers);
+        if (present.length) {
+          if (aggregate === "first") value = present[0];
+          else if (aggregate === "mean") {
+            const numbers = present.filter((item): item is number => typeof item === "number");
+            if (numbers.length !== present.length) throw new Error("Pivot mean requires numeric values");
+            value = numbers.reduce((a, b) => a + b, 0) / numbers.length;
+          } else {
+            value = present.reduce((best, item) => {
+              const order = compareValues(item, best);
+              return aggregate === "max" ? (order > 0 ? item : best) : (order < 0 ? item : best);
+            });
+          }
         }
         row.push(value);
       }
       return row;
     });
-    return new Table([index, ...columnKeys], result);
+    return new Table([index, ...columnKeys.map(String)], result);
   }
 
   concat(other: Table, axis: 0 | 1, ignoreIndex: boolean): Table {

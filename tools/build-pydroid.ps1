@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.9-dev-r87-js-plot-performance"
+$script:BuildScriptRevision = "1.5.10-dev-r89-notebook-parity-cleanup"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

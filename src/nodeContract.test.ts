@@ -14,14 +14,16 @@ describe("node contracts", () => {
     expect(contract?.executionModel).toBe("custom-code");
     expect(contract?.runtimes.python).toBe(true);
     expect(contract?.runtimes.javascript).toBe(false);
+    expect(contract?.parityClass).toBe("C");
   });
 
-  it("marks function.map as a Python-only workflow function caller", () => {
+  it("marks function.map as a portable workflow function caller", () => {
     const contract = getNodeContract("function.map");
     expect(contract?.executionModel).toBe("function");
     expect(contract?.functionRole).toBe("call");
     expect(contract?.runtimes.python).toBe(true);
-    expect(contract?.runtimes.javascript).toBe(false);
+    expect(contract?.runtimes.javascript).toBe(true);
+    expect(contract?.parityClass).toBe("A");
   });
 
   it("marks temporary variable nodes with temporary state scope", () => {
@@ -47,6 +49,16 @@ describe("node contracts", () => {
     expect(canSafelyPreExecuteNodes(unsafeNodes).safe).toBe(false);
   });
 
+
+  it("blocks JavaScript only when node parameters exceed the proven parity subset", () => {
+    const plainCsv = [{ id: "csv", position: { x: 0, y: 0 }, data: { label: "CSV", nodeType: "io.read_csv", nodeVersion: 1, parameters: { header: "infer" }, status: "idle" } }];
+    const indexedCsv = [{ id: "csv", position: { x: 0, y: 0 }, data: { label: "CSV", nodeType: "io.read_csv", nodeVersion: 1, parameters: { header: "infer", indexColumn: "id" }, status: "idle" } }];
+    expect(canWorkflowRunInRuntime(plainCsv, "javascript").supported).toBe(true);
+    const blocked = canWorkflowRunInRuntime(indexedCsv, "javascript");
+    expect(blocked.supported).toBe(false);
+    expect(blocked.unsupportedNodeTypes).toEqual([]);
+    expect(blocked.parameterIssues[0]?.nodeType).toBe("io.read_csv");
+  });
   it("exposes workflow.group even though it is not a catalog node", () => {
     expect(getNodeContract("workflow.group")?.executionModel).toBe("workflow");
     expect(supportsNodeRuntime("workflow.group", "javascript")).toBe(true);

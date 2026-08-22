@@ -1,69 +1,53 @@
-# Current development handoff — 1.5.1 Notebook Loop Lowering / JS Parity
+# Current development handoff — 1.5.10 Notebook / JS parity cleanup
 
-Branch: `feature/1.5.1-notebook-loop-lowering`
-Version: **1.5.1**
-Android versionCode: **124**
-Build revision: `1.5.1-dev-r79-notebook-loop-lowering`
+Branch: `feature/1.5.10-notebook-parity-cleanup`
+Version: **1.5.10**
+Android versionCode: **133**
+Build revision: `1.5.10-dev-r89-notebook-parity-cleanup`
 
-## Non-negotiable rules for continuation
+## Non-negotiable continuation rules
 
-1. Work from the supplied local ZIP. Do **not** use GitHub as the development source.
-2. JavaScript execution is a golden rule. A new native node/control structure is incomplete until Python and JavaScript implementations both exist and a parity golden workflow passes.
-3. Do not reintroduce `logic.if_subflow`, `logic.for_each_subflow`, or `logic.while_subflow`, including aliases, migrations, compatibility shims, hidden bridges, or importer rewrites.
-4. Table branching remains data processing (`table.split_condition` / `table.merge_rows`), not language-level control flow.
-5. Notebook conversion is correctness-first. If equivalence is not proven, retain executable Python.
-6. Remote Web/LAN production paths are accepted baselines and unrelated to this compiler work; do not redesign them.
+1. Work from the supplied local project ZIP, not GitHub.
+2. JavaScript portability is a golden rule: native JS-capable nodes require Python/JavaScript semantic parity, including relevant parameter combinations.
+3. Notebook conversion is correctness-first. Unproven code remains executable Python instead of being force-lowered.
+4. Do not restore removed `logic.*_subflow`, retired `notebook.*_block`, hidden source-execution bridges, name-triggered scientific helper lowering or edge-order port guessing.
+5. Do not delete persistent workflow schema migrations/future-version protection; these protect user data and are distinct from obsolete runtime bridges.
+6. Remote Web/LAN production paths are accepted baselines. Unrelated compiler/runtime work must not redesign them.
 
-## Current control-flow model
+## Notebook/Jupyter state
 
-- `logic.if_value`: generic selected-branch If.
-- `logic.for_each_value`: stateless generic iteration with a child body.
-- `logic.while_state`: explicit arbitrary state feedback through the body result.
-- `logic.for_range`: deterministic numeric range primitive.
-- `logic.while_number`: deterministic guarded numeric state loop. It now outputs the trace table, final `last` value and `iterations`.
-- `sequence.map_expression`, `sequence.reduce`, `sequence.accumulate`: independent Map / terminal Reduce / running Accumulator semantics.
+Both `.ipynb` entry points use the same parse → analyze → compile → install path. Managed imports are deduplicated. Pure comments, bare-string annotations and triple-quoted explanation-only code cells are classified as `AnnotationOnly` and do not create executable canvas nodes; original Notebook cells remain in environment metadata for round-trip preservation.
 
-Ordinary graph cycles remain invalid. Stateful iteration is represented by the explicit While-State contract rather than a special loop-back edge.
+Top-level and portable-function lowering currently covers proven native chains plus Map / Reduce / Accumulator and strict If / For / finite numeric While structures. Unsupported/dynamic/free-global/side-effecting cases retain Python.
 
-## Notebook compiler status
+Removed in 1.5.10:
 
-The 1.4.95–1.4.99 lossless Notebook/environment work remains the base: direct `.ipynb` and Notebook-panel import use one compiler path, imports are managed in Workflow Environment, pure comment cells do not pollute the canvas, and unsupported code remains executable Python.
+- generic `notebookSource` execution on arbitrary native nodes;
+- `notebook.if_block`, `notebook.for_block`, `notebook.while_block`;
+- `table.group_mean` compatibility alias;
+- over-specialized `table.periodic_group_mean`;
+- function-name-triggered lowering for project-specific helpers;
+- multi-input `left/right` guessing from edge insertion order.
 
-1.5.1 adds strict loop classification:
+## Python / JavaScript parity
 
-- `result = []; for item in <proven numeric list>: result.append(<portable numeric expression>)` → `sequence.map_expression`.
-- `total = 0; total += item` and `product = 1; product *= item` → `sequence.reduce`.
-- the same identity aggregation plus `history.append(total)` → `sequence.accumulate`, binding history to `output` and the scalar final state to `last`.
-- single-state numeric `while` → `logic.while_number` only when the initial value is static, the condition/update use only that state and numeric operators, the body is exactly one update, and simulation proves termination within 10,000 iterations.
+NodeContract now has A/B/C parity classes and a parameter-level runtime compatibility gate. Auto mode chooses JavaScript only when the node and current parameters are portable.
 
-Known numeric-list literals are retained conservatively across cells. Reassignment invalidates the static literal context. Unknown iterables, external names, non-identity aggregations, side effects, multiple While statements, `while ... else`, non-finite states and non-terminating loops remain Python.
+Checkpoint results:
 
-## JavaScript parity
+- Runtime parity: **102/102** golden workflows.
+- JavaScript-capable NodeContract coverage: **82/82**.
+- Runtime parameter-selection smoke: **6/6**.
+- Python suite: **153 passed, 1 skipped**.
 
-The shared control-expression language no longer uses JavaScript string rewriting / `new Function`. A deterministic parser now implements the same limited language as Python: numbers, `value`, `iteration`, arithmetic, comparisons, `and` / `or` / `not`, Python `//`, Python signed `%`, and right-associative `**`. Boolean operators short-circuit, including inactive unsupported names or division-by-zero branches.
+1.5.10 specifically tightened CSV/Table semantics including pandas `header="infer" + names`, `nRows`, whitespace, duplicate headers, boolean/mixed inference, usecols ordering, negative slicing/head/tail, bool abs/diff, half-even round, groupby missing keys, column-label sort-index and pivot ordering/text aggregation.
 
-Current runtime parity: **81/81** golden workflows; JS-capable NodeContract coverage: **84/84**. New parity cases cover floor/modulo, exponentiation, short-circuit evaluation and the `logic.while_number.last` side port.
+## Validation expected before delivery
 
-## Validation at this checkpoint
+In addition to Python/parity tests, run Notebook canonical import, Workflow Compatibility/Core, Runtime Engine, NodeContract, Editor/ownership, UI/Plot/Theme/Demo, Host/Remote/LAN and Execution architecture gates. Finish with `git diff --check`, clean `git status` and `git fsck`.
 
-- Python: **149 passed, 1 skipped**.
-- Runtime parity: **81/81**.
-- JS-capable NodeContract coverage: **84/84**.
-- Runtime Engine architecture: pass.
-- NodeContract architecture: pass.
-- Workflow Core architecture: pass.
-- Strict Workflow Compatibility TypeScript gate: pass.
-- Version sync: **1.5.1 / Android 124**.
-
-The supplied development ZIP has no `node_modules`, so the full pinned package build / Vitest suite still belongs on the dependency-installed build machine. Runtime parity itself transpiles and executes both Python and JavaScript implementations and is passing.
-
-## Corpus note
-
-The 186-Notebook external corpus used by earlier audits is not included in this ZIP. `scripts/audit-notebooks.py` now reports `controlScopes`, `controlLowerings` and `controlCarriers`; rerun it when the corpus is available rather than inventing coverage numbers.
+The development ZIP intentionally excludes `node_modules`; a complete pinned `pnpm` renderer/desktop package build remains the responsibility of a dependency-installed Node 24 build environment. Do not report that build as passing when it was not executed.
 
 ## Recommended next step
 
-1. Run the 186-Notebook corpus through the enhanced audit and inspect the remaining retained top-level and inside-function control carriers.
-2. Promote reusable Python function bodies into Workflow Functions only when every internal operation has a portable NodeContract and the function boundary can preserve inputs/outputs exactly.
-3. Add more loop patterns only when they map to existing Map / Reduce / Accumulator / For Each / While semantics without hidden state.
-4. Introduce explicit Delay/Feedback only if real workflows require previous-iteration state beyond `logic.while_state`; never relax ordinary DAG cycle validation.
+Do not expand the architecture immediately. Use real Notebook/scientific workflows to identify remaining high-value conversion or parity failures. Fix common exact semantics in native runtimes; gate genuinely pandas/Python-specific parameter combinations to Python. Continue deleting only obsolete execution paths, never user-data migration protection.

@@ -33,7 +33,7 @@ export function decodeJsonCompatible(text: string, label: string): unknown {
 export function readCsv(csvText: string, params: Record<string, unknown>): Table {
   const separator = String(params.separator ?? ",");
   const headerRaw = String(params.header ?? "none").trim().toLowerCase();
-  const header = headerRaw === "" || headerRaw === "none" ? "none" : headerRaw === "infer" ? 0 : Number(headerRaw);
+  const header = headerRaw === "" || headerRaw === "none" ? "none" : headerRaw === "infer" ? "infer" : Number(headerRaw);
   const skipRows = params.skipRows;
   let skip: number | number[] | undefined;
   if (skipRows !== null && skipRows !== undefined && String(skipRows).trim() !== "" && String(skipRows).trim() !== "0") {
@@ -46,8 +46,9 @@ export function readCsv(csvText: string, params: Record<string, unknown>): Table
   }
   return parseCsv(csvText, {
     separator,
-    header: header as "none" | 0,
+    header: header as "none" | "infer" | 0 | 1,
     names: parameterList(params.names).map(String),
+    indexColumn: String(params.indexColumn ?? "").trim() || null,
     useColumns: parameterList(params.useColumns, true).map((item) => (typeof item === "number" ? item : String(item))),
     skipRows: skip,
     skipFooter: Number(params.skipFooter ?? 0),
@@ -60,6 +61,8 @@ export function readCsv(csvText: string, params: Record<string, unknown>): Table
     falseValues: parameterList(params.falseValues).map(String),
     skipBlankLines: asBool(params.skipBlankLines ?? true),
     parseDates: parameterList(params.parseDates, true).map((item) => (typeof item === "number" ? item : String(item))),
+    dateFormat: String(params.dateFormat ?? "") || undefined,
+    dayFirst: asBool(params.dayFirst ?? false),
     thousands: String(params.thousands ?? "") || undefined,
     decimal: String(params.decimal ?? "."),
     quoteChar: String(params.quoteChar ?? '"'),

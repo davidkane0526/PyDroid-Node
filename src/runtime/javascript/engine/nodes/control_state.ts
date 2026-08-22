@@ -68,10 +68,8 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
       const trace = new Table(["iteration", "value"], rows);
       return { outputs: { output: trace, last: current, iterations: rows.length }, tableResult: trace, plotResult, exportResult };
     }
-    case "table.group_mean":
     case "table.group_aggregate": {
-      const mergedParams = nodeType === "table.group_mean" ? { ...params, method: "mean", startRow: 0, endRow: params.groupSize ?? 20 } : params;
-      const value = groupAggregate(table(), mergedParams);
+      const value = groupAggregate(table(), params);
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
     case "table.groupby_aggregate": {

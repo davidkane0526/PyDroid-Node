@@ -1,0 +1,18 @@
+import { mkdirSync, rmSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
+import path from "node:path";
+const out = "/tmp/pydroid-runtime-parameter-parity";
+rmSync(out, { recursive: true, force: true }); mkdirSync(out, { recursive: true });
+execFileSync("tsc", ["--target","ES2022","--module","commonjs","--moduleResolution","node","--skipLibCheck","--outDir",out,"src/nodeCatalog.ts","src/nodeContract.ts"], { stdio:"inherit" });
+const mod = await import(pathToFileURL(path.join(out,"nodeContract.js")).href);
+const node = (nodeType, parameters={}) => ({ id:"n", data:{ nodeType, parameters } });
+const expect = (condition, message) => { if (!condition) throw new Error(message); };
+expect(mod.canWorkflowRunInRuntime([node("io.read_csv", {header:"infer"})], "javascript").supported, "plain CSV should remain JS portable");
+expect(!mod.canWorkflowRunInRuntime([node("io.read_csv", {indexColumn:"id"})], "javascript").supported, "indexColumn must block JS");
+expect(!mod.canWorkflowRunInRuntime([node("io.read_csv", {parseDates:"date"})], "javascript").supported, "parseDates must block JS");
+expect(mod.canWorkflowRunInRuntime([node("pandas.describe", {})], "javascript").supported, "default describe should remain JS portable");
+expect(!mod.canWorkflowRunInRuntime([node("pandas.describe", {percentiles:"0.1,0.5,0.9"})], "javascript").supported, "custom describe percentiles must block JS");
+expect(!mod.canWorkflowRunInRuntime([node("table.concat", {axis:1})], "javascript").supported, "horizontal concat must block JS until duplicate labels are representable");
+console.log("Runtime parameter parity smoke passed (6/6).");
+rmSync(out, { recursive: true, force: true });

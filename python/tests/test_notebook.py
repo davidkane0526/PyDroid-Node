@@ -123,157 +123,26 @@ def test_recognizes_common_experiment_table_operations_without_code_carriers():
     assert reset["nodeType"] == "table.reset_index"
 
 
-def test_recognizes_the_repeated_periodic_window_and_tail_mean_helpers():
-    window = analyze_python_cell("picked = Pick_Upper(data, 75, 25)")
-    summary = analyze_python_cell("mean = Split_count(picked, 25, 10)")
-    assert window["nodeType"] == "table.periodic_window"
-    assert window["parameters"]["position"] == "start"
-    assert summary["nodeType"] == "table.periodic_tail_mean"
+def test_helper_names_do_not_trigger_special_scientific_lowering():
+    unknown = analyze_python_cell("picked = Pick_Upper(data, 75, 25)")
+    assert unknown["nodeType"] == "notebook.code_cell"
 
-
-def test_lowers_matching_user_helpers_to_native_periodic_nodes_instead_of_function_calls():
     source = """def Pick_Upper(Data, splitrow=75, pickrow=25):
-    deal = Data.iloc[[j for i in range(0, Data.shape[0] - 1, splitrow) for j in range(i, pickrow + i)]]
-    return deal
-
-def Split_count(Data, splitrow=50, sumrow=20):
-    result = []
-    for col in Data.columns:
-        res = []
-        count = 0
-        for x in range(1, Data[col].shape[0]):
-            if x % splitrow == 0:
-                res.append(count / sumrow)
-                count = 0
-            if x + sumrow + 1 >= splitrow:
-                count = count + Data.iloc[x, 0]
-        result.append(res)
-    return Data
+    return Data.head(pickrow)
 
 picked = Pick_Upper(frame, 75, 25)
-mean = Split_count(picked, 50, 20)
 """
     result = analyze_python_cell(source)
-    assert result["operations"][2]["nodeType"] == "table.periodic_window"
-    assert result["operations"][2]["kind"] == "BuiltinFunctionLowering"
-    assert result["operations"][2]["parameters"]["notebookSourceFunctionName"] == "Pick_Upper"
-    assert result["operations"][2]["parameters"]["notebookSourceFunctionId"] == result["operations"][0]["parameters"]["workflowFunctionId"]
-    assert result["operations"][3]["nodeType"] == "table.periodic_tail_mean"
-    assert result["operations"][3]["kind"] == "BuiltinFunctionLowering"
-    assert result["operations"][3]["parameters"]["notebookSourceFunctionName"] == "Split_count"
+    assert result["operations"][1]["nodeType"] == "function.call"
+    assert result["operations"][1]["kind"] == "UserFunctionCall"
 
 
-def test_lowers_split_mean_style_helper_to_native_periodic_group_mean():
-    source = """def Split_Mean(Data, SplitRow=50, StartRow=1, EndRow=50):
-    result = pd.DataFrame()
-    for i in range(0, len(Data), SplitRow):
-        group = Data.iloc[i:i + SplitRow]
-        average = group.iloc[StartRow - 1:EndRow - 1 + 1].mean()
-        result = pd.concat([result, pd.DataFrame(average)], axis=0, ignore_index=True)
-    return result
-
-mean = Split_Mean(frame, 25, 15, 25)
-"""
-    result = analyze_python_cell(source)
-    lowered = result["operations"][1]
-    assert lowered["nodeType"] == "table.periodic_group_mean"
-    assert lowered["parameters"]["groupSize"] == 25
-    assert lowered["parameters"]["startRow"] == 15
-    assert lowered["parameters"]["endRow"] == 25
-    assert lowered["parameters"]["layout"] == "stacked"
-    assert json.loads(lowered["parameters"]["notebookInputBindingsJson"]) == {"input": "frame"}
-
-
-def test_lowers_dynamic_periodic_helper_arguments_to_native_parameter_bindings():
-    source = """Read_sample = 25
-Set_sample = 50
-def Pick_Upper(Data, splitrow=75, skiprow=1, pickrow=25):
-    skiprow = skiprow - 1
-    deal = Data.iloc[[j for i in range(0, Data.shape[0] - 1, splitrow) for j in range(i + skiprow, pickrow + i + skiprow)]]
-    return deal
-
-picked = Pick_Upper(frame.iloc[:, 0:1], Read_sample + Set_sample, Read_sample, Set_sample)
-"""
-    result = analyze_python_cell(source)
-    lowered = result["operations"][-1]
-    assert lowered["nodeType"] == "table.periodic_window"
-    assert lowered["parameters"]["position"] == "offset"
-    assert json.loads(lowered["parameters"]["notebookExpressionInputsJson"]) == {"input": "frame.iloc[:, 0:1]"}
-    assert json.loads(lowered["parameters"]["notebookParameterBindingsJson"]) == {"count": "Set_sample"}
-    expressions = json.loads(lowered["parameters"]["notebookParameterExpressionsJson"])
-    assert expressions["groupSize"] == "Read_sample + Set_sample"
-    assert expressions["offset"] == "(Read_sample) - 1"
-
-
-def test_lowers_common_scientific_helpers_to_general_native_nodes():
-    source = """def Splite(Data, n):
-    col = Data.columns
-    ls_np = np.array_split(Data.values, n, axis=0)
-    ls_df = [pd.DataFrame(i, columns=col) for i in ls_np]
-    Temp = pd.DataFrame(ls_df[0], columns=col)
-    for i in range(1, n):
-        Temp = pd.concat([Temp, pd.DataFrame(ls_df[i], columns=col)], axis=1)
-    return Temp
-
-def get_cv_per_group(df, group_size=50):
-    cv_list = []
-    for start in range(0, df.shape[1], group_size):
-        group_data = df.iloc[:, start:start + group_size]
-        means = group_data.mean(axis=1)
-        stds = group_data.std(axis=1, ddof=0)
-        cv_list.append(pd.Series(np.where(means != 0, stds / means, np.nan), index=df.index))
-    return cv_list
-
-chunks = Splite(frame, chunk_count)
-cvs = get_cv_per_group(chunks, group_size=group_size)
-"""
-    result = analyze_python_cell(source)
-    chunks = result["operations"][-2]
-    cvs = result["operations"][-1]
-    assert chunks["nodeType"] == "table.row_chunks_to_columns"
-    assert json.loads(chunks["parameters"]["notebookParameterBindingsJson"]) == {"chunks": "chunk_count"}
-    assert cvs["nodeType"] == "stats.column_group_cv"
-    assert json.loads(cvs["parameters"]["notebookParameterBindingsJson"]) == {"groupSize": "group_size"}
-
-
-def test_lowers_consecutive_segment_helpers_to_sequence_nodes():
-    source = """def all_consecutive_segments(nums):
-    nums = sorted(set(nums))
-    segments = []
-    start = end = nums[0]
-    for i in range(1, len(nums)):
-        if nums[i] == nums[i - 1] + 1:
-            end = nums[i]
-        else:
-            segments.append((start, end, end - start + 1))
-            start = end = nums[i]
-    segments.append((start, end, end - start + 1))
-    return segments
-
-def remove_short_segments(nums, min_length=3):
-    nums = sorted(set(nums))
-    result = []
-    start = end = nums[0]
-    for i in range(1, len(nums)):
-        if nums[i] == nums[i - 1] + 1:
-            end = nums[i]
-        else:
-            if end - start + 1 >= min_length:
-                result.extend(range(start, end + 1))
-            start = end = nums[i]
-    if end - start + 1 >= min_length:
-        result.extend(range(start, end + 1))
-    return result
-
-segments = all_consecutive_segments(numbers)
-filtered = remove_short_segments(numbers, min_length=minimum)
-"""
-    result = analyze_python_cell(source)
-    segments = result["operations"][-2]
-    filtered = result["operations"][-1]
-    assert segments["nodeType"] == "sequence.consecutive_segments"
-    assert filtered["nodeType"] == "sequence.filter_short_segments"
-    assert json.loads(filtered["parameters"]["notebookParameterBindingsJson"]) == {"minLength": "minimum"}
+def test_annotation_only_code_cells_are_non_executable_analysis():
+    for source in ["# heading", '"plain note"', '"""multi\nline note"""']:
+        result = analyze_python_cell(source)
+        assert result["kind"] == "AnnotationOnly"
+        assert result["semantic"] is False
+        assert result["operations"] == []
 
 
 def test_same_named_helper_with_different_body_is_not_lowered_by_name_only():

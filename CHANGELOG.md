@@ -1,3 +1,12 @@
+## 1.5.10 (133) — Notebook import convergence + strict JS parity + legacy-path cleanup — 2026-08-22
+
+- Unified both `.ipynb` entry points behind one compile/install path, deduplicated managed imports, and classified comment-only / bare-string / triple-quoted annotation code cells as non-executable `AnnotationOnly` content while preserving the original Notebook for round-trip metadata.
+- Removed obsolete Notebook/runtime bridges: hidden `notebookSource` execution on arbitrary nodes, retired `notebook.if_block` / `notebook.for_block` / `notebook.while_block`, `table.group_mean`, over-specialized `table.periodic_group_mean`, name-triggered scientific helper lowering, and edge-order guessing for multi-input `left/right` ports. Persistent workflow schema migration and future-version protection remain intact.
+- Added explicit NodeContract parity classes: A = strict workflow semantics, B = intentionally presentation/artifact-specific semantics, C = not JavaScript-portable. Runtime auto-selection now also evaluates parameter-level portability instead of treating a node type as universally JS-safe.
+- Tightened ordinary CSV/DataFrame parity rather than hiding common cases behind Python fallback: pandas-compatible `header="infer" + names`, `nRows`, whitespace, duplicate headers, boolean/mixed-column inference, `usecols` source order, negative head/tail/slices, boolean abs/diff, half-even rounding, groupby missing keys, sort-index column labels and pivot numeric/text semantics.
+- Added `test:notebook-import-canonical` and `test:runtime-parameter-parity` regression gates. Runtime parity now passes **102/102** golden workflows with **82/82** JavaScript-capable NodeContract coverage; Python suite passes **153 passed / 1 skipped** at this checkpoint.
+- Build revision: `1.5.10-dev-r89-notebook-parity-cleanup`.
+
 ## 1.5.9 (132) — JS plot rendering performance recovery — 2026-08-22
 
 - Node-level JS plot insights no longer instantiate full ECharts canvases. They use a lightweight Canvas thumbnail renderer; heatmaps are visually downsampled to at most 96×48 cells with source sampling bounded to 24,000 points while preserving the runtime colormap.

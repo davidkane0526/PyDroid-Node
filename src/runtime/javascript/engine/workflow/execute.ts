@@ -64,12 +64,7 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
       let plotResult: unknown = null;
       let exportResult: string | null = null;
       try {
-        if (typeof params.notebookSource === "string") {
-          const result = executeJsCell(String(params.notebookSource), notebookNamespace);
-          outputs = result.outputs;
-          tableResult = result.table;
-          plotResult = result.plot;
-        } else if (nodeType === "notebook.code_cell") {
+        if (nodeType === "notebook.code_cell") {
           const result = executeJsCell(String(params.source ?? ""), notebookNamespace);
           outputs = result.outputs;
           tableResult = result.table;

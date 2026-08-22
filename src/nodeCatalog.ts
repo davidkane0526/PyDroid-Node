@@ -83,21 +83,6 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "previous", label: "前一单元格", valueType: "any" }], outputPorts: [{ id: "next", label: "下一单元格", valueType: "any" }],
   },
   {
-    nodeType: "notebook.if_block", runtimeSupport: ["python"], executionModel: "control-flow", label: "Notebook If", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 If 代码块。", tags: ["jupyter", "if", "条件"],
-    defaults: { notebookSource: "" }, parameters: [{ key: "notebookSource", label: "If 源码", kind: "textarea", required: true }],
-    inputPorts: [{ id: "input", label: "上下文", valueType: "any" }], outputPorts: [{ id: "output", label: "后续", valueType: "any" }],
-  },
-  {
-    nodeType: "notebook.for_block", runtimeSupport: ["python"], executionModel: "control-flow", label: "Notebook For", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 For 代码块。", tags: ["jupyter", "for", "循环"],
-    defaults: { notebookSource: "" }, parameters: [{ key: "notebookSource", label: "For 源码", kind: "textarea", required: true }],
-    inputPorts: [{ id: "input", label: "上下文", valueType: "any" }], outputPorts: [{ id: "output", label: "后续", valueType: "any" }],
-  },
-  {
-    nodeType: "notebook.while_block", runtimeSupport: ["python"], executionModel: "control-flow", label: "Notebook While", category: "逻辑控制", description: "从 Jupyter AST 保留并执行完整 While 代码块。", tags: ["jupyter", "while", "循环"],
-    defaults: { notebookSource: "" }, parameters: [{ key: "notebookSource", label: "While 源码", kind: "textarea", required: true }],
-    inputPorts: [{ id: "input", label: "上下文", valueType: "any" }], outputPorts: [{ id: "output", label: "后续", valueType: "any" }],
-  },
-  {
     nodeType: "io.read_csv", runtimeSupport: ["python", "javascript"],
     label: "读取 CSV",
     description: "从 CSV 文本读取表格，支持表头、列类型、缺失值、日期和编码。",
@@ -386,21 +371,6 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [
       { key: "groupSize", label: "周期行数", kind: "number", min: 1, step: 1 },
       { key: "tailRows", label: "末段参与均值的行数", kind: "number", min: 1, step: 1 },
-    ],
-  },
-  {
-    nodeType: "table.periodic_group_mean", runtimeSupport: ["python", "javascript"],
-    label: "周期区间均值",
-    description: "按固定周期分组，对每组指定的 1 基行区间逐列求均值；可按组保留列结构或堆叠为单列。",
-    category: "统计",
-    defaults: { groupSize: 50, startRow: 1, endRow: 50, layout: "rows" },
-    inputPorts: TABLE_INPUT,
-    outputPorts: TABLE_OUTPUT,
-    parameters: [
-      { key: "groupSize", label: "周期行数", kind: "number", min: 1, step: 1 },
-      { key: "startRow", label: "组内起始行（从1）", kind: "number", min: 1, step: 1 },
-      { key: "endRow", label: "组内结束行（包含）", kind: "number", min: 1, step: 1 },
-      { key: "layout", label: "输出布局", kind: "select", options: [{ label: "每组一行", value: "rows" }, { label: "均值堆叠为单列", value: "stacked" }] },
     ],
   },
   {

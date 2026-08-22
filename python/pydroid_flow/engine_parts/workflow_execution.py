@@ -128,8 +128,6 @@ def _execute_container_graph(
         upstream = _bind_notebook_inputs(child_type, params, base_upstream, notebook_namespace)
         if child_type in _VISUAL_STRUCTURE_TYPES:
             outputs = _execute_visual_structure(child, workflow, upstream, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace, params)
-        elif isinstance(params.get("notebookSource"), str):
-            outputs, _, _, _ = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
         elif child_type == "notebook.code_cell":
             outputs, _, _, _ = _execute_notebook_cell(str(params.get("source", "")), notebook_namespace)
         elif child_type == "notebook.markdown_cell":
@@ -452,9 +450,7 @@ def _execute_function_call(
         params = data.get("parameters", {})
         upstream_value = _function_node_upstream(body_node, body, values, external_by_node.get(body_id, {}))
         upstream_value = _bind_notebook_inputs(body_type, params, upstream_value, notebook_namespace)
-        if isinstance(params.get("notebookSource"), str):
-            outputs, table_result, plot_result, export_result = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
-        elif body_type == "notebook.code_cell":
+        if body_type == "notebook.code_cell":
             outputs, table_result, plot_result, export_result = _execute_notebook_cell(str(params.get("source", "")), notebook_namespace)
         elif body_type == "notebook.markdown_cell":
             text = str(params.get("source", ""))
@@ -738,9 +734,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
         params = _bind_notebook_parameters(data.get("parameters", {}), notebook_namespace)
         node_started = time.perf_counter()
         try:
-            if isinstance(params.get("notebookSource"), str):
-                outputs, table_result, plot_result, export_result = _run_with_cancel_trace(execution_id, lambda: _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace))
-            elif node_type == "notebook.code_cell":
+            if node_type == "notebook.code_cell":
                 outputs, table_result, plot_result, export_result = _run_with_cancel_trace(execution_id, lambda: _execute_notebook_cell(str(params.get("source", "")), notebook_namespace))
             elif node_type == "notebook.markdown_cell":
                 text = str(params.get("source", ""))

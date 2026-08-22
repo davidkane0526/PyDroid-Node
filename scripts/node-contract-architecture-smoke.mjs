@@ -32,12 +32,14 @@ assert(catalog.includes("nodeVersion?: number"), "NodeSpec must expose nodeVersi
 assert(!support.includes("new Set(["), "JavaScript support.ts must not restore a separate hard-coded support list");
 assert(support.includes("getJavascriptSupportedNodeTypes"), "JavaScript compatibility must derive from NodeContract");
 assert(registry.includes("canWorkflowRunInRuntime"), "Runtime Auto must resolve capabilities through NodeContract");
-assert(adapter.includes("getUnsupportedNodeTypesForRuntime"), "JavaScript runtime errors must derive unsupported nodes through NodeContract");
+assert(adapter.includes("canWorkflowRunInRuntime"), "JavaScript runtime errors must derive type and parameter compatibility through NodeContract");
 assert(validation.includes("getNodeContract"), "Workflow validation must validate node identity/version through NodeContract");
 assert(validation.includes("areValueTypesCompatible"), "Workflow validation must validate declared port compatibility");
 assert(app.includes("canSafelyPreExecuteNodes"), "Speculative UI preview execution must use NodeContract side-effect/state policy");
 assert(contract.includes("canSafelyPreExecuteNodes"), "NodeContract must expose speculative pre-execution policy");
 assert(contract.includes("getUnsupportedNodeTypesForRuntime"), "NodeContract must expose runtime capability diagnostics");
+assert(contract.includes("runtimeParameterBlockReason"), "NodeContract must gate runtime support at the parameter level");
+assert(contract.includes("parityClass"), "NodeContract must classify Python/JavaScript parity intent");
 assert(packageJson.scripts?.check?.includes("pnpm test:node-contract"), "pnpm check must include NodeContract architecture smoke");
 
 console.log(`NodeContract architecture smoke passed (${nodeMatches.length} visible NodeSpec entries).`);

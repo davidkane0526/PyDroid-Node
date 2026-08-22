@@ -1,4 +1,4 @@
-import { Table, toNumber } from "../../table";
+import { Table, isMissing, toNumber } from "../../table";
 import { optionalFloat, resolveColumn, resolveColumns } from "./common";
 export function groupAggregate(frame: Table, params: Record<string, unknown>): Table {
   const groupSize = Number(params.groupSize ?? 20);
@@ -21,11 +21,15 @@ export function groupByAggregate(frame: Table, params: Record<string, unknown>):
   const numericIndexes = frame.columns
     .map((column, index) => ({ column, index }))
     .filter(({ index }) => !groupIndexes.includes(index))
-    .filter(({ index }) => frame.column(index).some((value) => toNumber(value) !== null))
+    .filter(({ index }) => {
+      const present = frame.column(index).filter((value) => !isMissing(value));
+      return present.length > 0 && present.every((value) => typeof value === "number" || typeof value === "boolean");
+    })
     .map(({ index }) => index);
   const groups = new Map<string, { keys: unknown[]; rows: unknown[][] }>();
   for (const row of frame.rows()) {
     const keys = groupIndexes.map((index) => row[index]);
+    if (keys.some((value) => isMissing(value))) continue;
     const encoded = JSON.stringify(keys);
     const group = groups.get(encoded) ?? { keys, rows: [] };
     group.rows.push(row);

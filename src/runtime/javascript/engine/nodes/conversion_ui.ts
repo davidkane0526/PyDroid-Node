@@ -137,20 +137,13 @@ export function executeConversionUiNode(nodeType: string, params: Record<string,
       return { outputs, tableResult: tableValue instanceof Table ? tableValue : null, plotResult, exportResult };
     }
     case "notebook.code_cell": {
-      const source = typeof params.notebookSource === "string" ? params.notebookSource : String(params.source ?? "");
+      const source = String(params.source ?? "");
       const result = executeJsCell(source, context.notebookNamespace);
       return { outputs: result.outputs, tableResult: result.table, plotResult: result.plot, exportResult };
     }
     case "notebook.markdown_cell": {
       const text = String(params.source ?? "");
       return { outputs: { next: text, output: text }, tableResult, plotResult, exportResult };
-    }
-    case "notebook.if_block":
-    case "notebook.for_block":
-    case "notebook.while_block": {
-      const source = String(params.notebookSource ?? "");
-      const result = executeJsCell(source, context.notebookNamespace);
-      return { outputs: result.outputs, tableResult: result.table, plotResult: result.plot, exportResult };
     }
     default:
       return null;

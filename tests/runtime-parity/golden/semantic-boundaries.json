@@ -1,0 +1,958 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "csv_names_with_inferred_header_preserve_first_row",
+      "description": "csv names with inferred header preserve first row",
+      "csvText": "a,b\n1,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_names_with_inferred_header_preserve_first_row",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer",
+                "names": "x,y"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_nrows_excludes_header",
+      "description": "csv nrows excludes header",
+      "csvText": "a,b\n1,2\n3,4\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_nrows_excludes_header",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer",
+                "nRows": 1
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_preserves_unquoted_whitespace",
+      "description": "csv preserves unquoted whitespace",
+      "csvText": "x\n  A  \nB\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_preserves_unquoted_whitespace",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_duplicate_headers_mangled",
+      "description": "csv duplicate headers mangled",
+      "csvText": "a,a\n1,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_duplicate_headers_mangled",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_default_boolean_inference",
+      "description": "csv default boolean inference",
+      "csvText": "flag\nTrue\nFalse\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_default_boolean_inference",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_mixed_numeric_text_stays_text",
+      "description": "csv mixed numeric text stays text",
+      "csvText": "x\n1\nfoo\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_mixed_numeric_text_stays_text",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_usecols_preserves_source_order",
+      "description": "csv usecols preserves source order",
+      "csvText": "a,b,c\n1,2,3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_usecols_preserves_source_order",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer",
+                "useColumns": "b,a"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "head_negative_excludes_tail",
+      "description": "head negative excludes tail",
+      "csvText": "x\n1\n2\n3\n4\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "head_negative_excludes_tail",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.head",
+              "nodeType": "pandas.head",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": -2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "tail_negative_excludes_head",
+      "description": "tail negative excludes head",
+      "csvText": "x\n1\n2\n3\n4\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "tail_negative_excludes_head",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.tail",
+              "nodeType": "pandas.tail",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": -2
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "slice_negative_bounds",
+      "description": "slice negative bounds",
+      "csvText": "x\n1\n2\n3\n4\n5\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "slice_negative_bounds",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.slice",
+              "nodeType": "table.slice",
+              "nodeVersion": 1,
+              "parameters": {
+                "rowStart": -4,
+                "rowStop": -1,
+                "rowStep": 1,
+                "columnStart": "",
+                "columnStop": "",
+                "columnStep": 1
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "slice_reverse_rows",
+      "description": "slice reverse rows",
+      "csvText": "x\n1\n2\n3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "slice_reverse_rows",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.slice",
+              "nodeType": "table.slice",
+              "nodeVersion": 1,
+              "parameters": {
+                "rowStart": "",
+                "rowStop": "",
+                "rowStep": -1,
+                "columnStart": "",
+                "columnStop": "",
+                "columnStep": 1
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "absolute_preserves_boolean",
+      "description": "absolute preserves boolean",
+      "csvText": "flag\nTrue\nFalse\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "absolute_preserves_boolean",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.absolute",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "difference_boolean_xor",
+      "description": "difference boolean xor",
+      "csvText": "flag\nTrue\nFalse\nFalse\nTrue\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "difference_boolean_xor",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.difference",
+              "nodeType": "table.difference",
+              "nodeVersion": 1,
+              "parameters": {
+                "periods": 1,
+                "axis": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "round_half_even",
+      "description": "round half even",
+      "csvText": "x\n2.5\n3.5\n-2.5\n-3.5\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "round_half_even",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "pandas.round",
+              "nodeType": "pandas.round",
+              "nodeVersion": 1,
+              "parameters": {
+                "decimals": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "sort_index_axis1_uses_labels",
+      "description": "sort index axis1 uses labels",
+      "csvText": "z,a,m\n1,9,5\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "sort_index_axis1_uses_labels",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.sort_index",
+              "nodeType": "table.sort_index",
+              "nodeVersion": 1,
+              "parameters": {
+                "axis": 1,
+                "ascending": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "groupby_drops_missing_keys_and_object_values",
+      "description": "groupby drops missing keys and object values",
+      "csvText": "g,x,m\nA,1,1\n,2,foo\nA,3,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "groupby_drops_missing_keys_and_object_values",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.groupby_aggregate",
+              "nodeType": "table.groupby_aggregate",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupBy": "g",
+                "method": "sum"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "pivot_numeric_axis_order",
+      "description": "pivot numeric axis order",
+      "csvText": "r,c,v\nA,10,ten\nA,2,two\nB,10,TEN\nB,2,TWO\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "pivot_numeric_axis_order",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "io.read_csv",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "table.pivot",
+              "nodeType": "table.pivot",
+              "nodeVersion": 1,
+              "parameters": {
+                "index": "r",
+                "columns": "c",
+                "values": "v",
+                "aggregate": "first",
+                "resetIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "native_node_ignores_hidden_notebook_source",
+      "description": "Native nodes never execute arbitrary notebookSource parameters",
+      "csvText": "x\n1\n2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "hidden-source",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer",
+                "notebookSource": "raise RuntimeError('must not run')"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "preview": {
+          "columns": [
+            "x"
+          ],
+          "rows": [
+            [
+              1
+            ],
+            [
+              2
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 1
+        }
+      }
+    },
+    {
+      "id": "csv_header_zero_with_explicit_names",
+      "description": "csv header zero with explicit names",
+      "csvText": "old1,old2\n1,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_header_zero_with_explicit_names",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": 0,
+                "names": "x,y"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "csv_usecols_duplicates_are_deduplicated_in_source_order",
+      "description": "csv usecols duplicates are deduplicated in source order",
+      "csvText": "a,b,c\n1,2,3\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "csv_usecols_duplicates_are_deduplicated_in_source_order",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer",
+                "useColumns": "b,b,a"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "pivot_drops_missing_axis_keys",
+      "description": "pivot drops missing axis keys",
+      "csvText": "r,c,v\nA,2,1\n,2,99\nA,10,2\n",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "pivot_drops_missing_axis_keys",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "op",
+            "position": {
+              "x": 200,
+              "y": 0
+            },
+            "data": {
+              "label": "table.pivot",
+              "nodeType": "table.pivot",
+              "nodeVersion": 1,
+              "parameters": {
+                "index": "r",
+                "columns": "c",
+                "values": "v",
+                "aggregate": "mean",
+                "resetIndex": true
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e",
+            "source": "read",
+            "target": "op"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success"
+      }
+    }
+  ]
+}

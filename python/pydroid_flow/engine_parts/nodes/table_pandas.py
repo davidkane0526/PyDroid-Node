@@ -18,7 +18,6 @@ NODE_TYPES = {
     "table.reset_index",
     "table.periodic_window",
     "table.periodic_tail_mean",
-    "table.periodic_group_mean",
     "table.row_chunks_to_columns",
     "stats.column_group_cv",
     "table.sort_index",
@@ -26,7 +25,6 @@ NODE_TYPES = {
     "table.filter_range",
     "table.rename_columns",
     "table.pivot",
-    "table.group_mean",
     "table.group_aggregate",
     "table.groupby_aggregate",
     "pandas.dropna",
@@ -102,30 +100,6 @@ def execute(
             raise ValueError("Periodic mean sizes must be positive")
         chunks = [table.iloc[start:start + group_size].tail(tail_rows).mean(numeric_only=True) for start in range(0, len(table), group_size) if len(table.iloc[start:start + group_size])]
         value = pd.DataFrame(chunks).reindex(columns=table.select_dtypes(include="number").columns)
-    elif node_type == "table.periodic_group_mean":
-        table = _require_table(upstream, "Periodic group mean")
-        group_size = int(params.get("groupSize", 50))
-        start_row = int(params.get("startRow", 1))
-        end_row = int(params.get("endRow", group_size))
-        layout = str(params.get("layout", "rows"))
-        if group_size < 1 or start_row < 1 or end_row < start_row or end_row > group_size:
-            raise ValueError("Periodic group mean requires 1 <= startRow <= endRow <= groupSize")
-        numeric_columns = table.select_dtypes(include="number").columns
-        chunks = []
-        for start in range(0, len(table), group_size):
-            group = table.iloc[start:start + group_size]
-            if group.empty:
-                continue
-            window = group.iloc[start_row - 1:end_row]
-            if window.empty:
-                continue
-            chunks.append(window.mean(numeric_only=True).reindex(numeric_columns))
-        if layout == "rows":
-            value = pd.DataFrame(chunks).reindex(columns=numeric_columns).reset_index(drop=True)
-        elif layout == "stacked":
-            value = pd.DataFrame([item for chunk in chunks for item in chunk.tolist()], columns=["mean"])
-        else:
-            raise ValueError("Periodic group mean layout must be rows or stacked")
     elif node_type == "table.row_chunks_to_columns":
         table = _require_table(upstream, "Row chunks to columns")
         chunks = int(params.get("chunks", 2))
@@ -233,9 +207,7 @@ def execute(
         if not expression:
             raise ValueError("Query expression is required")
         value = table.query(expression).reset_index(drop=True)
-    elif node_type in {"table.group_mean", "table.group_aggregate"}:
-        if node_type == "table.group_mean":
-            params = {**params, "method": "mean", "startRow": 0, "endRow": params.get("groupSize", 20)}
+    elif node_type == "table.group_aggregate":
         value = _group_aggregate(_require_table(upstream, "Group aggregate"), params)
     elif node_type == "table.groupby_aggregate":
         table = _require_table(upstream, "Groupby aggregate")

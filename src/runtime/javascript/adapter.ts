@@ -1,4 +1,4 @@
-import { getUnsupportedNodeTypesForRuntime } from "../../nodeContract";
+import { canWorkflowRunInRuntime } from "../../nodeContract";
 import { collectReachableFunctionNodes, serializeWorkflow } from "../../workflow";
 import { executeWorkflowJson, environmentInfoJson } from "./engine";
 import type {
@@ -29,8 +29,8 @@ type RawJsExecutionResult = {
   workspaceState?: Record<string, unknown>;
 };
 
-function unsupportedTypes(request: RuntimeExecutionRequest): string[] {
-  return getUnsupportedNodeTypesForRuntime(collectReachableFunctionNodes(request.nodes, request.functions ?? []), "javascript");
+function runtimeCompatibility(request: RuntimeExecutionRequest) {
+  return canWorkflowRunInRuntime(collectReachableFunctionNodes(request.nodes, request.functions ?? []), "javascript");
 }
 
 function environment(): RuntimeEnvironment {
@@ -62,20 +62,24 @@ export const javascriptRuntime: RuntimeAdapter = {
   },
 
   canExecute(nodes) {
-    const unsupported = getUnsupportedNodeTypesForRuntime(nodes, "javascript");
-    return unsupported.length
-      ? { supported: false, reason: `JS 引擎暂不支持：${unsupported.join("、")}` }
-      : { supported: true };
+    const compatibility = canWorkflowRunInRuntime(nodes, "javascript");
+    if (compatibility.unsupportedNodeTypes.length) return { supported: false, reason: `JS 引擎暂不支持：${compatibility.unsupportedNodeTypes.join("、")}` };
+    if (compatibility.parameterIssues.length) return { supported: false, reason: compatibility.parameterIssues.map((issue) => issue.reason).join("；") };
+    return { supported: true };
   },
 
   async execute(request) {
-    const unsupported = unsupportedTypes(request);
-    if (unsupported.length) {
+    const compatibility = runtimeCompatibility(request);
+    if (!compatibility.supported) {
+      const details = [
+        compatibility.unsupportedNodeTypes.length ? `不支持节点：${compatibility.unsupportedNodeTypes.join("、")}` : "",
+        ...compatibility.parameterIssues.map((issue) => `${issue.nodeType}：${issue.reason}`),
+      ].filter(Boolean).join("；");
       throw new WorkflowExecutionError(
-        `JS 引擎暂不支持以下节点：${unsupported.join("、")}。可切换到 Python，或使用“自动选择”让软件按节点兼容性预先选择运行时。`,
+        `JS 引擎无法保证当前工作流语义等价：${details}。可切换到 Python，或使用“自动选择”。`,
         "__workflow__",
         "runtime.javascript",
-        { status: "error", nodeId: "__workflow__", nodeType: "runtime.javascript", message: `Unsupported nodes: ${unsupported.join(", ")}`, runtimeId: "javascript" },
+        { status: "error", nodeId: "__workflow__", nodeType: "runtime.javascript", message: details, runtimeId: "javascript" },
       );
     }
 

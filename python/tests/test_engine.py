@@ -643,19 +643,14 @@ def test_notebook_code_cell_captures_last_scalar_expression():
     assert result["nodeResults"]["code"] == {"kind": "table", "preview": {"columns": ["x"], "rows": [[1]], "totalRows": 1, "totalColumns": 1}}
 
 
-def test_ast_typed_nodes_execute_original_statements_in_notebook_order():
+def test_native_nodes_do_not_execute_hidden_notebook_source_parameters():
     result = execute(
-        [
-            node("read", "io.read_csv", {"notebookSource": "df = pd.DataFrame({'x': [1, None, 3]})", "notebookCellIndex": 0, "notebookOperationIndex": 1}),
-            node("setup", "notebook.code_cell", {"notebookSource": "import pandas as pd", "notebookCellIndex": 0, "notebookOperationIndex": 0}),
-            node("clean", "pandas.dropna", {"notebookSource": "clean = df.dropna()\nclean", "notebookCellIndex": 1, "notebookOperationIndex": 0}),
-        ],
+        [node("read", "io.read_csv", {"header": "infer", "notebookSource": "raise RuntimeError('hidden source must not run')"})],
         [],
-        "",
+        "x\n1\n2\n",
     )
     assert result["status"] == "success"
-    assert result["preview"]["totalRows"] == 2
-
+    assert result["preview"]["rows"] == [[1], [2]]
 
 def test_logic_control_demo_and_oscillating_pulse_examples_execute_without_code_nodes():
     examples = Path(__file__).parents[2] / "examples"
@@ -777,14 +772,6 @@ def test_oscillating_pulse_ramp_amplitudes_grow_symmetrically():
     assert result["status"] == "success"
     port1 = [row[1] for row in result["preview"]["rows"] if row[1] != 0.0]
     assert port1 == [0.2, -0.2, 0.4, -0.4]
-
-
-def test_periodic_group_mean_supports_rows_and_stacked_layouts():
-    frame = pd.DataFrame({"a": [1, 3, 5, 7], "b": [2, 4, 6, 8]})
-    rows = _execute_node("table.periodic_group_mean", {"groupSize": 2, "startRow": 1, "endRow": 2, "layout": "rows"}, frame, "", [])[0]["output"]
-    stacked = _execute_node("table.periodic_group_mean", {"groupSize": 2, "startRow": 1, "endRow": 2, "layout": "stacked"}, frame, "", [])[0]["output"]
-    assert rows.to_dict(orient="list") == {"a": [2.0, 6.0], "b": [3.0, 7.0]}
-    assert stacked["mean"].tolist() == [2.0, 3.0, 6.0, 7.0]
 
 
 def test_row_chunks_to_columns_matches_numpy_split_then_horizontal_concat():

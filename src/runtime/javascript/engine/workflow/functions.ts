@@ -108,10 +108,7 @@ function executeFunctionGraph(
     const data = node.data;
     const params = data.parameters;
     let result: NodeOutput;
-    if (typeof params.notebookSource === "string") {
-      const cell = executeJsCell(String(params.notebookSource), context.notebookNamespace);
-      result = { outputs: cell.outputs, tableResult: cell.table, plotResult: cell.plot, exportResult: null };
-    } else if (data.nodeType === "notebook.code_cell") {
+    if (data.nodeType === "notebook.code_cell") {
       const cell = executeJsCell(String(params.source ?? ""), context.notebookNamespace);
       result = { outputs: cell.outputs, tableResult: cell.table, plotResult: cell.plot, exportResult: null };
     } else if (data.nodeType === "notebook.markdown_cell") {

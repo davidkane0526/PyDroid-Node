@@ -71,9 +71,8 @@ def _upstream_value(node_id: str, workflow: dict[str, Any], values: dict[str, di
 def _upstream_tables(node_id: str, workflow: dict[str, Any], values: dict[str, dict[str, Any]]) -> dict[str, pd.DataFrame]:
     incoming = [edge for edge in _data_edges(workflow) if edge["target"] == node_id]
     ports: dict[str, pd.DataFrame] = {}
-    fallback_ports = iter(("left", "right"))
     for edge in incoming:
-        port = edge.get("targetHandle") or next(fallback_ports, "")
+        port = edge.get("targetHandle") or ""
         if port not in {"left", "right"}:
             raise ValueError(f"Unknown concat input port: {port}")
         if port in ports:

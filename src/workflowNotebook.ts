@@ -103,7 +103,7 @@ export type NotebookConversionReport = {
   importedModules: string[];
   androidUnsupportedModules: string[];
   windowsPathCells: number;
-  commentOnlyCodeCells: number;
+  annotationOnlyCodeCells: number;
 };
 
 const PYTHON_STDLIB_ROOTS = new Set([
@@ -136,24 +136,31 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
   const importedModules = [...new Set(cells.filter((cell) => cell.cellType === "code").flatMap((cell) => importedModuleRoots(cell.source)))].sort();
   const androidUnsupportedModules = importedModules.filter((module) => !PYTHON_STDLIB_ROOTS.has(module) && !ANDROID_PYTHON_PACKAGE_ROOTS.has(module));
   const windowsPathCells = cells.filter((cell) => cell.cellType === "code" && /(?:[A-Za-z]:\\|\\\\[^\\\s]+\\)/.test(cell.source)).length;
-  const commentOnlyCodeCells = cells.filter((cell) => cell.cellType === "code" && isPythonCommentOnly(cell.source)).length;
+  const annotationOnlyCodeCells = analyses.filter((analysis) => analysis.kind === "AnnotationOnly").length;
   const functionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef").length;
   const promotedFunctionDefinitions = operations.filter((operation) => operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string").length;
   let setupOpen = true;
-  let managedEnvironmentImports = 0;
+  const managedImportSources = new Set<string>();
+  let managedImportOperations = 0;
   let managedWorkflowParameters = 0;
   let managedWorkflowDefinitions = 0;
   for (const operation of operations) {
     // A top-level static import is environment metadata regardless of which
     // Notebook cell contains it. Imports nested inside control/function bodies
     // are not top-level operations and therefore stay in executable source.
-    if (operation.kind === "Import" || operation.kind === "ImportFrom") { managedEnvironmentImports += 1; continue; }
+    if (operation.kind === "Import" || operation.kind === "ImportFrom") {
+      managedImportOperations += 1;
+      const source = String(operation.source ?? operation.parameters?.source ?? "").trim();
+      if (source) managedImportSources.add(source);
+      continue;
+    }
     if (!setupOpen) continue;
     if (typeof operation.parameters?.notebookParameterName === "string" && typeof operation.parameters?.notebookParameterValueJson === "string") { managedWorkflowParameters += 1; continue; }
     if (operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string") { managedWorkflowDefinitions += 1; continue; }
     setupOpen = false;
   }
-  const managedContextOperations = managedEnvironmentImports + managedWorkflowParameters + managedWorkflowDefinitions;
+  const managedEnvironmentImports = managedImportSources.size;
+  const managedContextOperations = managedImportOperations + managedWorkflowParameters + managedWorkflowDefinitions;
   const producer = new Map<string, number>();
   const functionDefinitionById = new Map<string, number>();
   const linked = new Set<number>();
@@ -178,9 +185,7 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
       const functionId = operation.parameters?.workflowFunctionId;
       if (typeof functionId === "string" && functionId) functionDefinitionById.set(functionId, operationIndex);
     }
-    const sourceFunctionId = typeof operation.parameters?.notebookSourceFunctionId === "string"
-      ? operation.parameters.notebookSourceFunctionId
-      : typeof operation.parameters?.functionId === "string" ? operation.parameters.functionId : "";
+    const sourceFunctionId = typeof operation.parameters?.functionId === "string" ? operation.parameters.functionId : "";
     if (sourceFunctionId) markLink(functionDefinitionById.get(sourceFunctionId), operationIndex);
     const definitions = new Set([...(operation.defines ?? []), operation.outputVariable].filter((name): name is string => typeof name === "string" && Boolean(name)));
     definitions.forEach((definition) => producer.set(definition, operationIndex));
@@ -218,7 +223,7 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
     importedModules,
     androidUnsupportedModules,
     windowsPathCells,
-    commentOnlyCodeCells,
+    annotationOnlyCodeCells,
   };
 }
 
@@ -565,6 +570,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
   const analysisEntries: Entry[] = cells.flatMap<Entry>((cell, index) => {
     if (cell.cellType !== "code") return [];
     const analysis = byIndex.get(index);
+    if (analysis?.kind === "AnnotationOnly") return [];
     const operations = analysis?.operations?.length ? analysis.operations : analysis?.nodeType ? [analysis as Operation] : [];
     return operations.map((operation, operationIndex) => ({
       cell, cellIndex: index, operation: operation as Operation, operationIndex: operationIndex * 1000,
@@ -579,6 +585,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     notebookMetadata,
   };
   const workflowParameters: WorkflowParameterDefinition[] = [];
+  const importedSourceKeys = new Set<string>();
   const parameterNames = new Set<string>();
   let setupOpen = true;
   const contextKey = (cellIndex: number, operationIndex: number) => `${cellIndex}:${operationIndex}`;
@@ -601,10 +608,14 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     const parameterValueJson = typeof operation.parameters?.notebookParameterValueJson === "string" ? operation.parameters.notebookParameterValueJson : "";
     const parameterCandidate = Boolean(parameterName && parameterValueJson && (operation.defines ?? []).length === 1 && !(operation.uses ?? []).length);
     if (isImport && source) {
-      environment.pythonImports.push({
-        source, moduleRoots: importedModuleRoots(source), defines: operation.defines ?? [],
-        cellIndex: entry.cellIndex, operationIndex: entry.operationIndex,
-      });
+      const normalizedSource = source.trim();
+      if (!importedSourceKeys.has(normalizedSource)) {
+        environment.pythonImports.push({
+          source: normalizedSource, moduleRoots: importedModuleRoots(normalizedSource), defines: operation.defines ?? [],
+          cellIndex: entry.cellIndex, operationIndex: entry.operationIndex,
+        });
+        importedSourceKeys.add(normalizedSource);
+      }
       contextKeys.add(key);
       continue;
     }
@@ -638,6 +649,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
   const entries: Entry[] = cells.flatMap<Entry>((cell, index) => {
     if (cell.cellType === "code" && isPythonCommentOnly(cell.source)) return [];
     const analysis = byIndex.get(index);
+    if (analysis?.kind === "AnnotationOnly") return [];
     if (cell.cellType === "markdown") {
       return [{ cell, cellIndex: index, operation: fallbackOperation(cell, 0), operationIndex: 0 }];
     }
@@ -924,9 +936,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
         }
       }
     }
-    const sourceFunctionId = typeof operation.parameters?.notebookSourceFunctionId === "string"
-      ? operation.parameters.notebookSourceFunctionId
-      : typeof operation.parameters?.functionId === "string" ? operation.parameters.functionId : "";
+    const sourceFunctionId = typeof operation.parameters?.functionId === "string" ? operation.parameters.functionId : "";
     if (sourceFunctionId && target) {
       const source = functionDefinitionNode.get(sourceFunctionId);
       const sourceNode = nodes.find((node) => node.id === source);
@@ -1408,12 +1418,6 @@ _offset = _size - _count if ${params}.get("position", "start") == "end" else int
 ${name} = ${input}.iloc[[row for base in range(0, len(${input}), _size) for row in range(base + _offset, min(base + _offset + _count, len(${input})))]]`;
   if (type === "table.periodic_tail_mean") return `_size, _tail = int(${params}.get("groupSize", 25)), int(${params}.get("tailRows", 10))
 ${name} = pd.DataFrame([${input}.iloc[start:start + _size].tail(_tail).mean(numeric_only=True) for start in range(0, len(${input}), _size)])`;
-  if (type === "table.periodic_group_mean") return `_size = int(${params}.get("groupSize", 50))
-_start = int(${params}.get("startRow", 1))
-_end = int(${params}.get("endRow", _size))
-_layout = str(${params}.get("layout", "rows"))
-_chunks = [${input}.iloc[start:start + _size].iloc[_start - 1:_end].mean(numeric_only=True) for start in range(0, len(${input}), _size) if not ${input}.iloc[start:start + _size].iloc[_start - 1:_end].empty]
-${name} = pd.DataFrame(_chunks).reset_index(drop=True) if _layout == "rows" else pd.DataFrame([item for chunk in _chunks for item in chunk.tolist()], columns=["mean"])`;
   if (type === "table.row_chunks_to_columns") return `_chunks = int(${params}.get("chunks", 2))
 _parts = [pd.DataFrame(part, columns=[f"{column}_{index + 1}" for column in ${input}.columns]) for index, part in enumerate(np.array_split(${input}.to_numpy(), _chunks, axis=0))]
 ${name} = pd.concat(_parts, axis=1)`;

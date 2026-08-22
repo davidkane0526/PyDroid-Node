@@ -37,29 +37,25 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
       const part = (prefix: string): { start: number | null; stop: number | null; step: number } => {
         const start = params[`${prefix}Start`];
         const stop = params[`${prefix}Stop`];
-        const step = Number(params[`${prefix}Step`] ?? 1);
+        const step = Math.trunc(Number(params[`${prefix}Step`] ?? 1));
         if (step === 0) throw new Error("Slice step cannot be zero");
-        return {
-          start: start === null || start === undefined || start === "" ? null : Number(start),
-          stop: stop === null || stop === undefined || stop === "" ? null : Number(stop),
-          step,
-        };
+        return { start: start === null || start === undefined || start === "" ? null : Number(start), stop: stop === null || stop === undefined || stop === "" ? null : Number(stop), step };
       };
-      const row = part("row");
-      const column = part("column");
-      const rowStart = row.start ?? 0;
-      const rowStop = row.stop ?? frame.rowCount;
-      const columnStart = column.start ?? 0;
-      const columnStop = column.stop ?? frame.columns.length;
-      const rows = Array.from({ length: frame.rowCount }, (_, i) => i).filter((_, i) => {
-        const relative = (i - rowStart) / row.step;
-        return Number.isInteger(relative) && relative >= 0 && i >= rowStart && i < rowStop;
-      });
-      const selected = table().selectColumns(Array.from({ length: frame.columns.length }, (_, c) => c).filter((c) => {
-        const relative = (c - columnStart) / column.step;
-        return Number.isInteger(relative) && relative >= 0 && c >= columnStart && c < columnStop;
-      }));
-      const value = selected.takeRows(rows);
+      const indexes = (length: number, slice: { start: number | null; stop: number | null; step: number }): number[] => {
+        const lower = slice.step < 0 ? -1 : 0;
+        const upper = slice.step < 0 ? length - 1 : length;
+        const norm = (value: number | null, isStart: boolean) => {
+          if (value === null) return isStart ? (slice.step < 0 ? upper : lower) : (slice.step < 0 ? lower : upper);
+          let result = Math.trunc(value); if (result < 0) result += length;
+          return Math.min(upper, Math.max(lower, result));
+        };
+        const start = norm(slice.start, true); const stop = norm(slice.stop, false); const result: number[] = [];
+        if (slice.step > 0) for (let i = start; i < stop; i += slice.step) result.push(i);
+        else for (let i = start; i > stop; i += slice.step) result.push(i);
+        return result;
+      };
+      const row = part("row"); const column = part("column");
+      const value = frame.selectColumns(indexes(frame.columnCount, column)).takeRows(indexes(frame.rowCount, row));
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
     case "table.reset_index": {
@@ -84,26 +80,6 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
     case "table.periodic_tail_mean": {
       const frame = table();
       const value = frame.periodicTailMean(Number(params.groupSize ?? 25), Number(params.tailRows ?? 10));
-      return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
-    }
-    case "table.periodic_group_mean": {
-      const frame = table();
-      const groupSize = Number(params.groupSize ?? 50);
-      const startRow = Number(params.startRow ?? 1);
-      const endRow = Number(params.endRow ?? groupSize);
-      const layout = String(params.layout ?? "rows");
-      if (!Number.isInteger(groupSize) || !Number.isInteger(startRow) || !Number.isInteger(endRow) || groupSize < 1 || startRow < 1 || endRow < startRow || endRow > groupSize) {
-        throw new Error("Periodic group mean requires 1 <= startRow <= endRow <= groupSize");
-      }
-      const rows = frame.groupAggregate(groupSize, startRow - 1, endRow, "mean");
-      let value: Table;
-      if (layout === "rows") {
-        value = rows;
-      } else if (layout === "stacked") {
-        value = new Table(["mean"], rows.rows().flatMap((row) => row.map((item) => [item])));
-      } else {
-        throw new Error("Periodic group mean layout must be rows or stacked");
-      }
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
     case "table.row_chunks_to_columns": {

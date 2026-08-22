@@ -1,131 +1,76 @@
 # Python / JavaScript Runtime Parity
 
-Phase 5 verifies that a node marked as supporting both runtimes is not merely implemented twice, but produces equivalent workflow semantics.
+PyDroid Node treats JavaScript runtime support as a semantic contract, not merely the existence of a second implementation. A workflow may run in JavaScript only when both the node type and the active parameter combination have a proven portable contract.
 
-## 1. Source of truth
+## Source of truth
 
-Runtime eligibility comes from `NodeSpec.runtimeSupport` normalized by `src/nodeContract.ts`.
+Runtime eligibility comes from `NodeSpec.runtimeSupport`, normalized by `src/nodeContract.ts`. `NodeContract.parityClass` records the strength of that promise:
 
-A node must not be added to parity tests by maintaining another runtime-support list. If a node is declared as Python + JavaScript, its implementation should eventually receive parity coverage appropriate to its semantics.
+- **A — strict workflow semantics**: Python and JavaScript must agree on workflow-visible values, table shape/order, errors and state transitions within the contract.
+- **B — presentation/artifact semantics**: the workflow meaning is portable, but the rendered artifact is intentionally runtime-specific. Current examples are Plot nodes (Python PNG vs JavaScript ECharts) and injected UI interactions.
+- **C — not JavaScript-portable**: Python-only/custom-code nodes or definitions that are not executable in both runtimes.
 
-## 2. Golden workflow harness
+The contract validator rejects a JavaScript-capable catalog node marked C and rejects a Python-only catalog node marked A/B.
 
-The first golden fixtures live in:
+## Parameter-level runtime gate
+
+A JavaScript-capable node type is not automatically safe for every pandas/Python-specific option. `canWorkflowRunInRuntime()` also evaluates the current parameters. Auto runtime selection therefore chooses Python when a parameter combination has not been proven equivalent.
+
+Examples currently gated to Python include pandas-specific `read_csv` options such as index-column materialization, date parsing/dtype overrides, non-C CSV engines and unsupported bad-line policies; non-default `describe` percentiles/include/exclude; and horizontal concat while duplicate column labels cannot be represented by the current JavaScript Table model.
+
+This is a correctness gate, not a fallback bridge: common semantics that can be implemented exactly should be fixed in the JavaScript runtime and covered by parity fixtures rather than permanently blocked.
+
+## Golden workflow harness
+
+Fixtures live under:
 
 ```text
 tests/runtime-parity/golden/*.json
 ```
 
-They are executed by:
+Run:
 
 ```text
 pnpm test:parity
 ```
 
-The harness:
+The harness compiles the bundled TypeScript/JavaScript engine, executes the same workflow through Python 3.13 and JavaScript, validates expected results, then compares normalized workflow semantics. Temporary compiled output is removed afterward.
 
-1. compiles the bundled TypeScript/JavaScript engine into a temporary CommonJS directory;
-2. runs the same workflow/input through `python/pydroid_flow/engine.py` using Python 3.13;
-3. runs the same workflow/input through the JavaScript engine;
-4. validates both engines against fixture expectations;
-5. compares normalized Python and JavaScript results.
+The comparator checks success/error status, execution order, table columns/rows, scalar/object values, export metadata/content and error identity/message semantics. Floating-point values use a small tolerance and non-finite values are normalized to JSON-safe semantics. Python `0` and JavaScript `0.0` are numerically equivalent.
 
-Temporary compiled output is removed after the test.
+Plot transport is intentionally B-class: Python produces a raster artifact while JavaScript produces an interactive ECharts object. Golden plot cases compare the surrounding workflow/spec semantics rather than PNG pixels.
 
-## 3. What is compared
+## 1.5.10 checkpoint
 
-The comparator intentionally ignores wall-clock timing and traceback formatting. It compares workflow semantics:
+Current strict corpus: **102/102 golden workflows**. Every JavaScript-capable NodeContract is represented: **82/82**.
 
-- success/error status;
-- execution order;
-- final table preview;
-- node result kinds and payloads;
-- columns and row order;
-- numbers with a small floating-point tolerance;
-- `NaN`/non-finite values normalized to JSON-compatible null semantics;
-- scalar/object semantic values when available;
-- export metadata/content when present;
-- error node ID and node type;
-- expected error-message semantic fragments.
+The semantic-boundary corpus includes, among other cases:
 
-Python integer/float representation differences such as `0` versus `0.0` are treated as numerically equivalent.
+- `read_csv(header="infer", names=[...])` preserving the first data row;
+- `nRows` applied after header extraction;
+- pandas-compatible whitespace, duplicate-header mangling, boolean inference and mixed text/numeric object columns;
+- `usecols` preserving source-file column order and deduplicating repeated selections;
+- negative `head`, `tail`, slice bounds and reverse slicing;
+- boolean `abs` / `diff`, banker (half-even) rounding;
+- groupby missing-key behavior and numeric-only aggregation;
+- `sort_index(axis=1)` sorting labels rather than values;
+- pivot numeric axis ordering, missing-key handling and text-compatible `first` aggregation;
+- native nodes ignoring hidden `notebookSource` payloads rather than executing an undocumented source-code bridge.
 
-## 4. Current golden coverage
+A separate `test:runtime-parameter-parity` gate checks representative parameter-level decisions, so future changes cannot silently re-enable JavaScript for currently unproven combinations.
 
-As of 1.4.38 the suite contains **66 golden workflows covering every 72 JavaScript-capable NodeContract (72/72)**. Coverage includes:
+## Rules for future nodes
 
-- CSV/table transforms, slicing, sorting, pivoting and periodic windows;
-- missing-value, duplicate, describe/query and grouping operations;
-- scalar/object conversions plus JSON/CSV round trips;
-- control-flow generators and temporary variables;
-- generic table/text/JSON, batch CSV and binary image input;
-- line/scatter/bar/histogram/box/area/heatmap plot execution;
-- pulse generation/combination/segmentation and TER matrix extraction;
-- explicit error-node parity.
-
-The suite is intentionally composed of small workflows so a failure identifies a narrow semantic contract instead of one giant scenario. Fixtures are split by semantic domain under `tests/runtime-parity/golden/` (`table-core`, `io-convert`, `control-state`, `plots`, `pulse-analysis`, and `errors`) so future node families can grow without turning one JSON file into a monolith.
-
-Scalar/object result previews now include a JSON-safe `value` field. The comparator prefers that semantic payload over human-readable text such as Python `True` versus JavaScript `true`. Python cases are executed as a batch in one interpreter process to avoid repeated pandas/matplotlib startup overhead.
-
-Plot transport remains runtime-specific: Python returns a PNG while JavaScript returns an interactive ECharts object. Current plot golden cases assert that both valid artifacts are produced and compare the surrounding workflow semantics; deeper chart-data/spec normalization can be added without ever comparing PNG pixels.
-
-## 5. Expansion order
-
-Expand parity coverage by semantic domain rather than adding one giant workflow:
-
-1. deterministic table transforms and converters;
-2. sorting/grouping/aggregation and missing-value edge cases;
-3. plotting data/spec semantics (compare chart data/spec, not rendered PNG pixels);
-4. structured control flow and temporary variables;
-5. batch/file-input behavior and encoding edge cases;
-6. error-family parity;
-7. stochastic nodes after their seed/randomness contract is explicitly standardized.
-
-Stateful, side-effecting and UI nodes require dedicated policies. Do not blindly execute them twice in a golden comparator.
-
-## 6. Rules for future nodes
-
-When adding a new node which declares:
+When a node declares:
 
 ```ts
 runtimeSupport: ["python", "javascript"]
 ```
 
-also decide which parity category applies:
+it must receive an A or B parity classification and golden coverage in the same change. Prefer narrow, semantic fixtures over one giant scenario. Stateful, side-effecting and stochastic nodes require explicit contracts; seeded random/table sampling currently use the locked `portable-v1` deterministic sequence in both runtimes.
 
-- deterministic pure transform: add exact/tolerant golden coverage;
-- plotting: compare plot specification/data;
-- stateful: compare state-transition semantics with isolated state;
-- side effect: use an injectable/mock side-effect boundary;
-- stochastic: define seed behavior before claiming exact parity.
-
-A parity failure should be treated as a runtime correctness regression, not patched by loosening the comparator unless the contract itself explicitly permits the difference.
-
-
-## 7. Parity defects already caught
-
-The expanded suite has already prevented real cross-runtime divergence:
-
-- `convert.json_stringify(indent=0)`: JavaScript compact JSON differed from Python's zero-indent multiline output; JS now matches Python semantics.
-- CSV conversion/export: JavaScript omitted pandas-compatible terminal newlines; conversion/export now preserves the same text result.
-- `pandas.describe`: an empty include value was treated as an empty JS include-list and removed all numeric columns; empty now means no include filter.
-- `pulse.generate_oscillating_ramp`: JS advanced amplitude asymmetrically; it now matches the Python `+step, -step, +2*step, -2*step, …` sequence.
-
-These are exactly the failures Phase 5 is intended to surface. Do not weaken the comparator to hide a mismatch unless Node Contract explicitly says the runtimes are allowed to differ.
-
-
-## Portable random contract
-
-`generate.random_table` and `pandas.sample` use the locked `portable-v1` seeded random contract in both runtimes. The algorithm is a deterministic 32-bit generator with identical uniform draws, Box-Muller normal generation, integer draws and Fisher-Yates sampling in Python and JavaScript. A seed of `0` maps to the fixed non-zero initial state used by the contract.
-
-Golden fixtures pin representative uniform values and sample rows. This is intentional: parity must fail if either runtime changes the portable sequence in a later release.
-
-Compatibility note: workflows created before 1.4.38 may observe a different seeded random/sample sequence when re-run because the two runtimes previously used different RNG implementations. The portable-v1 sequence is the compatibility baseline from 1.4.38 forward.
-
-## Interactive-node parity
-
-`ui.alert` and `ui.input_dialog` have UI side effects in the application, but their engine-level result semantics are deterministic once the interaction result/value is injected. Golden fixtures therefore inject representative true/null alert responses plus number, JSON and table input values, and compare semantic outputs rather than dialog presentation text.
+A parity failure is a runtime correctness regression. Do not make it green by loosening the comparator unless the documented NodeContract explicitly permits the difference.
 
 ## Coverage gate
 
-The parity harness compiles `src/nodeContract.ts`, enumerates every contract with `runtimes.javascript === true`, and fails if any such node type is missing from the golden corpus. Adding a new JavaScript-capable node therefore requires a golden parity case in the same change. Legacy compatibility contracts such as `table.group_mean` and `workflow.group` are included in the gate.
+The parity harness enumerates every contract whose `runtimes.javascript === true` and fails if any node type lacks a golden case. `workflow.group` is a current native workflow contract and is covered normally. Removed compatibility aliases are not kept alive merely to satisfy old parity fixtures.

@@ -293,7 +293,7 @@ def main() -> int:
                 function_id = parameters.get("workflowFunctionId")
                 if isinstance(function_id, str) and function_id:
                     function_definition_by_id[function_id] = operation_index
-            source_function_id = parameters.get("notebookSourceFunctionId") or parameters.get("functionId")
+            source_function_id = parameters.get("functionId")
             if isinstance(source_function_id, str) and source_function_id in function_definition_by_id:
                 linked.update((function_definition_by_id[source_function_id], operation_index))
                 summary["dependency_links"] += 1

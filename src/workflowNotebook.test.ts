@@ -310,7 +310,7 @@ describe("workflow notebook DSL", () => {
     const workflow = analyzedNotebookToWorkflow("连线", cells, [{ index: 0, recognized: true, semantic: true, operations: [
       { index: 0, recognized: false, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "frame", source: "frame = make_frame()", defines: ["frame"], uses: ["make_frame"], parameters: { source: "frame = make_frame()" } },
       { index: 1, recognized: false, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "count", source: "count = 2", defines: ["count"], uses: [], parameters: { source: "count = 2" } },
-      { index: 2, recognized: true, semantic: true, kind: "BuiltinFunctionLowering", nodeType: "table.periodic_window", label: "picked", inputVariable: "frame", outputVariable: "picked", defines: ["picked"], uses: ["frame", "count"], parameters: { groupSize: 4, count: 1, position: "start", notebookInputBindingsJson: JSON.stringify({ input: "frame" }), notebookParameterBindingsJson: JSON.stringify({ count: "count" }) } },
+      { index: 2, recognized: true, semantic: true, kind: "NativeLowering", nodeType: "table.periodic_window", label: "picked", inputVariable: "frame", outputVariable: "picked", defines: ["picked"], uses: ["frame", "count"], parameters: { groupSize: 4, count: 1, position: "start", notebookInputBindingsJson: JSON.stringify({ input: "frame" }), notebookParameterBindingsJson: JSON.stringify({ count: "count" }) } },
       { index: 3, recognized: false, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "answer", source: "answer = use(picked)", defines: ["answer"], uses: ["use", "picked"], parameters: { source: "answer = use(picked)" } },
     ] }]);
     expect(workflow.edges.some((edge) => edge.data?.role === "notebook-variable" && edge.data?.variable === "frame")).toBe(true);
@@ -334,8 +334,8 @@ describe("workflow notebook DSL", () => {
         workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
         workflowFunctionDependenciesJson: JSON.stringify([]),
       } },
-      { index: 1, recognized: true, semantic: true, kind: "BuiltinFunctionLowering", nodeType: "table.periodic_window", label: "picked", inputVariable: "frame", outputVariable: "picked", defines: ["picked"], uses: ["frame"], parameters: {
-        groupSize: 4, count: 1, position: "start", notebookSourceFunctionId: functionId, notebookSourceFunctionName: "pick", notebookInputBindingsJson: JSON.stringify({ input: "frame" }),
+      { index: 1, recognized: true, semantic: true, kind: "NativeLowering", nodeType: "table.periodic_window", label: "picked", inputVariable: "frame", outputVariable: "picked", defines: ["picked"], uses: ["frame"], parameters: {
+        groupSize: 4, count: 1, position: "start", notebookInputBindingsJson: JSON.stringify({ input: "frame" }),
       } },
     ] }]);
     expect(workflow.environment.sourceLanguage).toBe("python");

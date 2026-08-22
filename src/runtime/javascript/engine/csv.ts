@@ -33,7 +33,7 @@ export type CsvReadOptions = {
   lowMemory?: boolean;
 };
 
-const DEFAULT_NA_VALUES = ["", "NA", "N/A", "NaN", "nan", "null", "NULL", "None", "<NA>", "#N/A", "N/A"];
+const DEFAULT_NA_VALUES = ["", "#N/A", "#N/A N/A", "#NA", "-1.#IND", "-1.#QNAN", "-NaN", "-nan", "1.#IND", "1.#QNAN", "<NA>", "N/A", "NA", "NULL", "NaN", "None", "n/a", "nan", "null"];
 
 type CsvToken = {
   text: string;
@@ -98,7 +98,7 @@ function parseCsvLine(line: string, separator: string, quoteChar: string, double
       continue;
     }
     if (character === separator) {
-      cells.push({ text: current.trim(), quoted });
+      cells.push({ text: current, quoted });
       current = "";
       quoted = false;
       continue;
@@ -108,7 +108,7 @@ function parseCsvLine(line: string, separator: string, quoteChar: string, double
     }
     current += character;
   }
-  cells.push({ text: current.trim(), quoted });
+  cells.push({ text: current, quoted });
   // 未闭合引号
   if (inQuotes) {
     if (onBadLines === "error") throw new Error(`CSV quoting error: unterminated quote in line: ${line.slice(0, 80)}`);
@@ -117,27 +117,57 @@ function parseCsvLine(line: string, separator: string, quoteChar: string, double
   return cells;
 }
 
-function coerceCell(text: string, options: CsvReadOptions): CellValue {
-  const { naValues, keepDefaultNa, naFilter, trueValues, falseValues, thousands, decimal } = options;
-  const raw = text;
-  const naSet = new Set(keepDefaultNa === false ? (naValues ?? []) : [...DEFAULT_NA_VALUES, ...(naValues ?? [])]);
-  if (naFilter === false) {
-    // 不检测缺失值：保持原始文本
-  } else if (naSet.has(raw)) {
-    return null;
-  }
-  if (trueValues && trueValues.includes(raw)) return true;
-  if (falseValues && falseValues.includes(raw)) return false;
+function naSet(options: CsvReadOptions): Set<string> {
+  return new Set(options.keepDefaultNa === false ? (options.naValues ?? []) : [...DEFAULT_NA_VALUES, ...(options.naValues ?? [])]);
+}
+
+function isNaToken(raw: string, options: CsvReadOptions): boolean {
+  return options.naFilter === false ? false : naSet(options).has(raw);
+}
+
+function numericToken(raw: string, options: CsvReadOptions): number | null {
   let candidate = raw;
-  if (thousands && candidate.includes(thousands)) candidate = candidate.split(thousands).join("");
-  const point = (decimal !== "." ? decimal : ".") || ".";
+  if (options.thousands && candidate.includes(options.thousands)) candidate = candidate.split(options.thousands).join("");
+  const point = options.decimal ?? ".";
   if (point !== ".") candidate = candidate.split(point).join(".");
-  if (candidate === "") return raw;
-  if (/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(candidate)) {
-    const number = Number(candidate);
-    if (!Number.isNaN(number)) return number;
+  if (!/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(candidate)) return null;
+  const value = Number(candidate);
+  return Number.isNaN(value) ? null : value;
+}
+
+function inferColumn(tokens: string[], options: CsvReadOptions): CellValue[] {
+  const present = tokens.filter((raw) => !isNaToken(raw, options));
+  const trueValues = options.trueValues?.length ? new Set(options.trueValues) : null;
+  const falseValues = options.falseValues?.length ? new Set(options.falseValues) : null;
+  const customBoolean = Boolean(trueValues || falseValues);
+  const isBoolean = present.length > 0 && present.every((raw) => {
+    if (customBoolean) return Boolean(trueValues?.has(raw) || falseValues?.has(raw));
+    const lower = raw.toLowerCase();
+    return lower === "true" || lower === "false";
+  });
+  if (isBoolean) {
+    return tokens.map((raw) => {
+      if (isNaToken(raw, options)) return null;
+      if (customBoolean) return trueValues?.has(raw) ? true : false;
+      return raw.toLowerCase() === "true";
+    });
   }
-  return raw;
+  const isNumeric = present.length > 0 && present.every((raw) => numericToken(raw, options) !== null);
+  if (isNumeric) return tokens.map((raw) => isNaToken(raw, options) ? null : numericToken(raw, options));
+  return tokens.map((raw) => isNaToken(raw, options) ? null : raw);
+}
+
+function makeUniqueNames(names: string[]): string[] {
+  const used = new Set<string>();
+  return names.map((raw) => {
+    let name = raw;
+    if (!used.has(name)) { used.add(name); return name; }
+    let suffix = 1;
+    while (used.has(`${raw}.${suffix}`)) suffix += 1;
+    name = `${raw}.${suffix}`;
+    used.add(name);
+    return name;
+  });
 }
 
 export function parseCsv(text: string, options: CsvReadOptions = {}): Table {
@@ -150,111 +180,79 @@ export function parseCsv(text: string, options: CsvReadOptions = {}): Table {
   const skipBlankLines = options.skipBlankLines !== false;
   const onBadLines = options.onBadLines ?? "error";
   const comment = options.comment || null;
-  const dayFirst = Boolean(options.dayFirst);
-  void dayFirst;
 
   const normalized = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
   let lines = normalized.split("\n");
-  // 去掉末尾空行
   while (lines.length && lines[lines.length - 1] === "") lines.pop();
 
   const skipRows = options.skipRows ?? 0;
   const skipSet = new Set(Array.isArray(skipRows) ? skipRows : []);
-  const skipCount = Array.isArray(skipRows) ? 0 : skipRows;
-  const skipFooter = options.skipFooter ?? 0;
-
+  const skipCount = Array.isArray(skipRows) ? 0 : Math.max(0, Math.trunc(skipRows));
   const keptLines: string[] = [];
-  let lineNumber = 0;
-  for (const line of lines) {
-    if (skipSet.has(lineNumber) || lineNumber < skipCount) {
-      lineNumber += 1;
-      continue;
-    }
-    if (comment !== null && line.startsWith(comment)) {
-      lineNumber += 1;
-      continue;
-    }
-    if (skipBlankLines && line.trim() === "") {
-      lineNumber += 1;
-      continue;
-    }
+  for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
+    const line = lines[lineNumber];
+    if (skipSet.has(lineNumber) || lineNumber < skipCount) continue;
+    if (comment !== null && line.startsWith(comment)) continue;
+    if (skipBlankLines && line.trim() === "") continue;
     keptLines.push(line);
-    lineNumber += 1;
   }
-  if (skipFooter > 0) keptLines.splice(keptLines.length - skipFooter, skipFooter);
+  const skipFooter = Math.max(0, Math.trunc(options.skipFooter ?? 0));
+  if (skipFooter > 0) keptLines.splice(Math.max(0, keptLines.length - skipFooter), skipFooter);
   if (!keptLines.length) throw new Error("No data to parse: CSV is empty");
-  if (options.nRows !== undefined && options.nRows > 0) keptLines.splice(options.nRows);
 
-  const parsed = keptLines.map((line) => parseCsvLine(line, separator, quoteChar, doubleQuote, escapeChar, skipInitialSpace, onBadLines));
-  const valid = parsed.filter((line): line is CsvToken[] => line !== null);
-  if (!valid.length) throw new Error("No data rows could be parsed from CSV");
+  const parsed = keptLines
+    .map((line) => parseCsvLine(line, separator, quoteChar, doubleQuote, escapeChar, skipInitialSpace, onBadLines))
+    .filter((line): line is CsvToken[] => line !== null);
+  if (!parsed.length) throw new Error("No data rows could be parsed from CSV");
 
-  let header: "none" | "infer" | 0 | 1 = options.header ?? "none";
-  if (header === "infer") header = 0;
-  let body = valid;
-  let names: string[] = options.names ?? [];
-  if (header !== "none") {
-    const headerRow = valid[header];
-    names = headerRow.map((token) => token.text);
-    body = valid.slice(header + 1);
+  const explicitNames = options.names?.map(String) ?? [];
+  if (new Set(explicitNames).size !== explicitNames.length) throw new Error("Duplicate names are not allowed");
+  const requestedHeader = options.header ?? "none";
+  const headerIndex: number | null = requestedHeader === "infer"
+    ? (explicitNames.length ? null : 0)
+    : requestedHeader === "none" ? null : Number(requestedHeader);
+  if (headerIndex !== null && (!Number.isInteger(headerIndex) || headerIndex < 0 || headerIndex >= parsed.length)) {
+    throw new Error(`Header row out of range: ${headerIndex}`);
+  }
+
+  let names = explicitNames;
+  let body = parsed;
+  if (headerIndex !== null) {
+    if (!names.length) names = makeUniqueNames(parsed[headerIndex].map((token) => token.text));
+    body = parsed.slice(headerIndex + 1);
   }
   if (!names.length) {
-    const width = Math.max(...valid.map((row) => row.length));
-    names = Array.from({ length: width }, (_, i) => String(i));
+    const width = Math.max(...parsed.map((row) => row.length));
+    names = Array.from({ length: width }, (_, index) => String(index));
   }
   const width = names.length;
+  if (options.nRows !== undefined && options.nRows >= 0) body = body.slice(0, Math.trunc(options.nRows));
 
-  let columnIndexes = names.map((_, i) => i);
-  if (options.useColumns && options.useColumns.length) {
-    columnIndexes = options.useColumns.map((item) => {
-      if (typeof item === "number") {
-        if (item < 0 || item >= width) throw new Error(`Column indexes out of range: ${item}`);
-        return item;
-      }
-      const index = names.indexOf(String(item));
-      if (index < 0) throw new Error(`Unknown column: ${item}`);
-      return index;
-    });
+  let columnIndexes = names.map((_, index) => index);
+  if (options.useColumns?.length) {
+    const requestedNames = new Set(options.useColumns.filter((item): item is string => typeof item === "string").map(String));
+    const requestedIndexes = new Set(options.useColumns.filter((item): item is number => typeof item === "number").map((item) => Math.trunc(item)));
+    for (const item of requestedNames) if (!names.includes(item)) throw new Error(`Unknown column: ${item}`);
+    for (const item of requestedIndexes) if (item < 0 || item >= width) throw new Error(`Column indexes out of range: ${item}`);
+    columnIndexes = names.map((name, index) => requestedNames.has(name) || requestedIndexes.has(index) ? index : -1).filter((index) => index >= 0);
   }
 
-  const rows: CellValue[][] = body.map((row) => {
-    const padded = Array.from({ length: width }, (_, c) => row[c]?.text ?? "");
-    return columnIndexes.map((c) => coerceCell(padded[c], options));
-  });
-
-  // 列类型（dtype）：字符串列保持字符串；数值列保留推断
-  const columnNames = columnIndexes.map((c) => names[c]);
-
-  // 日期列：isoformat 输出
-  const parseDateSet = new Set((options.parseDates ?? []).map((item) => String(item)));
-  const dateIndexes = new Set<number>();
-  columnIndexes.forEach((c, index) => {
-    if (parseDateSet.has(String(c)) || parseDateSet.has(names[c])) dateIndexes.add(index);
-  });
-  for (const row of rows) {
-    for (const index of dateIndexes) {
-      const value = row[index];
-      if (typeof value === "number" && Number.isFinite(value)) {
-        row[index] = new Date(value * (value > 1e11 ? 1 : 1000)).toISOString();
-      }
-    }
-  }
+  const paddedRows = body.map((row) => Array.from({ length: width }, (_, column) => row[column]?.text ?? ""));
+  const inferredColumns = Array.from({ length: width }, (_, column) => inferColumn(paddedRows.map((row) => row[column]), options));
+  const rows: CellValue[][] = paddedRows.map((_, row) => columnIndexes.map((column) => inferredColumns[column][row]));
+  const columnNames = columnIndexes.map((column) => names[column]);
 
   let table = new Table(columnNames, rows);
-
-  // 索引列
   const indexColumn = options.indexColumn;
   if (indexColumn !== null && indexColumn !== undefined && indexColumn !== "") {
-    const indexIndex = typeof indexColumn === "number" ? indexColumn : columnNames.indexOf(String(indexColumn));
-    if (indexIndex < 0) throw new Error(`Unknown index column: ${indexColumn}`);
+    const indexIndex = typeof indexColumn === "number" ? Math.trunc(indexColumn) : columnNames.indexOf(String(indexColumn));
+    if (indexIndex < 0 || indexIndex >= columnNames.length) throw new Error(`Unknown index column: ${indexColumn}`);
     const indexValues = table.column(indexIndex);
-    const remainingColumns = columnNames.filter((_, i) => i !== indexIndex);
-    const remainingRows = table.rows().map((row) => row.filter((_, i) => i !== indexIndex));
-    table = new Table(["index", ...remainingColumns], remainingRows.map((row, r) => [indexValues[r] ?? r, ...row]));
+    const remainingColumns = columnNames.filter((_, index) => index !== indexIndex);
+    const remainingRows = table.rows().map((row) => row.filter((_, index) => index !== indexIndex));
+    table = new Table(["index", ...remainingColumns], remainingRows.map((row, index) => [indexValues[index] ?? index, ...row]));
   }
-
-  // 列名规范化（与 pandas 相同：去空白）
-  return new Table(table.columns.map((column) => String(column).trim()), table.rows());
+  return table;
 }
 
 export function toCsv(table: Table, index = false, lineTerminator = "\n"): string {
