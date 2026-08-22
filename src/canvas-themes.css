@@ -17,8 +17,6 @@
   --canvas-node-label: #1c2a43;
   --canvas-node-meta: #64728d;
   --canvas-selection: #78adf2;
-  --canvas-run: #0877f9;
-  --canvas-run-hover: #005fda;
   --canvas-edge: #8fa6bf;
   --canvas-edge-selected: #3698e6;
   --canvas-handle-ring: #ffffff;
@@ -34,8 +32,6 @@
   --canvas-node-label: #f0f4fa;
   --canvas-node-meta: #9aaac0;
   --canvas-selection: #63b1fb;
-  --canvas-run: #55a8ff;
-  --canvas-run-hover: #7cc0ff;
   --canvas-edge: #657c95;
   --canvas-edge-selected: #67baf4;
   --canvas-handle-ring: #22364c;
@@ -95,23 +91,6 @@
 .app-shell[data-canvas-theme="soft"] .node-kind-group .workflow-node__type,
 .app-shell[data-canvas-theme="soft"] .node-kind-group .workflow-node__meta-count { color: var(--canvas-group); }
 
-/* Run button shares Classic geometry; Soft only changes material/color. */
-.app-shell[data-canvas-theme="soft"] .node-run-action {
-  border-color: #c9dcf4;
-  color: var(--canvas-run);
-  background: rgba(255,255,255,.84);
-  box-shadow: 0 3px 8px rgba(55,112,182,.09), inset 0 1px 0 rgba(255,255,255,.96);
-  transform: none !important;
-}
-.app-shell[data-canvas-theme="soft"] .node-run-action:hover,
-.app-shell[data-canvas-theme="soft"] .node-run-action:focus-visible {
-  border-color: #a9ccef;
-  color: var(--canvas-run-hover);
-  background: #ffffff;
-  box-shadow: 0 4px 10px rgba(55,112,182,.12), inset 0 1px 0 rgba(255,255,255,1);
-  outline: none;
-  transform: none !important;
-}
 
 /* Ports keep shared size/label geometry and receive tangible Soft sockets. */
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .input-port,
@@ -230,19 +209,6 @@
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__label { color: var(--canvas-node-label); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__meta { color: var(--canvas-node-meta); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__tag { color: #32d284; }
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action {
-  border-color: #334b68;
-  color: var(--canvas-run);
-  background: #192536;
-  box-shadow: none;
-}
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action:hover,
-.app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-run-action:focus-visible {
-  border-color: #496784;
-  color: var(--canvas-run-hover);
-  background: #1d2c3e;
-  box-shadow: none;
-}
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .react-flow__handle {
   border-color: #d9e7f5;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 3px 9px rgba(0,0,0,.28);

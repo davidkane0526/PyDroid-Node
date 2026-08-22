@@ -1,3 +1,10 @@
+## 1.5.15 (138) — Production UI copy cleanup and unified run control — 2026-08-23
+
+- Removed Canvas Theme Lab/version/migration notes and other development-only guidance from user-facing settings and status messages.
+- Kept automated diagnostics as a product feature while removing temporary-module/HMR/developer handoff wording and HMR command buttons.
+- Classic and Soft now use the exact same node run-control material in both light and dark appearance; theme switching no longer changes the run button.
+- Build revision: `1.5.15-dev-r94-ui-copy-run-control`.
+
 ## 1.5.14 (137) — Canvas optical alignment and shared background — 2026-08-22
 
 - Makes React Flow dot/background rendering identical between Classic and Soft by removing the remaining theme-dependent `<Background>` color prop.

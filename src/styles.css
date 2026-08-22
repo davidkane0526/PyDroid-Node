@@ -413,11 +413,11 @@ button, input, select, textarea { font: inherit; }
 .node-selection-check, .node-delete-action { position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
 .node-selection-check { left: -11px; }
 .node-delete-action { right: -11px; border-color: #f87171; color: var(--danger-text); cursor: pointer; }
-.node-run-action { position: absolute; z-index: 9; top: 6px; right: 6px; display: grid; width: 24px; height: 24px; padding: 0; place-items: center; border: 1px solid color-mix(in srgb, var(--info) 46%, var(--border-strong)); border-radius: 7px; color: var(--info); background: color-mix(in srgb, var(--surface-raised) 94%, transparent); box-shadow: none; cursor: pointer; font-size: 0; line-height: 0; opacity: 0; visibility: hidden; pointer-events: none; transform: none; transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease; }
+.node-run-action { position: absolute; z-index: 9; top: 6px; right: 6px; display: grid; width: 24px; height: 24px; padding: 0; place-items: center; border: 1px solid #334b68; border-radius: 7px; color: #55a8ff; background: #192536; box-shadow: none; cursor: pointer; font-size: 0; line-height: 0; opacity: 0; visibility: hidden; pointer-events: none; transform: none; transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease; }
 .node-run-action__icon { position: relative; top: -0.5px; display: block; width: 12px; height: 12px; overflow: visible; fill: currentColor; pointer-events: none; }
 .node-run-action__icon path { vector-effect: non-scaling-stroke; }
 .workflow-node:hover > .node-run-action, .workflow-node:focus-within > .node-run-action { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
-.node-run-action:hover, .node-run-action:focus-visible { border-color: var(--info-soft); color: #a5f3fc; background: color-mix(in srgb, var(--info) 13%, var(--surface-raised)); outline: none; }
+.node-run-action:hover, .node-run-action:focus-visible { border-color: #496784; color: #7cc0ff; background: #1d2c3e; box-shadow: none; outline: none; }
 .node-run-action:disabled { opacity: .42; cursor: default; }
 .app-shell.native-platform .workflow-node > .node-run-action { opacity: 0; visibility: hidden; pointer-events: none; transform: none; }
 .app-shell.native-platform .workflow-node.selected > .node-run-action { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
@@ -3086,7 +3086,6 @@ button, input, select, textarea { font: inherit; }
 .settings-range output { flex: none; color: var(--info-soft); font-size: 11px; }
 .settings-range input[type="range"] { width: 100%; margin: 0; accent-color: var(--accent); }
 .settings-canvas-select-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: center; gap: 10px 18px; }
-.settings-canvas-theme-note { margin-top: -4px !important; padding-left: 0; }
 .settings-canvas-result-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; gap: 10px 18px; }
 .settings-canvas-result-row .settings-range { min-width: 0; }
 .settings-node-insights { min-height: 38px; align-self: end; justify-content: flex-start; padding: 0 4px 1px; }
@@ -3718,8 +3717,8 @@ button.smb-file-row { cursor: pointer; }
 .app-shell[data-theme="light"] .environment-float-button { border-color: #cbd5e1; color: #52677f; background: #ffffff; box-shadow: none; }
 .app-shell[data-theme="light"] .environment-float-button:hover, .app-shell[data-theme="light"] .environment-float-button.active { border-color: #60a5fa; color: #1e3a5f; background: #eff6ff; }
 .app-shell[data-theme="light"] .environment-floating-panel { border-color: #cbd5e1; background: #ffffff; box-shadow: 0 10px 28px #64748b38; }
-.app-shell[data-theme="light"] .node-run-action { border-color: #7dd3fc; color: #0284c7; background: #ffffff; box-shadow: none; }
-.app-shell[data-theme="light"] .node-run-action:hover, .app-shell[data-theme="light"] .node-run-action:focus-visible { border-color: #38bdf8; color: #0369a1; background: #f0f9ff; }
+.app-shell[data-theme="light"] .node-run-action { border-color: #c9dcf4; color: #0877f9; background: rgba(255,255,255,.84); box-shadow: 0 3px 8px rgba(55,112,182,.09), inset 0 1px 0 rgba(255,255,255,.96); }
+.app-shell[data-theme="light"] .node-run-action:hover, .app-shell[data-theme="light"] .node-run-action:focus-visible { border-color: #a9ccef; color: #005fda; background: #ffffff; box-shadow: 0 4px 10px rgba(55,112,182,.12), inset 0 1px 0 rgba(255,255,255,1); }
 .app-shell[data-theme="light"] .workflow-environment-section,
 .app-shell[data-theme="light"] .workflow-environment-item,
 .app-shell[data-theme="light"] .workflow-parameter-item,

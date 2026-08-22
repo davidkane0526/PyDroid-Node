@@ -9,6 +9,7 @@ const css = readFileSync(path.join(root, "src/styles.css"), "utf8");
 const uiFixes = readFileSync(path.join(root, "src/ui-fixes.css"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
 const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
+const canvasThemes = readFileSync(path.join(root, "src/canvas-themes.css"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
 assert.match(app, /4500/, "failed\/timeout tab badge should auto-dismiss after a short diagnostic window");
 assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "failed tab badge visibility should be decoupled from persistent execution status");
@@ -81,10 +82,10 @@ assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefi
 assert.match(app, /const position = requestedPosition \?\? fallbackPosition;/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
 assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游依赖/, "every canvas node/group should expose the compact node-scoped run action");
 assert.match(css, /\.workflow-function-card \.flow-library-actions button \{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/, "workflow function action labels should be centered by layout rather than line-height compensation");
-assert.match(css, /\.node-run-action \{[^}]*color:\s*var\(--info\);[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/, "node run action should use the cyan-blue info token and stay hidden by default");
+assert.match(css, /\.node-run-action \{[^}]*border:\s*1px solid #334b68;[^}]*color:\s*#55a8ff;[^}]*background:\s*#192536;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/, "node run action should use the shared Soft dark material and stay hidden by default");
 assert.match(css, /\.workflow-node:hover > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "desktop node hover should reveal the run action");
 assert.match(css, /app-shell\.native-platform \.workflow-node\.selected > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "native touch UI should reveal the run action only for the selected node");
-assert.match(css, /app-shell\[data-theme="light"\] \.node-run-action \{[^}]*color:\s*#0284c7;/, "light mode should use the matching lake-blue run action color");
+assert.match(css, /app-shell\[data-theme="light"\] \.node-run-action \{[^}]*border-color:\s*#c9dcf4;[^}]*color:\s*#0877f9;[^}]*background:\s*rgba\(255,255,255,\.84\);/, "light mode should use the shared Soft run-control material in every canvas theme");
 assert.match(app, /nodeExecutionSubgraph\(nodes, edges, nodeId\)/, "node-scoped execution must derive its upstream context from the graph instead of running the whole workspace");
 assert.match(app, /maxPortCount[\s\S]*nodeMinHeight[\s\S]*horizontalPortLabelWidth/, "node geometry should adapt to endpoint count and endpoint-label width");
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");
@@ -101,4 +102,14 @@ assert.match(dialogs, /settings-canvas-select-row[\s\S]*画布主题[\s\S]*缩�
 assert.match(dialogs, /settings-canvas-result-row[\s\S]*结果区高度[\s\S]*显示节点运行结果/, "node-result visibility should align with the result-height control row");
 assert.match(css, /\.settings-canvas-select\s*\{[^}]*grid-template-columns:\s*max-content minmax\(138px, 164px\)[^}]*gap:\s*8px;/, "canvas selector labels should sit close to their dropdowns");
 
+
+// Product UI must not expose development handoff/theme-lab notes.
+for (const [file, text] of [["src/App.tsx", app], ["src/dialogs.tsx", dialogs]]) {
+  for (const forbidden of ["Theme Lab", "粘贴给开发者", "临时自动诊断", "删除 diagnostics", "桌面 HMR", "Android LAN HMR", "可切换画布主题对比"]) {
+    if (text.includes(forbidden)) throw new Error(`${file} contains development-only UI copy: ${forbidden}`);
+  }
+}
+if (/data-canvas-theme=["']soft["'][^}]*\.node-run-action|data-canvas-theme=["']soft["'][^}]*node-run-action/s.test(canvasThemes)) {
+  throw new Error("Canvas theme must not override node run-control appearance; Classic and Soft share one control");
+}
 console.log("UI regression smoke passed.");
