@@ -1,3 +1,12 @@
+## 1.5.6 (129) — Soft canvas hover stability + subtle card depth — 2026-08-22
+
+- Removes Soft Theme node hover translation entirely. Workflow cards keep a fixed geometry under pointer hover so React Flow hit-testing cannot oscillate at node edges or handles.
+- Removes positional motion from the Soft Theme per-node run action; desktop hover/mobile selection now reveal it through opacity/visibility only.
+- Adds a restrained static depth treatment to Soft Theme cards in both light and dark modes: a 2 px bottom depth edge, compact ambient shadow, top inner highlight and faint lower inner edge. Function, reusable-group and structured-flow surfaces use the same depth language with their own identity accent.
+- Reduces hover shadow expansion so hover remains a visual emphasis rather than a layout-like lift. Classic remains untouched and continues to be the exact rollback path.
+- Extends `test:canvas-theme` to reject node hover geometry transforms and require the static depth token.
+- Build revision: `1.5.6-dev-r84-soft-card-depth-stability`.
+
 ## 1.5.5 (128) — Canvas theme system + soft canvas — 2026-08-22
 
 - Added a first-class Canvas Theme registry independent from light/dark application appearance.

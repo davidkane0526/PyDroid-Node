@@ -21,6 +21,9 @@ const checks = [
   [dialogs.includes('L("画布主题", "Canvas theme")'), "settings UI exposes canvas theme selection"],
   [css.includes('[data-canvas-theme="soft"]') && !css.includes('[data-canvas-theme="classic"] .workflow-node'), "classic remains the unmodified baseline while soft is isolated"],
   [css.includes("--canvas-function") && css.includes("--canvas-group") && css.includes("--canvas-flow"), "soft theme defines distinct function/group/flow tokens"],
+  [!css.includes("translateY(-1px)") && !/workflow-node:not\(\.workflow-structure\):hover\s*\{[^}]*transform:/s.test(css), "soft node hover never changes node geometry"],
+  [css.includes("--canvas-node-depth") && css.includes("0 2px 0 var(--canvas-node-depth)"), "soft cards use a subtle static depth edge instead of hover lift"],
+  [/data-canvas-theme="soft"[^}]*\.node-run-action[^{]*\{[^}]*transform:\s*none/s.test(css), "soft run action visibility does not use positional motion"],
 ];
 
 let failed = 0;

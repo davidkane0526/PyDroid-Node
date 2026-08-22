@@ -9,8 +9,10 @@
   --canvas-grid: #334155;
   --canvas-node-bg: linear-gradient(145deg, #1c2939 0%, #172231 100%);
   --canvas-node-border: #3d5065;
-  --canvas-node-shadow: 0 14px 34px #02061770, inset 0 1px 0 #ffffff09;
-  --canvas-node-shadow-hover: 0 18px 42px #02061786, 0 0 0 1px #38bdf82e, inset 0 1px 0 #ffffff0c;
+  --canvas-node-depth: #0a1220cc;
+  --canvas-node-ambient: #02061766;
+  --canvas-node-shadow: 0 2px 0 var(--canvas-node-depth), 0 10px 24px var(--canvas-node-ambient), inset 0 1px 0 #ffffff0d, inset 0 -1px 0 #02061735;
+  --canvas-node-shadow-hover: 0 2px 0 var(--canvas-node-depth), 0 12px 28px #02061770, 0 0 0 1px #38bdf824, inset 0 1px 0 #ffffff12, inset 0 -1px 0 #02061735;
   --canvas-node-type: #8da5bd;
   --canvas-node-label: #f2f7fb;
   --canvas-node-meta: #8296aa;
@@ -39,8 +41,10 @@
   --canvas-grid: #c9d5e4;
   --canvas-node-bg: linear-gradient(145deg, #ffffff 0%, #f8fbff 100%);
   --canvas-node-border: #d4dfec;
-  --canvas-node-shadow: 0 12px 30px #6c82971d, 0 2px 7px #6c829714, inset 0 1px 0 #ffffff;
-  --canvas-node-shadow-hover: 0 16px 38px #526d872b, 0 0 0 1px #38bdf82b, inset 0 1px 0 #ffffff;
+  --canvas-node-depth: #c8d5e3;
+  --canvas-node-ambient: #617b951c;
+  --canvas-node-shadow: 0 2px 0 var(--canvas-node-depth), 0 9px 22px var(--canvas-node-ambient), inset 0 1px 0 #ffffff, inset 0 -1px 0 #9fb2c529;
+  --canvas-node-shadow-hover: 0 2px 0 var(--canvas-node-depth), 0 11px 26px #526d8724, 0 0 0 1px #38bdf824, inset 0 1px 0 #ffffff, inset 0 -1px 0 #9fb2c529;
   --canvas-node-type: #71849b;
   --canvas-node-label: #14263e;
   --canvas-node-meta: #667a91;
@@ -72,7 +76,7 @@
   border-radius: var(--canvas-card-radius);
   background: var(--canvas-node-bg);
   box-shadow: var(--canvas-node-shadow);
-  transition: border-color .14s ease, box-shadow .14s ease, transform .14s ease, background .14s ease;
+  transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
 }
 
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
@@ -107,10 +111,10 @@
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function:not(.workflow-structure) {
   border-color: color-mix(in srgb, var(--canvas-function) 62%, var(--canvas-node-border));
   background: var(--canvas-function-bg);
-  box-shadow: 0 14px 34px #0206175e, 0 0 20px var(--canvas-function-glow), inset 0 1px 0 #ffffff0b;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-function) 18%, var(--canvas-node-depth)), 0 10px 24px var(--canvas-node-ambient), 0 0 16px var(--canvas-function-glow), inset 0 1px 0 #ffffff0f, inset 0 -1px 0 #02061730;
 }
 .app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node.node-kind-function:not(.workflow-structure) {
-  box-shadow: 0 12px 30px #6c82971a, 0 0 22px var(--canvas-function-glow), inset 0 1px 0 #fff;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-function) 14%, var(--canvas-node-depth)), 0 9px 22px var(--canvas-node-ambient), 0 0 16px var(--canvas-function-glow), inset 0 1px 0 #fff, inset 0 -1px 0 #9f8fca1f;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-function .workflow-node__type {
   color: var(--canvas-function);
@@ -121,10 +125,10 @@
   border: 1.5px solid color-mix(in srgb, var(--canvas-group) 72%, var(--canvas-node-border));
   border-radius: var(--canvas-container-radius);
   background: var(--canvas-group-bg);
-  box-shadow: 0 15px 36px #02061754, 0 0 28px var(--canvas-group-glow), inset 0 1px 0 #ffffff0b;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-group) 16%, var(--canvas-node-depth)), 0 11px 26px var(--canvas-node-ambient), 0 0 20px var(--canvas-group-glow), inset 0 1px 0 #ffffff0f, inset 0 -1px 0 #02061730;
 }
 .app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node.node-kind-group:not(.node-kind-function) {
-  box-shadow: 0 13px 32px #6081761c, 0 0 24px var(--canvas-group-glow), inset 0 1px 0 #fff;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-group) 13%, var(--canvas-node-depth)), 0 10px 23px var(--canvas-node-ambient), 0 0 18px var(--canvas-group-glow), inset 0 1px 0 #fff, inset 0 -1px 0 #7eb79c20;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.node-kind-function) .workflow-node__type {
   color: var(--canvas-group);
@@ -140,11 +144,11 @@
   border: 1.5px solid color-mix(in srgb, var(--canvas-flow) 68%, var(--canvas-node-border));
   border-radius: var(--canvas-container-radius);
   background: var(--canvas-flow-bg);
-  box-shadow: 0 18px 42px #02061762, 0 0 30px color-mix(in srgb, var(--canvas-flow) 12%, transparent), inset 0 1px 0 #ffffff0a;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-flow) 14%, var(--canvas-node-depth)), 0 12px 28px var(--canvas-node-ambient), 0 0 22px color-mix(in srgb, var(--canvas-flow) 10%, transparent), inset 0 1px 0 #ffffff0e, inset 0 -1px 0 #02061730;
 
 }
 .app-shell[data-canvas-theme="soft"][data-theme="light"] .workflow-node.workflow-structure {
-  box-shadow: 0 15px 38px #5977911c, 0 0 24px color-mix(in srgb, var(--canvas-flow) 9%, transparent), inset 0 1px 0 #fff;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--canvas-flow) 11%, var(--canvas-node-depth)), 0 11px 25px var(--canvas-node-ambient), 0 0 18px color-mix(in srgb, var(--canvas-flow) 8%, transparent), inset 0 1px 0 #fff, inset 0 -1px 0 #7aa8c21f;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-structure > .workflow-node__body {
   border-bottom-color: color-mix(in srgb, var(--canvas-flow) 23%, var(--canvas-node-border));
@@ -171,6 +175,14 @@
   color: var(--canvas-run);
   background: color-mix(in srgb, var(--surface-raised) 88%, transparent);
   box-shadow: 0 4px 12px color-mix(in srgb, var(--canvas-run) 10%, transparent);
+  transform: none;
+  transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease, box-shadow .14s ease;
+}
+.app-shell[data-canvas-theme="soft"] .workflow-node:hover > .node-run-action,
+.app-shell[data-canvas-theme="soft"] .workflow-node:focus-within > .node-run-action,
+.app-shell[data-canvas-theme="soft"].native-platform .workflow-node > .node-run-action,
+.app-shell[data-canvas-theme="soft"].native-platform .workflow-node.selected > .node-run-action {
+  transform: none;
 }
 .app-shell[data-canvas-theme="soft"] .node-run-action:hover,
 .app-shell[data-canvas-theme="soft"] .node-run-action:focus-visible {
@@ -212,11 +224,6 @@
   box-shadow: var(--canvas-node-shadow);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-    transform: translateY(-1px);
-  }
-}
 .settings-canvas-theme { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .75fr); gap: 12px; align-items: end; margin-bottom: 14px; padding: 12px; border: 1px solid var(--border-soft); border-radius: 10px; background: color-mix(in srgb, var(--surface-raised) 86%, transparent); }
 .settings-canvas-theme label { display: grid; gap: 6px; min-width: 0; }
 .settings-canvas-theme label > span { color: var(--text-muted); font-size: var(--font-xs); font-weight: 600; }
