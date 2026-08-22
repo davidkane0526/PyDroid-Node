@@ -60,11 +60,12 @@ def test_analyzes_ipynb_cells():
 
 def test_splits_compound_cell_into_classified_top_level_operations():
     result = analyze_python_cell("import pandas as pd\ndf = pd.read_csv('a.csv')\nfor value in range(3):\n    print(value)\n")
-    assert [item["nodeType"] for item in result["operations"]] == ["notebook.code_cell", "io.read_csv", "notebook.code_cell"]
+    assert [item["nodeType"] for item in result["operations"]] == ["notebook.code_cell", "io.read_csv", "logic.for_each_value"]
     assert result["operations"][0]["defines"] == ["pd"]
     assert result["operations"][1]["semantic"] is True
     assert result["operations"][2]["recognized"] is True
-    assert result["operations"][2]["semantic"] is False
+    assert result["operations"][2]["semantic"] is True
+    assert result["operations"][2]["children"][0]["nodeType"] == "python.print"
 
 
 def test_import_and_from_import_bindings_are_recorded_as_notebook_definitions():
@@ -300,11 +301,11 @@ def test_ast_does_not_claim_unmapped_assignment_is_a_node():
     assert result["operations"][0]["reason"].startswith("尚未将")
 
 
-def test_ast_keeps_python_if_as_lossless_code_instead_of_table_branch_semantics():
+def test_ast_keeps_nontrivial_python_if_as_lossless_code_instead_of_guessing_control_semantics():
     result = analyze_python_cell("if voltage >= 0:\n    positive = frame.abs()\nelse:\n    negative = frame.round(2)\n")
     assert result["nodeType"] == "notebook.code_cell"
     assert result["semantic"] is False
-    assert "标量控制流" in result["reason"]
+    assert "不能证明与通用 If 结构等价" in result["reason"]
 
     table_condition = analyze_python_cell("if frame['voltage'] >= 0:\n    positive = frame.abs()\n")
     assert table_condition["nodeType"] == "notebook.code_cell"
@@ -437,7 +438,7 @@ def test_keeps_complex_user_function_comprehension_as_lossless_python():
     assert operation["semantic"] is False
 
 
-def test_promotes_exact_user_function_concat_loop_and_preserves_last_item_variable():
+def test_keeps_stateful_function_concat_loop_as_lossless_python():
     raw = json.dumps({"cells": [{"cell_type": "code", "source": [
         "def DataProcess(item):\n",
         "    return pd.DataFrame({'value': [item]})\n",
@@ -449,13 +450,9 @@ def test_promotes_exact_user_function_concat_loop_and_preserves_last_item_variab
     ]}]})
     result = json.loads(analyze_notebook_json(raw))["cells"][0]
     loop = result["operations"][3]
-    assert loop["nodeType"] == "function.map"
-    assert loop["kind"] == "UserFunctionMapConcatColumns"
-    assert loop["parameters"]["collectMode"] == "concat_columns"
-    assert loop["parameters"]["concatInitialVariable"] == "DataCount"
-    assert loop["parameters"]["lastItemVariable"] == "Data"
-    assert json.loads(loop["parameters"]["notebookInputBindingsJson"]) == {"item": "items"}
-    assert loop["defines"] == ["DataCount", "Data"]
+    assert loop["nodeType"] == "notebook.code_cell"
+    assert loop["semantic"] is False
+    assert "循环携带状态" in loop["reason"]
 
 
 def test_keeps_concat_loop_with_side_effect_as_lossless_python():
@@ -472,10 +469,52 @@ def test_keeps_concat_loop_with_side_effect_as_lossless_python():
     assert loop["semantic"] is False
 
 
-def test_keeps_generic_python_control_flow_as_lossless_code_instead_of_table_subflows():
+def test_promotes_safe_generic_control_flow_but_keeps_unproven_stateful_blocks_as_code():
     assert analyze_python_cell("if flag:\n    value = 1\n")["nodeType"] == "notebook.code_cell"
-    assert analyze_python_cell("for item in items:\n    print(item)\n")["nodeType"] == "notebook.code_cell"
+    loop = analyze_python_cell("for item in items:\n    print(item)\n")
+    assert loop["nodeType"] == "logic.for_each_value"
+    assert loop["semantic"] is True
+    assert loop["parameters"]["itemVariable"] == "item"
     assert analyze_python_cell("while ready:\n    ready = False\n")["nodeType"] == "notebook.code_cell"
+
+
+def test_promotes_simple_boolean_if_when_both_branches_are_fully_structured():
+    result = analyze_python_cell("if flag:\n    clean = frame.abs()\nelse:\n    clean = frame.round(2)\n")
+    assert result["nodeType"] == "logic.if_value"
+    assert result["semantic"] is True
+    assert result["parameters"]["invert"] is False
+    assert result["parameters"]["notebookInputBindingsJson"] == '{"condition": "flag"}'
+    assert [child["branch"] for child in result["children"]] == ["true", "false"]
+
+
+def test_promotes_safe_scalar_compare_if_but_not_dataframe_boolean_if():
+    scalar = analyze_python_cell("if index % 2 == 0:\n    clean = frame.abs()\nelse:\n    clean = frame.round(2)\n")
+    assert scalar["nodeType"] == "logic.if_value"
+    assert scalar["semantic"] is True
+    assert "index % 2 == 0" in scalar["parameters"]["notebookExpressionInputsJson"]
+
+    vector = analyze_python_cell("if frame['voltage'] >= 0:\n    clean = frame.abs()\nelse:\n    clean = frame.round(2)\n")
+    assert vector["nodeType"] == "notebook.code_cell"
+    assert vector["semantic"] is False
+
+
+def test_promotes_safe_foreach_iterables_from_columns_and_range_len():
+    columns = analyze_python_cell("for column in frame.columns:\n    print(column)\n")
+    assert columns["nodeType"] == "logic.for_each_value"
+    assert "frame.columns" in columns["parameters"]["notebookExpressionInputsJson"]
+
+    ranged = analyze_python_cell("for index in range(len(items)):\n    print(index)\n")
+    assert ranged["nodeType"] == "logic.for_each_value"
+    assert "range(len(items))" in ranged["parameters"]["notebookExpressionInputsJson"]
+
+
+def test_keeps_file_io_for_loop_and_loop_carried_state_as_lossless_python():
+    file_loop = analyze_python_cell("for path in paths:\n    frame = pd.read_csv(path)\n")
+    assert file_loop["nodeType"] == "notebook.code_cell"
+    assert file_loop["semantic"] is False
+    carried = analyze_python_cell("for item in items:\n    total = total + item\n")
+    assert carried["nodeType"] == "notebook.code_cell"
+    assert carried["semantic"] is False
 
 
 def test_classifies_config_assignments_explicitly():

@@ -164,8 +164,6 @@ def main() -> int:
                     function_calls[str(operation.get("label") or "function.call")] += 1
                 if node_type == "function.map" and semantic:
                     summary["promoted_function_maps"] += 1
-                    if operation.get("parameters", {}).get("collectMode") == "concat_columns":
-                        summary["promoted_function_concat_maps"] += 1
                     function_maps[str(operation.get("label") or "function.map")] += 1
             if result.get("recognized"):
                 summary["recognized_cells"] += 1

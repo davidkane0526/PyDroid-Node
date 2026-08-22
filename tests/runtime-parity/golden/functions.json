@@ -11,31 +11,60 @@
         "nodes": [
           {
             "id": "read",
-            "position": { "x": 0, "y": 0 },
+            "position": {
+              "x": 0,
+              "y": 0
+            },
             "data": {
               "label": "读取 CSV",
               "nodeType": "io.read_csv",
               "nodeVersion": 1,
-              "parameters": { "separator": ",", "header": "infer" },
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
               "status": "idle"
             }
           },
           {
             "id": "call",
-            "position": { "x": 220, "y": 0 },
+            "position": {
+              "x": 220,
+              "y": 0
+            },
             "data": {
               "label": "绝对值函数",
               "nodeType": "function.call",
               "nodeVersion": 1,
-              "parameters": { "functionId": "fn-absolute", "functionVersion": 1 },
+              "parameters": {
+                "functionId": "fn-absolute",
+                "functionVersion": 1
+              },
               "status": "idle",
-              "functionInputs": [{ "id": "table", "label": "表格", "valueType": "table" }],
-              "functionOutputs": [{ "id": "result", "label": "结果", "valueType": "table" }]
+              "functionInputs": [
+                {
+                  "id": "table",
+                  "label": "表格",
+                  "valueType": "table"
+                }
+              ],
+              "functionOutputs": [
+                {
+                  "id": "result",
+                  "label": "结果",
+                  "valueType": "table"
+                }
+              ]
             }
           }
         ],
         "edges": [
-          { "id": "e1", "source": "read", "target": "call", "targetHandle": "table" }
+          {
+            "id": "e1",
+            "source": "read",
+            "target": "call",
+            "targetHandle": "table"
+          }
         ],
         "functions": [
           {
@@ -43,15 +72,30 @@
             "name": "绝对值函数",
             "version": 1,
             "inputs": [
-              { "id": "table", "label": "表格", "valueType": "table", "internalNodeId": "abs", "internalHandle": "input" }
+              {
+                "id": "table",
+                "label": "表格",
+                "valueType": "table",
+                "internalNodeId": "abs",
+                "internalHandle": "input"
+              }
             ],
             "outputs": [
-              { "id": "result", "label": "结果", "valueType": "table", "internalNodeId": "abs", "internalHandle": "output" }
+              {
+                "id": "result",
+                "label": "结果",
+                "valueType": "table",
+                "internalNodeId": "abs",
+                "internalHandle": "output"
+              }
             ],
             "nodes": [
               {
                 "id": "abs",
-                "position": { "x": 0, "y": 0 },
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
                 "data": {
                   "label": "绝对值",
                   "nodeType": "table.absolute",
@@ -67,20 +111,215 @@
       },
       "expected": {
         "status": "success",
-        "executionOrder": ["read", "call"],
+        "executionOrder": [
+          "read",
+          "call"
+        ],
         "preview": {
-          "columns": ["x", "y"],
-          "rows": [[2, 3], [4, 5]],
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              2,
+              3
+            ],
+            [
+              4,
+              5
+            ]
+          ],
           "totalRows": 2,
           "totalColumns": 2
         },
         "nodePreviews": {
           "call": {
-            "columns": ["x", "y"],
-            "rows": [[2, 3], [4, 5]],
+            "columns": [
+              "x",
+              "y"
+            ],
+            "rows": [
+              [
+                2,
+                3
+              ],
+              [
+                4,
+                5
+              ]
+            ],
             "totalRows": 2,
             "totalColumns": 2
           }
+        }
+      }
+    },
+    {
+      "id": "workflow_function_map_list",
+      "description": "Reusable workflow function map over a list input executes identically in Python and JavaScript",
+      "csvText": "x,y\n-2,3\n4,-5\n",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Function map parity",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "records",
+            "position": {
+              "x": 160,
+              "y": 0
+            },
+            "data": {
+              "label": "records",
+              "nodeType": "convert.table_to_records",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "map",
+            "position": {
+              "x": 320,
+              "y": 0
+            },
+            "data": {
+              "label": "map text",
+              "nodeType": "function.map",
+              "nodeVersion": 1,
+              "parameters": {
+                "functionId": "fn-len",
+                "functionVersion": 1,
+                "mapInput": "input",
+                "collectMode": "list",
+                "maxIterations": 100
+              },
+              "status": "idle",
+              "functionInputs": [
+                {
+                  "id": "input",
+                  "label": "items",
+                  "valueType": "list"
+                }
+              ],
+              "functionOutputs": [
+                {
+                  "id": "output",
+                  "label": "results",
+                  "valueType": "list"
+                }
+              ]
+            }
+          },
+          {
+            "id": "count",
+            "position": {
+              "x": 500,
+              "y": 0
+            },
+            "data": {
+              "label": "count",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "output",
+            "target": "records",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "records",
+            "sourceHandle": "output",
+            "target": "map",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e3",
+            "source": "map",
+            "sourceHandle": "output",
+            "target": "count",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [
+          {
+            "id": "fn-len",
+            "name": "length",
+            "version": 1,
+            "inputs": [
+              {
+                "id": "input",
+                "label": "input",
+                "valueType": "any",
+                "internalNodeId": "len",
+                "internalHandle": "input"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "result",
+                "label": "result",
+                "valueType": "number",
+                "internalNodeId": "len",
+                "internalHandle": "output"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "len",
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "data": {
+                  "label": "len",
+                  "nodeType": "python.len",
+                  "nodeVersion": 1,
+                  "parameters": {},
+                  "status": "idle"
+                }
+              }
+            ],
+            "edges": []
+          }
+        ],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "records",
+          "map",
+          "count"
+        ],
+        "semanticValueResults": {
+          "count": 2
         }
       }
     }

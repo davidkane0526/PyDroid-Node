@@ -1,12 +1,12 @@
 import { createNotebookNamespace, executeJsCell } from "../notebook";
 import { executeNode } from "../nodes";
 import { Table } from "../table";
-import { allLoopBodyIds, flattenWorkflowGroups, nodeUpstream, orderedNodes } from "./graph";
+import { flattenWorkflowGroups, nodeUpstream, orderedNodes } from "./graph";
 import { parseWorkflowInputs } from "./input";
 import { errorResponse, printableText, roundMs, semanticValue } from "./result";
-import { executeLoopSubflow, executeVisualStructure } from "./structures";
+import { executeVisualStructure } from "./structures";
 import { decodeWorkspaceState, encodeWorkspaceState } from "./state";
-import { createFunctionExecutionContext, executeFunctionCall } from "./functions";
+import { createFunctionExecutionContext, executeFunctionCall, executeFunctionMap } from "./functions";
 
 
 function initializeNotebookContext(workflow: ReturnType<typeof flattenWorkflowGroups>, namespace: Record<string, unknown>): void {
@@ -39,7 +39,6 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
     const nodeResults: Record<string, unknown> = {};
     const nodeTimingsMs: Record<string, number> = {};
     const executionOrder: string[] = [];
-    const loopBodyIds = allLoopBodyIds(flattened);
     const containedNodeIds = new Set(flattened.nodes.filter((node) => node.parentId).map((node) => node.id));
 
     const notebookNamespace = createNotebookNamespace(csvText, inputFiles);
@@ -49,11 +48,13 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
     const functionContext = createFunctionExecutionContext(workflow, csvText, inputFiles, notebookNamespace, variables, workspaceVariables);
     const executeChild = (child: typeof ordered[number], upstream: unknown) => child.data.nodeType === "function.call"
       ? executeFunctionCall(child, upstream, functionContext)
-      : executeNode(child.data.nodeType, child.data.parameters, upstream, { csvText, inputFiles, notebookNamespace, variables, workspaceVariables });
+      : child.data.nodeType === "function.map"
+        ? executeFunctionMap(child, upstream, functionContext)
+        : executeNode(child.data.nodeType, child.data.parameters, upstream, { csvText, inputFiles, notebookNamespace, variables, workspaceVariables });
 
     for (const node of ordered) {
       const nodeId = node.id;
-      if (loopBodyIds.has(nodeId) || containedNodeIds.has(nodeId)) continue;
+      if (containedNodeIds.has(nodeId)) continue;
       const data = node.data;
       const nodeType = data.nodeType;
       const params = data.parameters;
@@ -76,22 +77,18 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
         } else if (nodeType === "notebook.markdown_cell") {
           const text = String(params.source ?? "");
           outputs = { next: text, output: text };
-        } else if (["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nodeType)) {
-          const hasChildren = flattened.nodes.some((child) => child.parentId === nodeId);
-          if (nodeType === "logic.if_subflow" || hasChildren) {
-            const upstream = nodeUpstream(nodeId, nodeType, flattened, values);
-            outputs = executeVisualStructure(node, flattened, upstream, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild);
-            tableResult = Object.values(outputs).find((item) => item instanceof Table) as Table | null ?? null;
-          } else {
-            tableResult = executeLoopSubflow(node, flattened, values, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild);
-            outputs = { done: tableResult, output: tableResult };
-          }
+        } else if (["logic.if_value", "logic.for_each_value", "logic.while_state"].includes(nodeType)) {
+          const upstream = nodeUpstream(nodeId, nodeType, flattened, values);
+          outputs = executeVisualStructure(node, flattened, upstream, csvText, inputFiles, notebookNamespace, variables, workspaceVariables, executeChild);
+          tableResult = Object.values(outputs).find((item) => item instanceof Table) as Table | null ?? null;
         } else {
           const upstream = nodeUpstream(nodeId, nodeType, flattened, values);
           const context = { csvText, inputFiles, notebookNamespace, variables, workspaceVariables };
           const result = nodeType === "function.call"
             ? executeFunctionCall(node, upstream, functionContext)
-            : executeNode(nodeType, params, upstream, context);
+            : nodeType === "function.map"
+              ? executeFunctionMap(node, upstream, functionContext)
+              : executeNode(nodeType, params, upstream, context);
           outputs = result.outputs;
           tableResult = result.tableResult;
           plotResult = result.plotResult;

@@ -2,8 +2,8 @@ import { executeJsCell } from "../notebook";
 import { executeNode, type ExecutionContext, type NodeOutput } from "../nodes";
 import { Table } from "../table";
 import type { PlotChart } from "../plots";
-import { allLoopBodyIds, dataEdges, edgeValue, flattenWorkflowGroups, orderedNodes } from "./graph";
-import { executeLoopSubflow, executeVisualStructure } from "./structures";
+import { dataEdges, edgeValue, flattenWorkflowGroups, orderedNodes } from "./graph";
+import { executeVisualStructure } from "./structures";
 import type { Workflow, WorkflowFunctionDefinition, WorkflowInputFile, WorkflowNode } from "./types";
 
 type FunctionExecutionContext = ExecutionContext & {
@@ -13,12 +13,14 @@ type FunctionExecutionContext = ExecutionContext & {
 
 const MULTI_INPUT_NODE_TYPES = new Set([
   "table.concat",
-  "logic.merge_rows",
+  "table.merge_rows",
   "pulse.combine_channels",
   "pulse.segment_measurement",
   "custom.python_function",
   "ui.alert",
   "function.call",
+  "function.map",
+  "logic.if_value",
 ]);
 
 function definitionForCall(node: WorkflowNode, workflow: Workflow, callStack: string[]): WorkflowFunctionDefinition {
@@ -91,17 +93,18 @@ function executeFunctionGraph(
     externalByNode.set(port.internalNodeId, ports);
   }
 
-  const loopBodyIds = allLoopBodyIds(workflow);
   const containedNodeIds = new Set(workflow.nodes.filter((node) => node.parentId).map((node) => node.id));
   let latestTable: Table | null = null;
   let latestPlot: PlotChart | null = null;
   let latestExport: string | null = null;
   const childExecutor = (child: WorkflowNode, upstream: unknown): NodeOutput => child.data.nodeType === "function.call"
     ? executeFunctionCall(child, upstream, { ...context, callStack: [...context.callStack, definition.id] })
-    : executeNode(child.data.nodeType, child.data.parameters, upstream, context);
+    : child.data.nodeType === "function.map"
+      ? executeFunctionMap(child, upstream, { ...context, callStack: [...context.callStack, definition.id] })
+      : executeNode(child.data.nodeType, child.data.parameters, upstream, context);
 
   for (const node of ordered) {
-    if (loopBodyIds.has(node.id) || containedNodeIds.has(node.id)) continue;
+    if (containedNodeIds.has(node.id)) continue;
     const data = node.data;
     const params = data.parameters;
     let result: NodeOutput;
@@ -114,30 +117,21 @@ function executeFunctionGraph(
     } else if (data.nodeType === "notebook.markdown_cell") {
       const text = String(params.source ?? "");
       result = { outputs: { next: text, output: text }, tableResult: null, plotResult: null, exportResult: null };
-    } else if (["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(data.nodeType)) {
+    } else if (["logic.if_value", "logic.for_each_value", "logic.while_state"].includes(data.nodeType)) {
       const upstream = upstreamForFunctionNode(node, workflow, values, externalByNode.get(node.id) ?? new Map());
-      const hasChildren = workflow.nodes.some((child) => child.parentId === node.id);
-      if (data.nodeType === "logic.if_subflow" || hasChildren) {
-        const outputs = executeVisualStructure(node, workflow, upstream, context.csvText, context.inputFiles, context.notebookNamespace, context.variables, context.workspaceVariables, childExecutor);
-        result = {
-          outputs,
-          tableResult: (Object.values(outputs).find((item) => item instanceof Table) as Table | undefined) ?? null,
-          plotResult: null,
-          exportResult: null,
-        };
-      } else {
-        // Existing loop executor owns its back-edge topology. Function signature input is injected
-        // as a synthetic value on the loop node only when the loop has no ordinary entry edge.
-        if ((externalByNode.get(node.id)?.size ?? 0) > 0 && !dataEdges(workflow).some((edge) => edge.target === node.id && (edge.targetHandle ?? "input") === "input")) {
-          throw new Error("Loop subflow inside a function must receive its initial value from an internal edge");
-        }
-        const table = executeLoopSubflow(node, workflow, values, context.csvText, context.inputFiles, context.notebookNamespace, context.variables, context.workspaceVariables, childExecutor);
-        result = { outputs: { done: table, output: table }, tableResult: table, plotResult: null, exportResult: null };
-      }
+      const outputs = executeVisualStructure(node, workflow, upstream, context.csvText, context.inputFiles, context.notebookNamespace, context.variables, context.workspaceVariables, childExecutor);
+      result = {
+        outputs,
+        tableResult: (Object.values(outputs).find((item) => item instanceof Table) as Table | undefined) ?? null,
+        plotResult: null,
+        exportResult: null,
+      };
     } else {
       const upstream = upstreamForFunctionNode(node, workflow, values, externalByNode.get(node.id) ?? new Map());
       if (data.nodeType === "function.call") {
         result = executeFunctionCall(node, upstream, { ...context, callStack: [...context.callStack, definition.id] });
+      } else if (data.nodeType === "function.map") {
+        result = executeFunctionMap(node, upstream, { ...context, callStack: [...context.callStack, definition.id] });
       } else {
         result = executeNode(data.nodeType, params, upstream, context);
       }
@@ -172,6 +166,80 @@ export function executeFunctionCall(node: WorkflowNode, upstream: unknown, conte
     callInputs = definition.inputs.length === 1 ? { [definition.inputs[0].id]: upstream } : {};
   }
   return executeFunctionGraph(definition, callInputs, context);
+}
+
+
+function iterableFunctionMapItems(value: unknown): unknown[] {
+  if (value instanceof Table) return [...value.columns];
+  if (Array.isArray(value)) return [...value];
+  if (typeof value === "string") return [...value];
+  if (value instanceof Set) return [...value];
+  if (value instanceof Map) return [...value.keys()];
+  if (value && typeof value === "object") return Object.keys(value as Record<string, unknown>);
+  throw new Error("Function map iterable input must be a list, table, text, set, map, or object");
+}
+
+function collectedToTable(values: unknown[]): Table {
+  if (!values.length) return new Table(["0"], []);
+  if (values.every((value) => value && typeof value === "object" && !(value instanceof Table) && !Array.isArray(value))) {
+    return Table.fromRecords(values as Array<Record<string, unknown>>);
+  }
+  const rows = values.map((value) => Array.isArray(value) ? value : [value]);
+  const width = Math.max(1, ...rows.map((row) => row.length));
+  return new Table(Array.from({ length: width }, (_, index) => String(index)), rows);
+}
+
+export function executeFunctionMap(node: WorkflowNode, upstream: unknown, context: FunctionExecutionContext): NodeOutput {
+  const definition = definitionForCall(node, context.workflow, context.callStack);
+  const params = node.data.parameters;
+  const mapInput = String(params.mapInput ?? "").trim();
+  if (!mapInput) throw new Error("Function map is missing mapInput");
+  if (!definition.inputs.some((port) => port.id === mapInput)) {
+    throw new Error(`Function map input ${mapInput} is not present in function ${definition.name}`);
+  }
+  if (!upstream || typeof upstream !== "object" || upstream instanceof Table || Array.isArray(upstream)) {
+    throw new Error("Function map requires named function inputs");
+  }
+  const callInputs = { ...(upstream as Record<string, unknown>) };
+  if (!(mapInput in callInputs)) throw new Error(`Function map requires iterable input ${mapInput}`);
+  const items = iterableFunctionMapItems(callInputs[mapInput]);
+  const maximum = Number(params.maxIterations ?? 100000);
+  if (!Number.isInteger(maximum) || maximum < 1 || maximum > 1_000_000) throw new Error("Function map maxIterations must be between 1 and 1000000");
+  if (items.length > maximum) throw new Error(`Function map has ${items.length} items, exceeding maxIterations=${maximum}`);
+
+  const outputIds = definition.outputs.map((port) => port.id);
+  const collected: unknown[] = [];
+  let lastValue: unknown = null;
+  let latestPlot: PlotChart | null = null;
+  let latestExport: string | null = null;
+  for (const item of items) {
+    const iterationInputs = { ...callInputs, [mapInput]: item };
+    const result = executeFunctionGraph(definition, iterationInputs, context);
+    if (outputIds.length === 1) {
+      lastValue = result.outputs[outputIds[0]];
+      collected.push(lastValue);
+    } else {
+      collected.push(outputIds.map((port) => result.outputs[port]));
+    }
+    if (result.plotResult) latestPlot = result.plotResult;
+    if (result.exportResult !== null && result.exportResult !== undefined) latestExport = result.exportResult;
+  }
+
+  const collectMode = String(params.collectMode ?? "list");
+  let output: unknown;
+  let tableResult: Table | null = null;
+  if (collectMode === "list") {
+    output = collected;
+  } else if (collectMode === "table") {
+    tableResult = collectedToTable(collected);
+    output = tableResult;
+  } else {
+    throw new Error(`Unsupported function map collectMode: ${collectMode}`);
+  }
+
+  const outputs: Record<string, unknown> = { output };
+  if (outputIds.length === 1 && String(params.lastItemVariable ?? "").trim()) outputs.last = lastValue;
+  return { outputs, tableResult, plotResult: latestPlot, exportResult: latestExport };
 }
 
 export function createFunctionExecutionContext(

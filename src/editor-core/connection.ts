@@ -72,9 +72,7 @@ export function validateEditorConnection(
   }
 
   const candidateEdges = options.excludeEdgeId ? edges.filter((edge) => edge.id !== options.excludeEdgeId) : edges;
-  const structuredLoopBack = ["logic.for_each_subflow", "logic.while_subflow"].includes(targetNode.data.nodeType)
-    && normalized.targetHandle === "continue";
-  if (editorConnectionCreatesCycle(normalized, candidateEdges) && !structuredLoopBack) {
+  if (editorConnectionCreatesCycle(normalized, candidateEdges)) {
     return { valid: false, normalized, code: "cycle", message: "该连线会形成环" };
   }
   return { valid: true, normalized };

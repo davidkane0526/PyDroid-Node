@@ -362,7 +362,7 @@ async function editorConnectionAndMetadataCase(): Promise<DiagnosticCase> {
 
 async function editorDragHistoryCase(): Promise<DiagnosticCase> {
   return runCase("editor-drag-history", "Editor Session 节点拖动/容器归属历史事务", undefined, async () => {
-    const structure = node("structure", "logic.if_subflow", {}, "条件结构");
+    const structure = node("structure", "logic.if_value", {}, "条件结构");
     structure.position = { x: 100, y: 100 };
     structure.style = { width: 520, height: 300 };
     const moved = node("moved", "python.print", {}, "待拖动节点");

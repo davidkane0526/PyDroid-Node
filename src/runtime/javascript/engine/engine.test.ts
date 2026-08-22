@@ -275,3 +275,69 @@ describe("分组扁平化", () => {
     expect(preview.rows).toEqual([[0, 0.1], [1, 0.2]]);
   });
 });
+
+describe("通用控制结构", () => {
+  it("If 条件结构只执行选中的分支", () => {
+    const condition = node("read", "io.read_csv", { header: "infer" });
+    const structure = node("if-any", "logic.if_value");
+    const child = node("abs", "table.absolute");
+    (child as { parentId?: string }).parentId = "if-any";
+    ((child as { data: Record<string, unknown> }).data).branch = "true";
+    const result = run({
+      nodes: [condition, structure, child],
+      edges: [edge("read", "if-any", { targetHandle: "condition" })],
+    }, "x\n-2\n3\n");
+    expect(result.status).toBe("success");
+    expect((result.preview as { rows: unknown[][] }).rows).toEqual([[2], [3]]);
+  });
+
+  it("For Each 可逐行处理表格并统一收集为列表", () => {
+    const structure = node("for-any", "logic.for_each_value", { maxIterations: 10 });
+    const child = node("abs", "table.absolute");
+    (child as { parentId?: string }).parentId = "for-any";
+    ((child as { data: Record<string, unknown> }).data).branch = "body";
+    const count = node("count", "python.len");
+    const result = run({
+      nodes: [node("read", "io.read_csv", { header: "infer" }), structure, child, count],
+      edges: [
+        edge("read", "for-any", { targetHandle: "input" }),
+        edge("for-any", "count", { sourceHandle: "done", targetHandle: "input" }),
+      ],
+    }, "x\n-2\n3\n");
+    expect(result.status).toBe("success");
+    expect((result.nodeResults as Record<string, { value?: unknown }>).count.value).toBe(2);
+  });
+
+  it("While State 可用非空状态模式反复执行循环体", () => {
+    const structure = node("while-any", "logic.while_state", { conditionMode: "notEmpty", condition: "value < 10", maxIterations: 10 });
+    const child = node("drop-first", "table.slice", { rowStart: "1", rowStop: "", rowStep: 1, columnStart: "", columnStop: "", columnStep: 1 });
+    (child as { parentId?: string }).parentId = "while-any";
+    ((child as { data: Record<string, unknown> }).data).branch = "body";
+    const result = run({
+      nodes: [node("read", "io.read_csv", { header: "infer" }), structure, child],
+      edges: [edge("read", "while-any", { targetHandle: "input" })],
+    }, "x\n1\n2\n3\n");
+    expect(result.status).toBe("success");
+    expect((result.preview as { rows: unknown[][] }).rows).toEqual([]);
+  });
+
+  it("通用控制结构允许嵌套", () => {
+    const outer = node("for-any", "logic.for_each_value", { maxIterations: 10 });
+    const inner = node("if-any", "logic.if_value");
+    (inner as { parentId?: string }).parentId = "for-any";
+    ((inner as { data: Record<string, unknown> }).data).branch = "body";
+    const child = node("abs", "table.absolute");
+    (child as { parentId?: string }).parentId = "if-any";
+    ((child as { data: Record<string, unknown> }).data).branch = "true";
+    const count = node("count", "python.len");
+    const result = run({
+      nodes: [node("read", "io.read_csv", { header: "infer" }), outer, inner, child, count],
+      edges: [
+        edge("read", "for-any", { targetHandle: "input" }),
+        edge("for-any", "count", { sourceHandle: "done", targetHandle: "input" }),
+      ],
+    }, "x\n-2\n3\n");
+    expect(result.status).toBe("success");
+    expect((result.nodeResults as Record<string, { value?: unknown }>).count.value).toBe(2);
+  });
+});

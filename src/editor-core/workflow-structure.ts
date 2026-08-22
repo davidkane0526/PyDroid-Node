@@ -15,7 +15,7 @@ export function nodeSpecForEditor(node: WorkflowNode | undefined): NodeSpec | un
       parameters: [],
       inputPorts: node.data.functionInputs ?? [],
       outputPorts: node.data.functionOutputs ?? [],
-      runtimeSupport: node.data.nodeType === "function.map" ? ["python"] : ["python", "javascript"],
+      runtimeSupport: ["python", "javascript"],
       executionModel: "function",
       functionRole: "call",
       deterministic: false,

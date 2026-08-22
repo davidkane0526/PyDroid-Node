@@ -15,6 +15,7 @@ import {
 import { arrangeCanvasSnapshot, type EditorLayoutDirection } from "./layout";
 import { validateEditorConnection } from "./connection";
 import { deriveGroupInterface, nodeSpecForEditor } from "./workflow-structure";
+import { isIfStructureNodeType, isVisualStructureNodeType } from "../workflow-structure-types";
 
 export type EditorGraphCommand =
   | { type: "insert-node"; node: WorkflowNode }
@@ -238,8 +239,8 @@ function replaceNode(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCom
     }
     return [edge];
   });
-  const nextIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(command.nextNodeType);
-  const oldIsStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(source.data.nodeType);
+  const nextIsStructure = isVisualStructureNodeType(command.nextNodeType);
+  const oldIsStructure = isVisualStructureNodeType(source.data.nodeType);
   const nodes = snapshot.nodes.map((node) => {
     if (node.id === source.id) return {
       ...node,
@@ -307,12 +308,11 @@ function reconnectEditorEdge(snapshot: WorkflowSnapshot, command: Extract<Editor
   };
 }
 
-const STRUCTURE_NODE_TYPES = new Set(["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"]);
 
 function commitNodeDrag(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "commit-node-drag" }>): EditorGraphCommandResult {
   const moved = snapshot.nodes.find((node) => node.id === command.nodeId);
   if (!moved) return unchanged(snapshot, "拖动节点不存在");
-  if (STRUCTURE_NODE_TYPES.has(moved.data.nodeType)) return unchanged(snapshot);
+  if (isVisualStructureNodeType(moved.data.nodeType)) return unchanged(snapshot);
   const previousParent = command.parentId === undefined ? moved.parentId : (command.parentId ?? undefined);
   const parent = previousParent ? snapshot.nodes.find((node) => node.id === previousParent) : undefined;
   const absolute = previousParent
@@ -320,7 +320,7 @@ function commitNodeDrag(snapshot: WorkflowSnapshot, command: Extract<EditorGraph
     : command.position;
   const canvasId = moved.data.canvasParentId ?? null;
   const container = snapshot.nodes.find((candidate) => {
-    if (candidate.id === moved.id || !STRUCTURE_NODE_TYPES.has(candidate.data.nodeType)) return false;
+    if (candidate.id === moved.id || !isVisualStructureNodeType(candidate.data.nodeType)) return false;
     if ((candidate.data.canvasParentId ?? null) !== canvasId) return false;
     const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
     const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
@@ -338,7 +338,7 @@ function commitNodeDrag(snapshot: WorkflowSnapshot, command: Extract<EditorGraph
       data: { ...node.data, branch: undefined },
     };
     const relative = { x: Math.max(26, absolute.x - container.position.x), y: Math.max(104, absolute.y - container.position.y) };
-    const branch: WorkflowNode["data"]["branch"] = container.data.nodeType === "logic.if_subflow"
+    const branch: WorkflowNode["data"]["branch"] = isIfStructureNodeType(container.data.nodeType)
       ? (relative.x < Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "true" : "false")
       : "body";
     return { ...node, parentId: container.id, extent: "parent" as const, expandParent: true, position: relative, data: { ...node.data, branch } };

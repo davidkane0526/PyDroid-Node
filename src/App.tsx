@@ -62,6 +62,7 @@ import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperatio
 import { functionCallCount } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
+import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -380,7 +381,7 @@ function nodesInExecutionOrder(nodes: WorkflowNode[], edges: Edge[]): WorkflowNo
 
 function hydrateNodeDefaults(node: WorkflowNode): WorkflowNode {
   const spec = getNodeSpec(node.data.nodeType);
-  const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType);
+  const isStructure = isVisualStructureNodeType(node.data.nodeType);
   const corruptedLabel = /(?:锟斤拷|�{1,}|\?{3,})/.test(node.data.label);
   return {
     ...node,
@@ -437,7 +438,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const nodeMinHeight = (direction === "horizontal" && maxPortCount
     ? Math.max(58, 24 + maxPortCount * 34)
     : direction === "vertical" ? 92 : 58) * nodeScale;
-  const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(data.nodeType);
+  const isStructure = isVisualStructureNodeType(data.nodeType);
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
     refresh();
@@ -448,7 +449,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     return () => observer.disconnect();
   }, [direction, endpointScale, horizontalPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node direction-${direction} ${isStructure ? "workflow-structure" : ""} ${data.nodeType === "logic.if_subflow" ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfStructureNodeType(data.nodeType) ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}>▶</button>
       {isStructure && <NodeResizer minWidth={360} minHeight={220} isVisible={selected} />}
@@ -466,7 +467,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         <div className="workflow-node__meta">{data.nodeType === "workflow.group" ? `${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作` : `${spec?.parameters.length ?? 0} 参数${data.tags?.length ? ` · ${data.tags.join(" · ")}` : ""}`}</div>
       </div>
       {isStructure && <div className="workflow-structure__interior">
-        {data.nodeType === "logic.if_subflow" ? <><div className="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span></div><div className="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span></div></> : <div className="workflow-structure__lane workflow-structure__lane--body"><span>循环体 · 每次迭代的数据由左侧隧道进入</span></div>}
+        {isIfStructureNodeType(data.nodeType) ? <><div className="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span></div><div className="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span></div></> : <div className="workflow-structure__lane workflow-structure__lane--body"><span>循环体 · 每次迭代的数据由左侧隧道进入</span></div>}
       </div>}
       {outputPorts.map((port, index) => (
         <div className="output-port" style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
@@ -1703,12 +1704,12 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     const node = createNode(id, nodeType, position?.x ?? fallback.x, position?.y ?? fallback.y);
     node.className = "node-entering";
     node.data.canvasParentId = currentCanvasId ?? undefined;
-    const isStructure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nodeType);
+    const isStructure = isVisualStructureNodeType(nodeType);
     if (isStructure) {
       node.style = { width: 520, height: 300 };
     } else if (position) {
       const container = nodes.find((candidate) => {
-        if ((candidate.data.canvasParentId ?? null) !== currentCanvasId || !["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(candidate.data.nodeType)) return false;
+        if ((candidate.data.canvasParentId ?? null) !== currentCanvasId || !isVisualStructureNodeType(candidate.data.nodeType)) return false;
         const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
         const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
         return position.x > candidate.position.x + 12 && position.x < candidate.position.x + width - 80 && position.y > candidate.position.y + 58 && position.y < candidate.position.y + height - 24;
@@ -1719,7 +1720,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         node.extent = "parent";
         node.expandParent = true;
         node.position = relative;
-        node.data.branch = container.data.nodeType === "logic.if_subflow" && relative.x >= Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "false" : container.data.nodeType === "logic.if_subflow" ? "true" : "body";
+        node.data.branch = isIfStructureNodeType(container.data.nodeType) && relative.x >= Number(container.measured?.width ?? container.style?.width ?? 520) / 2 ? "false" : isIfStructureNodeType(container.data.nodeType) ? "true" : "body";
       }
     }
     const inserted = session.applyGraphCommand({ type: "insert-node", node });
@@ -1887,7 +1888,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const paletteDropPosition = (nodeType: string, clientX: number, clientY: number) => {
     const point = reactFlow.screenToFlowPosition({ x: clientX, y: clientY });
     const spec = getNodeSpec(nodeType);
-    const structure = ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(nodeType);
+    const structure = isVisualStructureNodeType(nodeType);
     const width = structure ? 520 : Math.min(270, Math.max(168, 112 + Array.from(spec?.label ?? nodeType).length * 16)) * nodeScale;
     const height = structure ? 300 : (resolvedLayoutDirection === "vertical" ? 74 : 58) * nodeScale;
     return { x: point.x - width / 2, y: point.y - height / 2 };
@@ -3763,7 +3764,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
                 <div><strong>公开输出</strong>{(selectedNode.data.groupOutputs ?? []).map((port) => <label key={port.id}><span>{port.valueType}</span><input value={port.label} onChange={(event) => updateSelectedGroupPort("output", port.id, event.target.value)} /></label>)}</div>
                 <small>端口由组合时跨越组边界的连线自动生成；内部连线和节点参数在子画布中编辑。</small>
               </section>}
-              {(selectedNode.data.nodeType === "function.call" || selectedNode.data.nodeType === "function.map") && <section className="group-settings function-call-settings"><strong>{selectedFunctionDefinition?.name ?? selectedNode.data.label}</strong><small>{selectedFunctionDefinition ? `函数 ${selectedFunctionDefinition.id} · v${selectedFunctionDefinition.version}` : "函数定义缺失"}</small>{selectedNode.data.nodeType === "function.call" && selectedFunctionDefinition && <button onClick={() => insertFunctionEditableGroup(selectedFunctionDefinition)}>展开为可编辑组合</button>}{selectedNode.data.nodeType === "function.map" ? <small>函数映射：输入端口“{String(selectedNode.data.parameters.mapInput ?? "")}”逐项执行，结果按 {selectedNode.data.parameters.collectMode === "table" ? "DataFrame" : selectedNode.data.parameters.collectMode === "concat_columns" ? "列方向 DataFrame 合并" : "列表"} 汇总。</small> : <small>调用端口来自函数签名；更新函数时当前工作流中的调用节点会同步到新版本。</small>}</section>}
+              {(selectedNode.data.nodeType === "function.call" || selectedNode.data.nodeType === "function.map") && <section className="group-settings function-call-settings"><strong>{selectedFunctionDefinition?.name ?? selectedNode.data.label}</strong><small>{selectedFunctionDefinition ? `函数 ${selectedFunctionDefinition.id} · v${selectedFunctionDefinition.version}` : "函数定义缺失"}</small>{selectedNode.data.nodeType === "function.call" && selectedFunctionDefinition && <button onClick={() => insertFunctionEditableGroup(selectedFunctionDefinition)}>展开为可编辑组合</button>}{selectedNode.data.nodeType === "function.map" ? <small>函数映射：输入端口“{String(selectedNode.data.parameters.mapInput ?? "")}”逐项执行，结果按 {selectedNode.data.parameters.collectMode === "table" ? "DataFrame" : "列表"} 汇总。</small> : <small>调用端口来自函数签名；更新函数时当前工作流中的调用节点会同步到新版本。</small>}</section>}
               <div className="inspector-node-overview">
               {["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{selectedNode.data.nodeType === "io.read_csv_batch" ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
               {selectedNode.data.nodeType !== "workflow.group" && selectedSpec?.pythonCallable && (

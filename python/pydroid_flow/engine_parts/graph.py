@@ -36,9 +36,6 @@ def _ordered_nodes(workflow: dict[str, Any]) -> list[dict[str, Any]]:
         target = edge["target"]
         if source not in by_id or target not in by_id:
             raise ValueError("Workflow contains an edge with a missing node")
-        target_type = by_id[target].get("data", {}).get("nodeType")
-        if target_type in {"logic.for_each_subflow", "logic.while_subflow"} and edge.get("targetHandle") == "continue":
-            continue
         downstream[source].append(target)
         indegree[target] += 1
 
@@ -95,40 +92,6 @@ def _upstream_inputs(node_id: str, workflow: dict[str, Any], values: dict[str, d
             raise ValueError(f"Input {port} has more than one connection")
         inputs[port] = _edge_value(edge, values)
     return inputs
-
-def _loop_body(workflow: dict[str, Any], loop_id: str) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    edges = _data_edges(workflow)
-    start_edges = [edge for edge in edges if edge["source"] == loop_id and edge.get("sourceHandle") == "body"]
-    back_edges = [edge for edge in edges if edge["target"] == loop_id and edge.get("targetHandle") == "continue"]
-    if len(start_edges) != 1 or len(back_edges) != 1:
-        raise ValueError("Loop subflow requires exactly one body connection and one continue connection")
-    pending = [start_edges[0]["target"]]
-    body_ids: set[str] = set()
-    while pending:
-        node_id = pending.pop()
-        if node_id == loop_id or node_id in body_ids:
-            continue
-        body_ids.add(node_id)
-        pending.extend(edge["target"] for edge in edges if edge["source"] == node_id and edge["target"] != loop_id)
-    if back_edges[0]["source"] not in body_ids:
-        raise ValueError("Loop continue connection must come from the body subflow")
-    body_workflow = {
-        "nodes": [node for node in workflow.get("nodes", []) if node["id"] in body_ids],
-        "edges": [edge for edge in edges if edge["source"] in body_ids and edge["target"] in body_ids],
-    }
-    return _ordered_nodes(body_workflow), back_edges[0]
-
-def _all_loop_body_ids(workflow: dict[str, Any]) -> set[str]:
-    result: set[str] = set()
-    for node in workflow.get("nodes", []):
-        if node.get("data", {}).get("nodeType") in {"logic.for_each_subflow", "logic.while_subflow"}:
-            try:
-                body, _ = _loop_body(workflow, node["id"])
-                result.update(item["id"] for item in body)
-            except ValueError:
-                # The loop node itself will report a precise wiring error when executed.
-                pass
-    return result
 
 def _contained_node_ids(workflow: dict[str, Any]) -> set[str]:
     return {str(node["id"]) for node in workflow.get("nodes", []) if node.get("parentId")}

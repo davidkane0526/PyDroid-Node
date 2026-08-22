@@ -29,8 +29,6 @@ export function orderedNodes(workflow: Workflow): WorkflowNode[] {
   const downstream = new Map<string, string[]>();
   for (const edge of edges) {
     if (!byId.has(edge.source) || !byId.has(edge.target)) throw new Error("Workflow contains an edge with a missing node");
-    const targetType = byId.get(edge.target)?.data.nodeType;
-    if ((targetType === "logic.for_each_subflow" || targetType === "logic.while_subflow") && edge.targetHandle === "continue") continue;
     const list = downstream.get(edge.source) ?? [];
     list.push(edge.target);
     downstream.set(edge.source, list);
@@ -94,8 +92,8 @@ function upstreamInputs(nodeId: string, workflow: Workflow, values: Map<string, 
 }
 
 export function nodeUpstream(nodeId: string, nodeType: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): unknown {
-  if (["table.concat", "logic.merge_rows"].includes(nodeType)) return upstreamTables(nodeId, workflow, values);
-  if (["pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert", "function.call"].includes(nodeType)) {
+  if (["table.concat", "table.merge_rows"].includes(nodeType)) return upstreamTables(nodeId, workflow, values);
+  if (["pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value"].includes(nodeType)) {
     return upstreamInputs(nodeId, workflow, values);
   }
   return upstreamValue(nodeId, workflow, values);
@@ -104,46 +102,6 @@ export function nodeUpstream(nodeId: string, nodeType: string, workflow: Workflo
 export function requireTable(value: unknown, operation: string): Table {
   if (!(value instanceof Table)) throw new Error(`${operation} requires a table input`);
   return value;
-}
-
-export function loopBody(workflow: Workflow, loopId: string): { bodyNodes: WorkflowNode[]; backEdge: WorkflowEdge } {
-  const edges = dataEdges(workflow);
-  const startEdges = edges.filter((edge) => edge.source === loopId && edge.sourceHandle === "body");
-  const backEdges = edges.filter((edge) => edge.target === loopId && edge.targetHandle === "continue");
-  if (startEdges.length !== 1 || backEdges.length !== 1) {
-    throw new Error("Loop subflow requires exactly one body connection and one continue connection");
-  }
-  const pending = [startEdges[0].target];
-  const bodyIds = new Set<string>();
-  while (pending.length) {
-    const nodeId = pending.pop() as string;
-    if (nodeId === loopId || bodyIds.has(nodeId)) continue;
-    bodyIds.add(nodeId);
-    for (const edge of edges) {
-      if (edge.source === nodeId && edge.target !== loopId) pending.push(edge.target);
-    }
-  }
-  if (!bodyIds.has(backEdges[0].source)) throw new Error("Loop continue connection must come from the body subflow");
-  const bodyWorkflow: Workflow = {
-    nodes: workflow.nodes.filter((node) => bodyIds.has(node.id)),
-    edges: edges.filter((edge) => bodyIds.has(edge.source) && bodyIds.has(edge.target)),
-  };
-  return { bodyNodes: orderedNodes(bodyWorkflow), backEdge: backEdges[0] };
-}
-
-export function allLoopBodyIds(workflow: Workflow): Set<string> {
-  const result = new Set<string>();
-  for (const node of workflow.nodes) {
-    if (["logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType)) {
-      try {
-        const { bodyNodes } = loopBody(workflow, node.id);
-        bodyNodes.forEach((item) => result.add(item.id));
-      } catch {
-        // The loop node reports malformed loop topology during execution.
-      }
-    }
-  }
-  return result;
 }
 
 export function containerChildren(workflow: Workflow, containerId: string, branch: string): WorkflowNode[] {

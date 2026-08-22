@@ -7,12 +7,6 @@
       "expectedCurrent": true
     },
     {
-      "file": "1.4.27-logic-control.workflow.json",
-      "origin": "git 398327d / PyDroid 1.4.27 examples/logic-control-demo.workflow.json",
-      "schemaVersion": 1,
-      "expectedCurrent": true
-    },
-    {
       "file": "phase7-v1-basic.workflow.json",
       "origin": "tests/manual/phase8/00-legacy-v1.workflow.json",
       "schemaVersion": 1,

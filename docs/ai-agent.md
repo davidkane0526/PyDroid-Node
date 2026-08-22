@@ -52,8 +52,8 @@ PyDroid Flow 的 AI Agent 只能操作版本化的节点流程，不把 Python�
 - `delete_node`：删除节点及关联连线。
 - `run_workflow`：在用户授权后执行当前流程。
 
-条件、遍历和循环必须使用 `logic.if_subflow`、`logic.for_each_subflow`、
-`logic.while_subflow` 等可视化结构；组合必须由基础节点组成。若目录缺少必要能力，
+条件、遍历和循环必须使用通用 `logic.if_value`、`logic.for_each_value`、
+`logic.while_state`，并优先把逐项变换/归约/累计分别表达为 `sequence.map_expression`、`sequence.reduce`、`sequence.accumulate`；组合必须由基础节点组成。若目录缺少必要能力，
 Agent 应报告缺少的基础节点，而不是生成任意代码块规避限制。
 
 ## 权限

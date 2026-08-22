@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "generic_if_selected_branch",
+      "description": "Generic If executes only the selected branch with an arbitrary scalar payload",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "generic if",
+        "nodes": [
+          {
+            "id": "range",
+            "position": { "x": 0, "y": 0 },
+            "data": { "label": "range", "nodeType": "logic.for_range", "nodeVersion": 1, "parameters": { "start": 0, "stop": 1, "step": 1 }, "status": "idle" }
+          },
+          {
+            "id": "length",
+            "position": { "x": 180, "y": 0 },
+            "data": { "label": "len", "nodeType": "python.len", "nodeVersion": 1, "parameters": {}, "status": "idle" }
+          },
+          {
+            "id": "condition",
+            "position": { "x": 360, "y": 0 },
+            "data": { "label": "bool", "nodeType": "convert.to_boolean", "nodeVersion": 1, "parameters": {}, "status": "idle" }
+          },
+          {
+            "id": "if",
+            "position": { "x": 540, "y": 0 },
+            "data": { "label": "If", "nodeType": "logic.if_value", "nodeVersion": 1, "parameters": { "invert": false }, "status": "idle" }
+          },
+          {
+            "id": "print-true",
+            "parentId": "if",
+            "position": { "x": 30, "y": 80 },
+            "data": { "label": "print", "nodeType": "python.print", "nodeVersion": 1, "parameters": { "prefix": "", "format": "text", "includeType": false, "maxRows": 10, "maxChars": 1000, "encoding": "utf-8", "encodingErrors": "replace", "bytesFormat": "decode", "end": "\n" }, "status": "idle", "branch": "true" }
+          }
+        ],
+        "edges": [
+          { "id": "e1", "source": "range", "target": "length" },
+          { "id": "e2", "source": "length", "target": "condition" },
+          { "id": "e3", "source": "condition", "target": "if", "targetHandle": "condition" }
+        ],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["range", "length", "condition", "if"],
+        "semanticValueResults": { "if": true }
+      }
+    },
+    {
+      "id": "generic_for_each_collects_list",
+      "description": "Generic For Each iterates a table as row values and always collects body results as a list",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "generic for each",
+        "nodes": [
+          {
+            "id": "range",
+            "position": { "x": 0, "y": 0 },
+            "data": { "label": "range", "nodeType": "logic.for_range", "nodeVersion": 1, "parameters": { "start": -1, "stop": 2, "step": 1 }, "status": "idle" }
+          },
+          {
+            "id": "for",
+            "position": { "x": 200, "y": 0 },
+            "data": { "label": "For Each", "nodeType": "logic.for_each_value", "nodeVersion": 1, "parameters": { "maxIterations": 100 }, "status": "idle" }
+          },
+          {
+            "id": "abs",
+            "parentId": "for",
+            "position": { "x": 30, "y": 80 },
+            "data": { "label": "abs", "nodeType": "table.absolute", "nodeVersion": 1, "parameters": {}, "status": "idle", "branch": "body" }
+          },
+          {
+            "id": "count",
+            "position": { "x": 420, "y": 0 },
+            "data": { "label": "len", "nodeType": "python.len", "nodeVersion": 1, "parameters": {}, "status": "idle" }
+          }
+        ],
+        "edges": [
+          { "id": "e1", "source": "range", "target": "for", "targetHandle": "input" },
+          { "id": "e2", "source": "for", "sourceHandle": "done", "target": "count", "targetHandle": "input" }
+        ],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["range", "for", "count"],
+        "semanticValueResults": { "count": 3 }
+      }
+    },
+    {
+      "id": "generic_while_state_table",
+      "description": "Generic While State repeatedly transforms an arbitrary state until the non-empty condition becomes false",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "generic while",
+        "nodes": [
+          {
+            "id": "range",
+            "position": { "x": 0, "y": 0 },
+            "data": { "label": "range", "nodeType": "logic.for_range", "nodeVersion": 1, "parameters": { "start": 0, "stop": 3, "step": 1 }, "status": "idle" }
+          },
+          {
+            "id": "while",
+            "position": { "x": 220, "y": 0 },
+            "data": { "label": "While State", "nodeType": "logic.while_state", "nodeVersion": 1, "parameters": { "conditionMode": "notEmpty", "condition": "value < 10", "maxIterations": 10 }, "status": "idle" }
+          },
+          {
+            "id": "drop-first",
+            "parentId": "while",
+            "position": { "x": 30, "y": 80 },
+            "data": { "label": "drop first", "nodeType": "table.slice", "nodeVersion": 1, "parameters": { "rowStart": "1", "rowStop": "", "rowStep": 1, "columnStart": "", "columnStop": "", "columnStep": 1 }, "status": "idle", "branch": "body" }
+          }
+        ],
+        "edges": [
+          { "id": "e1", "source": "range", "target": "while", "targetHandle": "input" }
+        ],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["range", "while"],
+        "preview": {
+          "columns": ["iteration", "value"],
+          "rows": [],
+          "totalRows": 0,
+          "totalColumns": 2
+        }
+      }
+    }
+  ]
+}

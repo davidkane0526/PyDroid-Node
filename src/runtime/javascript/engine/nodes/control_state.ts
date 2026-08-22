@@ -11,7 +11,7 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
   const table = (): Table => requireTable(upstream, "Table input");
 
   switch (nodeType) {
-    case "logic.if_rows": {
+    case "table.split_condition": {
       const frame = table();
       const condition = String(params.condition ?? "").trim();
       if (!condition) throw new Error("Conditional branch requires a condition");
@@ -27,7 +27,7 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
       const falseTable = new Table(frame.columns, falseRows);
       return { outputs: { true: trueTable, false: falseTable }, tableResult: trueTable, plotResult, exportResult };
     }
-    case "logic.merge_rows": {
+    case "table.merge_rows": {
       const inputs = upstream as Record<string, unknown>;
       const left = requireTable(inputs.left, "Branch merge A");
       const right = requireTable(inputs.right, "Branch merge B");

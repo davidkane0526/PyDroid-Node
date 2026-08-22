@@ -2,6 +2,7 @@ import type { Edge } from "@xyflow/react";
 import { parseWorkflow, type WorkflowDocument, type WorkflowEnvironment, type WorkflowFunctionDefinition, type WorkflowNode, type WorkflowParameterDefinition } from "./workflow";
 import { getNodeSpec, type ValueType } from "./nodeCatalog";
 import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
+import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 
 const NODE_CELL = /^# %% \[node\] ([^\r\n]+)$/gm;
 
@@ -210,7 +211,7 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
     typedFunctionDefinitions,
     functionCalls: operations.filter((operation) => operation.nodeType === "function.call" && operation.semantic).length,
     functionMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic).length,
-    functionConcatMaps: operations.filter((operation) => operation.nodeType === "function.map" && operation.semantic && operation.parameters?.collectMode === "concat_columns").length,
+    functionConcatMaps: 0,
     managedEnvironmentImports,
     managedWorkflowParameters,
     managedWorkflowDefinitions,
@@ -471,7 +472,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
   const TOP_LEFT = 70;
   const TOP_TOP = 65;
   const MAX_TOP_COLUMNS = 4;    // 顶层每行最多列单位
-  const isStructureType = (nodeType: string | undefined) => nodeType === "logic.if_subflow" || nodeType === "logic.for_each_subflow" || nodeType === "logic.while_subflow";
+  const isStructureType = (nodeType: string | undefined) => isVisualStructureNodeType(nodeType);
   const entryId = (entry: Entry) => `notebook-cell-${entry.cellIndex + 1}-step-${entry.operationIndex + 1}`;
   const structureSizes = new Map<string, { width: number; height: number }>();
   const childPositions = new Map<string, { x: number; y: number }>();
@@ -522,8 +523,8 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
       ? [
           {
             id: "output",
-            label: operation?.parameters?.collectMode === "table" || operation?.parameters?.collectMode === "concat_columns" ? "结果表" : "结果列表",
-            valueType: operation?.parameters?.collectMode === "table" || operation?.parameters?.collectMode === "concat_columns" ? "table" as const : "list" as const,
+            label: operation?.parameters?.collectMode === "table" ? "结果表" : "结果列表",
+            valueType: operation?.parameters?.collectMode === "table" ? "table" as const : "list" as const,
           },
           ...(typeof operation?.parameters?.lastItemVariable === "string" && operation.parameters.lastItemVariable
             ? [{
@@ -693,17 +694,40 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     if (target) {
       const outputHandles = resolvedNodePorts(targetNode, "output");
       const outputBindings: Record<string, string> = {};
+      let explicitOutputPorts: Record<string, string> | null = null;
+      const rawOutputPorts = operation.parameters?.notebookOutputPortBindingsJson;
+      if (typeof rawOutputPorts === "string") {
+        try {
+          const parsed = JSON.parse(rawOutputPorts) as unknown;
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            explicitOutputPorts = Object.fromEntries(Object.entries(parsed as Record<string, unknown>)
+              .filter(([, value]) => typeof value === "string" && Boolean(value))
+              .map(([name, value]) => [name, String(value)]));
+          }
+        } catch { /* malformed metadata falls back to ordinary node output inference */ }
+      }
       for (const [definedIndex, defined] of (operation.defines ?? []).entries()) {
-        const sourceHandle = outputHandles[definedIndex] ?? outputHandles[0] ?? connectablePort(targetNode, "output");
-        variableNode.set(defined, { nodeId: target, sourceHandle, semantic });
+        const explicitHandle = explicitOutputPorts?.[defined];
+        const sourceHandle = explicitOutputPorts !== null
+          ? explicitHandle ?? outputHandles[0] ?? connectablePort(targetNode, "output")
+          : outputHandles[definedIndex] ?? outputHandles[0] ?? connectablePort(targetNode, "output");
+        const exactNativeOutput = semantic && (explicitOutputPorts === null || Boolean(explicitHandle));
+        // Definitions without an exact native output (notably Python ``for``
+        // target/body variables) still originate from this structure visually,
+        // but their real value lives in the shared Notebook namespace.
+        variableNode.set(defined, { nodeId: target, sourceHandle, semantic: exactNativeOutput });
         notebookVariables.add(defined);
-        if (semantic && sourceHandle) outputBindings[defined] = sourceHandle;
+        if (exactNativeOutput && sourceHandle) outputBindings[defined] = sourceHandle;
       }
       if (operation.outputVariable && !(operation.defines ?? []).includes(operation.outputVariable)) {
-        const sourceHandle = outputHandles[0] ?? connectablePort(targetNode, "output");
-        variableNode.set(operation.outputVariable, { nodeId: target, sourceHandle, semantic });
+        const explicitHandle = explicitOutputPorts?.[operation.outputVariable];
+        const sourceHandle = explicitOutputPorts !== null
+          ? explicitHandle ?? outputHandles[0] ?? connectablePort(targetNode, "output")
+          : outputHandles[0] ?? connectablePort(targetNode, "output");
+        const exactNativeOutput = semantic && (explicitOutputPorts === null || Boolean(explicitHandle));
+        variableNode.set(operation.outputVariable, { nodeId: target, sourceHandle, semantic: exactNativeOutput });
         notebookVariables.add(operation.outputVariable);
-        if (semantic && sourceHandle) outputBindings[operation.outputVariable] = sourceHandle;
+        if (exactNativeOutput && sourceHandle) outputBindings[operation.outputVariable] = sourceHandle;
       }
       if (semantic) {
         targetNode.data.parameters.notebookInputBindingsJson = JSON.stringify(inputBindings);
@@ -748,7 +772,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     byCell.set(index, [...(byCell.get(index) ?? []), node]);
   });
   for (const [cellIndex, members] of byCell) {
-    if (members.length < 3 || members.some((node) => node.parentId || ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(node.data.nodeType))) continue;
+    if (members.length < 3 || members.some((node) => node.parentId || isVisualStructureNodeType(node.data.nodeType))) continue;
     const memberIds = new Set(members.map((node) => node.id));
     const groupId = `notebook-cell-${cellIndex + 1}-group`;
     // Only real executable data edges become group interface ports. Notebook
@@ -1029,30 +1053,51 @@ function structureOperationCode(node: WorkflowNode, edges: Edge[], nodes: Workfl
     lines.push(`    return ${variableName((sinks.at(-1) ?? children.at(-1))!.id)}, _child_values`);
     return lines.join("\n");
   };
-  if (node.data.nodeType === "logic.if_subflow") return `${makeRunner("true", "true")}
+  if (node.data.nodeType === "logic.if_value") return `${makeRunner("true", "true")}
 ${makeRunner("false", "false")}
-_matching = ${input}.query(${params}["condition"])
-_true_seed = _matching.reset_index(drop=True)
-_false_seed = ${input}.loc[~${input}.index.isin(_matching.index)].reset_index(drop=True)
-_true_result, _true_children = _run_${name}_true(_true_seed)
-_false_result, _false_children = _run_${name}_false(_false_seed)
-${name} = {"true": _true_result, "false": _false_result, "__children__": {**_true_children, **_false_children}}`;
+_if_inputs = ${input} if isinstance(${input}, dict) else {"condition": ${input}}
+_if_condition = _if_inputs.get("condition")
+_if_seed = _if_inputs.get("input", _if_condition)
+_if_selected = _generic_truthy(_if_condition)
+if bool(${params}.get("invert", False)): _if_selected = not _if_selected
+if _if_selected:
+    _if_result, _if_children = _run_${name}_true(_if_seed)
+    ${name} = {"done": _if_result, "true": _if_result, "false": None, "output": _if_result, "__children__": _if_children}
+else:
+    _if_result, _if_children = _run_${name}_false(_if_seed)
+    ${name} = {"done": _if_result, "true": None, "false": _if_result, "output": _if_result, "__children__": _if_children}`;
   const runner = makeRunner("body", "body");
-  if (node.data.nodeType === "logic.for_each_subflow") return `${runner}
-_loop_rows, _loop_children = [], {}
-for _loop_index in range(min(len(${input}), int(${params}.get("maxIterations", 100)))):
-    _loop_result, _iteration_children = _run_${name}_body(${input}.iloc[[_loop_index]].copy().reset_index(drop=True))
-    if isinstance(_loop_result, pd.DataFrame): _loop_rows.append(_loop_result)
+  if (node.data.nodeType === "logic.for_each_value") return `${runner}
+_loop_items = _generic_items(${input})
+_loop_maximum = int(${params}.get("maxIterations", 10000))
+if len(_loop_items) > _loop_maximum: raise ValueError(f"For Each exceeds maxIterations={_loop_maximum}")
+_loop_results, _loop_children = [], {}
+for _loop_index, _loop_item in enumerate(_loop_items):
+    _loop_result, _iteration_children = _run_${name}_body(_loop_item)
+    _loop_results.append(_loop_result)
     _loop_children.update(_iteration_children)
-_loop_done = pd.concat(_loop_rows, ignore_index=True) if _loop_rows else ${input}.iloc[0:0].copy()
-${name} = {"done": _loop_done, "output": _loop_done, "__children__": _loop_children}`;
-  return `${runner}
-_loop_current, _loop_children = ${input}.copy(), {}
-for _loop_index in range(int(${params}.get("maxIterations", 100))):
-    if _loop_current.query(${params}["condition"]).empty: break
+_loop_done = _loop_results
+${name} = {"done": _loop_done, "last": _loop_results[-1] if _loop_results else None, "lastItem": _loop_items[-1] if _loop_items else None, "output": _loop_done, "__children__": _loop_children}`;
+  if (node.data.nodeType === "logic.while_state") return `${runner}
+_loop_current, _loop_children = ${input}, {}
+_loop_iterations = 0
+_loop_maximum = int(${params}.get("maxIterations", 100))
+_loop_mode = str(${params}.get("conditionMode", "expression"))
+_loop_condition = str(${params}.get("condition", "value < 10"))
+for _loop_index in range(_loop_maximum):
+    if _loop_mode == "truthy": _keep_going = _generic_truthy(_loop_current)
+    elif _loop_mode == "notEmpty": _keep_going = _generic_not_empty(_loop_current)
+    elif _loop_mode == "expression": _keep_going = bool(eval(_loop_condition, {"__builtins__": {}}, {"value": _loop_current, "iteration": _loop_index}))
+    else: raise ValueError(f"Unsupported While State conditionMode: {_loop_mode}")
+    if not _keep_going: break
     _loop_current, _iteration_children = _run_${name}_body(_loop_current)
     _loop_children.update(_iteration_children)
-${name} = {"done": _loop_current.reset_index(drop=True), "output": _loop_current.reset_index(drop=True), "__children__": _loop_children}`;
+    _loop_iterations += 1
+else:
+    if (_loop_mode == "truthy" and _generic_truthy(_loop_current)) or (_loop_mode == "notEmpty" and _generic_not_empty(_loop_current)) or (_loop_mode == "expression" and bool(eval(_loop_condition, {"__builtins__": {}}, {"value": _loop_current, "iteration": _loop_maximum}))):
+        raise RuntimeError(f"While State reached maxIterations={_loop_maximum}")
+${name} = {"done": _loop_current, "iterations": _loop_iterations, "output": _loop_current, "__children__": _loop_children}`;
+  throw new Error(`Unsupported visual structure for notebook export: ${node.data.nodeType}`);
 }
 
 function operationCode(node: WorkflowNode, edges: Edge[], nodes: WorkflowNode[] = [], inputOverride?: string, inlineChild = false): string {
@@ -1061,10 +1106,10 @@ function operationCode(node: WorkflowNode, edges: Edge[], nodes: WorkflowNode[] 
   const input = inputOverride ?? inputExpression(node.id, edges);
   const type = node.data.nodeType;
   const parent = !inlineChild && (node.parentId || node.data.canvasParentId) ? nodes.find((candidate) => candidate.id === (node.parentId ?? node.data.canvasParentId)) : undefined;
-  if (parent && ["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(parent.data.nodeType)) {
+  if (parent && isVisualStructureNodeType(parent.data.nodeType)) {
     return `${name} = ${variableName(parent.id)}.get("__children__", {}).get(${JSON.stringify(node.id)})`;
   }
-  if (["logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"].includes(type)) return structureOperationCode(node, edges, nodes);
+  if (isVisualStructureNodeType(type)) return structureOperationCode(node, edges, nodes);
   if (type === "io.read_csv") {
     return `${name} = pd.read_csv(input_files[0], sep=${params}.get("separator", ","), header=None if ${params}.get("header") == "none" else "infer", skiprows=${params}.get("skipRows", 0), usecols=_columns(${params}.get("useColumns", "")))`;
   }
@@ -1181,9 +1226,9 @@ if _items:
   if (type === "pandas.sample") return `${name} = ${input}.sample(n=int(${params}.get("n", 5)), replace=${params}.get("replace", False), random_state=int(${params}.get("randomState", 0)))`;
   if (type === "pandas.round") return `${name} = ${input}.round(int(${params}.get("decimals", 2)))`;
   if (type === "pandas.describe") return `${name} = ${input}.describe().reset_index(names="statistic")`;
-  if (type === "logic.if_rows") return `_matching = ${input}.query(${params}["condition"])
+  if (type === "table.split_condition") return `_matching = ${input}.query(${params}["condition"])
 ${name} = {"true": _matching.reset_index(drop=True), "false": ${input}.loc[~${input}.index.isin(_matching.index)].reset_index(drop=True)}`;
-  if (type === "logic.merge_rows" || type === "table.concat") return `${name} = pd.concat(list(${input}.values()), ignore_index=${params}.get("ignoreIndex", True))`;
+  if (type === "table.merge_rows" || type === "table.concat") return `${name} = pd.concat(list(${input}.values()), ignore_index=${params}.get("ignoreIndex", True))`;
   if (type === "logic.for_range") return `_values = list(range(int(${params}.get("start", 0)), int(${params}.get("stop", 10)), int(${params}.get("step", 1))))
 ${name} = pd.DataFrame({"iteration": range(len(_values)), "value": _values})`;
   if (type === "logic.while_number") return `_value, _rows = float(${params}.get("start", 0)), []
@@ -1333,6 +1378,24 @@ def _column(frame, raw):
 
 def _column_names(frame, raw):
     return [_column(frame, item.strip()) for item in str(raw).split(",") if item.strip()]
+
+def _generic_truthy(value):
+    if value is None: return False
+    if isinstance(value, pd.DataFrame): return not value.empty
+    if isinstance(value, (pd.Series, np.ndarray, list, tuple, set, frozenset, dict, str, bytes)): return len(value) > 0
+    if isinstance(value, (bool, int, float, np.integer, np.floating)): return bool(value)
+    return True
+
+def _generic_not_empty(value):
+    return _generic_truthy(value)
+
+def _generic_items(value):
+    if isinstance(value, pd.DataFrame): return [value.iloc[[index]].copy().reset_index(drop=True) for index in range(len(value))]
+    if isinstance(value, pd.Series): return value.tolist()
+    if isinstance(value, np.ndarray): return value.tolist()
+    if isinstance(value, dict): return list(value.keys())
+    if isinstance(value, (list, tuple, set, frozenset, range, str)): return list(value)
+    raise TypeError("For Each requires a list, tuple, table, text, range, set, or object")
 
 def _call_custom(function, values):
     signature = inspect.signature(function)

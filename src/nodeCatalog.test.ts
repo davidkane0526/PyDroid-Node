@@ -40,15 +40,20 @@ describe("node function signatures", () => {
     ]));
     expect(getNodeSpec("plot.line")!.parameters.find((parameter) => parameter.key === "lineWidth")?.control).toBe("slider");
     expect(NODE_CATALOG.filter((spec) => spec.category === "Pandas 常用")).toHaveLength(9);
-    expect(getNodeSpec("logic.if_rows")!.outputPorts.map((port) => [port.id, port.valueType])).toEqual([
+    expect(getNodeSpec("table.split_condition")!.outputPorts.map((port) => [port.id, port.valueType])).toEqual([
       ["true", "table"],
       ["false", "table"],
     ]);
-    expect(getNodeSpec("logic.merge_rows")!.inputPorts.map((port) => port.id)).toEqual(["left", "right"]);
+    expect(getNodeSpec("table.merge_rows")!.inputPorts.map((port) => port.id)).toEqual(["left", "right"]);
     expect(getNodeSpec("logic.for_range")!.inputPorts).toHaveLength(0);
     expect(getNodeSpec("logic.while_number")!.parameters.map((parameter) => parameter.key)).toContain("maxIterations");
-    expect(getNodeSpec("logic.for_each_subflow")!.outputPorts.map((port) => port.id)).toEqual(["body", "done"]);
-    expect(getNodeSpec("logic.while_subflow")!.inputPorts.map((port) => port.id)).toEqual(["input", "continue"]);
+    expect(getNodeSpec("logic.if_subflow")).toBeUndefined();
+    expect(getNodeSpec("logic.for_each_subflow")).toBeUndefined();
+    expect(getNodeSpec("logic.while_subflow")).toBeUndefined();
+    expect(getNodeSpec("logic.if_value")!.inputPorts.map((port) => port.id)).toEqual(["condition", "input"]);
+    expect(getNodeSpec("logic.if_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "true", "false"]);
+    expect(getNodeSpec("logic.for_each_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "last", "lastItem"]);
+    expect(getNodeSpec("logic.while_state")!.parameters.map((parameter) => parameter.key)).toEqual(["conditionMode", "condition", "maxIterations"]);
     expect(getNodeSpec("plot.heatmap")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "rowLabelColumn", "xTickInterval", "yTickInterval", "xTickRotation", "origin", "aspect",
       "interpolation", "colorMap", "colorMin", "colorMax", "showColorBar", "colorBarLabel", "figureWidth", "dpi",

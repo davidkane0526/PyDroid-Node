@@ -98,14 +98,8 @@ function validateCallReference(node: RawWorkflowNode, functions: FunctionMap): v
       throw new Error(`函数映射 ${node.id} 的 mapInput 无效`);
     }
     const collectMode = node.data.parameters?.collectMode;
-    if (!new Set(["list", "table", "concat_columns"]).has(String(collectMode))) {
+    if (!new Set(["list", "table"]).has(String(collectMode))) {
       throw new Error(`函数映射 ${node.id} 的 collectMode 无效`);
-    }
-    if (collectMode === "concat_columns") {
-      const accumulator = node.data.parameters?.concatInitialVariable;
-      if (typeof accumulator !== "string" || !accumulator.trim()) {
-        throw new Error(`函数映射 ${node.id} 的 concat_columns 缺少 concatInitialVariable`);
-      }
     }
   }
 }

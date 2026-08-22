@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.4.99-dev-r77-notebook-import-native-flow"
+$script:BuildScriptRevision = "1.5.0-dev-r78-generic-control-flow"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

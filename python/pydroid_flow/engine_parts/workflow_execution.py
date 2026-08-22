@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from .cache import _node_result_cache, _value_digest
-from .graph import _all_loop_body_ids, _contained_node_ids, _container_children, _data_edges, _edge_value, _loop_body, _ordered_nodes, _upstream_inputs, _upstream_tables, _upstream_value
+from .graph import _contained_node_ids, _container_children, _data_edges, _edge_value, _ordered_nodes, _upstream_inputs, _upstream_tables, _upstream_value
 from .node_dispatch import _execute_node
 from .notebook_execution import _execute_notebook_cell
 from .presentation import _preview, _printable, _semantic_value
@@ -32,6 +32,45 @@ MAX_INPUT_TEXT_CHARS = 64 * 1024 * 1024
 MAX_WORKFLOW_JSON_CHARS = 16 * 1024 * 1024
 MAX_INPUT_FILES_JSON_CHARS = 96 * 1024 * 1024
 _CACHEABLE_NODE_PREFIXES = ("table.", "pandas.", "convert.", "plot.", "analysis.", "pulse.", "python.", "generate.")
+_VISUAL_STRUCTURE_TYPES = {"logic.if_value", "logic.for_each_value", "logic.while_state"}
+
+
+def _generic_truthy(value: Any) -> bool:
+    """Cross-runtime truthiness used by generic control-flow nodes."""
+    if value is None:
+        return False
+    if isinstance(value, pd.DataFrame):
+        return not value.empty
+    if isinstance(value, (pd.Series, np.ndarray, list, tuple, set, frozenset, dict, str, bytes)):
+        return len(value) > 0
+    if isinstance(value, (bool, int, float, np.integer, np.floating)):
+        return bool(value)
+    return True
+
+
+def _generic_not_empty(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, pd.DataFrame):
+        return len(value.index) > 0
+    if isinstance(value, (pd.Series, np.ndarray, list, tuple, set, frozenset, dict, str, bytes)):
+        return len(value) > 0
+    return _generic_truthy(value)
+
+
+def _generic_iterable_items(value: Any) -> list[Any]:
+    if isinstance(value, pd.DataFrame):
+        return [value.iloc[[index]].copy().reset_index(drop=True) for index in range(len(value))]
+    if isinstance(value, (pd.Series, pd.Index)):
+        return value.tolist()
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, dict):
+        return list(value.keys())
+    if isinstance(value, (list, tuple, set, frozenset, range, str)):
+        return list(value)
+    raise ValueError("For Each structure requires a list, tuple, table, text, range, set, or object input")
+
 
 def _new_notebook_namespace(csv_text: str, input_files: list[dict[str, Any]]) -> dict[str, Any]:
     notebook_inputs = [io.StringIO(item.get("text", "")) for item in input_files] or ([io.StringIO(csv_text)] if csv_text else [])
@@ -79,12 +118,17 @@ def _execute_container_graph(
         data = child.get("data", {})
         child_type = data.get("nodeType")
         params = _bind_notebook_parameters(data.get("parameters", {}), notebook_namespace)
-        if child_type in {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"}:
-            raise ValueError("Nested visual structures are not supported in this build")
         has_internal_input = any(edge["target"] == child["id"] for edge in internal_edges)
-        upstream = _node_upstream(child["id"], child_type, internal_workflow, values) if has_internal_input else seed
-        upstream = _bind_notebook_inputs(child_type, params, upstream, notebook_namespace)
-        if isinstance(params.get("notebookSource"), str):
+        base_upstream = _node_upstream(child["id"], child_type, internal_workflow, values) if has_internal_input else seed
+        # Notebook-lowered children may consume a named variable unrelated to the
+        # structure seed.  When there is no real internal edge, explicit compiler
+        # bindings are authoritative; otherwise the current item/state remains the seed.
+        if not has_internal_input and _notebook_binding_map(params, "notebookInputBindingsJson"):
+            base_upstream = None
+        upstream = _bind_notebook_inputs(child_type, params, base_upstream, notebook_namespace)
+        if child_type in _VISUAL_STRUCTURE_TYPES:
+            outputs = _execute_visual_structure(child, workflow, upstream, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace, params)
+        elif isinstance(params.get("notebookSource"), str):
             outputs, _, _, _ = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
         elif child_type == "notebook.code_cell":
             outputs, _, _, _ = _execute_notebook_cell(str(params.get("source", "")), notebook_namespace)
@@ -112,44 +156,98 @@ def _execute_visual_structure(
     node: dict[str, Any], workflow: dict[str, Any], upstream: Any, csv_text: str,
     input_files: list[dict[str, Any]], variables: dict[str, Any] | None = None,
     root_workflow: dict[str, Any] | None = None, call_stack: tuple[str, ...] = (),
-    notebook_namespace: dict[str, Any] | None = None,
+    notebook_namespace: dict[str, Any] | None = None, params_override: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     node_type = node.get("data", {}).get("nodeType")
-    params = node.get("data", {}).get("parameters", {})
-    table = _require_table(upstream, "Structure input")
-    if node_type == "logic.if_subflow":
-        condition = str(params.get("condition", "")).strip()
-        if not condition: raise ValueError("If structure requires a condition")
-        working = table.reset_index(drop=True)
-        matching = working.query(condition)
-        true_seed = matching.reset_index(drop=True)
-        false_seed = working.loc[~working.index.isin(matching.index)].reset_index(drop=True)
-        return {
-            "true": _execute_container_graph(workflow, _container_children(workflow, node["id"], "true"), true_seed, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace),
-            "false": _execute_container_graph(workflow, _container_children(workflow, node["id"], "false"), false_seed, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace),
-        }
-    body = _container_children(workflow, node["id"], "body")
-    maximum = int(params.get("maxIterations", 100))
-    if node_type == "logic.for_each_subflow":
-        if len(table) > maximum: raise ValueError(f"For structure exceeds maxIterations={maximum}")
-        rows = [_execute_container_graph(workflow, body, table.iloc[[index]].copy().reset_index(drop=True), csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace) for index in range(len(table))]
-        if any(not isinstance(item, pd.DataFrame) for item in rows):
-            raise ValueError("For structure body must return a table for every row")
-        done = pd.concat(rows, ignore_index=True) if rows else table.iloc[0:0].copy()
-        return {"done": done, "output": done}
-    condition = str(params.get("condition", "")).strip()
-    current = table.copy()
-    for _ in range(maximum):
-        if current.query(condition).empty: return {"done": current.reset_index(drop=True), "output": current.reset_index(drop=True)}
-        current = _require_table(_execute_container_graph(workflow, body, current, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace), "While structure body")
-    raise ValueError(f"While structure reached maxIterations={maximum}")
+    params = params_override if params_override is not None else node.get("data", {}).get("parameters", {})
+    notebook_namespace = notebook_namespace or _new_notebook_namespace(csv_text, input_files)
+
+    if node_type == "logic.if_value":
+        inputs = upstream if isinstance(upstream, dict) else {"condition": upstream}
+        condition = inputs.get("condition")
+        seed = inputs.get("input", condition)
+        selected = _generic_truthy(condition)
+        if bool(params.get("invert", False)):
+            selected = not selected
+        branch = "true" if selected else "false"
+        result = _execute_container_graph(workflow, _container_children(workflow, node["id"], branch), seed, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace)
+        return {"true": result if branch == "true" else None, "false": result if branch == "false" else None, "done": result, "output": result}
+
+    if node_type == "logic.for_each_value":
+        items = _generic_iterable_items(upstream)
+        maximum = int(params.get("maxIterations", 10000))
+        if maximum < 1 or maximum > 100_000:
+            raise ValueError("For Each maxIterations must be between 1 and 100000")
+        if len(items) > maximum:
+            raise ValueError(f"For Each structure has {len(items)} items, exceeding maxIterations={maximum}")
+        body = _container_children(workflow, node["id"], "body")
+        results: list[Any] = []
+        item_variable = str(params.get("itemVariable", "")).strip()
+        index_variable = str(params.get("indexVariable", "")).strip()
+        for iteration, item in enumerate(items):
+            if item_variable:
+                notebook_namespace[item_variable] = item
+            if index_variable:
+                notebook_namespace[index_variable] = iteration
+            results.append(_execute_container_graph(workflow, body, item, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace))
+        done: Any = results
+        last = results[-1] if results else None
+        last_item = items[-1] if items else None
+        return {"done": done, "last": last, "lastItem": last_item, "output": done}
+
+    if node_type == "logic.while_state":
+        current = upstream
+        maximum = int(params.get("maxIterations", 100))
+        if maximum < 1 or maximum > 10_000:
+            raise ValueError("While State maxIterations must be between 1 and 10000")
+        mode = str(params.get("conditionMode", "expression"))
+        condition = str(params.get("condition", "value < 10")).strip()
+        body = _container_children(workflow, node["id"], "body")
+        state_variable = str(params.get("stateVariable", "")).strip()
+        index_variable = str(params.get("indexVariable", "")).strip()
+        iterations = 0
+        for iteration in range(maximum):
+            if mode == "truthy":
+                keep_going = _generic_truthy(current)
+            elif mode == "notEmpty":
+                keep_going = _generic_not_empty(current)
+            elif mode == "expression":
+                if isinstance(current, (int, float, np.integer, np.floating)) and not isinstance(current, bool) and np.isfinite(float(current)):
+                    scalar = float(current)
+                else:
+                    raise ValueError("While State expression mode requires a finite numeric state")
+                keep_going = bool(_logic_expression(condition, scalar, iteration))
+            else:
+                raise ValueError(f"Unsupported While State conditionMode: {mode}")
+            if not keep_going:
+                return {"done": current, "iterations": iterations, "output": current}
+            if state_variable:
+                notebook_namespace[state_variable] = current
+            if index_variable:
+                notebook_namespace[index_variable] = iteration
+            current = _execute_container_graph(workflow, body, current, csv_text, input_files, variables, root_workflow, call_stack, notebook_namespace)
+            iterations += 1
+        # Re-evaluate once at the safety boundary so a loop that naturally stops
+        # exactly after the final body execution succeeds instead of reporting a false limit error.
+        if mode == "truthy":
+            still_running = _generic_truthy(current)
+        elif mode == "notEmpty":
+            still_running = _generic_not_empty(current)
+        else:
+            scalar = float(current) if isinstance(current, (int, float, np.integer, np.floating)) and not isinstance(current, bool) and np.isfinite(float(current)) else None
+            still_running = scalar is not None and bool(_logic_expression(condition, scalar, maximum))
+        if still_running:
+            raise ValueError(f"While State reached maxIterations={maximum}")
+        return {"done": current, "iterations": iterations, "output": current}
+
+    raise ValueError(f"Unsupported visual structure: {node_type}")
 
 def _node_upstream(node_id: str, node_type: str, workflow: dict[str, Any], values: dict[str, dict[str, Any]]) -> Any:
-    if node_type in {"table.concat", "logic.merge_rows"}:
+    if node_type in {"table.concat", "table.merge_rows"}:
         return _upstream_tables(node_id, workflow, values)
     if node_type in {"pulse.combine_channels", "pulse.segment_measurement"}:
         return _upstream_inputs(node_id, workflow, values)
-    if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map"}:
+    if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value"}:
         return _upstream_inputs(node_id, workflow, values)
     return _upstream_value(node_id, workflow, values)
 
@@ -244,83 +342,9 @@ def _sync_notebook_outputs(params: dict[str, Any], outputs: dict[str, Any], name
         if port in outputs:
             namespace[variable] = outputs[port]
 
-def _execute_loop_subflow(
-    loop_node: dict[str, Any], workflow: dict[str, Any], values: dict[str, dict[str, Any]],
-    csv_text: str, input_files: list[dict[str, Any]], variables: dict[str, Any] | None = None,
-    root_workflow: dict[str, Any] | None = None, call_stack: tuple[str, ...] = (),
-    notebook_namespace: dict[str, Any] | None = None,
-) -> pd.DataFrame:
-    loop_id = loop_node["id"]
-    data = loop_node.get("data", {})
-    node_type = data.get("nodeType")
-    params = data.get("parameters", {})
-    entry_edges = [
-        edge for edge in _data_edges(workflow)
-        if edge["target"] == loop_id and edge.get("targetHandle") in {None, "input"}
-    ]
-    notebook_namespace = notebook_namespace or _new_notebook_namespace(csv_text, input_files)
-    if len(entry_edges) > 1:
-        raise ValueError("Loop subflow requires exactly one initial input")
-    initial_value = _edge_value(entry_edges[0], values) if entry_edges else _bind_notebook_inputs(node_type, params, None, notebook_namespace)
-    if initial_value is None:
-        raise ValueError("Loop subflow requires an initial input connection or notebook variable binding")
-    initial = _require_table(initial_value, "Loop initial input")
-    body_nodes, back_edge = _loop_body(workflow, loop_id)
-    maximum = int(params.get("maxIterations", 100))
-    if maximum < 1 or maximum > 100_000:
-        raise ValueError("Loop maxIterations must be between 1 and 100000")
-
-    def execute_body(seed: pd.DataFrame) -> pd.DataFrame:
-        local_values = dict(values)
-        local_values[loop_id] = {"body": seed, "done": seed, "output": seed}
-        for body_node in body_nodes:
-            body_id = body_node["id"]
-            body_data = body_node.get("data", {})
-            body_type = body_data.get("nodeType")
-            params = _bind_notebook_parameters(body_data.get("parameters", {}), notebook_namespace)
-            if body_type in {"logic.for_each_subflow", "logic.while_subflow"}:
-                raise ValueError("Nested loop subflows are not supported yet")
-            upstream = _node_upstream(body_id, body_type, workflow, local_values)
-            upstream = _bind_notebook_inputs(body_type, params, upstream, notebook_namespace)
-            if isinstance(params.get("notebookSource"), str):
-                outputs, _, _, _ = _execute_notebook_cell(str(params["notebookSource"]), notebook_namespace)
-            elif body_type == "notebook.code_cell":
-                outputs, _, _, _ = _execute_notebook_cell(str(params.get("source", "")), notebook_namespace)
-            elif body_type == "notebook.markdown_cell":
-                text = str(params.get("source", ""))
-                outputs = {"next": text, "output": text}
-            elif body_type == "function.call":
-                outputs, _, _, _ = _execute_function_call(body_node, upstream, root_workflow or workflow, csv_text, input_files, variables, call_stack, notebook_namespace)
-            elif body_type == "function.map":
-                outputs, _, _, _ = _execute_function_map(body_node, upstream, root_workflow or workflow, csv_text, input_files, variables, call_stack, notebook_namespace)
-            else:
-                outputs, _, _, _ = _execute_node(body_type, params, upstream, csv_text, input_files, variables)
-            _sync_notebook_outputs(params, outputs, notebook_namespace)
-            local_values[body_id] = outputs
-        return _require_table(_edge_value(back_edge, local_values), "Loop continue output")
-
-    if node_type == "logic.for_each_subflow":
-        if len(initial) > maximum:
-            raise ValueError(f"For subflow has {len(initial)} rows, exceeding maxIterations={maximum}")
-        results = [execute_body(initial.iloc[[index]].copy().reset_index(drop=True)) for index in range(len(initial))]
-        return pd.concat(results, ignore_index=True) if results else initial.iloc[0:0].copy()
-
-    condition = str(params.get("condition", "")).strip()
-    if not condition:
-        raise ValueError("While subflow requires a pandas query condition")
-    current = initial.copy()
-    for _ in range(maximum):
-        if current.query(condition).empty:
-            return current.reset_index(drop=True)
-        current = execute_body(current)
-    if not current.query(condition).empty:
-        raise ValueError(f"While subflow reached maxIterations={maximum}")
-    return current.reset_index(drop=True)
-
-
 _FUNCTION_MULTI_INPUT_TYPES = {
-    "table.concat", "logic.merge_rows", "pulse.combine_channels", "pulse.segment_measurement",
-    "custom.python_function", "ui.alert", "function.call", "function.map",
+    "table.concat", "table.merge_rows", "pulse.combine_channels", "pulse.segment_measurement",
+    "custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value",
 }
 
 def _function_definition_for_call(node: dict[str, Any], workflow: dict[str, Any], call_stack: tuple[str, ...]) -> dict[str, Any]:
@@ -414,7 +438,7 @@ def _execute_function_call(
         target[handle] = call_inputs[port_id]
 
     ordered = _ordered_nodes(body)
-    skipped = _all_loop_body_ids(body) | _contained_node_ids(body)
+    skipped = _contained_node_ids(body)
     latest_table: pd.DataFrame | None = None
     latest_plot: str | None = None
     latest_export: str | None = None
@@ -435,17 +459,10 @@ def _execute_function_call(
         elif body_type == "notebook.markdown_cell":
             text = str(params.get("source", ""))
             outputs, table_result, plot_result, export_result = {"next": text, "output": text}, None, None, None
-        elif body_type in {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"}:
-            has_children = any(child.get("parentId") == body_id for child in body.get("nodes", []))
-            if body_type == "logic.if_subflow" or has_children:
-                outputs = _execute_visual_structure(body_node, body, upstream_value, csv_text, input_files, variables, workflow, next_stack, notebook_namespace)
-                table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), None)
-                plot_result = export_result = None
-            else:
-                if external_by_node.get(body_id) and not any(edge.get("target") == body_id and edge.get("targetHandle") in {None, "input"} for edge in body.get("edges", [])):
-                    raise ValueError("Loop subflow inside a function must receive its initial value from an internal edge")
-                table_result = _execute_loop_subflow(body_node, body, values, csv_text, input_files, variables, workflow, next_stack, notebook_namespace)
-                outputs, plot_result, export_result = {"done": table_result, "output": table_result}, None, None
+        elif body_type in _VISUAL_STRUCTURE_TYPES:
+            outputs = _execute_visual_structure(body_node, body, upstream_value, csv_text, input_files, variables, workflow, next_stack, notebook_namespace, params)
+            table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), None)
+            plot_result = export_result = None
         elif body_type == "function.call":
             outputs, table_result, plot_result, export_result = _execute_function_call(body_node, upstream_value, workflow, csv_text, input_files, variables, next_stack, notebook_namespace)
         elif body_type == "function.map":
@@ -540,15 +557,6 @@ def _execute_function_map(
     if collect_mode == "table":
         result: Any = pd.DataFrame(collected)
         table_result: pd.DataFrame | None = result
-    elif collect_mode == "concat_columns":
-        initial_variable = str(params.get("concatInitialVariable", "")).strip()
-        if not initial_variable:
-            raise ValueError("Function map concat_columns requires concatInitialVariable")
-        if notebook_namespace is None or initial_variable not in notebook_namespace:
-            raise ValueError(f"Function map concat_columns requires Notebook variable {initial_variable}")
-        initial = notebook_namespace[initial_variable]
-        result = pd.concat([initial, *collected], axis=1)
-        table_result = result if isinstance(result, pd.DataFrame) else None
     elif collect_mode == "list":
         result = collected
         table_result = None
@@ -714,7 +722,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
     node_results: dict[str, dict[str, Any]] = {}
     node_timings_ms: dict[str, float] = {}
     execution_order: list[str] = []
-    loop_body_ids = _all_loop_body_ids(workflow) | _contained_node_ids(workflow)
+    contained_node_ids = _contained_node_ids(workflow)
     notebook_namespace = _new_notebook_namespace(csv_text, input_files)
     _initialize_notebook_context(workflow, notebook_namespace)
     workspace_variables = decode_workspace_state(workflow.get("workspaceState"))
@@ -723,7 +731,7 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
     for node in ordered_nodes:
         _raise_if_execution_cancelled(execution_id)
         node_id = node["id"]
-        if node_id in loop_body_ids:
+        if node_id in contained_node_ids:
             continue
         data = node.get("data", {})
         node_type = data.get("nodeType")
@@ -737,16 +745,12 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
             elif node_type == "notebook.markdown_cell":
                 text = str(params.get("source", ""))
                 outputs, table_result, plot_result, export_result = {"next": text, "output": text}, None, None, None
-            elif node_type in {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"}:
-                if node_type == "logic.if_subflow" or any(child.get("parentId") == node_id for child in workflow.get("nodes", [])):
-                    upstream = _node_upstream(node_id, node_type, workflow, values)
-                    upstream = _bind_notebook_inputs(node_type, params, upstream, notebook_namespace)
-                    outputs = _execute_visual_structure(node, workflow, upstream, csv_text, input_files, variables, workflow, (), notebook_namespace)
-                    table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), None)
-                    plot_result, export_result = None, None
-                else:
-                    table_result = _execute_loop_subflow(node, workflow, values, csv_text, input_files, variables, workflow, (), notebook_namespace)
-                    outputs, plot_result, export_result = {"done": table_result, "output": table_result}, None, None
+            elif node_type in _VISUAL_STRUCTURE_TYPES:
+                upstream = _node_upstream(node_id, node_type, workflow, values)
+                upstream = _bind_notebook_inputs(node_type, params, upstream, notebook_namespace)
+                outputs = _execute_visual_structure(node, workflow, upstream, csv_text, input_files, variables, workflow, (), notebook_namespace, params)
+                table_result = next((value for value in outputs.values() if isinstance(value, pd.DataFrame)), None)
+                plot_result, export_result = None, None
             else:
                 upstream = _node_upstream(node_id, node_type, workflow, values)
                 upstream = _bind_notebook_inputs(node_type, params, upstream, notebook_namespace)

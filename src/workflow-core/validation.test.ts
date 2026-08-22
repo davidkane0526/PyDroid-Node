@@ -91,7 +91,7 @@ describe("workflow validation", () => {
     expect(() => validateWorkflowDocument({
       name: "bad-function-map-concat", functions,
       nodes: [{ ...mapNode, data: { ...mapNode.data, parameters: { ...mapNode.data.parameters, collectMode: "concat_columns" } } }], edges: [],
-    })).toThrow(/concatInitialVariable/);
+    })).toThrow(/collectMode/);
   });
 
   it("rejects function version drift and recursive definitions", () => {

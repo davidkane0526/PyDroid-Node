@@ -8,8 +8,8 @@ from ..analysis_nodes import _logic_expression
 from ..values import _as_bool, _require_table
 
 NODE_TYPES = {
-    "logic.if_rows",
-    "logic.merge_rows",
+    "table.split_condition",
+    "table.merge_rows",
     "logic.for_range",
     "logic.while_number",
     "variable.set",
@@ -30,7 +30,7 @@ def execute(
     del csv_text, input_files
     table_result: pd.DataFrame | None = None
 
-    if node_type == "logic.if_rows":
+    if node_type == "table.split_condition":
         table = _require_table(upstream, "Conditional branch")
         condition = str(params.get("condition", "")).strip()
         if not condition:
@@ -40,7 +40,7 @@ def execute(
         rejected = working.loc[~working.index.isin(matching.index)]
         outputs = {"true": matching.reset_index(drop=True), "false": rejected.reset_index(drop=True)}
         return outputs, outputs["true"], None, None
-    elif node_type == "logic.merge_rows":
+    elif node_type == "table.merge_rows":
         left = _require_table(upstream["left"], "Branch merge A")
         right = _require_table(upstream["right"], "Branch merge B")
         ignore_index = _as_bool(params.get("ignoreIndex", True))

@@ -131,10 +131,11 @@ describe("workflow notebook DSL", () => {
     expect(source).toContain('"raw"');
   });
 
-  it("places AST branch operations inside a visual If structure", () => {
-    const cells = [{ id: "logic", cellType: "code" as const, source: "if value >= 0:\n    clean = frame.abs()" }];
-    const workflow = analyzedNotebookToWorkflow("逻辑", cells, [{ index: 0, recognized: true, semantic: true, nodeType: "logic.if_subflow", label: "If", inputVariable: "frame", parameters: { condition: "value >= 0" }, operations: [{ index: 0, recognized: true, semantic: true, nodeType: "logic.if_subflow", label: "If", inputVariable: "frame", parameters: { condition: "value >= 0" }, children: [{ recognized: true, semantic: true, nodeType: "table.absolute", label: "clean", inputVariable: "frame", outputVariable: "clean", branch: "true", childIndex: 0, parameters: {} }] }] }]);
-    const structure = workflow.nodes.find((node) => node.data.nodeType === "logic.if_subflow")!;
+  it("places AST branch operations inside the generic visual If structure", () => {
+    const cells = [{ id: "logic", cellType: "code" as const, source: "if flag:\n    clean = frame.abs()" }];
+    const bindings = JSON.stringify({ condition: "flag", input: "frame" });
+    const workflow = analyzedNotebookToWorkflow("逻辑", cells, [{ index: 0, recognized: true, semantic: true, nodeType: "logic.if_value", label: "If", inputVariable: "frame", uses: ["flag", "frame"], parameters: { notebookInputBindingsJson: bindings }, operations: [{ index: 0, recognized: true, semantic: true, nodeType: "logic.if_value", label: "If", inputVariable: "frame", uses: ["flag", "frame"], parameters: { notebookInputBindingsJson: bindings }, children: [{ recognized: true, semantic: true, nodeType: "table.absolute", label: "clean", inputVariable: "frame", outputVariable: "clean", branch: "true", childIndex: 0, parameters: {} }] }] }]);
+    const structure = workflow.nodes.find((node) => node.data.nodeType === "logic.if_value")!;
     const child = workflow.nodes.find((node) => node.data.nodeType === "table.absolute")!;
     expect(structure.style).toMatchObject({ width: 520, height: 300 });
     expect(child.parentId).toBe(structure.id);
@@ -150,12 +151,12 @@ describe("workflow notebook DSL", () => {
     expect(restored.nodes.some((node) => node.data.nodeType.startsWith("notebook.") || node.data.nodeType === "custom.python_function")).toBe(false);
     expect(restored.nodes.filter((node) => node.parentId === "if")).toHaveLength(2);
     expect(source).not.toContain("Notebook exporter does not support logic.");
-    expect(source).toContain("node_range = pd.DataFrame");
+    expect(source).toContain("node_range_for = pd.DataFrame");
     expect(source).not.toMatch(/^range\s*=/m);
     const localPython = join(process.cwd(), ".tools", "python313-runtime", process.platform === "win32" ? "python.exe" : "bin/python3.13");
     const python = process.env.PYDROID_PYTHON_EXECUTABLE || (existsSync(localPython) ? localPython : "python3.13");
     const output = execFileSync(python, ["-c", source], { encoding: "utf8", timeout: 30_000, env: { ...process.env, PYTHONUTF8: "1", PYTHONIOENCODING: "utf-8" } });
-    expect(output).toContain("逻辑控制结果");
+    expect(output).toContain("结果数量");
   }, 60_000);
 
 
@@ -389,38 +390,6 @@ describe("workflow notebook DSL", () => {
     expect(map.data.parameters.collectMode).toBe("table");
   });
 
-  it("creates concat_columns map outputs for the accumulator and the loop's last temporary value", () => {
-    const functionId = "notebook-fn-1-1-process";
-    const cells = [{ id: "fn-map-concat", cellType: "code" as const, source: "def process(path):\n    return pd.DataFrame({'x': [path]})\nfor path in paths:\n    Data = process(path)\n    DataCount = pd.concat([DataCount, Data], axis=1)" }];
-    const workflow = analyzedNotebookToWorkflow("循环映射合并", cells, [{ index: 0, recognized: true, semantic: true, operations: [
-      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · process", source: "def process(path):\n    return pd.DataFrame({'x': [path]})", defines: ["process"], uses: [], parameters: {
-        source: "def process(path):\n    return pd.DataFrame({'x': [path]})",
-        workflowFunctionId: functionId,
-        workflowFunctionCode: "def process(path: 'Any') -> 'table':\n    return pd.DataFrame({'x': [path]})",
-        workflowFunctionInputsJson: JSON.stringify(["path"]),
-        workflowFunctionInputTypesJson: JSON.stringify(["any"]),
-        workflowFunctionOutputsJson: JSON.stringify(["output"]),
-        workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
-        workflowFunctionDependenciesJson: JSON.stringify([]),
-      } },
-      { index: 1, recognized: true, semantic: true, kind: "UserFunctionMapConcatColumns", nodeType: "function.map", label: "映射合并 · process", inputVariable: "paths", outputVariable: "DataCount", defines: ["DataCount", "Data"], uses: ["paths", "DataCount"], parameters: {
-        functionId, functionVersion: 1, mapInput: "path", collectMode: "concat_columns", concatInitialVariable: "DataCount", lastItemVariable: "Data", maxIterations: 100000,
-        notebookInputBindingsJson: JSON.stringify({ path: "paths" }),
-        notebookLiteralInputsJson: JSON.stringify({}),
-        notebookExpressionInputsJson: JSON.stringify({}),
-        notebookFunctionInputsJson: JSON.stringify(["path"]),
-        notebookFunctionOutputsJson: JSON.stringify(["output"]),
-      } },
-    ] }]);
-    const map = workflow.nodes.find((node) => node.data.nodeType === "function.map")!;
-    expect(map.data.functionInputs?.map((port) => [port.id, port.valueType])).toEqual([["path", "list"]]);
-    expect(map.data.functionOutputs).toEqual([
-      { id: "output", label: "结果表", valueType: "table" },
-      { id: "last", label: "最后一项", valueType: "table" },
-    ]);
-    expect(map.data.parameters.collectMode).toBe("concat_columns");
-    expect(map.data.parameters.concatInitialVariable).toBe("DataCount");
-  });
 
   it("summarizes structural coverage and platform compatibility without treating stdlib or bundled Android packages as unsupported", () => {
     const cells = [
@@ -430,7 +399,7 @@ describe("workflow notebook DSL", () => {
     const report = summarizeNotebookConversion(cells, [{ index: 0, recognized: true, operations: [
       { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "def", parameters: { workflowFunctionId: "fn", workflowFunctionOutputTypesJson: JSON.stringify(["table"]) } },
       { index: 1, recognized: true, semantic: true, kind: "call", nodeType: "function.call", label: "f", parameters: {} },
-      { index: 2, recognized: true, semantic: true, kind: "UserFunctionMap", nodeType: "function.map", label: "map", parameters: { collectMode: "concat_columns" } },
+      { index: 2, recognized: true, semantic: true, kind: "UserFunctionMap", nodeType: "function.map", label: "map", parameters: { collectMode: "table" } },
       { index: 3, recognized: true, semantic: false, kind: "Code", nodeType: "notebook.code_cell", label: "code", parameters: {} },
     ] }]);
     expect(report.totalCells).toBe(2);
@@ -456,7 +425,7 @@ describe("workflow notebook DSL", () => {
   it("keeps control-flow child node ids distinct from following top-level statements", () => {
     const cells = [{ id: "logic", cellType: "code" as const, source: "if flag:\n    clean = frame.abs()\nresult = clean.head()" }];
     const workflow = analyzedNotebookToWorkflow("编号", cells, [{ index: 0, recognized: true, semantic: true, operations: [
-      { index: 0, recognized: true, semantic: true, nodeType: "logic.if_subflow", label: "If", inputVariable: "frame", uses: ["frame", "flag"], parameters: { condition: "flag" }, children: [
+      { index: 0, recognized: true, semantic: true, nodeType: "logic.if_value", label: "If", inputVariable: "frame", uses: ["frame", "flag"], parameters: { notebookInputBindingsJson: JSON.stringify({ condition: "flag", input: "frame" }) }, children: [
         { index: 0, recognized: true, semantic: true, nodeType: "table.absolute", label: "clean", inputVariable: "frame", outputVariable: "clean", defines: ["clean"], uses: ["frame"], branch: "true", childIndex: 0, parameters: {} },
       ] },
       { index: 1, recognized: true, semantic: true, nodeType: "pandas.head", label: "result", inputVariable: "clean", outputVariable: "result", defines: ["result"], uses: ["clean"], parameters: {} },

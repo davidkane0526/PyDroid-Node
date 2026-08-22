@@ -119,7 +119,7 @@ Opening a future workflow is atomic: parsing/migration must succeed before the a
 
 ## Historical corpus gate
 
-`tests/workflow-compatibility/fixtures/` is not a synthetic-only sample set. `scripts/workflow-history-corpus-audit.mjs` scans the complete local `.git` history through the accepted 1.4.76 boundary and hashes every committed `.workflow.json` document.
+`tests/workflow-compatibility/fixtures/` remains a curated schema/function migration corpus. As of 1.5.0, the complete Git-history workflow audit is no longer a release gate because retired node families are intentionally allowed to become unsupported rather than forcing compatibility bridges.
 
 At the Phase 11 freeze boundary, Git history contains **8 unique historical workflow documents** using schema versions **1 and 2**, and all 8 are present in the corpus. A separate future-v99 fixture exercises forward-version protection.
 

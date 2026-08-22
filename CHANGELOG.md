@@ -1,3 +1,16 @@
+## 1.5.0 (123) — Generic control flow + JavaScript parity baseline — 2026-08-22
+
+- Replaces the retired DataFrame-specific visual control structures with three language-level structures: `logic.if_value`, `logic.for_each_value`, and `logic.while_state`. The removed `logic.if_subflow`, `logic.for_each_subflow`, and `logic.while_subflow` NodeSpecs/runtime paths are not aliased, migrated, or bridged.
+- Keeps table branching as ordinary data operations (`table.split_condition`, `table.merge_rows`) so table transforms are no longer confused with execution control.
+- Adds cross-runtime generic structure execution in both Python and JavaScript. `If` executes only the selected branch, `For Each` iterates lists/tables/text/objects and collects results, and `While State` carries explicit prior-iteration state with a safety iteration bound.
+- Extends the Notebook compiler to lower only provably equivalent scalar `if` and stateless iterable `for` forms to the generic structures. Stateful loops, file-I/O loops, ambiguous DataFrame truth tests and unsupported `while` patterns remain lossless Python instead of being falsely structured.
+- Keeps Map / Reduce / Accumulator as distinct native operations rather than overloading For Each with aggregation semantics.
+- Makes workflow-function map execution JavaScript-capable for the retained portable collection modes; the removed Python-only `concat_columns` compatibility mode is no longer accepted.
+- Removes the historical workflow-history gate that forced retention of the retired DataFrame control-flow document. General schema/function migration tests remain, but no runtime compatibility bridge exists for the deleted control nodes.
+- Refactors generic JavaScript structures into `generic-structures.ts` so the core workflow structure module stays below the architecture size limit instead of raising the limit.
+- Local validation at this checkpoint: Python **141 passed / 1 skipped**, Runtime Parity **77/77**, JS-capable NodeContract coverage **84/84**, plus Baseline/Build Tool/UI/Platform/Host/Remote 8765/Android Host/LAN/Execution architecture smokes.
+- Build revision: `1.5.0-dev-r78-generic-control-flow`.
+
 ## 1.4.99 (122) — Reliable Notebook import + native sequence flow — 2026-08-22
 
 - Unifies direct `.ipynb` workflow import, Notebook-panel import and "Apply to node view" behind one normalization/analyze/compile pipeline. Direct import no longer takes a subtly different path from the Notebook view.

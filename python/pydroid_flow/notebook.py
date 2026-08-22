@@ -657,6 +657,117 @@ def _analyze_function_definition(statement: ast.stmt, source: str, base: dict[st
     }
 
 
+def _simple_boolean_binding(test: ast.AST) -> tuple[str, bool] | None:
+    if isinstance(test, ast.Name):
+        return test.id, False
+    if isinstance(test, ast.UnaryOp) and isinstance(test.op, ast.Not) and isinstance(test.operand, ast.Name):
+        return test.operand.id, True
+    return None
+
+
+def _safe_scalar_condition(test: ast.AST) -> bool:
+    """Conservatively identify side-effect-free scalar boolean expressions.
+
+    DataFrame/Series boolean expressions are deliberately rejected because their
+    truth value is not Python scalar truth.  Pure name/arithmetic/comparison
+    expressions and ``.empty`` checks are safe to evaluate from the Notebook
+    namespace.
+    """
+    for item in ast.walk(test):
+        if isinstance(item, (ast.Await, ast.Yield, ast.YieldFrom, ast.Lambda, ast.NamedExpr, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)):
+            return False
+        if isinstance(item, ast.Subscript):
+            return False
+        if isinstance(item, ast.Attribute) and item.attr != "empty":
+            return False
+        if isinstance(item, ast.Call):
+            if not (isinstance(item.func, ast.Name) and item.func.id == "len" and len(item.args) == 1 and not item.keywords):
+                return False
+    return True
+
+
+def _condition_input_metadata(test: ast.AST) -> tuple[dict[str, str], list[str], bool] | None:
+    binding = _simple_boolean_binding(test)
+    if binding:
+        name, invert = binding
+        return {"notebookInputBindingsJson": json.dumps({"condition": name}, ensure_ascii=False)}, [name], invert
+    if not _safe_scalar_condition(test):
+        return None
+    expression = ast.unparse(test)
+    uses = sorted({item.id for item in ast.walk(test) if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load) and item.id != "len"})
+    return {"notebookExpressionInputsJson": json.dumps({"condition": expression}, ensure_ascii=False)}, uses, False
+
+
+def _safe_range_argument(node: ast.AST) -> bool:
+    if _safe_expression(node):
+        return True
+    # ``len(name)`` / ``len(obj.attr)`` are deterministic iterable-shape reads.
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "len" and len(node.args) == 1 and not node.keywords:
+        return _safe_expression(node.args[0])
+    return False
+
+
+def _simple_for_iterable(node: ast.AST) -> tuple[dict[str, str], dict[str, Any]] | None:
+    """Return Notebook input metadata for a safe iterable expression."""
+    if isinstance(node, ast.Name):
+        return {"notebookInputBindingsJson": json.dumps({"input": node.id}, ensure_ascii=False)}, {"uses": [node.id]}
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        try:
+            value = ast.literal_eval(node)
+            # JSON carries lists portably; tuple/set ordering semantics are not
+            # silently rewritten because those containers may matter to user code.
+            if isinstance(value, list):
+                return {"notebookLiteralInputsJson": json.dumps({"input": value}, ensure_ascii=False)}, {"uses": []}
+        except (ValueError, TypeError):
+            pass
+        return None
+    if isinstance(node, ast.Attribute) and node.attr == "columns" and _safe_expression(node.value):
+        expression = ast.unparse(node)
+        uses = sorted({item.id for item in ast.walk(node.value) if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load)})
+        return {"notebookExpressionInputsJson": json.dumps({"input": expression}, ensure_ascii=False)}, {"uses": uses}
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "range" and not node.keywords:
+        if all(_safe_range_argument(argument) for argument in node.args):
+            expression = ast.unparse(node)
+            uses = sorted({item.id for argument in node.args for item in ast.walk(argument) if isinstance(item, ast.Name) and isinstance(item.ctx, ast.Load) and item.id != "len"})
+            return {"notebookExpressionInputsJson": json.dumps({"input": expression}, ensure_ascii=False)}, {"uses": uses}
+    return None
+
+
+def _loop_has_carried_state(statements: list[ast.stmt], item_name: str) -> bool:
+    """Reject map lowering when an assignment depends on a previous iteration.
+
+    Child AST nodes retain line offsets from the original notebook cell, so this
+    analysis intentionally works directly from the AST instead of re-feeding
+    ``ast.unparse(statement)`` through source-segment helpers.
+    """
+    all_definitions: set[str] = set()
+    statement_info: list[tuple[set[str], set[str]]] = []
+    for statement in statements:
+        definitions = {
+            node.id for node in ast.walk(statement)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+        } - {item_name}
+        uses = {
+            node.id for node in ast.walk(statement)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+        } - {item_name}
+        all_definitions.update(definitions)
+        statement_info.append((definitions, uses))
+    defined_this_iteration = {item_name}
+    for definitions, uses in statement_info:
+        if (uses & all_definitions) - defined_this_iteration:
+            return True
+        if definitions & uses:
+            return True
+        defined_this_iteration.update(definitions)
+    return False
+
+
+
+
+def _children_definitions(children: list[dict[str, Any]]) -> set[str]:
+    return {name for child in children for name in child.get("defines", []) if isinstance(name, str) and name}
+
 def _analyze_control_flow(
     statement: ast.stmt,
     source: str,
@@ -686,18 +797,69 @@ def _analyze_control_flow(
             return definition
         return {**base, "recognized": False, "reason": "函数无法自动转换为自定义节点（含 *args/**kwargs 或无法解析）", "label": "函数定义"}
     if isinstance(statement, ast.If):
-        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "If 条件 · 原样执行", "reason": "Python if 是标量控制流；当前 logic.if_subflow 是表格分支语义，不能自动视为等价"}
+        condition_metadata = _condition_input_metadata(statement.test)
+        true_children, true_complete = _branch_children(statement.body, source, "true", user_functions)
+        false_children, false_complete = _branch_children(statement.orelse, source, "false", user_functions) if statement.orelse else ([], True)
+        true_definitions = _children_definitions(true_children)
+        false_definitions = _children_definitions(false_children)
+        # A visual If has one selected value output.  Preserve Python variable
+        # semantics only when both explicit branches define the same single
+        # result (or neither branch defines a result).  Branch-specific names
+        # remain Python because they are not guaranteed to exist afterwards.
+        branch_outputs_safe = (
+            (not true_definitions and not false_definitions)
+            or (bool(statement.orelse) and true_definitions == false_definitions and len(true_definitions) == 1)
+        )
+        if condition_metadata and true_complete and false_complete and branch_outputs_safe and (true_children or false_children):
+            condition_params, condition_uses, invert = condition_metadata
+            shared_definition = next(iter(true_definitions), "") if true_definitions == false_definitions else ""
+            parameters = {
+                "invert": invert,
+                **condition_params,
+                "notebookOutputPortBindingsJson": json.dumps({shared_definition: "done"} if shared_definition else {}, ensure_ascii=False),
+            }
+            return {
+                **base, "recognized": True, "semantic": True, "nodeType": "logic.if_value",
+                "label": "If 条件结构",
+                "parameters": parameters,
+                "defines": [shared_definition] if shared_definition else [],
+                "uses": sorted(set([*base.get("uses", []), *condition_uses])),
+                "children": [*true_children, *false_children],
+                "reason": "简单布尔条件与完整可视分支已安全提升为通用 If 结构",
+            }
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "If 条件 · 原样执行", "reason": "条件表达式或分支体尚不能证明与通用 If 结构等价，保留原始 Python"}
     if isinstance(statement, ast.For):
+        if not isinstance(statement.target, ast.Name) or statement.orelse:
+            return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "For 循环 · 原样执行", "reason": "多目标/else For 暂不自动提升"}
         body_has_read = any(
             isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
             and node.func.attr in {"read_csv", "read_table", "read_json", "read_excel", "read_parquet"}
             for node in ast.walk(statement)
         )
         if body_has_read:
-            return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "reason": "多文件扫描循环保留原始 Python；当前表格 for_each 节点不等价于 Python iterable 语义", "label": "多文件扫描 · 原样执行"}
-        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "For 循环 · 原样执行", "reason": "普通 Python for 与当前表格 for_each 子流程语义不同；仅可证明等价的函数映射模式自动提升"}
+            return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "reason": "多文件扫描循环含文件 I/O 或循环携带状态，保留原始 Python", "label": "多文件扫描 · 原样执行"}
+        iterable = _simple_for_iterable(statement.iter)
+        body_children, body_complete = _branch_children(statement.body, source, "body", user_functions)
+        if iterable and body_complete and body_children and not _loop_has_carried_state(statement.body, statement.target.id):
+            input_metadata, extra = iterable
+            return {
+                **base, "recognized": True, "semantic": True, "nodeType": "logic.for_each_value",
+                "label": "For Each 结构",
+                "parameters": {
+                    "maxIterations": 10000, "itemVariable": statement.target.id,
+                    # Python ``for`` does not itself assign the collected list.
+                    # Body/target variables are kept in the Notebook namespace;
+                    # do not pretend they are equivalent to the node's ``done``.
+                    "notebookOutputPortBindingsJson": "{}",
+                    **input_metadata,
+                },
+                "uses": sorted(set([*base.get("uses", []), *extra.get("uses", [])])),
+                "children": body_children,
+                "reason": "无循环携带状态的 iterable For 已安全提升为通用 For Each 结构",
+            }
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "For 循环 · 原样执行", "reason": "For 循环包含循环携带状态或无法结构化的语句，保留原始 Python"}
     if isinstance(statement, ast.While):
-        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "While 循环 · 原样执行", "reason": "Python while 与当前表格 while_subflow 查询语义不同，保留原始 Python"}
+        return {**base, "recognized": True, "semantic": False, "nodeType": "notebook.code_cell", "label": "While 循环 · 原样执行", "reason": "当前循环状态更新尚不能证明与通用 While State 等价，保留原始 Python"}
     # Unsupported Python is deliberately kept as an explicit code carrier.  The
     # importer must never claim a partial visual graph is equivalent to the
     # original notebook while silently dropping executable statements.
@@ -1434,139 +1596,6 @@ def _analyze_user_function_map_assignment(
     }
 
 
-def _analyze_user_function_concat_loop(
-    statement: ast.stmt,
-    source: str,
-    base: dict[str, Any],
-    user_functions: dict[str, dict[str, Any]] | None,
-) -> dict[str, Any] | None:
-    """Promote one exact ``map + concat(axis=1)`` scientific loop.
-
-    Supported forms are deliberately narrow::
-
-        for item in items:
-            frame = transform(item, factor)
-            result = pd.concat([result, frame], axis=1)
-
-        for item in items:
-            result = pd.concat([result, transform(item, factor)], axis=1)
-
-    Conditions, additional side effects, iterator-index expressions and concat
-    options other than ``axis=1`` remain lossless Python code.
-    """
-    if not user_functions or not isinstance(statement, ast.For):
-        return None
-    if statement.orelse or not isinstance(statement.target, ast.Name) or not isinstance(statement.iter, ast.Name):
-        return None
-    if len(statement.body) not in {1, 2}:
-        return None
-
-    call: ast.Call | None = None
-    temporary_name: str | None = None
-    concat_statement: ast.Assign | None = None
-    if len(statement.body) == 2:
-        first, second = statement.body
-        if not (
-            isinstance(first, ast.Assign)
-            and len(first.targets) == 1
-            and isinstance(first.targets[0], ast.Name)
-            and isinstance(first.value, ast.Call)
-            and isinstance(first.value.func, ast.Name)
-            and first.value.func.id in user_functions
-            and isinstance(second, ast.Assign)
-        ):
-            return None
-        temporary_name = first.targets[0].id
-        call = first.value
-        concat_statement = second
-    else:
-        only = statement.body[0]
-        if not isinstance(only, ast.Assign):
-            return None
-        concat_statement = only
-
-    if len(concat_statement.targets) != 1 or not isinstance(concat_statement.targets[0], ast.Name):
-        return None
-    accumulator = concat_statement.targets[0].id
-    concat_call = concat_statement.value
-    if not (
-        isinstance(concat_call, ast.Call)
-        and isinstance(concat_call.func, ast.Attribute)
-        and isinstance(concat_call.func.value, ast.Name)
-        and concat_call.func.value.id in {"pd", "pandas"}
-        and concat_call.func.attr == "concat"
-        and len(concat_call.args) == 1
-        and isinstance(concat_call.args[0], (ast.List, ast.Tuple))
-        and len(concat_call.args[0].elts) == 2
-    ):
-        return None
-    initial_item, mapped_item = concat_call.args[0].elts
-    if not isinstance(initial_item, ast.Name) or initial_item.id != accumulator:
-        return None
-    axis = 0
-    for keyword in concat_call.keywords:
-        if keyword.arg != "axis" or not isinstance(keyword.value, ast.Constant):
-            return None
-        axis = keyword.value.value
-    if axis != 1:
-        return None
-
-    if temporary_name is not None:
-        if not isinstance(mapped_item, ast.Name) or mapped_item.id != temporary_name:
-            return None
-    else:
-        if not (
-            isinstance(mapped_item, ast.Call)
-            and isinstance(mapped_item.func, ast.Name)
-            and mapped_item.func.id in user_functions
-        ):
-            return None
-        call = mapped_item
-    if call is None or not isinstance(call.func, ast.Name):
-        return None
-    function_info = user_functions.get(call.func.id)
-    if not function_info or len(function_info.get("outputIds", ["output"])) != 1:
-        return None
-    resolved = _resolve_user_function_inputs(
-        call,
-        function_info,
-        mapped_name=statement.target.id,
-        mapped_iterable=statement.iter,
-    )
-    if resolved is None or not resolved.get("mappedParameter"):
-        return None
-
-    output_ids = list(function_info.get("outputIds", ["output"]))
-    return {
-        **base,
-        "recognized": True,
-        "semantic": True,
-        "kind": "UserFunctionMapConcatColumns",
-        "nodeType": "function.map",
-        "label": f"映射合并 · {function_info.get('name') or call.func.id}",
-        "parameters": {
-            "functionId": function_info["id"],
-            "functionVersion": 1,
-            "mapInput": resolved["mappedParameter"],
-            "collectMode": "concat_columns",
-            "concatInitialVariable": accumulator,
-            **({"lastItemVariable": temporary_name} if temporary_name else {}),
-            "maxIterations": 100000,
-            "notebookInputBindingsJson": json.dumps(resolved["bindings"], ensure_ascii=False),
-            "notebookLiteralInputsJson": json.dumps(resolved["literals"], ensure_ascii=False),
-            "notebookExpressionInputsJson": json.dumps(resolved["expressions"], ensure_ascii=False),
-            "notebookFunctionInputsJson": json.dumps(function_info.get("inputNames", []), ensure_ascii=False),
-            "notebookFunctionInputTypesJson": json.dumps(function_info.get("inputTypes", []), ensure_ascii=False),
-            "notebookFunctionOutputsJson": json.dumps(output_ids, ensure_ascii=False),
-            "notebookFunctionOutputTypesJson": json.dumps(function_info.get("outputTypes", []), ensure_ascii=False),
-        },
-        "inputVariable": statement.iter.id,
-        "outputVariable": accumulator,
-        "defines": [accumulator, *([temporary_name] if temporary_name else [])],
-        "uses": sorted({*resolved["uses"], accumulator}),
-    }
-
-
 def _analyze_call(
     call: ast.Call,
     statement: ast.stmt,
@@ -1701,9 +1730,6 @@ def _analyze_statement(
     function_id: str | None = None,
 ) -> dict[str, Any]:
     base = _statement_base(statement, source)
-    mapped_loop = _analyze_user_function_concat_loop(statement, source, base, user_functions)
-    if mapped_loop is not None:
-        return mapped_loop
     control = _analyze_control_flow(statement, source, base, user_functions, function_id)
     if control is not None:
         return control

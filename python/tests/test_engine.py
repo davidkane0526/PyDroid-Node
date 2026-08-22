@@ -307,7 +307,7 @@ def test_conditional_branch_routes_true_and_false_ports():
         [
             node("read", "io.read_csv"),
             node("rename", "table.rename_columns", {"names": "time,signal"}),
-            node("branch", "logic.if_rows", {"condition": "signal >= 20"}),
+            node("branch", "table.split_condition", {"condition": "signal >= 20"}),
             node("export", "io.export_csv"),
         ],
         [edge("read", "rename"), edge("rename", "branch"), handled_edge("branch", "export", "false")],
@@ -331,8 +331,8 @@ def test_logic_range_while_and_branch_merge_are_bounded_and_composable():
         [
             node("read", "io.read_csv"),
             node("rename", "table.rename_columns", {"names": "time,signal"}),
-            node("branch", "logic.if_rows", {"condition": "signal >= 20"}),
-            node("merge", "logic.merge_rows", {"ignoreIndex": True, "sortIndex": False}),
+            node("branch", "table.split_condition", {"condition": "signal >= 20"}),
+            node("merge", "table.merge_rows", {"ignoreIndex": True, "sortIndex": False}),
         ],
         [
             edge("read", "rename"), edge("rename", "branch"),
@@ -395,48 +395,6 @@ def test_workflow_boundaries_return_structured_errors_and_dates_serialize():
     )
     assert dated["status"] == "success"
     assert dated["preview"]["rows"][0][0] == "2026-08-12T00:00:00"
-
-
-def test_for_subflow_executes_a_node_group_for_each_row():
-    code = "def scale_row(table: 'table', factor: float = 2) -> 'table':\n    return table * factor"
-    result = execute(
-        [
-            node("read", "io.read_csv"),
-            node("loop", "logic.for_each_subflow", {"maxIterations": 10}),
-            node("scale", "custom.python_function", {"code": code, "factor": 2}),
-            node("export", "io.export_csv", {"fileName": "scaled.csv"}),
-        ],
-        [
-            edge("read", "loop"),
-            handled_edge("loop", "scale", "body", "table"),
-            handled_edge("scale", "loop", "output", "continue"),
-            handled_edge("loop", "export", "done", "input"),
-        ],
-        "1,2\n3,4\n",
-    )
-    assert result["status"] == "success"
-    assert result["preview"]["rows"] == [[2.0, 4.0], [6.0, 8.0]]
-    assert result["exports"][0]["fileName"] == "scaled.csv"
-
-
-def test_while_subflow_repeats_body_until_query_is_false():
-    code = "def increment(table: 'table') -> 'table':\n    return table + 1"
-    result = execute(
-        [
-            node("read", "io.read_csv"),
-            node("rename", "table.rename_columns", {"names": "value"}),
-            node("loop", "logic.while_subflow", {"condition": "value < 5", "maxIterations": 10}),
-            node("increment", "custom.python_function", {"code": code}),
-        ],
-        [
-            edge("read", "rename"), edge("rename", "loop"),
-            handled_edge("loop", "increment", "body", "table"),
-            handled_edge("increment", "loop", "output", "continue"),
-        ],
-        "1\n6\n",
-    )
-    assert result["status"] == "success"
-    assert result["preview"]["rows"] == [[5], [10]]
 
 
 def test_ter_example_workflow_imports_and_executes_core_algorithm():
@@ -699,77 +657,16 @@ def test_ast_typed_nodes_execute_original_statements_in_notebook_order():
     assert result["preview"]["totalRows"] == 2
 
 
-def test_labview_if_structure_executes_children_in_each_branch():
-    structure = node("if", "logic.if_subflow", {"condition": "x >= 0"})
-    true_child = node("positive", "table.absolute")
-    true_child["parentId"] = "if"
-    true_child["data"]["branch"] = "true"
-    false_child = node("negative", "table.absolute")
-    false_child["parentId"] = "if"
-    false_child["data"]["branch"] = "false"
-    result = execute(
-        [node("read", "io.read_csv", {"header": "infer"}), structure, true_child, false_child, node("merge", "logic.merge_rows")],
-        [
-            {"id": "a", "source": "read", "target": "if", "targetHandle": "input"},
-            {"id": "b", "source": "if", "sourceHandle": "true", "target": "merge", "targetHandle": "left"},
-            {"id": "c", "source": "if", "sourceHandle": "false", "target": "merge", "targetHandle": "right"},
-        ],
-        "x\n-2\n3\n",
-    )
-    assert result["status"] == "success"
-    assert sorted(row[0] for row in result["preview"]["rows"]) == [2, 3]
-
-
-def test_visual_structure_uses_internal_edges_for_data_flow():
-    structure = node("if", "logic.if_subflow", {"condition": "x >= 0"})
-    first = node("first", "table.absolute")
-    first["parentId"], first["data"]["branch"] = "if", "true"
-    second = node("second", "table.rename_columns", {"names": "value"})
-    second["parentId"], second["data"]["branch"] = "if", "true"
-    result = execute(
-        [node("read", "io.read_csv", {"header": "infer"}), structure, first, second],
-        [
-            {"id": "a", "source": "read", "target": "if", "targetHandle": "input"},
-            {"id": "inside", "source": "first", "target": "second"},
-        ],
-        "x\n-2\n3\n",
-    )
-    assert result["status"] == "success"
-    assert result["nodeResults"]["if"]["preview"]["columns"] == ["value"]
-
-
-def test_visual_for_and_while_structures_execute_their_body_nodes():
-    for_node = node("for", "logic.for_each_subflow", {"maxIterations": 10})
-    for_child = node("for-abs", "table.absolute")
-    for_child["parentId"], for_child["data"]["branch"] = "for", "body"
-    for_result = execute(
-        [node("read", "io.read_csv", {"header": "infer"}), for_node, for_child],
-        [{"id": "a", "source": "read", "target": "for", "targetHandle": "input"}],
-        "x\n-2\n3\n",
-    )
-    assert for_result["status"] == "success"
-    assert [row[0] for row in for_result["preview"]["rows"]] == [2, 3]
-
-    while_node = node("while", "logic.while_subflow", {"condition": "x < 0", "maxIterations": 3})
-    while_child = node("while-abs", "table.absolute")
-    while_child["parentId"], while_child["data"]["branch"] = "while", "body"
-    while_result = execute(
-        [node("read", "io.read_csv", {"header": "infer"}), while_node, while_child],
-        [{"id": "b", "source": "read", "target": "while", "targetHandle": "input"}],
-        "x\n-2\n3\n",
-    )
-    assert while_result["status"] == "success"
-    assert [row[0] for row in while_result["preview"]["rows"]] == [2, 3]
-
-
 def test_logic_control_demo_and_oscillating_pulse_examples_execute_without_code_nodes():
     examples = Path(__file__).parents[2] / "examples"
     logic = json.loads((examples / "logic-control-demo.workflow.json").read_text(encoding="utf-8"))
     assert not any(node["data"]["nodeType"].startswith("notebook.") or node["data"]["nodeType"] == "custom.python_function" for node in logic["nodes"])
+    logic_types = {node["data"]["nodeType"] for node in logic["nodes"]}
+    assert {"logic.if_value", "logic.for_each_value", "logic.while_state"} <= logic_types
+    assert not {"logic.if_subflow", "logic.for_each_subflow", "logic.while_subflow"} & logic_types
     logic_result = json.loads(execute_workflow(json.dumps(logic), ""))
     assert logic_result["status"] == "success"
-    assert logic_result["preview"]["totalRows"] == 7
-    assert all(row[1] >= 0 for row in logic_result["preview"]["rows"])
+    assert logic_result["nodeResults"]["count"]["value"] == 7
 
     pulse = json.loads((examples / "periodic-oscillating-pulse.workflow.json").read_text(encoding="utf-8"))
     pulse_result = json.loads(execute_workflow(json.dumps(pulse), ""))
@@ -947,9 +844,9 @@ def test_logic_expression_short_circuits_division_by_zero():
     assert _logic_expression("value == 0 or 1 / value > 0.1", 0.0, 0) is True
 
 
-def test_if_rows_handles_duplicate_index():
+def test_table_split_condition_handles_duplicate_index():
     frame = pd.DataFrame({"v": [1, 2, 3, 4]}, index=[0, 0, 1, 1])
-    outputs, _, _, _ = _execute_node("logic.if_rows", {"condition": "v >= 2"}, frame, "", [])
+    outputs, _, _, _ = _execute_node("table.split_condition", {"condition": "v >= 2"}, frame, "", [])
     assert outputs["true"]["v"].tolist() == [2, 3, 4]
     assert outputs["false"]["v"].tolist() == [1]
 
@@ -983,14 +880,17 @@ def test_custom_function_namespace_exposes_numpy_and_math():
 
 
 def test_structure_branch_rejects_multiple_sinks():
-    structure = node("if", "logic.if_subflow", {"condition": "x >= 0"})
+    structure = node("if", "logic.if_value")
     child_a = node("a", "table.absolute")
     child_a["parentId"], child_a["data"]["branch"] = "if", "true"
     child_b = node("b", "table.transpose")
     child_b["parentId"], child_b["data"]["branch"] = "if", "true"
     result = execute(
         [node("read", "io.read_csv", {"header": "infer"}), structure, child_a, child_b],
-        [{"id": "a", "source": "read", "target": "if", "targetHandle": "input"}],
+        [
+            {"id": "condition", "source": "read", "target": "if", "targetHandle": "condition"},
+            {"id": "input", "source": "read", "target": "if", "targetHandle": "input"},
+        ],
         "x\n-2\n3\n",
     )
     assert result["status"] == "error"
@@ -1178,3 +1078,66 @@ def test_workflow_context_initializes_imports_parameters_and_functions_before_ca
     assert result["status"] == "success"
     assert result["nodeResults"]["use"]["kind"] == "value"
     assert result["nodeResults"]["use"]["value"] == 42.0
+
+
+def test_generic_if_structure_executes_only_selected_branch_with_any_payload():
+    structure = node("if-any", "logic.if_value")
+    child = node("abs", "table.absolute")
+    child["parentId"], child["data"]["branch"] = "if-any", "true"
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), structure, child],
+        [{"id": "condition", "source": "read", "target": "if-any", "targetHandle": "condition"}],
+        "x\n-2\n3\n",
+    )
+    assert result["status"] == "success"
+    assert [row[0] for row in result["preview"]["rows"]] == [2, 3]
+
+
+def test_generic_for_each_structure_iterates_table_rows_and_collects_a_list():
+    structure = node("for-any", "logic.for_each_value", {"maxIterations": 10})
+    child = node("abs", "table.absolute")
+    child["parentId"], child["data"]["branch"] = "for-any", "body"
+    count = node("count", "python.len")
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), structure, child, count],
+        [
+            {"id": "input", "source": "read", "target": "for-any", "targetHandle": "input"},
+            {"id": "count", "source": "for-any", "sourceHandle": "done", "target": "count", "targetHandle": "input"},
+        ],
+        "x\n-2\n3\n",
+    )
+    assert result["status"] == "success"
+    assert result["nodeResults"]["count"]["value"] == 2
+
+
+def test_generic_while_state_repeats_any_body_until_state_is_empty():
+    structure = node("while-any", "logic.while_state", {"conditionMode": "notEmpty", "condition": "value < 10", "maxIterations": 10})
+    child = node("drop-first", "table.slice", {"rowStart": "1", "rowStop": "", "rowStep": 1, "columnStart": "", "columnStop": "", "columnStep": 1})
+    child["parentId"], child["data"]["branch"] = "while-any", "body"
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), structure, child],
+        [{"id": "input", "source": "read", "target": "while-any", "targetHandle": "input"}],
+        "x\n1\n2\n3\n",
+    )
+    assert result["status"] == "success"
+    assert result["nodeResults"]["while-any"]["kind"] == "table"
+    assert result["preview"]["totalRows"] == 0
+
+
+def test_generic_structures_can_be_nested():
+    outer = node("for-any", "logic.for_each_value", {"maxIterations": 10})
+    inner = node("if-any", "logic.if_value")
+    inner["parentId"], inner["data"]["branch"] = "for-any", "body"
+    absolute = node("abs", "table.absolute")
+    absolute["parentId"], absolute["data"]["branch"] = "if-any", "true"
+    count = node("count", "python.len")
+    result = execute(
+        [node("read", "io.read_csv", {"header": "infer"}), outer, inner, absolute, count],
+        [
+            {"id": "input", "source": "read", "target": "for-any", "targetHandle": "input"},
+            {"id": "count", "source": "for-any", "sourceHandle": "done", "target": "count", "targetHandle": "input"},
+        ],
+        "x\n-2\n3\n",
+    )
+    assert result["status"] == "success"
+    assert result["nodeResults"]["count"]["value"] == 2
