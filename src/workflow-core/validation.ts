@@ -131,12 +131,19 @@ function validateGraph(rawNodes: unknown[], rawEdges: unknown[], functions: Func
 
   for (const raw of rawEdges) {
     if (!raw || typeof raw !== "object") throw new Error(`${label}包含无效连线`);
-    const edge = raw as { source?: unknown; target?: unknown; sourceHandle?: unknown; targetHandle?: unknown };
+    const edge = raw as { source?: unknown; target?: unknown; sourceHandle?: unknown; targetHandle?: unknown; data?: { role?: unknown } };
     if (typeof edge.source !== "string" || typeof edge.target !== "string" || !ids.has(edge.source) || !ids.has(edge.target)) {
       throw new Error(`${label}连线引用了不存在的节点`);
     }
     const source = nodesById.get(edge.source)!;
     const target = nodesById.get(edge.target)!;
+    const visualRole = typeof edge.data?.role === "string" ? edge.data.role : "";
+    const notebookVisualEdge = new Set(["notebook-order", "notebook-variable", "notebook-parameter", "notebook-provenance"]).has(visualRole);
+    // Notebook context/provenance edges use hidden ReactFlow anchors rather than
+    // NodeSpec data ports.  They are visual/execution dependencies only, so
+    // validating their hidden handles as ordinary data ports makes a valid
+    // analyzed Notebook fail direct .ipynb import.
+    if (notebookVisualEdge) continue;
     const sourceHandle = typeof edge.sourceHandle === "string" ? edge.sourceHandle : undefined;
     const targetHandle = typeof edge.targetHandle === "string" ? edge.targetHandle : undefined;
     const sourcePort = declaredPort(source, "output", sourceHandle, functions);

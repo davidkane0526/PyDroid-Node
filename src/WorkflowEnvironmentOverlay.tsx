@@ -18,7 +18,7 @@ type Props = {
   ui: (zh: string, en: string) => string;
 };
 
-function resolveCanvasFloatingAnchor(panel: DOMRect, occluders: DOMRect[], width = 66, height = 34, margin = 12): CanvasFloatingAnchor {
+function resolveCanvasFloatingAnchor(panel: DOMRect, occluders: DOMRect[], width = 62, height = 30, margin = 12): CanvasFloatingAnchor {
   const localOccluders = occluders
     .map((rect) => ({
       left: Math.max(0, rect.left - panel.left),
@@ -54,6 +54,7 @@ function resolveCanvasFloatingAnchor(panel: DOMRect, occluders: DOMRect[], width
 
 export function WorkflowEnvironmentOverlay({ tabName, environment, parameters, requirements, workspaceVariableNames, layoutRevision, onRemoveImport, onParameterExpressionChange, onRemoveParameter, onClearWorkspaceVariables, onOpenPackageManager, ui }: Props) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<CanvasFloatingAnchor>({ left: 12, top: 12, panelWidth: 0, panelHeight: 0 });
   const refreshAnchor = useCallback(() => {
@@ -88,14 +89,30 @@ export function WorkflowEnvironmentOverlay({ tabName, environment, parameters, r
     };
   }, [layoutRevision, refreshAnchor]);
 
+  useEffect(() => {
+    setOpen(false);
+  }, [tabName]);
+
+  useEffect(() => {
+    if (!open) return;
+    const closeFromCanvas = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      if (buttonRef.current?.contains(target) || panelRef.current?.contains(target)) return;
+      if (target.closest(".canvas-panel")) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeFromCanvas, true);
+    return () => document.removeEventListener("pointerdown", closeFromCanvas, true);
+  }, [open]);
+
   const panelWidth = Math.max(260, Math.min(380, anchor.panelWidth - 24));
   const panelMaxHeight = Math.max(180, Math.min(520, anchor.top - 22));
-  const panelLeft = Math.max(12, Math.min(Math.max(12, anchor.panelWidth - panelWidth - 12), anchor.left + 66 - panelWidth));
+  const panelLeft = Math.max(12, Math.min(Math.max(12, anchor.panelWidth - panelWidth - 12), anchor.left + 62 - panelWidth));
   const panelTop = Math.max(12, anchor.top - panelMaxHeight - 8);
 
   return <>
-    <button ref={buttonRef} type="button" className={`environment-float-button ${open ? "active" : ""}`} style={{ left: anchor.left, top: anchor.top }} title={ui(`当前标签“${tabName}”的运行环境`, `Runtime environment for “${tabName}”`)} aria-label={ui("打开当前标签环境", "Open environment for current tab")} aria-expanded={open} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}><span aria-hidden="true">◎</span>{ui("环境", "Env")}</button>
-    {open && <aside className="environment-floating-panel" style={{ left: panelLeft, top: panelTop, width: panelWidth, maxHeight: panelMaxHeight }} role="dialog" aria-label={ui("工作流环境", "Workflow environment")} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
+    <button ref={buttonRef} type="button" className={`environment-float-button ${open ? "active" : ""}`} style={{ left: anchor.left, top: anchor.top }} title={ui(`当前标签“${tabName}”的运行环境`, `Runtime environment for “${tabName}”`)} aria-label={ui("打开当前标签环境", "Open environment for current tab")} aria-expanded={open} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); setOpen((value) => !value); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h8M14 5h3M3 10h3M9 10h8M3 15h6M12 15h5"/><circle cx="12.5" cy="5" r="1.5"/><circle cx="7.5" cy="10" r="1.5"/><circle cx="10.5" cy="15" r="1.5"/></svg>{ui("环境", "Env")}</button>
+    {open && <aside ref={panelRef} className="environment-floating-panel" style={{ left: panelLeft, top: panelTop, width: panelWidth, maxHeight: panelMaxHeight }} role="dialog" aria-label={ui("工作流环境", "Workflow environment")} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()}>
       <header><div><strong>{ui("环境", "Environment")}</strong><small>{tabName}</small></div><button type="button" title={ui("关闭环境", "Close environment")} onClick={() => setOpen(false)}>×</button></header>
       <div className="environment-floating-panel__body">
         <section className="workflow-environment-section"><h3>{ui("Python 环境", "Python Environment")}<small>{environment.pythonImports.length} imports</small></h3>
@@ -109,9 +126,9 @@ export function WorkflowEnvironmentOverlay({ tabName, environment, parameters, r
         </section>
         <section className="workflow-environment-section"><h3>{ui("工作区变量", "Workspace Variables")}<small>{workspaceVariableNames.length}</small></h3>
           {workspaceVariableNames.length ? <div className="workflow-variable-list">{workspaceVariableNames.map((name) => <code key={name}>{name}</code>)}</div> : <p className="muted">{ui("当前标签还没有运行时工作区变量。", "This tab has no runtime workspace variables yet.")}</p>}
-          <button className="secondary" disabled={!workspaceVariableNames.length} onClick={onClearWorkspaceVariables}>{ui("清空当前标签变量", "Clear tab variables")}</button>
+          <button className="environment-action-button" disabled={!workspaceVariableNames.length} onClick={onClearWorkspaceVariables}>{ui("清空当前标签变量", "Clear tab variables")}</button>
         </section>
-        <section className="workflow-environment-section"><h3>{ui("依赖包", "Requirements")}<small>{requirements.length}</small></h3><p className="muted requirements-summary">{requirements.length ? requirements.join(" · ") : ui("无额外依赖", "No extra requirements")}</p><button onClick={onOpenPackageManager}>{ui("管理 Python 环境", "Manage Python Environment")}</button></section>
+        <section className="workflow-environment-section"><h3>{ui("依赖包", "Requirements")}<small>{requirements.length}</small></h3><p className="muted requirements-summary">{requirements.length ? requirements.join(" · ") : ui("无额外依赖", "No extra requirements")}</p><button className="environment-action-button" onClick={onOpenPackageManager}>{ui("管理 Python 环境", "Manage Python Environment")}</button></section>
       </div>
     </aside>}
   </>;

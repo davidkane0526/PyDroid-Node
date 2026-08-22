@@ -161,9 +161,12 @@ button, input, select, textarea { font: inherit; }
 .canvas-menu__popover button > b { color: var(--info); font-size: 13px; }
 .notebook-view { position: absolute; inset: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); padding: 68px 18px 18px; background: var(--bg); overflow: hidden; }
 .notebook-view > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--surface); }
-.notebook-view > header > div:first-child { display: grid; gap: 3px; }
+.notebook-view > header > div:first-child { display: grid; min-width: 145px; gap: 2px; }
 .notebook-view > header strong { font-size: 14px; }
 .notebook-view > header span { color: var(--text-faint); font-size: var(--font-xs); }
+.notebook-view__title span { display: flex; flex-wrap: wrap; gap: 2px 7px; line-height: 1.15; }
+.notebook-view__title span b { color: var(--text-muted); font-weight: 550; }
+.notebook-view__title span small { color: var(--text-faint); font-size: 10px; }
 .notebook-view > header > div:last-child { display: flex; gap: 7px; }
 .notebook-view button, .package-manager button { padding: 7px 10px; border: 1px solid var(--border); border-radius: 7px; color: #cbd5e1; background: var(--surface-raised); cursor: pointer; font-size: var(--font-xs); }
 .notebook-view button.primary { border-color: var(--accent); color: #fff; background: var(--accent); }
@@ -214,8 +217,8 @@ button, input, select, textarea { font: inherit; }
 .sidebar-resizer { position: absolute; z-index: 30; top: 0; bottom: 0; width: 12px; cursor: col-resize; touch-action: none; background: transparent; opacity: .9; }
 .sidebar-resizer::after { position: absolute; top: 50%; width: 5px; height: 62px; border: 1px solid var(--text-faint); border-radius: 99px; background: var(--border); box-shadow: 0 0 0 2px var(--surface); content: ""; transform: translateY(-50%); opacity: .92; transition: opacity .15s ease, background .15s ease; }
 .sidebar-resizer:hover::after, .sidebar-resizer:active::after { background: var(--info); opacity: 1; }
-.sidebar-resizer--palette { right: -6px; }
-.sidebar-resizer--palette::after { right: 4px; }
+.sidebar-resizer--palette { right: 0; }
+.sidebar-resizer--palette::after { right: 2px; }
 .sidebar-resizer--inspector { left: -6px; }
 .sidebar-resizer--inspector::after { left: 4px; }
 .app-statusbar { display: flex; min-width: 0; align-items: center; gap: 14px; padding: 0 14px; border-top: 1px solid var(--border-soft); color: var(--text-muted); background: var(--surface); font-size: var(--font-xs); }
@@ -410,8 +413,8 @@ button, input, select, textarea { font: inherit; }
 .node-selection-check, .node-delete-action { position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
 .node-selection-check { left: -11px; }
 .node-delete-action { right: -11px; border-color: #f87171; color: var(--danger-text); cursor: pointer; }
-.node-run-action { position: absolute; z-index: 9; top: 5px; right: 6px; display: grid; width: 21px; height: 21px; padding: 0 0 0 1px; place-items: center; border: 1px solid #22c55e88; border-radius: 6px; color: #bbf7d0; background: #052e16d9; box-shadow: 0 2px 8px #0005; cursor: pointer; font-size: 10px; line-height: 1; }
-.node-run-action:hover, .node-run-action:focus-visible { border-color: #4ade80; color: #f0fdf4; background: #166534e8; outline: none; }
+.node-run-action { position: absolute; z-index: 9; top: 5px; right: 6px; display: grid; width: 21px; height: 21px; padding: 0 0 0 1px; place-items: center; border: 1px solid var(--border-strong); border-radius: 6px; color: #86efac; background: color-mix(in srgb, var(--surface-raised) 92%, transparent); box-shadow: none; cursor: pointer; font-size: 10px; line-height: 1; transition: border-color .14s ease, background .14s ease, color .14s ease; }
+.node-run-action:hover, .node-run-action:focus-visible { border-color: #4ade80; color: #bbf7d0; background: color-mix(in srgb, var(--success) 12%, var(--surface-raised)); outline: none; }
 .node-run-action:disabled { opacity: .42; cursor: default; }
 .notebook-order-handle { width: 1px !important; height: 1px !important; min-width: 1px !important; min-height: 1px !important; opacity: 0 !important; border: 0 !important; box-shadow: none !important; pointer-events: none !important; }
 .node-delete-action:hover, .node-delete-action:focus-visible { background: var(--danger-deep); outline: none; }
@@ -985,7 +988,7 @@ button, input, select, textarea { font: inherit; }
   transform: translateY(-50%);
   opacity: .92;
 }
-.sidebar-resizer--palette::after { right: 4px; left: auto; }
+.sidebar-resizer--palette::after { right: 2px; left: auto; }
 .workspace.inspector-right .sidebar-resizer--inspector::after { right: auto; left: 4px; }
 .workspace.inspector-bottom .sidebar-resizer--inspector::after {
   top: 4px;
@@ -3665,10 +3668,10 @@ button.smb-file-row { cursor: pointer; }
 }
 
 /* 1.4.98 · Per-tab workflow environment floats inside the actually visible canvas area. */
-.environment-float-button { position: absolute; z-index: 16; display: inline-flex; width: 66px; height: 34px; padding: 0 10px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border-strong); border-radius: 17px; color: var(--text-highlight); background: var(--surface)e8; box-shadow: 0 7px 20px #0006; backdrop-filter: blur(8px); cursor: pointer; font-size: 11px; font-weight: 650; line-height: 1; }
-.environment-float-button:hover, .environment-float-button.active { border-color: var(--accent-hover); background: var(--surface-hover); }
-.environment-float-button > span { font-size: 15px; line-height: 1; }
-.environment-floating-panel { position: absolute; z-index: 17; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border-strong); border-radius: 12px; color: var(--text); background: var(--surface)f6; box-shadow: 0 18px 44px #0009; backdrop-filter: blur(12px); }
+.environment-float-button { position: absolute; z-index: 16; display: inline-flex; width: 62px; height: 30px; padding: 0 9px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text-muted); background: color-mix(in srgb, var(--surface-raised) 94%, transparent); box-shadow: none; cursor: pointer; font-size: 11px; font-weight: 650; line-height: 1; transition: border-color .14s ease, background .14s ease, color .14s ease; }
+.environment-float-button:hover, .environment-float-button.active { border-color: var(--accent-hover); color: var(--text-highlight); background: var(--surface-hover); }
+.environment-float-button > svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.35; stroke-linecap: round; stroke-linejoin: round; }
+.environment-floating-panel { position: absolute; z-index: 17; display: grid; grid-template-rows: auto minmax(0, 1fr); overflow: hidden; border: 1px solid var(--border-strong); border-radius: 10px; color: var(--text); background: var(--surface-overlay); box-shadow: 0 10px 28px #0005; }
 .environment-floating-panel > header { display: flex; min-height: 45px; padding: 8px 10px 8px 12px; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--border-soft); }
 .environment-floating-panel > header > div { display: grid; min-width: 0; gap: 2px; }
 .environment-floating-panel > header strong { color: var(--text-bright); font-size: 13px; }
@@ -3680,9 +3683,13 @@ button.smb-file-row { cursor: pointer; }
 .workflow-environment-section h3 { display: flex; margin: 0; align-items: baseline; justify-content: space-between; gap: 8px; color: var(--text-muted); font-size: 11px; font-weight: 650; }
 .workflow-environment-section h3 small { color: var(--text-faint); font-size: var(--font-xs); font-weight: 500; }
 .workflow-environment-section > button { justify-self: start; margin: 0; }
+.environment-action-button { min-height: 28px; padding: 5px 9px !important; border: 1px solid var(--border-strong) !important; border-radius: 6px !important; color: var(--text-muted) !important; background: var(--surface-raised) !important; box-shadow: none !important; cursor: pointer; font: inherit; font-size: var(--font-xs) !important; }
+.environment-action-button:hover:not(:disabled) { border-color: var(--accent-hover) !important; color: var(--text-highlight) !important; background: var(--surface-hover) !important; }
+.environment-action-button:disabled { opacity: .45; cursor: default; }
 .workflow-environment-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 6px; padding: 7px 8px; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--surface-raised); }
 .workflow-environment-item code { min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; color: var(--text-highlight); font-size: var(--font-xs); line-height: 1.35; }
-.workflow-environment-item button { width: 24px !important; min-width: 24px; margin: 0 !important; padding: 2px !important; }
+.workflow-environment-item button { width: 24px !important; min-width: 24px; height: 24px; margin: 0 !important; padding: 0 !important; border: 0; border-radius: 5px; color: var(--text-faint); background: transparent; cursor: pointer; }
+.workflow-environment-item button:hover { color: var(--danger-text); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .workflow-parameter-item { display: grid; gap: 5px; padding: 7px 8px; border: 1px solid var(--border-soft); border-radius: 7px; background: var(--surface-deep); }
 .workflow-parameter-item > span { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .workflow-parameter-item small { color: var(--text-faint); font-size: var(--font-xs); }
@@ -3690,8 +3697,11 @@ button.smb-file-row { cursor: pointer; }
 .workflow-environment-semantics { margin: 0; padding: 6px 8px; border-radius: 6px; background: color-mix(in srgb, var(--accent) 9%, transparent); color: var(--text-muted); font-size: var(--font-xs); line-height: 1.35; }
 .requirements-summary { margin: 0; overflow-wrap: anywhere; }
 .workflow-functions-purpose { margin: 0 0 8px; padding: 8px 9px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-deep); line-height: 1.45; }
-.app-shell[data-theme="light"] .environment-float-button { border-color: #cbd5e1; color: #173a63; background: #ffffffed; box-shadow: 0 7px 20px #64748b33; }
-.app-shell[data-theme="light"] .environment-floating-panel { border-color: #cbd5e1; background: #fffffff7; box-shadow: 0 18px 44px #64748b55; }
+.app-shell[data-theme="light"] .environment-float-button { border-color: #cbd5e1; color: #52677f; background: #ffffff; box-shadow: none; }
+.app-shell[data-theme="light"] .environment-float-button:hover, .app-shell[data-theme="light"] .environment-float-button.active { border-color: #60a5fa; color: #1e3a5f; background: #eff6ff; }
+.app-shell[data-theme="light"] .environment-floating-panel { border-color: #cbd5e1; background: #ffffff; box-shadow: 0 10px 28px #64748b38; }
+.app-shell[data-theme="light"] .node-run-action { border-color: #cbd5e1; color: #16803b; background: #ffffff; box-shadow: none; }
+.app-shell[data-theme="light"] .node-run-action:hover, .app-shell[data-theme="light"] .node-run-action:focus-visible { border-color: #86efac; color: #166534; background: #ecfdf5; }
 .app-shell[data-theme="light"] .workflow-environment-section,
 .app-shell[data-theme="light"] .workflow-environment-item,
 .app-shell[data-theme="light"] .workflow-parameter-item,
@@ -3702,7 +3712,8 @@ button.smb-file-row { cursor: pointer; }
 .workflow-parameter-item { grid-template-columns: minmax(0, 1fr) auto; }
 .workflow-parameter-item > span { grid-column: 1 / -1; }
 .workflow-parameter-item input { grid-column: 1; }
-.workflow-parameter-item > button { grid-column: 2; width: 28px !important; min-width: 28px; margin: 0 !important; padding: 2px !important; }
+.workflow-parameter-item > button { grid-column: 2; width: 28px !important; min-width: 28px; height: 28px; margin: 0 !important; padding: 0 !important; border: 0; border-radius: 5px; color: var(--text-faint); background: transparent; cursor: pointer; }
+.workflow-parameter-item > button:hover { color: var(--danger-text); background: color-mix(in srgb, var(--danger) 10%, transparent); }
 @media (max-width: 700px) {
   .environment-floating-panel { border-radius: 10px; }
   .environment-floating-panel__body { padding: 8px; }

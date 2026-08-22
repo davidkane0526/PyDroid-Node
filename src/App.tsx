@@ -46,7 +46,7 @@ import {
   type WorkflowFunctionDefinition,
   type WorkflowNode,
 } from "./workflow";
-import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, summarizeNotebookConversion, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell, type NotebookConversionReport } from "./workflowNotebook";
+import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, normalizeNotebookCellsForWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, summarizeNotebookConversion, workflowNotebookCells, workflowNotebookMetadata, type NotebookCell, type NotebookConversionReport, type NotebookNormalizationResult } from "./workflowNotebook";
 import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelHostExecution, executeWorkflow, executeWorkflowWithRuntime, ExecutionBusyError, ExecutionCancelledError, ExecutionTimeoutError, getExecutionStatus, getHostExecutionStatus, getPythonEnvironment, resolveExecutionRuntime, setExecutionRuntimePreference, subscribeExecutionStatus, warmUpExecutionRuntime, WorkflowExecutionError, type ExecutionResult, type HostExecutionStatus, type NodeExecutionPreview, type PythonEnvironment, type PythonSignatureAnalysis, type RuntimePreference, type TablePreview } from "./execution";
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, clearWorkspaceVariableState, getExecutionClientId, getWorkspaceExecutionResult, listWorkspaceVariableNames } from "./execution-workspace";
@@ -2395,18 +2395,26 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     setMessage(`已删除个人模板“${label}”`);
   };
 
-  const downloadText = (text: string, name: string, type: string) => {
-    const url = URL.createObjectURL(new Blob([text], { type }));
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = name;
-    anchor.click();
-    URL.revokeObjectURL(url);
+  const downloadText = async (text: string, name: string, type: string) => {
+    try {
+      const exported = await exportTextFile(name, text, type);
+      if (!exported.saved) {
+        setMessage(`已取消保存 ${name}`);
+        return false;
+      }
+      setMessage(`${isNativePlatform() ? "已保存" : "已导出"} ${name}${exported.destination ? ` · ${exported.destination}` : ""}`);
+      return true;
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "文件保存失败";
+      setMessage(`保存失败：${detail}`);
+      setExecutionError({ title: "文件导出失败", message: detail, traceback: error instanceof Error ? error.stack ?? null : null });
+      return false;
+    }
   };
 
   const exportSettings = () => {
     const settings = { themeMode, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
-    downloadText(JSON.stringify({ kind: "pydroid-flow.settings", schemaVersion: 1, settings }, null, 2), "pydroid-flow.settings.json", "application/json");
+    void downloadText(JSON.stringify({ kind: "pydroid-flow.settings", schemaVersion: 1, settings }, null, 2), "pydroid-flow.settings.json", "application/json");
     setMessage("设置已导出；为安全起见不包含 AI API Key");
   };
 
@@ -2461,7 +2469,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       description: `PyDroid Flow 自定义节点 · ${signature.inputPorts.length} 输入 / ${signature.outputPorts.length} 输出`,
       code,
     };
-    downloadText(JSON.stringify(serializeCustomNodeTemplate(template), null, 2), `${signature.functionName}.pydroid-node.json`, "application/json");
+    void downloadText(JSON.stringify(serializeCustomNodeTemplate(template), null, 2), `${signature.functionName}.pydroid-node.json`, "application/json");
     setMessage(`已导出模板“${label}”`);
   };
 
@@ -2502,27 +2510,40 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     setMessage(hasStoredNotebook ? "已恢复原始 Jupyter 单元格；Notebook 交互运行以当前源码为准" : "已按 setup、节点和连线拆分为 Jupyter 单元格；每个节点可独立编辑");
   };
 
+  const compileNotebookDocument = async (name: string, sourceCells: NotebookCell[], metadata: Record<string, unknown>) => {
+    const normalization = normalizeNotebookCellsForWorkflow(sourceCells);
+    const cells = normalization.cells;
+    const source = joinNotebookCells(cells);
+    if (source.includes("# %% [node]")) {
+      return { document: parseWorkflowNotebook(source, name), cells, analyses: [] as Awaited<ReturnType<typeof analyzeNotebook>>, report: null as NotebookConversionReport | null, normalization };
+    }
+    const analyses = await analyzeNotebook(serializeJupyterNotebookCells(name, cells, metadata));
+    const hasStatementAnalysis = analyses.some((analysis) => Boolean(analysis.operations?.length || analysis.nodeType));
+    const document = hasStatementAnalysis
+      ? analyzedNotebookToWorkflow(name, cells, analyses, metadata)
+      : notebookCellsToWorkflow(name, cells, metadata);
+    return { document, cells, analyses, report: summarizeNotebookConversion(cells, analyses), normalization };
+  };
+
+  const showImportError = (title: string, error: unknown, fallback: string) => {
+    const detail = error instanceof Error ? error.message : fallback;
+    setMessage(`${title}：${detail}`);
+    setExecutionError({ title, message: detail, traceback: error instanceof Error ? error.stack ?? null : null });
+    setErrorDetailOpen(false);
+  };
+
   const applyNotebook = async () => {
     try {
-      const source = joinNotebookCells(notebookCells);
-      let document: ReturnType<typeof parseWorkflow>;
-      let report: NotebookConversionReport | null = null;
-      if (source.includes("# %% [node]")) {
-        document = parseWorkflowNotebook(source);
-      } else {
-        const analyses = await analyzeNotebook(serializeJupyterNotebookCells("Jupyter 单元格工作流", notebookCells, notebookMetadata));
-        document = analyses.some((analysis) => analysis.recognized)
-          ? analyzedNotebookToWorkflow("Jupyter 单元格工作流", notebookCells, analyses, notebookMetadata)
-          : notebookCellsToWorkflow("Jupyter 单元格工作流", notebookCells, notebookMetadata);
-        report = summarizeNotebookConversion(notebookCells, analyses);
-      }
-      replaceWorkflowContent(prepareImportedWorkflow(document));
+      const compiled = await compileNotebookDocument("Jupyter 单元格工作流", notebookCells, notebookMetadata);
+      replaceWorkflowContent(prepareImportedWorkflow(compiled.document));
+      setNotebookCells(compiled.cells);
       setNotebookError(null);
-      setMessage(report ? notebookConversionMessage(report) : `已从 Notebook 应用 ${document.nodes.length} 个节点和 ${document.edges.length} 条连线`);
+      setExecutionError(null);
+      setMessage(compiled.report ? notebookConversionMessage(compiled.report, compiled.normalization) : `已从 Notebook 应用 ${compiled.document.nodes.length} 个节点和 ${compiled.document.edges.length} 条连线`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Notebook 解析失败";
-      setNotebookError(message);
-      setMessage(`Notebook 应用失败：${message}`);
+      const detail = error instanceof Error ? error.message : "Notebook 解析失败";
+      setNotebookError(detail);
+      showImportError("Notebook 应用失败", error, detail);
     }
   };
 
@@ -2568,8 +2589,10 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     } finally { setNotebookRunningCell(null); }
   };
 
-  const notebookConversionMessage = (report: NotebookConversionReport): string => {
+  const notebookConversionMessage = (report: NotebookConversionReport, normalization?: NotebookNormalizationResult): string => {
     const details = [
+      normalization?.removedBlankCells ? `移除空白单元格 ${normalization.removedBlankCells}` : "",
+      normalization?.mergedAnnotationCells ? `合并标题/注释 ${normalization.mergedAnnotationCells}` : "",
       report.promotedFunctionDefinitions ? `函数 ${report.promotedFunctionDefinitions}${report.typedFunctionDefinitions ? `（类型化 ${report.typedFunctionDefinitions}）` : ""}` : "",
       report.functionCalls ? `函数调用 ${report.functionCalls}` : "",
       report.functionMaps ? `函数映射 ${report.functionMaps}${report.functionConcatMaps ? `（其中循环合并 ${report.functionConcatMaps}）` : ""}` : "",
@@ -2589,28 +2612,22 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     if (!file) return;
     try {
       const imported = parseJupyterNotebook(await file.text());
-      setNotebookCells(imported.cells);
+      const compiled = await compileNotebookDocument(imported.name, imported.cells, imported.metadata);
+      setNotebookCells(compiled.cells);
       setNotebookCellResults({});
       setNotebookMetadata(imported.metadata);
-      const source = joinNotebookCells(imported.cells);
-      const analyses = source.includes("# %% [node]") ? [] : await analyzeNotebook(serializeJupyterNotebookCells(imported.name, imported.cells, imported.metadata));
-      const document = source.includes("# %% [node]") ? parseWorkflowNotebook(source, imported.name)
-        : analyses.some((analysis) => analysis.recognized)
-          ? analyzedNotebookToWorkflow(imported.name, imported.cells, analyses, imported.metadata)
-          : notebookCellsToWorkflow(imported.name, imported.cells, imported.metadata);
-      replaceWorkflowContent(prepareImportedWorkflow(document));
+      replaceWorkflowContent(prepareImportedWorkflow(compiled.document));
       setNotebookError(null);
+      setExecutionError(null);
       setViewMode("nodes");
-      const conversionReport = summarizeNotebookConversion(imported.cells, analyses);
-      setMessage(source.includes("# %% [node]")
-        ? `已自动识别并恢复 ${document.nodes.length} 个功能节点`
-        : notebookConversionMessage(conversionReport));
+      setMessage(compiled.report ? notebookConversionMessage(compiled.report, compiled.normalization) : `已自动识别并恢复 ${compiled.document.nodes.length} 个功能节点`);
     } catch (error) {
-      setMessage(error instanceof Error ? `Jupyter 导入失败：${error.message}` : "Jupyter 导入失败");
+      showImportError("Jupyter 导入失败", error, "Jupyter 导入失败");
     } finally {
       event.target.value = "";
     }
   };
+
 
   const hasUnsavedWorkflowChanges = () => session.isDirty();
 
@@ -2820,20 +2837,15 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       const text = await file.text();
       if (file.name.toLocaleLowerCase().endsWith(".ipynb")) {
         const imported = parseJupyterNotebook(text);
-        const source = joinNotebookCells(imported.cells);
-        const analyses = source.includes("# %% [node]") ? [] : await analyzeNotebook(serializeJupyterNotebookCells(imported.name, imported.cells, imported.metadata));
-        const document = source.includes("# %% [node]") ? parseWorkflowNotebook(source, imported.name)
-          : analyses.some((analysis) => analysis.recognized)
-            ? analyzedNotebookToWorkflow(imported.name, imported.cells, analyses, imported.metadata)
-            : notebookCellsToWorkflow(imported.name, imported.cells, imported.metadata);
-        setNotebookCells(imported.cells);
+        const compiled = await compileNotebookDocument(imported.name, imported.cells, imported.metadata);
+        setNotebookCells(compiled.cells);
+        setNotebookCellResults({});
         setNotebookMetadata(imported.metadata);
-        replaceWorkflowContent(prepareImportedWorkflow(document));
+        replaceWorkflowContent(prepareImportedWorkflow(compiled.document));
+        setNotebookError(null);
+        setExecutionError(null);
         setViewMode("nodes");
-        const conversionReport = summarizeNotebookConversion(imported.cells, analyses);
-        setMessage(source.includes("# %% [node]")
-          ? `已从 Jupyter 自动恢复 ${document.nodes.length} 个功能节点`
-          : notebookConversionMessage(conversionReport));
+        setMessage(compiled.report ? notebookConversionMessage(compiled.report, compiled.normalization) : `已从 Jupyter 自动恢复 ${compiled.document.nodes.length} 个功能节点`);
         return;
       }
       const opened = lifecycle.openSerialized(session, text, prepareImportedWorkflow);
@@ -2841,7 +2853,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       const document = opened.document;
       setMessage(`已导入流程“${document.name}”`);
     } catch (error) {
-      setMessage(error instanceof Error ? `导入失败：${error.message}` : "工作流导入失败");
+      showImportError(file.name.toLocaleLowerCase().endsWith(".ipynb") ? "Jupyter 导入失败" : "工作流导入失败", error, "导入失败");
     }
   };
 
@@ -3423,7 +3435,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             <button className={resultDock === "right" ? "active" : ""} title="结果显示在参数栏右侧" aria-label="结果显示在右侧" onClick={() => { setResultDock("right"); setInspectorCollapsed(false); }}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
             <button className={resultDock === "bottom" ? "active" : ""} title="结果显示在画布底部" aria-label="结果显示在底部" onClick={() => setResultDock("bottom")}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/></svg></button>
           </div>
-          {(result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : []).map((item) => <button className="download-link" key={item.nodeId} onClick={() => downloadText(item.content, item.fileName, "text/csv;charset=utf-8")}>下载 {item.fileName}</button>)}
+          {(result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : []).map((item) => <button className="download-link" key={item.nodeId} onClick={() => { void downloadText(item.content, item.fileName, "text/csv;charset=utf-8"); }}>{isNativePlatform() ? "保存" : "下载"} {item.fileName}</button>)}
         </div>
       </div>
       <p className="result-summary">{result.preview.totalRows} 行 × {result.preview.totalColumns} 列</p>
@@ -3616,14 +3628,14 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             <Controls />
           </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
             <header>
-              <div><strong>Python Notebook</strong><span>可运行的 pandas / NumPy / Matplotlib 代码 · # %% 单元格</span></div>
+              <div className="notebook-view__title"><strong>Python Notebook</strong><span><b>pandas · NumPy · Matplotlib</b><small># %% 单元格</small></span></div>
               <div>
                 <button className="primary" disabled={notebookRunningCell !== null} onClick={() => void runNotebook()}>{notebookRunningCell === "all" ? "运行中…" : "▶ 运行全部"}</button>
                 <button onClick={() => notebookInput.current?.click()}>导入 .ipynb</button>
                 <button onClick={() => setNotebookCells((current) => [...current, { id: `cell-${Date.now()}`, cellType: "code", source: "# 新代码单元格\n" }])}>＋代码</button>
                 <button onClick={() => setNotebookCells((current) => [...current, { id: `cell-${Date.now()}`, cellType: "markdown", source: "## 新说明\n" }])}>＋文本</button>
                 <button onClick={() => { const expanded = flattenWorkflowGroups(nodes, edges); setNotebookCells(workflowNotebookCells(expanded.nodes, expanded.edges, requirements, environment)); setNotebookMetadata({}); }}>从节点刷新</button>
-                <button onClick={() => downloadText(serializeJupyterNotebookCells("PyDroid Flow 工作流", notebookCells, notebookMetadata), "pydroid-flow.ipynb", "application/x-ipynb+json")}>导出 .ipynb</button>
+                <button onClick={() => { void downloadText(serializeJupyterNotebookCells("PyDroid Flow 工作流", notebookCells, notebookMetadata), "pydroid-flow.ipynb", "application/x-ipynb+json"); }}>导出 .ipynb</button>
                 <button className="primary" onClick={() => void applyNotebook()}>应用到节点视图</button>
               </div>
             </header>
@@ -3858,7 +3870,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : "session"} apiKeyManagedByHost={remoteBrowser && remoteAgentProxyAvailable} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
       <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={() => void exportAutomatedDiagnostics()} exportStatus={automatedDiagnosticsExportStatus} />
       {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} hotReloadEnabled={Boolean(import.meta.hot)} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
-      {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={removePackageRequirement} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8")} />}
+      {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={removePackageRequirement} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => { void downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8"); }} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
       {plotExpandedPreview && <PlotLightbox open preview={plotExpandedPreview} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpandedPreview(null)} />}
       {resultDetail && <ResultDetailDialog detail={resultDetail} onClose={() => setResultDetail(null)} onCopy={() => void navigator.clipboard.writeText(resultDetail.text).then(() => setMessage("节点结果已复制"))} onTextChange={(text) => setResultDetail((current) => current ? { ...current, text } : null)} />}

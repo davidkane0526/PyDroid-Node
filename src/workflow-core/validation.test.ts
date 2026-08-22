@@ -36,6 +36,18 @@ describe("workflow validation", () => {
     })).not.toThrow();
   });
 
+  it("accepts Notebook visual dependency handles that are not NodeSpec data ports", () => {
+    expect(() => validateWorkflowDocument({
+      name: "notebook-visual-edge",
+      nodes: [node("source", "notebook.code_cell"), node("target", "io.read_csv")],
+      edges: [{
+        source: "source", target: "target",
+        sourceHandle: "__notebook_order_out", targetHandle: "__notebook_order_in",
+        data: { role: "notebook-order" },
+      }],
+    })).not.toThrow();
+  });
+
 
   it("validates versioned reusable function calls and dynamic ports", () => {
     const functions = [{

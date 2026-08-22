@@ -1,3 +1,19 @@
+## 1.4.99 (122) — Reliable Notebook import + native sequence flow — 2026-08-22
+
+- Unifies direct `.ipynb` workflow import, Notebook-panel import and "Apply to node view" behind one normalization/analyze/compile pipeline. Direct import no longer takes a subtly different path from the Notebook view.
+- Fixes direct Jupyter import failure on hidden Notebook dependency anchors such as `__notebook_order_out`: order/namespace/parameter/provenance edges are visual/execution metadata rather than public NodeSpec data ports and are excluded from ordinary port validation.
+- Restores clickable import-error detail in the bottom status bar. Jupyter/workflow import failures now populate the standard execution-error detail surface instead of leaving only an inert status sentence.
+- Adds conservative Notebook preprocessing before compilation: blank cells are removed; consecutive one-line Markdown headings / Python comment cells immediately preceding code are folded into that code cell; multi-line documentation remains intact. Real 186-Notebook corpus: **195 blank cells removed + 146 heading/comment cells folded** with 0 analysis failures.
+- Makes all top-level static Python `import` / `from ... import ...` statements managed Workflow Environment entries, including imports that occur after earlier Notebook computation. Conditional/function-local/dynamic imports remain in their executable Python scope. Current corpus manages **288 top-level imports** outside the canvas.
+- Long Notebook cells now use statement-level analysis whenever the analyzer can identify top-level statements, even if none of them has a native semantic lowering. This safely splits long cells at Python AST top-level boundaries instead of leaving a monolithic code node; function/loop bodies are not text-sliced.
+- Shortens the Notebook header metadata into a two-line `pandas · NumPy · Matplotlib` / `# %% 单元格` treatment so the action buttons retain usable horizontal space.
+- Refines the per-node/group run control for light/dark themes: flat neutral surface, lighter success accent and no shadow. The Environment floating control/panel uses the same application surfaces/buttons, closes automatically when the user clicks the canvas, and retains visible-canvas/occlusion-aware placement.
+- Restores symmetric hover feedback for the resource-palette resize handle by keeping its hit region inside the palette instead of clipping the hover target beyond the panel boundary.
+- Routes text/CSV export actions through the platform `exportTextFile` contract. On Android, export-node artifacts now invoke the native Storage Access Framework (`ACTION_CREATE_DOCUMENT` + ContentResolver write) through `PythonExecutor.exportTextFile`; browser mode retains normal download behavior.
+- Adds the first native **Map → Reduce → Accumulator** layer as cross-runtime NodeContracts: `sequence.map_expression`, `sequence.reduce`, and `sequence.accumulate`. They are implemented in both Python and JavaScript and covered by runtime-parity golden workflows.
+- Final local validation in the clean source tree: **139 passed / 1 skipped Python tests, 76/76 runtime parity workflows, 83/83 JS-capable NodeContract coverage**, UI/Baseline/Build Tool/Host/Remote 8765/LAN/Android host/Workflow Compatibility/Core/Editor/Runtime gates, plus 186/186 Notebook corpus analysis with 5,418/5,418 operations covered and 0 failures.
+- Build revision: `1.4.99-dev-r77-notebook-import-native-flow`.
+
 ## 1.4.98 (121) — Workflow Environment + clean computation canvas — 2026-08-22
 
 - Compiles the leading static Python Notebook setup prelude out of the computation canvas and into persistent per-workflow environment state. Top-level static imports, safe leading constants and safely promoted function definitions remain serialized and executable instead of appearing as ordinary dataflow nodes.

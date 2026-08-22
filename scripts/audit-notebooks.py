@@ -4,6 +4,7 @@ import argparse
 import ast
 import hashlib
 import json
+import re
 from collections import Counter
 from pathlib import Path
 import sys
@@ -28,6 +29,52 @@ ANDROID_PYTHON_PACKAGE_ROOTS = {"numpy", "pandas", "matplotlib"}
 def source_text(cell: dict) -> str:
     source = cell.get("source", "")
     return "".join(source) if isinstance(source, list) else str(source)
+
+
+def _single_line_annotation(cell: dict) -> str | None:
+    lines = [line.strip() for line in source_text(cell).splitlines() if line.strip()]
+    if len(lines) != 1:
+        return None
+    line = lines[0]
+    if cell.get("cell_type") == "code" and line.startswith("#") and not line.startswith("# %%"):
+        return line
+    if cell.get("cell_type") == "markdown" and re.match(r"^#{1,6}\s+\S", line):
+        return "# " + re.sub(r"^#{1,6}\s+", "", line)
+    return None
+
+
+def normalize_notebook(notebook: dict) -> tuple[dict, int, int]:
+    original = list(notebook.get("cells", []))
+    non_blank = [cell for cell in original if isinstance(cell, dict) and source_text(cell).strip()]
+    output: list[dict] = []
+    merged = 0
+    index = 0
+    while index < len(non_blank):
+        annotations: list[tuple[dict, str]] = []
+        cursor = index
+        while cursor < len(non_blank):
+            annotation = _single_line_annotation(non_blank[cursor])
+            if not annotation:
+                break
+            annotations.append((non_blank[cursor], annotation))
+            cursor += 1
+        next_cell = non_blank[cursor] if cursor < len(non_blank) else None
+        if annotations and isinstance(next_cell, dict) and next_cell.get("cell_type") == "code":
+            merged_cell = dict(next_cell)
+            merged_cell["source"] = "\n".join(annotation for _, annotation in annotations) + "\n" + source_text(next_cell).lstrip("\n")
+            output.append(merged_cell)
+            merged += len(annotations)
+            index = cursor + 1
+            continue
+        if annotations:
+            output.extend(cell for cell, _ in annotations)
+            index = cursor
+            continue
+        output.append(non_blank[index])
+        index += 1
+    normalized = dict(notebook)
+    normalized["cells"] = output
+    return normalized, len(original) - len(non_blank), merged
 
 
 def call_name(call: ast.Call) -> str:
@@ -61,6 +108,9 @@ def main() -> int:
             failures.append({"file": str(path), "kind": "notebook-read", "error": str(error)})
             continue
         summary["files"] += 1
+        notebook, removed_blank, merged_annotations = normalize_notebook(notebook)
+        summary["removed_blank_cells"] += removed_blank
+        summary["merged_annotation_cells"] += merged_annotations
         normalized = json.dumps(notebook, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         reparsed = json.dumps(json.loads(normalized), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         if hashlib.sha256(normalized.encode()).hexdigest() != hashlib.sha256(reparsed.encode()).hexdigest():
@@ -150,19 +200,22 @@ def main() -> int:
         context_keys: set[tuple[int, int]] = set()
         context_cells: Counter[int] = Counter()
         for cell_index, operation_index, operation in ordered_entries:
-            if not setup_open:
-                break
             parameters = operation.get("parameters") if isinstance(operation.get("parameters"), dict) else {}
             kind = operation.get("kind")
             if kind in {"Import", "ImportFrom"}:
                 summary["managed_environment_imports"] += 1
-            elif isinstance(parameters.get("notebookParameterName"), str) and isinstance(parameters.get("notebookParameterValueJson"), str):
+                context_keys.add((cell_index, operation_index))
+                context_cells[cell_index] += 1
+                continue
+            if not setup_open:
+                continue
+            if isinstance(parameters.get("notebookParameterName"), str) and isinstance(parameters.get("notebookParameterValueJson"), str):
                 summary["managed_workflow_parameters"] += 1
             elif kind == "FunctionDef" and isinstance(parameters.get("workflowFunctionId"), str):
                 summary["managed_workflow_definitions"] += 1
             else:
                 setup_open = False
-                break
+                continue
             context_keys.add((cell_index, operation_index))
             context_cells[cell_index] += 1
         summary["managed_context_operations"] += len(context_keys)

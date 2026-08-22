@@ -917,6 +917,16 @@ def test_sequence_nodes_extract_and_filter_consecutive_integer_segments():
     assert filtered == [1, 2, 3, 4]
 
 
+def test_sequence_map_reduce_accumulate_nodes():
+    values = [1, 2, 3, 4]
+    mapped = _execute_node("sequence.map_expression", {"expression": "value * 2 + iteration"}, values, "", [])[0]["output"]
+    reduced = _execute_node("sequence.reduce", {"method": "mean"}, mapped, "", [])[0]["output"]
+    accumulated = _execute_node("sequence.accumulate", {"method": "sum"}, values, "", [])[0]["output"]
+    assert mapped == [2.0, 5.0, 8.0, 11.0]
+    assert reduced == 6.5
+    assert accumulated == [1.0, 3.0, 6.0, 10.0]
+
+
 def test_group_aggregate_resets_index_before_bucketing():
     frame = pd.DataFrame({"v": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0]}, index=[100, 101, 102, 200, 201, 202])
     result = _group_aggregate(frame, {"groupSize": 3, "startRow": 0, "endRow": 3, "method": "mean"})

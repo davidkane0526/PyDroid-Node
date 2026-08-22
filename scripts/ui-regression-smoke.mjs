@@ -72,6 +72,9 @@ assert.match(css, /\.palette-tabs\s*\{[^}]*grid-template-columns:\s*repeat\(4,\s
 assert.match(app, /const PALETTE_MIN_WIDTH = 216/, "resource palette must enforce the wider Phase 8 minimum width");
 assert.match(css, /minmax\(216px, min\(var\(--palette-width, 216px\)/, "responsive workspace CSS must preserve the 216px resource palette floor");
 assert.match(css, /\.palette-tabs__label \{[^}]*overflow:\s*visible;[^}]*text-overflow:\s*clip;[^}]*white-space:\s*nowrap;/, "resource tab labels must not be ellipsized or compressed");
+assert.match(app, /const downloadText = async[\s\S]*exportTextFile\(name, text, type\)/, "all user-visible text/CSV exports must route through the platform file I/O capability");
+assert.doesNotMatch(app, /const downloadText = \(text[\s\S]{0,320}URL\.createObjectURL/, "shared export actions must not bypass Android SAF with a browser-only download link");
+assert.match(environmentOverlay, /closest\("\.canvas-panel"\)[\s\S]*setOpen\(false\)[\s\S]*document\.addEventListener\("pointerdown"/, "Environment panel should close when the user returns to the canvas");
 assert.match(app, /exportTextFile\(fileName,[\s\S]*application\/json/, "automated diagnostics export must use the platform file-export capability");
 assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must surface save/cancel/failure status inside the dialog");
 assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefinition, requestedPosition\?: \{ x: number; y: number \}\)/, "function resource drop must keep an optional explicit position in the UI helper contract");

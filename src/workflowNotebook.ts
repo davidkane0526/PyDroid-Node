@@ -15,6 +15,65 @@ export type NotebookCell = {
   rawFields?: Record<string, unknown>;
 };
 
+
+export type NotebookNormalizationResult = {
+  cells: NotebookCell[];
+  removedBlankCells: number;
+  mergedAnnotationCells: number;
+};
+
+function singleLineNotebookAnnotation(cell: NotebookCell): string | null {
+  const lines = cell.source.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length !== 1) return null;
+  const line = lines[0];
+  if (cell.cellType === "code" && /^#(?!\s*%%)/.test(line)) return line;
+  if (cell.cellType === "markdown" && /^#{1,6}\s+\S/.test(line)) return `# ${line.replace(/^#{1,6}\s+/, "")}`;
+  return null;
+}
+
+/**
+ * Normalize imported Notebook cells before workflow compilation.
+ *
+ * Blank cells have no execution semantics and are dropped. A one-line heading or
+ * comment immediately before a code cell is folded into that code cell as a
+ * Python comment so it remains readable in Notebook round-trips without
+ * becoming a standalone canvas node. Multi-line Markdown and executable code
+ * retain their original cell boundaries.
+ */
+export function normalizeNotebookCellsForWorkflow(cells: NotebookCell[]): NotebookNormalizationResult {
+  const nonBlank = cells.filter((cell) => cell.source.trim().length > 0);
+  const output: NotebookCell[] = [];
+  let mergedAnnotationCells = 0;
+  for (let index = 0; index < nonBlank.length;) {
+    const annotations: Array<{ cell: NotebookCell; source: string }> = [];
+    let cursor = index;
+    while (cursor < nonBlank.length) {
+      const annotation = singleLineNotebookAnnotation(nonBlank[cursor]);
+      if (!annotation) break;
+      annotations.push({ cell: nonBlank[cursor], source: annotation });
+      cursor += 1;
+    }
+    const next = nonBlank[cursor];
+    if (annotations.length && next?.cellType === "code") {
+      output.push({
+        ...next,
+        source: `${annotations.map((item) => item.source).join("\n")}\n${next.source.replace(/^\s*\n+/, "")}`,
+      });
+      mergedAnnotationCells += annotations.length;
+      index = cursor + 1;
+      continue;
+    }
+    if (annotations.length) {
+      output.push(...annotations.map((item) => item.cell));
+      index = cursor;
+      continue;
+    }
+    output.push(nonBlank[index]);
+    index += 1;
+  }
+  return { cells: output, removedBlankCells: cells.length - nonBlank.length, mergedAnnotationCells };
+}
+
 export type NotebookCellAnalysis = {
   index: number; recognized: boolean; reason?: string; nodeType?: string; label?: string;
   parameters?: Record<string, string | number | boolean | null>;
@@ -89,8 +148,11 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
   let managedWorkflowParameters = 0;
   let managedWorkflowDefinitions = 0;
   for (const operation of operations) {
-    if (!setupOpen) break;
+    // A top-level static import is environment metadata regardless of which
+    // Notebook cell contains it. Imports nested inside control/function bodies
+    // are not top-level operations and therefore stay in executable source.
     if (operation.kind === "Import" || operation.kind === "ImportFrom") { managedEnvironmentImports += 1; continue; }
+    if (!setupOpen) continue;
     if (typeof operation.parameters?.notebookParameterName === "string" && typeof operation.parameters?.notebookParameterValueJson === "string") { managedWorkflowParameters += 1; continue; }
     if (operation.kind === "FunctionDef" && typeof operation.parameters?.workflowFunctionId === "string") { managedWorkflowDefinitions += 1; continue; }
     setupOpen = false;
@@ -292,7 +354,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     const parameterName = typeof operation.parameters?.notebookParameterName === "string" ? operation.parameters.notebookParameterName : "";
     const parameterValueJson = typeof operation.parameters?.notebookParameterValueJson === "string" ? operation.parameters.notebookParameterValueJson : "";
     const parameterCandidate = Boolean(parameterName && parameterValueJson && (operation.defines ?? []).length === 1 && !(operation.uses ?? []).length);
-    if (setupOpen && isImport && source) {
+    if (isImport && source) {
       environment.pythonImports.push({
         source, moduleRoots: importedModuleRoots(source), defines: operation.defines ?? [],
         cellIndex: entry.cellIndex, operationIndex: entry.operationIndex,
@@ -1052,7 +1114,7 @@ _layout = str(${params}.get("layout", "rows"))
 _chunks = [${input}.iloc[start:start + _size].iloc[_start - 1:_end].mean(numeric_only=True) for start in range(0, len(${input}), _size) if not ${input}.iloc[start:start + _size].iloc[_start - 1:_end].empty]
 ${name} = pd.DataFrame(_chunks).reset_index(drop=True) if _layout == "rows" else pd.DataFrame([item for chunk in _chunks for item in chunk.tolist()], columns=["mean"])`;
   if (type === "table.row_chunks_to_columns") return `_chunks = int(${params}.get("chunks", 2))
-_parts = [pd.DataFrame(part, columns=${input}.columns) for part in np.array_split(${input}.to_numpy(), _chunks, axis=0)]
+_parts = [pd.DataFrame(part, columns=[f"{column}_{index + 1}" for column in ${input}.columns]) for index, part in enumerate(np.array_split(${input}.to_numpy(), _chunks, axis=0))]
 ${name} = pd.concat(_parts, axis=1)`;
   if (type === "stats.column_group_cv") return `_group_size = int(${params}.get("groupSize", 50))
 ${name} = []
@@ -1061,6 +1123,30 @@ for _start in range(0, ${input}.shape[1], _group_size):
     _means = _group.mean(axis=1)
     _stds = _group.std(axis=1, ddof=0)
     ${name}.append(pd.Series(np.where(_means != 0, _stds / _means, np.nan), index=${input}.index))`;
+  if (type === "sequence.map_expression") return `_expression = str(${params}.get("expression", "value"))
+${name} = [eval(_expression, {"__builtins__": {}}, {"value": value, "iteration": iteration}) for iteration, value in enumerate(${input})]`;
+  if (type === "sequence.reduce") return `_method = str(${params}.get("method", "sum"))
+_values = list(${input})
+if _method == "count": ${name} = len(_values)
+elif not _values: raise ValueError(f"Reduce method {_method} requires at least one value")
+elif _method == "sum": ${name} = sum(_values)
+elif _method == "mean": ${name} = sum(_values) / len(_values)
+elif _method == "min": ${name} = min(_values)
+elif _method == "max": ${name} = max(_values)
+elif _method == "product":
+    ${name} = 1
+    for _value in _values: ${name} *= _value
+else: raise ValueError(f"Unsupported reduce method: {_method}")`;
+  if (type === "sequence.accumulate") return `_method = str(${params}.get("method", "sum"))
+${name}, _current = [], None
+for _value in ${input}:
+    if _current is None: _current = _value
+    elif _method == "sum": _current += _value
+    elif _method == "product": _current *= _value
+    elif _method == "min": _current = min(_current, _value)
+    elif _method == "max": _current = max(_current, _value)
+    else: raise ValueError(f"Unsupported accumulate method: {_method}")
+    ${name}.append(_current)`;
   if (type === "sequence.consecutive_segments") return `_items = sorted(set(${input}))
 ${name} = []
 if _items:

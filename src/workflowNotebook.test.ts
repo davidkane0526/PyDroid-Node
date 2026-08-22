@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
-import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, summarizeNotebookConversion, workflowNotebookCells, workflowNotebookMetadata } from "./workflowNotebook";
+import { analyzedNotebookToWorkflow, joinNotebookCells, notebookCellsToWorkflow, normalizeNotebookCellsForWorkflow, parseJupyterNotebook, parseWorkflowNotebook, serializeJupyterNotebook, serializeJupyterNotebookCells, serializeWorkflowNotebook, splitWorkflowNotebookCells, summarizeNotebookConversion, workflowNotebookCells, workflowNotebookMetadata } from "./workflowNotebook";
 import type { WorkflowNode } from "./workflow";
 
 const sampleNode: WorkflowNode = {
@@ -178,6 +178,23 @@ describe("workflow notebook DSL", () => {
     expect(restored[0].executionCount).toBe(4);
   });
 
+  it("drops blank cells and folds a one-line heading/comment into the following code cell", () => {
+    const normalized = normalizeNotebookCellsForWorkflow([
+      { id: "blank", cellType: "code" as const, source: "   \n" },
+      { id: "heading", cellType: "markdown" as const, source: "# 导入数据并显示" },
+      { id: "heading-comment", cellType: "code" as const, source: "# 使用 pandas" },
+      { id: "code", cellType: "code" as const, source: "import pandas as pd\nframe = pd.DataFrame()" },
+      { id: "comment", cellType: "code" as const, source: "# 清洗" },
+      { id: "clean", cellType: "code" as const, source: "frame = frame.dropna()" },
+    ]);
+    expect(normalized.removedBlankCells).toBe(1);
+    expect(normalized.mergedAnnotationCells).toBe(3);
+    expect(normalized.cells.map((cell) => cell.source)).toEqual([
+      "# 导入数据并显示\n# 使用 pandas\nimport pandas as pd\nframe = pd.DataFrame()",
+      "# 清洗\nframe = frame.dropna()",
+    ]);
+  });
+
   it("does not render pure Python comment cells as executable nodes but restores them for notebook round-trip", () => {
     const cells = [
       { id: "comment", cellType: "code" as const, source: "# Python\n# experiment setup" },
@@ -227,6 +244,17 @@ describe("workflow notebook DSL", () => {
     expect(workflow.environment.pythonDefinitions.map((item) => item.name)).toEqual(["helper"]);
     expect(workflow.nodes.map((node) => node.data.nodeType)).toEqual(["function.call"]);
     expect(workflowNotebookCells(workflow.nodes, workflow.edges, workflow.requirements, workflow.environment).map((cell) => cell.source)).toEqual([source]);
+  });
+
+  it("stores every top-level static import in Workflow Environment even after computation begins", () => {
+    const cells = [{ id: "late-import", cellType: "code" as const, source: "value = 1\nimport numpy as np\nresult = np.array([value])" }];
+    const workflow = analyzedNotebookToWorkflow("late import", cells, [{ index: 0, recognized: true, semantic: false, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "value", source: "value = 1", defines: ["value"], uses: [], parameters: { source: "value = 1" } },
+      { index: 1, recognized: true, semantic: false, kind: "Import", nodeType: "notebook.code_cell", label: "import", source: "import numpy as np", defines: ["np"], uses: [], parameters: { source: "import numpy as np" } },
+      { index: 2, recognized: true, semantic: false, kind: "Assign", nodeType: "notebook.code_cell", label: "result", source: "result = np.array([value])", defines: ["result"], uses: ["np", "value"], parameters: { source: "result = np.array([value])" } },
+    ] }]);
+    expect(workflow.environment.pythonImports.map((item) => item.source)).toEqual(["import numpy as np"]);
+    expect(workflow.nodes.map((node) => node.data.parameters.source)).toEqual(["value = 1", "result = np.array([value])"]);
   });
 
   it("adds visual-only execution order links when adjacent notebook operations have no data dependency", () => {
