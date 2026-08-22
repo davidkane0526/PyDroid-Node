@@ -15,6 +15,36 @@ def test_recognizes_read_csv_and_dataframe_dependency():
     assert clean["parameters"]["how"] == "all"
 
 
+def test_preserves_pandas_reader_header_defaults_when_lowering_notebook_inputs():
+    default_csv = analyze_python_cell("df = pd.read_csv('data.csv')")
+    no_header_csv = analyze_python_cell("df = pd.read_csv('data.csv', header=None)")
+    explicit_header_csv = analyze_python_cell("df = pd.read_csv('data.csv', header=0)")
+    default_table = analyze_python_cell("df = pd.read_table('data.tsv')")
+    no_header_table = analyze_python_cell("df = pd.read_table('data.tsv', header=None)")
+    unsupported_table_header = analyze_python_cell("df = pd.read_table('data.tsv', header=1)")
+    json_reader = analyze_python_cell("df = pd.read_json('data.json')")
+    unsupported_csv_option = analyze_python_cell("df = pd.read_csv('data.csv', dtype={'x': 'float64'})")
+
+    assert default_csv["parameters"]["header"] == "infer"
+    assert no_header_csv["parameters"]["header"] == "none"
+    assert explicit_header_csv["parameters"]["header"] == 0
+    assert default_table["parameters"]["header"] is True
+    assert default_table["parameters"]["separator"] == "\t"
+    assert no_header_table["parameters"]["header"] is False
+    assert unsupported_table_header["nodeType"] == "notebook.code_cell"
+    assert json_reader["nodeType"] == "notebook.code_cell"
+    assert unsupported_csv_option["nodeType"] == "notebook.code_cell"
+
+
+def test_maps_only_csv_reader_parameters_supported_by_both_runtimes():
+    read = analyze_python_cell("df = pd.read_csv('data.csv', sep=';', skiprows=2, usecols=[0, 2], nrows=5, skipinitialspace=True, on_bad_lines='skip')")
+    assert read["nodeType"] == "io.read_csv"
+    assert {key: read["parameters"][key] for key in ("separator", "skipRows", "useColumns", "nRows", "skipInitialSpace", "onBadLines")} == {
+        "separator": ";", "skipRows": 2, "useColumns": [0, 2], "nRows": 5,
+        "skipInitialSpace": True, "onBadLines": "skip",
+    }
+
+
 def test_classifies_every_statement_in_a_compound_cell_as_carrier_operations():
     result = analyze_python_cell("x = 1\ny = x + 2")
     assert result["recognized"] is False
@@ -676,3 +706,33 @@ def test_numeric_while_lowering_requires_a_static_finite_single_state_loop():
         "    print(value)\n"
     )["operations"][1]
     assert multi_statement["nodeType"] == "notebook.code_cell"
+
+
+def test_marks_pure_native_function_body_as_portable_workflow_graph():
+    result = analyze_python_cell("def clean(frame):\n    cleaned = frame.dropna()\n    return cleaned.reset_index(drop=True)\n")
+    body = json.loads(result["parameters"]["workflowFunctionPortableBodyJson"])
+    assert body["version"] == 1
+    assert body["inputNames"] == ["frame"]
+    assert [item["nodeType"] for item in body["operations"]] == ["pandas.dropna", "table.reset_index"]
+    assert body["returns"] == [{"port": "output", "variable": "__pydroid_return_1"}]
+
+
+def test_marks_builtin_return_function_as_portable_workflow_graph():
+    result = analyze_python_cell("def count(frame):\n    return len(frame)\n")
+    body = json.loads(result["parameters"]["workflowFunctionPortableBodyJson"])
+    assert [item["nodeType"] for item in body["operations"]] == ["python.len"]
+    assert body["inputNames"] == ["frame"]
+
+
+def test_keeps_dynamic_function_parameters_and_free_globals_on_python_kernel():
+    dynamic = analyze_python_cell("def preview(frame, n):\n    return frame.head(n)\n")
+    assert "workflowFunctionPortableBodyJson" not in dynamic["parameters"]
+
+    compound = analyze_python_cell("threshold = 3\ndef preview(frame):\n    return frame.head(threshold)\n")
+    definition = compound["operations"][1]
+    assert "workflowFunctionPortableBodyJson" not in definition["parameters"]
+
+
+def test_keeps_unmapped_python_arithmetic_function_on_python_kernel():
+    result = analyze_python_cell("def scale(value, factor=2):\n    return value * factor\n")
+    assert "workflowFunctionPortableBodyJson" not in result["parameters"]

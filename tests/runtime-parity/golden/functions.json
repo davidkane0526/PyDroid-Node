@@ -322,6 +322,188 @@
           "count": 2
         }
       }
+    },
+    {
+      "id": "workflow_function_multinode_native_chain",
+      "description": "Portable notebook-style workflow function chains multiple native nodes identically in Python and JavaScript",
+      "csvText": "x,y\n1,2\n,3\n4,\n5,6\n",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Portable function chain",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "call",
+            "position": {
+              "x": 220,
+              "y": 0
+            },
+            "data": {
+              "label": "clean",
+              "nodeType": "function.call",
+              "nodeVersion": 1,
+              "parameters": {
+                "functionId": "fn-clean-native",
+                "functionVersion": 1
+              },
+              "status": "idle",
+              "functionInputs": [
+                {
+                  "id": "frame",
+                  "label": "frame",
+                  "valueType": "table"
+                }
+              ],
+              "functionOutputs": [
+                {
+                  "id": "output",
+                  "label": "output",
+                  "valueType": "table"
+                }
+              ]
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "output",
+            "target": "call",
+            "targetHandle": "frame"
+          }
+        ],
+        "functions": [
+          {
+            "id": "fn-clean-native",
+            "name": "clean",
+            "version": 1,
+            "inputs": [
+              {
+                "id": "frame",
+                "label": "frame",
+                "valueType": "table",
+                "internalNodeId": "drop",
+                "internalHandle": "input"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "output",
+                "label": "output",
+                "valueType": "table",
+                "internalNodeId": "reset",
+                "internalHandle": "output"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "drop",
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "data": {
+                  "label": "dropna",
+                  "nodeType": "pandas.dropna",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "how": "any",
+                    "subset": ""
+                  },
+                  "status": "idle"
+                }
+              },
+              {
+                "id": "reset",
+                "position": {
+                  "x": 180,
+                  "y": 0
+                },
+                "data": {
+                  "label": "reset",
+                  "nodeType": "table.reset_index",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "drop": true
+                  },
+                  "status": "idle"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "id": "f1",
+                "source": "drop",
+                "sourceHandle": "output",
+                "target": "reset",
+                "targetHandle": "input"
+              }
+            ]
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "call"
+        ],
+        "preview": {
+          "columns": [
+            "x",
+            "y"
+          ],
+          "rows": [
+            [
+              1,
+              2
+            ],
+            [
+              5,
+              6
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 2
+        },
+        "nodePreviews": {
+          "call": {
+            "columns": [
+              "x",
+              "y"
+            ],
+            "rows": [
+              [
+                1,
+                2
+              ],
+              [
+                5,
+                6
+              ]
+            ],
+            "totalRows": 2,
+            "totalColumns": 2
+          }
+        }
+      }
     }
   ]
 }

@@ -348,6 +348,167 @@ def _compile_workflow_function(statement: ast.FunctionDef, source: str, function
     }
 
 
+
+def _json_string_map(value: Any) -> dict[str, str]:
+    if not isinstance(value, str) or not value.strip():
+        return {}
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+    return {str(key): str(item) for key, item in parsed.items() if str(key) and isinstance(item, str) and item}
+
+
+def _portable_operation_data_variables(operation: dict[str, Any]) -> set[str]:
+    """Return variables represented by real workflow data inputs.
+
+    Portable function lowering is deliberately stricter than ordinary Notebook
+    lowering.  A local/function argument may only influence a native node
+    through a declared data port.  Dynamic Notebook parameter bindings remain a
+    Python-only feature because workflow-function graph inputs map to node data
+    handles, not arbitrary NodeSpec parameters.
+    """
+    parameters = operation.get("parameters", {})
+    if not isinstance(parameters, dict):
+        parameters = {}
+    explicit = _json_string_map(parameters.get("notebookInputBindingsJson"))
+    if explicit:
+        return set(explicit.values())
+    input_variable = operation.get("inputVariable")
+    return {input_variable} if isinstance(input_variable, str) and input_variable else set()
+
+
+def _portable_operation_has_dynamic_parameters(operation: dict[str, Any]) -> bool:
+    parameters = operation.get("parameters", {})
+    if not isinstance(parameters, dict):
+        return True
+    for key in (
+        "notebookParameterBindingsJson",
+        "notebookParameterExpressionsJson",
+        "notebookLiteralInputsJson",
+        "notebookExpressionInputsJson",
+    ):
+        raw = parameters.get(key)
+        if isinstance(raw, str) and raw.strip() not in {"", "{}"}:
+            return True
+    return False
+
+
+def _analyze_portable_function_statement(statement: ast.stmt, source: str) -> dict[str, Any] | None:
+    """Analyze one pure function-body statement for native graph lowering.
+
+    Control flow, user-function calls and Python carriers intentionally remain
+    out of scope here.  They can be added only after their workflow-function
+    port semantics are explicit in both runtimes.
+    """
+    base = _statement_base(statement, source)
+    operation = _analyze_statement(statement, source, None, None)
+    if not operation.get("semantic") or not isinstance(operation.get("nodeType"), str):
+        return None
+    if str(operation["nodeType"]).startswith("notebook.") or operation.get("children"):
+        return None
+    if _portable_operation_has_dynamic_parameters(operation):
+        return None
+    return operation
+
+
+def _compile_portable_function_body(
+    statement: ast.FunctionDef,
+    source: str,
+    compiled: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Compile the provably-native subset of a Python ``def`` into graph IR.
+
+    The emitted IR is runtime-agnostic.  TypeScript validates every referenced
+    NodeContract against the JavaScript runtime before replacing the Python
+    kernel.  Any ambiguity returns ``None`` and therefore preserves the existing
+    ``custom.python_function`` fallback.
+    """
+    if compiled.get("dependencyNames"):
+        return None
+    if not statement.body or any(isinstance(node, (ast.Import, ast.ImportFrom, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) for node in statement.body):
+        return None
+
+    input_names = [str(name) for name in compiled.get("inputNames", []) if isinstance(name, str) and name]
+    local_names = set(input_names)
+    operations: list[dict[str, Any]] = []
+    return_variables: list[str] | None = None
+
+    for body_index, body_statement in enumerate(statement.body):
+        if isinstance(body_statement, ast.Return):
+            # A strict portable body has exactly one final top-level return.
+            if body_index != len(statement.body) - 1 or body_statement.value is None:
+                return None
+            values = list(body_statement.value.elts) if isinstance(body_statement.value, ast.Tuple) else [body_statement.value]
+            return_variables = []
+            for output_index, value in enumerate(values):
+                if isinstance(value, ast.Name):
+                    if value.id not in local_names:
+                        return None
+                    return_variables.append(value.id)
+                    continue
+                temporary = f"__pydroid_return_{output_index + 1}"
+                synthetic = ast.Assign(targets=[ast.Name(id=temporary, ctx=ast.Store())], value=value)
+                ast.fix_missing_locations(synthetic)
+                synthetic_source = ast.unparse(synthetic)
+                operation = _analyze_portable_function_statement(synthetic, synthetic_source)
+                if operation is None:
+                    return None
+                loads = {
+                    node.id for node in ast.walk(value)
+                    if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+                    and node.id in local_names
+                }
+                if not loads.issubset(_portable_operation_data_variables(operation)):
+                    return None
+                operation["portableFunctionBodyIndex"] = len(operations)
+                operations.append(operation)
+                local_names.update(name for name in operation.get("defines", []) if isinstance(name, str) and name)
+                if temporary not in local_names:
+                    return None
+                return_variables.append(temporary)
+            break
+
+        operation = _analyze_portable_function_statement(body_statement, source)
+        if operation is None:
+            return None
+        loads = {
+            node.id for node in ast.walk(body_statement)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)
+            and node.id in local_names
+        }
+        if not loads.issubset(_portable_operation_data_variables(operation)):
+            return None
+        operation["portableFunctionBodyIndex"] = len(operations)
+        operations.append(operation)
+        local_names.update(name for name in operation.get("defines", []) if isinstance(name, str) and name)
+
+    output_ids = [str(item) for item in compiled.get("outputIds", []) if isinstance(item, str) and item]
+    if return_variables is None or len(return_variables) != len(output_ids) or not operations:
+        return None
+    # Workflow function outputs must originate from an internal node.  Returning
+    # an input directly is therefore kept as the Python kernel until an explicit
+    # generic identity NodeContract exists.
+    defined_by_operations = {
+        name for operation in operations for name in operation.get("defines", [])
+        if isinstance(name, str) and name
+    }
+    if any(name not in defined_by_operations for name in return_variables):
+        return None
+
+    return {
+        "version": 1,
+        "inputNames": input_names,
+        "operations": operations,
+        "returns": [
+            {"port": port, "variable": variable}
+            for port, variable in zip(output_ids, return_variables)
+        ],
+    }
+
+
 def _safe_expression(node: ast.AST) -> bool:
     forbidden = (ast.Call, ast.Await, ast.Yield, ast.YieldFrom, ast.Lambda, ast.NamedExpr, ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp)
     return not any(isinstance(item, forbidden) for item in ast.walk(node))
@@ -645,6 +806,9 @@ def _analyze_function_definition(statement: ast.stmt, source: str, base: dict[st
             "workflowFunctionOutputTypesJson": json.dumps(compiled["outputTypes"], ensure_ascii=False),
             "workflowFunctionDependenciesJson": json.dumps(compiled["dependencyNames"], ensure_ascii=False),
         })
+        portable_body = _compile_portable_function_body(statement, source, compiled)
+        if portable_body is not None:
+            function_parameters["workflowFunctionPortableBodyJson"] = json.dumps(portable_body, ensure_ascii=False)
     return {
         **base,
         "recognized": True, "semantic": False, "kind": "FunctionDef",
@@ -1958,12 +2122,72 @@ def _analyze_call(
     receiver = call.func.value
     root = _root_name(receiver)
     if isinstance(receiver, ast.Name) and receiver.id in {"pd", "pandas"} and call.func.attr in {"read_csv", "read_table", "read_json"}:
+        reader = call.func.attr
+        keyword_names = {keyword.arg for keyword in call.keywords if keyword.arg}
+        if reader == "read_json":
+            # The generic JSON table reader intentionally accepts record-like
+            # JSON, but pandas.read_json also interprets column/index-oriented
+            # objects. Without knowing the file contents those shapes are not
+            # equivalent, so retain the original Python call losslessly.
+            return {**base, "recognized": False, "reason": "pandas.read_json 的对象方向语义无法由通用 JSON 表格节点严格等价表示"}
+
+        if reader == "read_table":
+            unsupported = keyword_names - {"sep", "header"}
+            if unsupported:
+                return {**base, "recognized": False, "reason": f"pandas.read_table 参数暂未严格映射：{', '.join(sorted(unsupported))}"}
+        else:
+            # Only arguments implemented by both native runtimes are eligible
+            # for Notebook source lowering. Unknown or Python-only parser
+            # options stay executable Python rather than being silently ignored.
+            portable_csv_keywords = {
+                "sep", "header", "skiprows", "usecols", "nrows",
+                "skipinitialspace", "skipfooter", "na_values",
+                "keep_default_na", "na_filter", "true_values", "false_values",
+                "skip_blank_lines", "thousands", "decimal", "quotechar",
+                "doublequote", "escapechar", "comment", "on_bad_lines",
+            }
+            unsupported = keyword_names - portable_csv_keywords
+            if unsupported:
+                return {**base, "recognized": False, "reason": f"pandas.read_csv 参数暂未通过 Python/JavaScript 等价验证：{', '.join(sorted(unsupported))}"}
+
+        reader_parameter_names = {
+            "sep": "separator", "skiprows": "skipRows", "usecols": "useColumns", "nrows": "nRows",
+            "skipinitialspace": "skipInitialSpace", "skipfooter": "skipFooter", "na_values": "naValues",
+            "keep_default_na": "keepDefaultNa", "na_filter": "naFilter", "true_values": "trueValues",
+            "false_values": "falseValues", "skip_blank_lines": "skipBlankLines", "quotechar": "quoteChar",
+            "doublequote": "doubleQuote", "escapechar": "escapeChar", "on_bad_lines": "onBadLines",
+        }
+        parameters = {
+            reader_parameter_names.get(keyword.arg, parameter_names.get(keyword.arg, keyword.arg)): _literal(keyword.value)
+            for keyword in call.keywords
+            if keyword.arg and keyword.arg != "header" and _literal(keyword.value) is not None
+        }
         if call.args and isinstance(call.args[0], (ast.Constant, ast.Name)):
             parameters["originalFileExpression"] = ast.unparse(call.args[0])
-        if call.func.attr == "read_table" and "separator" not in parameters:
-            parameters["separator"] = "\\t"
+        header_keyword = next((keyword for keyword in call.keywords if keyword.arg == "header"), None)
+        if reader == "read_csv":
+            # pandas.read_csv defaults to header='infer', while the palette node
+            # intentionally defaults to no header for raw ad-hoc data. Imported
+            # Notebook code must preserve pandas semantics explicitly.
+            if header_keyword is None:
+                parameters["header"] = "infer"
+            else:
+                header_value = _literal(header_keyword.value)
+                if header_value not in {None, "infer", 0, 1}:
+                    return {**base, "recognized": False, "reason": "pandas.read_csv 当前仅严格支持 header=None/'infer'/0/1"}
+                parameters["header"] = "none" if header_value is None else header_value
+            node_type = "io.read_csv"
+        else:
+            parameters.setdefault("separator", "\t")
+            if header_keyword is None:
+                parameters["header"] = True
+            else:
+                header_value = _literal(header_keyword.value)
+                if header_value not in {None, "infer", 0}:
+                    return {**base, "recognized": False, "reason": "pandas.read_table 当前仅严格支持 header=None/'infer'/0"}
+                parameters["header"] = header_value is not None
+            node_type = "io.read_table"
         parameters["platformInput"] = True
-        node_type = "io.read_csv" if call.func.attr == "read_csv" else "io.read_table"
         return {**base, "semantic": True, "kind": "call", "nodeType": node_type, "label": target or ("读取 CSV" if node_type == "io.read_csv" else "读取通用表格"), "parameters": parameters, "inputVariable": None, "outputVariable": target}
     if isinstance(receiver, ast.Name) and receiver.id in {"pd", "pandas"} and call.func.attr in {"DataFrame", "Series"}:
         root = _root_name(call.args[0]) if call.args else None

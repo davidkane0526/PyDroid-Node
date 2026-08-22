@@ -412,6 +412,65 @@ describe("workflow notebook DSL", () => {
   });
 
 
+  it("builds a native Python/JavaScript workflow function when the analyzer proves the body portable", () => {
+    const functionId = "notebook-fn-1-1-clean";
+    const cells = [{ id: "portable-function", cellType: "code" as const, source: "def clean(frame):\n    cleaned = frame.dropna()\n    return cleaned.reset_index(drop=True)\nresult = clean(frame)" }];
+    const portableBody = {
+      version: 1,
+      inputNames: ["frame"],
+      operations: [
+        { recognized: true, semantic: true, kind: "call", nodeType: "pandas.dropna", label: "cleaned", parameters: {}, inputVariable: "frame", outputVariable: "cleaned", defines: ["cleaned"], uses: ["frame"] },
+        { recognized: true, semantic: true, kind: "call", nodeType: "table.reset_index", label: "result", parameters: { drop: true }, inputVariable: "cleaned", outputVariable: "__pydroid_return_1", defines: ["__pydroid_return_1"], uses: ["cleaned"] },
+      ],
+      returns: [{ port: "output", variable: "__pydroid_return_1" }],
+    };
+    const workflow = analyzedNotebookToWorkflow("portable", cells, [{ index: 0, recognized: true, semantic: true, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · clean", source: "def clean(frame):\n    cleaned = frame.dropna()\n    return cleaned.reset_index(drop=True)", defines: ["clean"], uses: [], parameters: {
+        source: "def clean(frame):\n    cleaned = frame.dropna()\n    return cleaned.reset_index(drop=True)",
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def clean(frame: 'table') -> 'table':\n    cleaned = frame.dropna()\n    return cleaned.reset_index(drop=True)",
+        workflowFunctionInputsJson: JSON.stringify(["frame"]),
+        workflowFunctionInputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]),
+        workflowFunctionOutputTypesJson: JSON.stringify(["table"]),
+        workflowFunctionDependenciesJson: JSON.stringify([]),
+        workflowFunctionPortableBodyJson: JSON.stringify(portableBody),
+      } },
+      { index: 1, recognized: true, semantic: true, kind: "UserFunctionCall", nodeType: "function.call", label: "clean", inputVariable: "frame", outputVariable: "result", defines: ["result"], uses: ["frame"], parameters: {
+        functionId, functionVersion: 1,
+        notebookInputBindingsJson: JSON.stringify({ frame: "frame" }),
+        notebookLiteralInputsJson: JSON.stringify({}), notebookExpressionInputsJson: JSON.stringify({}),
+        notebookFunctionInputsJson: JSON.stringify(["frame"]), notebookFunctionOutputsJson: JSON.stringify(["output"]),
+      } },
+    ] }]);
+    const definition = workflow.functions[0];
+    expect(definition.nodes.map((node) => node.data.nodeType)).toEqual(["pandas.dropna", "table.reset_index"]);
+    expect(definition.nodes.some((node) => node.data.nodeType === "custom.python_function")).toBe(false);
+    expect(definition.inputs).toMatchObject([{ id: "frame", internalNodeId: `${functionId}-native-1`, internalHandle: "input" }]);
+    expect(definition.outputs).toMatchObject([{ id: "output", internalNodeId: `${functionId}-native-2`, internalHandle: "output" }]);
+    expect(definition.edges).toMatchObject([{ source: `${functionId}-native-1`, sourceHandle: "output", target: `${functionId}-native-2`, targetHandle: "input" }]);
+  });
+
+  it("falls back to the Python kernel when portable metadata references a non-JavaScript node", () => {
+    const functionId = "notebook-fn-1-1-python-only";
+    const cells = [{ id: "fallback-portable", cellType: "code" as const, source: "def helper(frame):\n    return frame" }];
+    const workflow = analyzedNotebookToWorkflow("fallback", cells, [{ index: 0, recognized: true, semantic: false, operations: [
+      { index: 0, recognized: true, semantic: false, kind: "FunctionDef", nodeType: "notebook.code_cell", label: "定义函数 · helper", source: cells[0].source, defines: ["helper"], uses: [], parameters: {
+        source: cells[0].source,
+        workflowFunctionId: functionId,
+        workflowFunctionCode: "def helper(frame: 'Any') -> 'Any':\n    return frame",
+        workflowFunctionInputsJson: JSON.stringify(["frame"]), workflowFunctionInputTypesJson: JSON.stringify(["any"]),
+        workflowFunctionOutputsJson: JSON.stringify(["output"]), workflowFunctionOutputTypesJson: JSON.stringify(["any"]),
+        workflowFunctionDependenciesJson: JSON.stringify([]),
+        workflowFunctionPortableBodyJson: JSON.stringify({ version: 1, inputNames: ["frame"], operations: [
+          { recognized: true, semantic: true, nodeType: "custom.python_function", label: "bad", parameters: { code: "def bad(input: 'Any') -> 'Any':\n    return input" }, inputVariable: "frame", outputVariable: "value", defines: ["value"], uses: ["frame"] },
+        ], returns: [{ port: "output", variable: "value" }] }),
+      } },
+    ] }]);
+    expect(workflow.functions[0].nodes.map((node) => node.data.nodeType)).toEqual(["custom.python_function"]);
+  });
+
+
   it("summarizes structural coverage and platform compatibility without treating stdlib or bundled Android packages as unsupported", () => {
     const cells = [
       { id: "a", cellType: "code" as const, source: "import os\nimport pandas as pd\nimport numpy as np\nimport matplotlib.pyplot as plt\nfrom scipy.stats import linregress\nfrom PIL import Image\npath = r'\\\\S1\\data\\a.csv'" },

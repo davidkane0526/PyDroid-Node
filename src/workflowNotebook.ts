@@ -1,6 +1,7 @@
 import type { Edge } from "@xyflow/react";
 import { parseWorkflow, type WorkflowDocument, type WorkflowEnvironment, type WorkflowFunctionDefinition, type WorkflowNode, type WorkflowParameterDefinition } from "./workflow";
 import { getNodeSpec, type ValueType } from "./nodeCatalog";
+import { getNodeContract } from "./nodeContract";
 import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
 import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 
@@ -295,6 +296,151 @@ export function notebookCellsToWorkflow(name: string, cells: NotebookCell[], not
   return parseWorkflow(JSON.stringify({ schemaVersion: 1, name, nodes, edges }));
 }
 
+
+type PortableFunctionBody = {
+  version: number;
+  inputNames: string[];
+  operations: Array<Omit<NotebookCellAnalysis, "operations"> & { portableFunctionBodyIndex?: number }>;
+  returns: Array<{ port: string; variable: string }>;
+};
+
+function parsePortableFunctionBody(value: unknown): PortableFunctionBody | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value) as Partial<PortableFunctionBody>;
+    if (parsed.version !== 1 || !Array.isArray(parsed.inputNames) || !Array.isArray(parsed.operations) || !Array.isArray(parsed.returns)) return null;
+    if (!parsed.inputNames.every((item) => typeof item === "string" && Boolean(item))) return null;
+    if (!parsed.operations.length || !parsed.operations.every((item) => item && typeof item === "object" && typeof item.nodeType === "string" && item.semantic === true)) return null;
+    if (!parsed.returns.length || !parsed.returns.every((item) => item && typeof item.port === "string" && Boolean(item.port) && typeof item.variable === "string" && Boolean(item.variable))) return null;
+    return parsed as PortableFunctionBody;
+  } catch {
+    return null;
+  }
+}
+
+function parsePortableStringMap(value: unknown): Record<string, string> {
+  if (typeof value !== "string" || !value.trim()) return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    return Object.fromEntries(Object.entries(parsed as Record<string, unknown>)
+      .filter(([key, item]) => Boolean(key) && typeof item === "string" && Boolean(item))
+      .map(([key, item]) => [key, String(item)]));
+  } catch {
+    return {};
+  }
+}
+
+function portableNodeParameters(parameters: Record<string, string | number | boolean | null> | undefined): Record<string, string | number | boolean | null> {
+  if (!parameters) return {};
+  return Object.fromEntries(Object.entries(parameters).filter(([key]) => !key.startsWith("notebook") && !key.startsWith("workflowFunction") && key !== "source" && key !== "astKind"));
+}
+
+function buildPortableFunctionDefinition(options: {
+  id: string;
+  name: string;
+  inputNames: string[];
+  inputTypes: ValueType[];
+  outputIds: string[];
+  outputTypes: ValueType[];
+  body: PortableFunctionBody;
+}): WorkflowFunctionDefinition | null {
+  const { id, name, inputNames, inputTypes, outputIds, outputTypes, body } = options;
+  if (body.inputNames.length !== inputNames.length || body.inputNames.some((item, index) => item !== inputNames[index])) return null;
+  if (body.returns.length !== outputIds.length || body.returns.some((item, index) => item.port !== outputIds[index])) return null;
+
+  const nodes: WorkflowNode[] = [];
+  const edges: Edge[] = [];
+  const producer = new Map<string, { nodeId: string; handle: string }>();
+  const externalTargets = new Map<string, { nodeId: string; handle: string }>();
+  const declaredInputs = new Set(inputNames);
+
+  for (const [index, operation] of body.operations.entries()) {
+    const nodeType = String(operation.nodeType ?? "");
+    const contract = getNodeContract(nodeType);
+    if (!contract?.runtimes.python || !contract.runtimes.javascript || contract.sideEffect || contract.stateScope !== "none" || contract.executionModel !== "standard") return null;
+    if (nodeType.startsWith("notebook.") || nodeType === "custom.python_function" || nodeType === "function.call" || nodeType === "function.map") return null;
+
+    const nodeId = `${id}-native-${index + 1}`;
+    const node: WorkflowNode = {
+      id: nodeId,
+      type: "workflow",
+      position: { x: 80 + index * 220, y: 80 },
+      data: {
+        label: operation.label || nodeType,
+        nodeType,
+        nodeVersion: contract.version,
+        parameters: portableNodeParameters(operation.parameters),
+        status: "idle",
+      },
+    };
+    const inputPorts = resolvedNodePorts(node, "input");
+    const outputPorts = resolvedNodePorts(node, "output");
+    const explicitInputs = parsePortableStringMap(operation.parameters?.notebookInputBindingsJson);
+    const bindings = Object.keys(explicitInputs).length
+      ? explicitInputs
+      : typeof operation.inputVariable === "string" && operation.inputVariable
+        ? { [inputPorts[0] ?? ""]: operation.inputVariable }
+        : {};
+    if (Object.keys(bindings).some((handle) => !handle || !inputPorts.includes(handle))) return null;
+
+    const spec = resolveNodeSpec(getNodeSpec(nodeType), node.data.parameters);
+    const requiredInputs = (spec?.inputPorts ?? []).filter((port) => port.required).map((port) => port.id);
+    if (requiredInputs.some((handle) => !(handle in bindings))) return null;
+
+    for (const [targetHandle, variable] of Object.entries(bindings)) {
+      const source = producer.get(variable);
+      if (source) {
+        edges.push({ id: `${id}-edge-${edges.length + 1}`, source: source.nodeId, sourceHandle: source.handle, target: nodeId, targetHandle });
+        continue;
+      }
+      if (!declaredInputs.has(variable) || externalTargets.has(variable)) return null;
+      externalTargets.set(variable, { nodeId, handle: targetHandle });
+    }
+
+    const explicitOutputs = parsePortableStringMap(operation.parameters?.notebookOutputPortBindingsJson);
+    const definitions = [...new Set([...(operation.defines ?? []), operation.outputVariable]
+      .filter((item): item is string => typeof item === "string" && Boolean(item)))];
+    if (!definitions.length || !outputPorts.length) return null;
+    for (const [definitionIndex, variable] of definitions.entries()) {
+      const handle = Object.keys(explicitOutputs).length
+        ? explicitOutputs[variable]
+        : outputPorts[definitionIndex] ?? (definitions.length === 1 ? outputPorts[0] : undefined);
+      if (!handle || !outputPorts.includes(handle)) return null;
+      producer.set(variable, { nodeId, handle });
+    }
+    nodes.push(node);
+  }
+
+  if (inputNames.some((input) => !externalTargets.has(input))) return null;
+  const outputs = body.returns.map((item, index) => {
+    const source = producer.get(item.variable);
+    if (!source) return null;
+    return {
+      id: item.port,
+      label: item.port,
+      valueType: outputTypes[index] ?? "any" as ValueType,
+      internalNodeId: source.nodeId,
+      internalHandle: source.handle,
+    };
+  });
+  if (outputs.some((item) => item === null)) return null;
+
+  return {
+    id,
+    name,
+    version: 1,
+    description: "由 Jupyter 顶层函数定义自动生成；函数体已严格提升为 Python/JavaScript 共用原生工作流。",
+    inputs: inputNames.map((input, index) => {
+      const target = externalTargets.get(input)!;
+      return { id: input, label: input, valueType: inputTypes[index] ?? "any", internalNodeId: target.nodeId, internalHandle: target.handle };
+    }),
+    outputs: outputs as WorkflowFunctionDefinition["outputs"],
+    nodes,
+    edges,
+  };
+}
+
 export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], analyses: NotebookCellAnalysis[], notebookMetadata: Record<string, unknown> = {}): WorkflowDocument {
   const conversionReport = summarizeNotebookConversion(cells, analyses);
   const byIndex = new Map(analyses.map((analysis) => [analysis.index, analysis]));
@@ -441,10 +587,15 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     const outputIds = parseStringList(params.workflowFunctionOutputsJson);
     const outputTypes = parseValueTypeList(params.workflowFunctionOutputTypesJson);
     if (!id || !code || !outputIds.length || functionDefinitionMap.has(id)) continue;
+    const functionName = entry.operation.label?.replace(/^定义函数\s*·\s*/, "") || id;
+    const portableBody = parsePortableFunctionBody(params.workflowFunctionPortableBodyJson);
+    const portableDefinition = portableBody ? buildPortableFunctionDefinition({
+      id, name: functionName, inputNames, inputTypes, outputIds, outputTypes, body: portableBody,
+    }) : null;
     const implementationId = `${id}-impl`;
-    const definition: WorkflowFunctionDefinition = {
+    const definition: WorkflowFunctionDefinition = portableDefinition ?? {
       id,
-      name: entry.operation.label?.replace(/^定义函数\s*·\s*/, "") || id,
+      name: functionName,
       version: 1,
       description: "由 Jupyter 顶层函数定义自动生成；原始 def 同时保留在 Notebook 命名空间用于无损回退。",
       inputs: inputNames.map((input, index) => ({ id: input, label: input, valueType: inputTypes[index] ?? "any", internalNodeId: implementationId, internalHandle: input })),
