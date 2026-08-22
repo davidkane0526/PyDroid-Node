@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.5.4-dev-r82-portable-function-control-flow-ui"
+$script:BuildScriptRevision = "1.5.5-dev-r83-canvas-theme-system"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

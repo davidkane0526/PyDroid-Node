@@ -1,3 +1,14 @@
+## 1.5.5 (128) — Canvas theme system + soft canvas — 2026-08-22
+
+- Added a first-class Canvas Theme registry independent from light/dark application appearance.
+- Added `Classic` as the exact 1.5.4 canvas baseline and `Soft` as the new default visual language.
+- Canvas theme selection is persisted, exported/imported with settings, and synchronized to Remote Web configuration.
+- Added semantic canvas roles for ordinary nodes, functions, reusable groups and structured control-flow containers.
+- Added isolated `canvas-themes.css`; new themes can be added without rewriting workflow node components.
+- Soft theme includes coordinated light/dark tokens for node surfaces, function violet identity, group green identity, flow cyan identity, ports, edges, controls, minimap and canvas grid.
+- Added `test:canvas-theme` architecture guard to prevent theme leakage and preserve Classic rollback behavior.
+- Build revision: `1.5.5-dev-r83-canvas-theme-system`.
+
 ## 1.5.4 (127) — Portable function control flow + node action UI — 2026-08-22
 
 - Centers Workflow Function card actions with a real flex layout so `调用 / 展开编辑 / 删除` labels remain vertically aligned instead of relying on inherited line-height.
