@@ -4,7 +4,8 @@
 - Added independent Desktop and Android MCP hosts on port 8766 with Bearer-token access; Remote Web remains on 8765 and keeps an independent lifecycle.
 - Added MCP Core/HTTP/JVM regression coverage while preserving the existing Workflow, NodeContract and Python/JavaScript parity contracts.
 - Windows packaging now launches `scripts/desktop-package.mjs` directly with the already validated Node executable instead of re-entering through `pnpm desktop:package`; package stages print their exact boundary so Windows launch failures are attributable to TypeScript, Vite, electron-builder or packaged smoke.
-- Build revision: `1.6.0-dev-r97-windows-package-launch`.
+- MCP settings now provide one-click Endpoint/Token copy actions with success feedback plus a top-right connection-help dialog containing Streamable HTTP steps and a copyable Codex configuration.
+- Build revision: `1.6.0-dev-r98-mcp-usability`.
 
 ## 1.5.16 (139) — Dead-code audit and stale-path removal — 2026-08-23
 

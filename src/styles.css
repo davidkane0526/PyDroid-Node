@@ -3077,6 +3077,110 @@ button, input, select, textarea { font: inherit; }
 .settings-summary-list > span { display: grid; min-width: 0; gap: 2px; padding: 8px 9px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); }
 .settings-summary-list small { color: var(--text-faint) !important; font-size: 10px !important; }
 .settings-summary-list strong { overflow: hidden; color: var(--text); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+
+.settings-mcp-heading-row { display: flex; min-width: 0; align-items: start; justify-content: space-between; gap: 10px; }
+.settings-mcp-heading-row .settings-section__heading { min-width: 0; }
+.settings-dialog__body section > button.settings-help-button,
+.settings-help-button {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  place-items: center;
+  cursor: pointer;
+}
+.settings-help-button:hover { border-color: color-mix(in srgb, var(--accent) 48%, var(--border-strong)); color: var(--text-highlight); background: var(--surface-hover); }
+.settings-help-button:focus-visible,
+.settings-copy-button:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
+.settings-help-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
+.settings-help-button svg .settings-help-button__dot { fill: currentColor; stroke: none; }
+.settings-mcp-values { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.settings-mcp-value { display: grid; min-width: 0; gap: 4px; padding: 8px 8px 8px 9px; border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface); }
+.settings-mcp-value > small { color: var(--text-faint) !important; font-size: 10px !important; }
+.settings-mcp-value > div { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 26px; align-items: center; gap: 5px; }
+.settings-mcp-value strong { min-width: 0; overflow: hidden; color: var(--text); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.settings-mcp-value code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-copy-button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-faint);
+  background: transparent;
+  place-items: center;
+  cursor: pointer;
+}
+.settings-copy-button:hover { color: var(--text-highlight); background: var(--surface-hover); }
+.settings-copy-button svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.35; }
+.settings-copy-toast {
+  position: fixed;
+  z-index: 2400;
+  left: 50%;
+  bottom: 28px;
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid color-mix(in srgb, #22c55e 38%, var(--border));
+  border-radius: 9px;
+  color: var(--text-highlight);
+  background: color-mix(in srgb, var(--surface-raised) 94%, #22c55e 6%);
+  box-shadow: 0 10px 30px #0206175c;
+  transform: translateX(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  pointer-events: none;
+  animation: settings-copy-toast-in .16s ease-out;
+}
+.settings-copy-toast.error { border-color: color-mix(in srgb, #ef4444 42%, var(--border)); background: color-mix(in srgb, var(--surface-raised) 94%, #ef4444 6%); }
+.settings-copy-toast svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.7; }
+@keyframes settings-copy-toast-in { from { opacity: 0; transform: translate(-50%, 5px); } to { opacity: 1; transform: translate(-50%, 0); } }
+.mcp-help-backdrop { z-index: 2200; }
+.settings-dialog__body section.mcp-help-dialog,
+.mcp-help-dialog {
+  display: grid;
+  width: min(620px, calc(100vw - 32px));
+  max-height: min(720px, calc(100dvh - 32px));
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  color: var(--text);
+  background: var(--surface);
+  box-shadow: 0 24px 70px #020617b8;
+}
+.mcp-help-dialog > header { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px 11px 16px; border-bottom: 1px solid var(--border-soft); background: color-mix(in srgb, var(--surface) 92%, var(--surface-raised) 8%); }
+.mcp-help-dialog > header > div { display: grid; min-width: 0; gap: 2px; }
+.mcp-help-dialog > header strong { color: var(--text-highlight); font-size: 15px; }
+.mcp-help-dialog > header small { color: var(--text-faint); font-size: 10.5px; }
+.mcp-help-dialog .dialog-close-button { display: grid; width: 30px; height: 30px; flex: none; padding: 0; border: 0; border-radius: 7px; color: var(--text-muted); background: transparent; place-items: center; cursor: pointer; }
+.mcp-help-dialog .dialog-close-button:hover { color: var(--text-highlight); background: var(--surface-hover); }
+.mcp-help-dialog .dialog-close-button svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-width: 1.4; }
+.mcp-help-dialog__body { display: grid; gap: 14px; padding: 15px 16px 16px; overflow: auto; }
+.mcp-help-steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mcp-help-steps li { display: grid; grid-template-columns: 24px minmax(0, 1fr); align-items: center; gap: 9px; }
+.mcp-help-steps li > span { display: grid; width: 24px; height: 24px; border: 1px solid var(--border-strong); border-radius: 7px; color: var(--text-muted); background: var(--surface-deep); place-items: center; font-size: 10px; font-weight: 700; }
+.mcp-help-dialog__body .mcp-help-steps p { margin: 0; color: var(--text-muted); font-size: 11.5px; line-height: 1.45; }
+.settings-dialog__body section.mcp-help-codex,
+.mcp-help-codex { display: grid; gap: 9px; padding: 11px; border: 1px solid var(--border-soft); border-radius: 9px; background: var(--surface-deep); }
+.mcp-help-codex__heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; }
+.mcp-help-codex__heading > div { display: grid; min-width: 0; gap: 1px; }
+.mcp-help-codex__heading strong { color: var(--text-highlight); font-size: 12px; }
+.mcp-help-codex__heading small { color: var(--text-faint); font-size: 10px; }
+.settings-dialog__body .mcp-help-codex__heading > button,
+.mcp-help-codex__heading > button { min-height: 29px; justify-self: auto; padding: 5px 9px; font-size: 10.5px; }
+.mcp-help-codex pre { min-width: 0; margin: 0; padding: 10px 11px; overflow: auto; border: 1px solid var(--border-soft); border-radius: 7px; color: var(--text-muted); background: var(--surface); font: 10.5px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; white-space: pre; }
+.mcp-help-dialog__body .mcp-help-note { margin: 0; color: var(--text-faint); font-size: 10.5px; line-height: 1.5; }
 .settings-layout .settings-smb-summary > button,
 .settings-layout .settings-agent-summary > button { margin-top: auto; }
 .settings-layout .settings-profile-section dl { margin: 0; }
@@ -3185,6 +3289,18 @@ button.smb-file-row { cursor: pointer; }
 .app-shell[data-theme="light"] .settings-dialog .settings-section__heading h3 { color: #1e3a5f; }
 .app-shell[data-theme="light"] .settings-summary-list > span { border-color: #dbe3ed; background: #fff; }
 .app-shell[data-theme="light"] .settings-summary-list strong { color: #243b53; }
+.app-shell[data-theme="light"] .settings-mcp-value { border-color: #dbe3ed; background: #fff; }
+.app-shell[data-theme="light"] .settings-help-button { border-color: #d7e0eb; color: #61758d; background: #fff; }
+.app-shell[data-theme="light"] .settings-copy-button { color: #71849a; }
+.app-shell[data-theme="light"] .settings-copy-button:hover,
+.app-shell[data-theme="light"] .settings-help-button:hover { color: #173a63; background: #eef4fb; }
+.app-shell[data-theme="light"] .settings-copy-toast { color: #1f5130; background: #f5fbf7; box-shadow: 0 10px 28px #64748b33; }
+.app-shell[data-theme="light"] .settings-copy-toast.error { color: #991b1b; background: #fff7f7; }
+.app-shell[data-theme="light"] .mcp-help-dialog { border-color: #cbd5e1; color: #1e293b; background: #fff; box-shadow: 0 24px 60px #33415538; }
+.app-shell[data-theme="light"] .mcp-help-dialog > header { border-color: #dbe3ed; background: #f8fafc; }
+.app-shell[data-theme="light"] .mcp-help-steps li > span { border-color: #dbe3ed; color: #52677f; background: #f8fafc; }
+.app-shell[data-theme="light"] .mcp-help-codex { border-color: #dbe3ed; background: #f8fafc; }
+.app-shell[data-theme="light"] .mcp-help-codex pre { border-color: #dbe3ed; color: #334155; background: #fff; }
 .app-shell[data-theme="light"] .smb-navigation { border-color: #dbe3ed; background: #f8fafc; }
 .app-shell[data-theme="light"] .smb-navigation__heading, .app-shell[data-theme="light"] .smb-navigation__footer,
 .app-shell[data-theme="light"] .smb-browser-toolbar, .app-shell[data-theme="light"] .smb-connection-panel,
@@ -3236,6 +3352,9 @@ button.smb-file-row { cursor: pointer; }
 }
 
 @media (max-width: 500px) {
+  .settings-mcp-values { grid-template-columns: 1fr; }
+  .mcp-help-dialog { width: calc(100vw - 16px); max-height: calc(100dvh - 16px); }
+  .mcp-help-dialog__body { padding: 12px; }
   .settings-range-grid { grid-template-columns: 1fr; }
   .settings-canvas-select-row, .settings-canvas-result-row { grid-template-columns: 1fr; gap: 7px; }
   .settings-summary-list { grid-template-columns: 1fr; }

@@ -101,6 +101,13 @@ assert.match(css, /\.input-port span, \.output-port span \{[^}]*font-size:\s*cal
 assert.match(dialogs, /settings-canvas-select-row[\s\S]*画布主题[\s\S]*缩略图/, "canvas theme and minimap selectors should share one aligned settings row");
 assert.match(dialogs, /settings-canvas-result-row[\s\S]*结果区高度[\s\S]*显示节点运行结果/, "node-result visibility should align with the result-height control row");
 assert.match(css, /\.settings-canvas-select\s*\{[^}]*grid-template-columns:\s*max-content minmax\(138px, 164px\)[^}]*gap:\s*8px;/, "canvas selector labels should sit close to their dropdowns");
+assert.match(dialogs, /settings-mcp-heading-row[\s\S]*settings-help-button[\s\S]*MCP 连接帮助/, "MCP settings card should expose a compact top-right connection-help button");
+assert.match(dialogs, /settings-mcp-value[\s\S]*复制 Endpoint[\s\S]*settings-copy-button[\s\S]*复制 Token/, "MCP Endpoint and Token should each expose an explicit copy action");
+assert.match(dialogs, /showCopyNotice\(L\(`已复制 \$\{label\}`[\s\S]*settings-copy-toast/, "MCP copy actions should surface a transient success confirmation");
+assert.match(dialogs, /mcp_servers\.pydroid/, "MCP help dialog should include a Codex MCP configuration example");
+assert.match(dialogs, /mcp-help-dialog[\s\S]*Streamable HTTP · 8766[\s\S]*复制配置/, "MCP help dialog should include Streamable HTTP connection guidance and a copy-config action");
+assert.match(css, /\.settings-mcp-values\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, "MCP Endpoint and Token controls should use a balanced two-column desktop layout");
+assert.match(css, /@media \(max-width: 500px\)[\s\S]*\.settings-mcp-values\s*\{\s*grid-template-columns:\s*1fr;/, "MCP Endpoint and Token controls should stack on narrow mobile screens");
 
 
 // Product UI must not expose development handoff/theme-lab notes.
