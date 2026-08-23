@@ -284,6 +284,13 @@ button, input, select, textarea { font: inherit; }
 .agent-audit { display: grid; gap: 7px; margin: 0; padding-left: 18px; color: #cbd5e1; font-size: 11px; }
 .agent-audit li { display: grid; gap: 2px; }
 .agent-audit span { color: var(--text-muted); font-size: var(--font-xs); }
+.agent-side-stack { display: grid; gap: 12px; align-content: start; }
+.agent-side-stack > .settings-section { margin: 0; }
+.agent-mcp-section { gap: 10px; }
+.agent-mcp-section .settings-mcp-values { grid-template-columns: 1fr; }
+.agent-mcp-section .settings-mcp-value--header-span { grid-column: auto; }
+.settings-check--inline { margin: 4px 0 0; }
+.settings-agent-mcp-toggle { color: var(--text); font-size: 12px; }
 @media (max-width: 640px) { .agent-dialog .settings-dialog__body { grid-template-columns: 1fr; } }
 .inspector__heading, .result-panel__heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .inspector__actions { display: flex; gap: 10px; }

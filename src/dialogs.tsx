@@ -557,7 +557,7 @@ export function CodeEditorModal({ open, code, summary, error, onClose, onCodeCha
   );
 }
 
-export function AgentDialog({ open, settings, apiKey, keyStorageHint, apiKeyManagedByHost = false, testing, connectionStatus, language, instruction, requesting, planText, plan, planError, audit, onClose, onPresetSelect, onSettingsChange, onApiKeyChange, onLanguageChange, onTestConnection, onInstructionChange, onRequestPlan, onPlanTextChange, onReviewPlan, onApplyPlan }: {
+export function AgentDialog({ open, settings, apiKey, keyStorageHint, apiKeyManagedByHost = false, testing, connectionStatus, language, instruction, requesting, planText, plan, planError, audit, mcpEnabled, mcpToken, mcpInfo, mcpAvailable, onClose, onPresetSelect, onSettingsChange, onApiKeyChange, onLanguageChange, onTestConnection, onInstructionChange, onRequestPlan, onPlanTextChange, onReviewPlan, onApplyPlan, onMcpEnabledChange, onMcpTokenChange }: {
   open: boolean;
   settings: AgentSettings;
   apiKey: string;
@@ -572,6 +572,10 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, apiKeyMana
   plan: AgentPlan | null;
   planError: string | null;
   audit: { at: string; summary: string; result: string }[];
+  mcpEnabled: boolean;
+  mcpToken: string;
+  mcpInfo: McpServerInfo | null;
+  mcpAvailable: boolean;
   onClose: () => void;
   onPresetSelect: (presetId: string) => void;
   onSettingsChange: (patch: Partial<AgentSettings>) => void;
@@ -583,6 +587,8 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, apiKeyMana
   onPlanTextChange: (value: string) => void;
   onReviewPlan: () => void;
   onApplyPlan: () => void;
+  onMcpEnabledChange: (enabled: boolean) => void;
+  onMcpTokenChange: (token: string) => void;
 }) {
   if (!open) return null;
   const permissions = settings.permissions;
@@ -613,6 +619,7 @@ export function AgentDialog({ open, settings, apiKey, keyStorageHint, apiKeyMana
           <small>{apiKeyManagedByHost ? L("密钥始终留在宿主机，由安全代理代发模型请求；局域网网页不会取得原始 API 密钥。", "The key stays on the host. A secure proxy sends model requests, and Remote Web never receives the raw API key.") : keyStorageHint === "keystore" ? "Android 端使用 Keystore 加密保存，应用更新后仍可读取；不会写入设置、工作流或用户文件夹。" : "桌面/网页密钥只驻留当前会话，不会写入设置、工作流或用户文件夹。"}</small>
         </section>
         <div className="agent-side-stack">
+        <McpConnectionSection embedded enabled={mcpEnabled} token={mcpToken} info={mcpInfo} available={mcpAvailable} language={language} onEnabledChange={onMcpEnabledChange} onTokenChange={onMcpTokenChange} />
         <section className="agent-permissions"><h3>{L("AI 权限", "AI permissions")}</h3>
           <label className="settings-check"><input type="checkbox" checked={permissions.createNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, createNodes: event.target.checked } })} />{L("创建节点", "Create nodes")}</label>
           <label className="settings-check"><input type="checkbox" checked={permissions.groupNodes} onChange={(event) => onSettingsChange({ permissions: { ...permissions, groupNodes: event.target.checked } })} />{L("组合节点", "Group nodes")}</label>
@@ -657,7 +664,7 @@ export function AutomatedDiagnosticsDialog({ open, running, report, exportStatus
 }
 
 
-function McpSettingsSection({ enabled, token, info, available, language, onEnabledChange, onTokenChange }: {
+function McpConnectionSection({ enabled, token, info, available, language, onEnabledChange, onTokenChange, embedded = false }: {
   enabled: boolean;
   token: string;
   info: McpServerInfo | null;
@@ -665,6 +672,7 @@ function McpSettingsSection({ enabled, token, info, available, language, onEnabl
   language: string;
   onEnabledChange: (enabled: boolean) => void;
   onTokenChange: (token: string) => void;
+  embedded?: boolean;
 }) {
   const L = (zh: string, en: string) => language === "en" ? en : zh;
   const [helpOpen, setHelpOpen] = useState(false);
@@ -686,8 +694,7 @@ function McpSettingsSection({ enabled, token, info, available, language, onEnabl
   const codexConfig = `[mcp_servers.pydroid]\nurl = "${endpoint}"\nhttp_headers = { "X-PyDroid-Token" = "${token}" }\nenabled = true\ndefault_tools_approval_mode = "prompt"`;
   const displayedConfig = `[mcp_servers.pydroid]\nurl = "${endpoint}"\nhttp_headers = { "X-PyDroid-Token" = "${L("<你的 Token>", "<your Token>")}" }\nenabled = true\ndefault_tools_approval_mode = "prompt"`;
   return <>
-    <section className="settings-section settings-mcp-summary">
-      <div className="settings-mcp-heading-row"><div className="settings-section__heading"><h3>MCP Server</h3><small>{L("完整 Core", "Full Core")}</small></div><button type="button" className="settings-help-button" aria-label={L("MCP 连接帮助", "MCP connection help")} title={L("连接帮助", "Connection help")} onClick={() => setHelpOpen(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M7.9 7.55A2.25 2.25 0 0 1 10.1 6c1.35 0 2.35.78 2.35 1.92 0 1.5-1.55 1.8-2.15 2.75-.2.3-.25.55-.25 1.05"/><circle className="settings-help-button__dot" cx="10.05" cy="14.2" r=".7"/></svg></button></div>
+    <section className={`settings-section ${embedded ? "agent-mcp-section" : "settings-mcp-summary"}`}><div className="settings-mcp-heading-row"><div className="settings-section__heading"><h3>{embedded ? L("PyDroid MCP", "PyDroid MCP") : "MCP Server"}</h3><small>{embedded ? L("供 AI Agent / Codex 连接当前 Core", "Expose the current Core to AI Agent / Codex") : L("完整 Core", "Full Core")}</small></div><button type="button" className="settings-help-button" aria-label={L("MCP 连接帮助", "MCP connection help")} title={L("连接帮助", "Connection help")} onClick={() => setHelpOpen(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M7.9 7.55A2.25 2.25 0 0 1 10.1 6c1.35 0 2.35.78 2.35 1.92 0 1.5-1.55 1.8-2.15 2.75-.2.3-.25.55-.25 1.05"/><circle className="settings-help-button__dot" cx="10.05" cy="14.2" r=".7"/></svg></button></div>
       <label className="settings-mcp-token"><span>Token</span><div><input type="text" value={token} disabled={enabled} maxLength={256} placeholder={L("输入固定 Token", "Enter a fixed Token")} onChange={(event) => onTokenChange(event.target.value.replace(/[\r\n]/g, ""))} /><button type="button" className="settings-copy-button" disabled={!token} aria-label={L("复制 Token", "Copy Token")} title={L("复制 Token", "Copy Token")} onClick={() => void copyValue("Token", token)}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6.1" y="5.5" width="8.4" height="9" rx="1.4"/><path d="M5.7 12.2H4.9a1.4 1.4 0 0 1-1.4-1.4V4.9a1.4 1.4 0 0 1 1.4-1.4h5.9a1.4 1.4 0 0 1 1.4 1.4v.6"/></svg></button></div></label>
       <label className="settings-check"><input type="checkbox" checked={enabled && available} disabled={!available || !token.trim()} onChange={(event) => onEnabledChange(event.target.checked)} />{L("开启 MCP Server", "Enable MCP Server")}</label>
       {info && <div className="settings-mcp-values">
@@ -761,11 +768,10 @@ export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailab
 
         <section className="settings-section settings-section--canvas">{sectionHeading(L("画布", "Canvas"), L("主题、尺寸、线条与面板布局", "Theme, size, lines and panel layout"))}<div className="settings-canvas-select-row"><label className="settings-canvas-select"><span>{L("画布主题", "Canvas theme")}</span><ThemedSelect ariaLabel={L("画布主题", "Canvas theme")} value={canvas.theme} options={CANVAS_THEMES.map((theme) => ({ value: theme.id, label: L(theme.labelZh, theme.labelEn) }))} onChange={(value) => onCanvasChange({ theme: value as CanvasThemeId })} /></label><label className="settings-canvas-select"><span>{L("缩略图", "Mini map")}</span><ThemedSelect ariaLabel={L("缩略图", "Mini map")} value={canvas.miniMapMode} options={[{ value: "hide", label: L("默认隐藏", "Hidden") }, { value: "auto", label: L("自动显示", "Auto") }, { value: "show", label: L("始终显示", "Always") }]} onChange={(value) => onCanvasChange({ miniMapMode: value as CanvasSettings["miniMapMode"] })} /></label></div><div className="settings-range-grid">{range(L("节点尺寸", "Node size"), `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range(L("端点大小", "Handle size"), `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range(L("连线粗细", "Edge width"), `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range(L("左侧节点栏", "Left palette"), `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 216, 360, 4, "paletteWidth")}{range(L("右侧参数栏", "Right inspector"), `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range(L("横屏参数栏", "Landscape inspector"), `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}</div><div className="settings-canvas-result-row">{range(L("结果区高度", "Result height"), `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label className="settings-check settings-node-insights"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />{L("显示节点运行结果", "Show node results")}</label></div></section>
 
-        <McpSettingsSection enabled={mcpEnabled} token={mcpToken} info={mcpInfo} available={mcpAvailable} language={language} onEnabledChange={onMcpEnabledChange} onTokenChange={onMcpTokenChange} />
 
         <section className="settings-section settings-smb-summary">{sectionHeading(L("局域网 SMB", "LAN SMB"), L("网络文件位置", "Network file locations"))}<div className="settings-summary-list"><span><small>{L("设备", "Device")}</small><strong>{smbServer || L("尚未选择", "Not selected")}</strong></span><span><small>{L("共享", "Share")}</small><strong>{smbShare || L("尚未选择", "Not selected")}</strong></span><span><small>{L("登录", "Login")}</small><strong>{smbGuest ? L("访客", "Guest") : smbUsername || L("账号未填写", "No account")}</strong></span></div><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>{L("打开网络文件管理器", "Open network file manager")}</button></section>
 
-        <section className="settings-section settings-agent-summary">{sectionHeading("AI Agent", L("模型、密钥与操作权限", "Model, key and permissions"))}<p>{L("模型只能通过受限计划接口修改画布，每次变更都需要预览确认。", "The model can change the canvas only through the constrained planning interface, and every change requires preview and confirmation.")}</p><button onClick={onOpenAgent}>{L("AI 模型与密钥", "AI model & key")}</button></section>
+        <section className="settings-section settings-agent-summary">{sectionHeading("AI Agent", L("模型、密钥、MCP 与操作权限", "Model, key, MCP and permissions"))}<p>{L("模型只能通过受限计划接口修改画布，每次变更都需要预览确认；MCP 的 Token、Local/LAN 地址和连接帮助已移动到 AI Agent 面板。", "The model can change the canvas only through the constrained planning interface, and every change requires preview and confirmation. MCP token, Local/LAN URLs, and connection help now live in the AI Agent panel.")}</p><label className="settings-check settings-check--inline settings-agent-mcp-toggle"><input type="checkbox" checked={mcpEnabled && mcpAvailable} disabled={!mcpAvailable || !mcpToken.trim()} onChange={(event) => onMcpEnabledChange(event.target.checked)} />{L("开启 MCP Server", "Enable MCP Server")}</label><button onClick={onOpenAgent}>{L("AI 模型与 MCP", "AI model & MCP")}</button></section>
 
         <section className="settings-section settings-debug-section">{sectionHeading(L("调试与诊断", "Debug & diagnostics"), L("执行检查与诊断", "Execution inspection and diagnostics"))}<label className="settings-check"><input type="checkbox" checked={debugMode} onChange={(event) => onDebugModeChange(event.target.checked)} />{L("启用调试模式", "Enable debug mode")}</label><label className="settings-check"><input type="checkbox" checked={automatedDiagnosticsEnabled} onChange={(event) => onAutomatedDiagnosticsEnabledChange(event.target.checked)} />{L("启用自动诊断", "Enable automated diagnostics")}</label><p>{L("记录执行顺序、节点耗时、部分结果和运行时错误信息。", "Records execution order, node timings, selected results, and runtime errors.")}</p><div className="settings-inline-actions">{automatedDiagnosticsEnabled && <button className="button primary" onClick={onOpenDiagnostics}>{L("运行自动诊断", "Run diagnostics")}</button>}</div></section>
 

@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.5-dev-r104-mcp-local-lan-endpoints"
+$script:BuildScriptRevision = "1.6.6-dev-r105-mcp-ui-consolidation"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
