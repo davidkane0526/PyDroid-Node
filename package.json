@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.5.16",
+  "version": "1.6.0",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -15,7 +15,7 @@
     "build": "tsc --noEmit -p tsconfig.json && vite build",
     "test:build-tools": "node scripts/build-tools-smoke.mjs",
     "test:version": "node scripts/check-version-sync.mjs",
-    "check": "pnpm test:baseline && pnpm test:build-tools && pnpm test:build-tool-architecture && pnpm test:canvas-theme && pnpm test:demos && pnpm test:ui-regressions && pnpm test:plot-presentation && pnpm test:architecture && pnpm test:host-contract && pnpm test:remote-web && pnpm test:remote-host-e2e && pnpm test:lan-discovery && pnpm test:diagnostics-contract && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:android-host-architecture && pnpm test:workflow-compatibility && pnpm test:workflow-core && pnpm test:editor-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:runtime-parameter-parity && pnpm test:version && pnpm test:notebook-import-canonical && pnpm test:notebook-analysis-contract && pnpm test:portable-functions && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
+    "check": "pnpm test:baseline && pnpm test:build-tools && pnpm test:build-tool-architecture && pnpm test:canvas-theme && pnpm test:demos && pnpm test:ui-regressions && pnpm test:plot-presentation && pnpm test:architecture && pnpm test:host-contract && pnpm test:mcp && pnpm test:remote-web && pnpm test:remote-host-e2e && pnpm test:lan-discovery && pnpm test:diagnostics-contract && pnpm test:execution-architecture && pnpm test:desktop-host-architecture && pnpm test:android-host-architecture && pnpm test:workflow-compatibility && pnpm test:workflow-core && pnpm test:editor-core && pnpm test:runtime-engine-architecture && pnpm test:node-contract && pnpm test:parity && pnpm test:runtime-parameter-parity && pnpm test:version && pnpm test:notebook-import-canonical && pnpm test:notebook-analysis-contract && pnpm test:portable-functions && pnpm test:types && pnpm test && pnpm test:python && pnpm build && pnpm desktop:build && pnpm test:desktop",
     "test": "vitest run",
     "test:python": "node scripts/python-run.mjs -m pytest -q",
     "test:desktop": "node scripts/python-run.mjs -m pytest -q python/tests/test_desktop_bridge.py",
@@ -63,7 +63,8 @@
     "test:demos": "node scripts/demo-workflows-smoke.mjs",
     "test:plot-presentation": "node scripts/plot-presentation-smoke.mjs",
     "test:runtime-parameter-parity": "node scripts/runtime-parameter-parity-smoke.mjs",
-    "test:notebook-import-canonical": "node scripts/notebook-import-canonical-smoke.mjs"
+    "test:notebook-import-canonical": "node scripts/notebook-import-canonical-smoke.mjs",
+    "test:mcp": "node scripts/mcp-core-architecture-smoke.mjs && node scripts/mcp-core-runtime-smoke.mjs && node scripts/mcp-desktop-host-e2e-smoke.mjs && node scripts/android-mcp-host-jvm-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",
@@ -101,6 +102,7 @@
       "desktop/execution/**/*",
       "desktop/window/**/*",
       "desktop/ipc/**/*",
+      "desktop/mcp/**/*",
       "desktop/services/**/*",
       "node_modules/node-smb2/**/*",
       "node_modules/des.js/**/*",

@@ -63,6 +63,13 @@ export function createBrowserPlatformAdapter(): PlatformAdapter {
       async stopServer() { /* browser cannot host */ },
       request: remoteSession.request,
     },
+    mcp: {
+      canHostServer: () => false,
+      async startServer() { throw new Error("MCP Server can only run in the native host application"); },
+      async stopServer() { /* browser cannot host */ },
+      subscribeRequests() { return () => undefined; },
+      async respond() { /* browser cannot host */ },
+    },
     system: {
       isNativePlatform: () => false,
       getWindowControls: () => undefined,

@@ -7,6 +7,8 @@ export type {
   ExportedTextFile,
   ExternalWorkflowEntry,
   FilePickMode,
+  McpHostRequest,
+  McpServerInfo,
   PickedCsvFile,
   PlatformAdapter,
   RemoteAccessPolicy,

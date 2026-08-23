@@ -28,6 +28,20 @@ export type RemoteServerInfo = {
 };
 export type RemoteAccessPolicy = { requiresPin: boolean };
 export type RuntimeStats = { memoryBytes: number | null };
+
+export type McpServerInfo = {
+  url: string;
+  token: string;
+  port: number;
+};
+
+export type McpHostRequest = {
+  requestId: string;
+  body: string;
+  method: string;
+  name: string | null;
+  protocolVersion: string;
+};
 export type RemoteAppConfiguration = { settings: Record<string, unknown>; agentProxyAvailable: boolean };
 export type RemoteRequestOptions = { signal?: AbortSignal };
 export type UserProfileInfo = { path: string; workspaceUri: string | null };
@@ -81,6 +95,15 @@ export interface RemotePlatformCapability {
   request<T>(path: string, payload?: Record<string, unknown>, options?: RemoteRequestOptions): Promise<T>;
 }
 
+
+export interface McpPlatformCapability {
+  canHostServer(): boolean;
+  startServer(): Promise<McpServerInfo>;
+  stopServer(): Promise<void>;
+  subscribeRequests(callback: (request: McpHostRequest) => void): () => void;
+  respond(requestId: string, response: string): Promise<void>;
+}
+
 export interface SystemPlatformCapability {
   isNativePlatform(): boolean;
   getWindowControls(): WindowControls | undefined;
@@ -95,5 +118,6 @@ export interface PlatformAdapter {
   readonly profile: ProfilePlatformCapability;
   readonly secrets: SecretPlatformCapability;
   readonly remote: RemotePlatformCapability;
+  readonly mcp: McpPlatformCapability;
   readonly system: SystemPlatformCapability;
 }

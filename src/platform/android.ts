@@ -1,7 +1,22 @@
 import { PythonExecutor, UiChrome } from "./android-plugin";
 import { decodeBase64Bytes } from "./bytes";
 import { createRemoteSessionClient } from "./remote-session";
-import type { PlatformAdapter, RemoteAppConfiguration, SmbConnection } from "./types";
+import type { McpHostRequest, PlatformAdapter, RemoteAppConfiguration, SmbConnection } from "./types";
+
+
+const mcpRequestListeners = new Set<(request: McpHostRequest) => void>();
+let mcpListenerAttached = false;
+
+function subscribeMcpRequests(callback: (request: McpHostRequest) => void): () => void {
+  mcpRequestListeners.add(callback);
+  if (!mcpListenerAttached) {
+    mcpListenerAttached = true;
+    void PythonExecutor.addListener("mcpRequest", (request) => {
+      for (const listener of mcpRequestListeners) listener(request);
+    }).catch(() => { mcpListenerAttached = false; });
+  }
+  return () => { mcpRequestListeners.delete(callback); };
+}
 
 const remoteSession = createRemoteSessionClient({
   missingToken: "请先完成 Android 局域网配对",
@@ -102,6 +117,16 @@ export function createAndroidPlatformAdapter(): PlatformAdapter {
       startServer(requirePin = true) { return PythonExecutor.startRemoteServer({ requirePin }); },
       async stopServer() { await PythonExecutor.stopRemoteServer(); },
       request: remoteSession.request,
+    },
+    mcp: {
+      canHostServer: () => !remoteSession.isRemoteRuntime(),
+      async startServer() {
+        if (remoteSession.isRemoteRuntime()) throw new Error("MCP Server is only available in the Android host app");
+        return PythonExecutor.startMcpServer();
+      },
+      async stopServer() { if (!remoteSession.isRemoteRuntime()) await PythonExecutor.stopMcpServer(); },
+      subscribeRequests: subscribeMcpRequests,
+      async respond(requestId, response) { await PythonExecutor.completeMcpRequest({ requestId, response }); },
     },
     system: {
       isNativePlatform: () => true,

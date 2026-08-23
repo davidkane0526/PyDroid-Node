@@ -2,6 +2,7 @@ package com.dk.pydroidflow;
 
 import android.content.Intent;
 import androidx.activity.result.ActivityResult;
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -21,6 +22,15 @@ public class PythonExecutorPlugin extends Plugin {
         super.load();
         services = new AndroidHostServices(getContext());
         services.profile.ensureProfileRoot();
+        services.mcp.setListener((requestId, body, method, name, protocolVersion) -> {
+            JSObject event = new JSObject();
+            event.put("requestId", requestId);
+            event.put("body", body);
+            event.put("method", method);
+            event.put("name", name);
+            event.put("protocolVersion", protocolVersion);
+            notifyListeners("mcpRequest", event);
+        });
     }
 
     private AndroidHostServices host() {
@@ -84,6 +94,9 @@ public class PythonExecutorPlugin extends Plugin {
 
     @PluginMethod public void startRemoteServer(PluginCall call) { host().remote.start(call); }
     @PluginMethod public void stopRemoteServer(PluginCall call) { host().remote.stop(call); }
+    @PluginMethod public void startMcpServer(PluginCall call) { host().mcp.start(call); }
+    @PluginMethod public void stopMcpServer(PluginCall call) { host().mcp.stop(call); }
+    @PluginMethod public void completeMcpRequest(PluginCall call) { host().mcp.complete(call); }
 
     @Override
     protected void handleOnDestroy() {

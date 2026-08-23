@@ -51,7 +51,7 @@ import { analyzeNotebook, analyzePythonSignature, cancelActiveExecution, cancelH
 import { emptyHostExecutionStatus, type HostExecutionEntry } from "./execution-host";
 import { clearWorkspaceExecutionResult, clearWorkspaceVariableState, getExecutionClientId, getWorkspaceExecutionResult, listWorkspaceVariableNames } from "./execution-workspace";
 import { canSafelyPreExecuteNodes, getNodeContract } from "./nodeContract";
-import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWorkflowFile, exportTextFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, proxyRemoteAgentRequest, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
+import { canHostRemoteServer, chooseWorkflowFolder, getPlatformAdapter, deleteWorkflowFile, exportTextFile, discoverSmbServers, getRemoteAccessPolicy, getRemoteAppConfiguration, proxyRemoteAgentRequest, getRuntimeStats, getUserProfileInfo, getWindowControls, isNativePlatform, isRemoteRuntime, listSmbDirectory, listWorkflowLibrary, loadAgentSecret, loadSmbSecret, openWorkflowFolder, pairRemoteRuntime, pickCsvFiles, readSmbCsvFiles, renameWorkflowFile, saveAgentSecret, saveSmbSecret, saveUserProfileFile, scanSmbShares, setSystemTheme, startRemoteServer, stopRemoteServer, type McpServerInfo, type RemoteAccessPolicy, type RemoteServerInfo, type SmbConnection, type SmbEntry, type SmbServer, type UserProfileInfo, type WindowControls } from "./platform";
 import { AGENT_PRESETS, DEFAULT_AGENT_SETTINGS, parseAgentPlan, presetById, requestAgentPlan, testAgentConnection, validateAgentPlan, type AgentOperation, type AgentPermission, type AgentPlan, type AgentSettings, type AgentTransport } from "./agent";
 import { DataGrid, resultPreviewText } from "./components";
 import { PlotPreview } from "./ui/PlotPreview";
@@ -65,6 +65,7 @@ import { APP_VERSION } from "./app-version";
 import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "./canvas-theme";
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
+import { useMcpCoreHost } from "./useMcpCoreHost";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -100,8 +101,7 @@ function NotebookEditor({ value, rows, onChange }: { value: string; rows: number
   return <div className="notebook-editor"><div ref={gutter} className="notebook-editor__lines" aria-hidden="true">{Array.from({ length: lineCount }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={value} rows={rows} spellCheck={false} onScroll={(event) => { if (gutter.current) gutter.current.scrollTop = event.currentTarget.scrollTop; }} onChange={(event) => onChange(event.target.value)} /></div>;
 }
 type SmbSettings = Omit<SmbConnection, "password"> & { rememberPassword: boolean; guest: boolean };
-type AppSettings = { themeMode: ThemeMode; canvasTheme: CanvasThemeId; runtimePreference: RuntimePreference; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; automatedDiagnosticsEnabled: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
-
+type AppSettings = { mcpEnabled: boolean; themeMode: ThemeMode; canvasTheme: CanvasThemeId; runtimePreference: RuntimePreference; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; automatedDiagnosticsEnabled: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
 
 function parseWorkflowParameterExpression(expression: string, previousValue: unknown): { value: unknown; valueType: ValueType } {
   const text = expression.trim();
@@ -185,10 +185,11 @@ function loadAgentSettings(value: unknown): AgentSettings {
 }
 
 function loadAppSettings(): AppSettings {
-  const defaults: AppSettings = { themeMode: "system", canvasTheme: DEFAULT_CANVAS_THEME, runtimePreference: "auto", paletteWidth: PALETTE_MIN_WIDTH, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, automatedDiagnosticsEnabled: true, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
+  const defaults: AppSettings = { mcpEnabled: false, themeMode: "system", canvasTheme: DEFAULT_CANVAS_THEME, runtimePreference: "auto", paletteWidth: PALETTE_MIN_WIDTH, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, automatedDiagnosticsEnabled: true, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
     return {
+      mcpEnabled: typeof saved.mcpEnabled === "boolean" ? saved.mcpEnabled : defaults.mcpEnabled,
       themeMode: saved.themeMode === "dark" || saved.themeMode === "light" ? saved.themeMode : "system",
       canvasTheme: normalizeCanvasTheme(saved.canvasTheme, defaults.canvasTheme),
       runtimePreference: saved.runtimePreference === "python" || saved.runtimePreference === "javascript" ? saved.runtimePreference : "auto",
@@ -306,7 +307,6 @@ function defaultGroupLibrary(): GroupLibraryEntry[] {
   });
   return groups;
 }
-
 
 function loadRememberedNodeDefaults(nodeType: string): Record<string, string | number | boolean | null> {
   try {
@@ -603,7 +603,6 @@ function ParameterField({
   );
 }
 
-
 function agentPermissionFor(operation: AgentOperation): AgentPermission {
   switch (operation.type) {
     case "add_node": return "createNodes";
@@ -617,7 +616,7 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
   }
 }
 
-function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; resourceLibrary: EditorResourceLibraryService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void }) {
+function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange, mcpEnabled, mcpInfo, mcpAvailable, onMcpEnabledChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; resourceLibrary: EditorResourceLibraryService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void; mcpEnabled: boolean; mcpInfo: McpServerInfo | null; mcpAvailable: boolean; onMcpEnabledChange: (enabled: boolean) => void }) {
   const tabId = session.id;
   const workspaceIdentity = session.identity;
   const executionClientId = workspaceIdentity.clientId;
@@ -1053,7 +1052,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     return () => window.clearTimeout(timer);
   }, [lifecycle, session, tabId, nodes, edges, functions, requirements, environment, workflowParameters]);
 
-
   useEffect(() => {
     localStorage.setItem(LAYOUT_MODE_KEY, layoutMode);
   }, [layoutMode]);
@@ -1071,7 +1069,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   }, [runtimePreference]);
 
   useEffect(() => {
-    const settings = { themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    const settings = { mcpEnabled, themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     if (remoteBrowser && agentSecretReady) {
       if (applyingRemoteConfiguration.current) applyingRemoteConfiguration.current = false;
@@ -1079,7 +1077,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     }
     void saveUserProfileFile("settings/app-settings.json", JSON.stringify(settings, null, 2));
     void saveUserProfileFile("settings/agent.json", JSON.stringify(agentSettings, null, 2));
-  }, [themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
+  }, [mcpEnabled, themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
 
   useEffect(() => {
     if (remoteBrowser) return;
@@ -1298,7 +1296,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   const requestConfirm = useCallback((options: { title: string; message: string; confirmLabel?: string; danger?: boolean }) => new Promise<boolean>((resolve) => {
     setConfirmDialog({ ...options, resolve });
   }), []);
-
 
   useEffect(() => {
     if (!mobileToolsOpen) return;
@@ -2425,7 +2422,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const exportSettings = () => {
-    const settings = { themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    const settings = { mcpEnabled, themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
     void downloadText(JSON.stringify({ kind: "pydroid-flow.settings", schemaVersion: 1, settings }, null, 2), "pydroid-flow.settings.json", "application/json");
     setMessage("设置已导出；为安全起见不包含 AI API Key");
   };
@@ -2438,6 +2435,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       if (payload.kind !== "pydroid-flow.settings" || payload.schemaVersion !== 1 || !payload.settings || typeof payload.settings !== "object") throw new Error("不是受支持的 PyDroid Flow 设置文件");
       localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload.settings));
       const imported = loadAppSettings();
+      onMcpEnabledChange(imported.mcpEnabled);
       setThemeMode(imported.themeMode);
       setCanvasTheme(imported.canvasTheme);
       setRuntimePreference(imported.runtimePreference);
@@ -2648,7 +2646,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       event.target.value = "";
     }
   };
-
 
   const hasUnsavedWorkflowChanges = () => session.isDirty();
 
@@ -3895,7 +3892,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       {renameFlow && <RenameFlowDialog name={renameFlow.name} value={renameFlowValue} onValueChange={setRenameFlowValue} onClose={() => setRenameFlow(null)} onConfirm={() => void confirmRenameFlow()} />}
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : "session"} apiKeyManagedByHost={remoteBrowser && remoteAgentProxyAvailable} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} />}
       <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={() => void exportAutomatedDiagnostics()} exportStatus={automatedDiagnosticsExportStatus} />
-      {settingsOpen && <SettingsDialog open={settingsOpen} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ theme: canvasTheme, nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.theme !== undefined) setCanvasTheme(normalizeCanvasTheme(patch.theme)); if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
+      {settingsOpen && <SettingsDialog open={settingsOpen} mcpEnabled={mcpEnabled} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onMcpEnabledChange={onMcpEnabledChange} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ theme: canvasTheme, nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.theme !== undefined) setCanvasTheme(normalizeCanvasTheme(patch.theme)); if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={removePackageRequirement} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => { void downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8"); }} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
       {plotExpandedPreview && <PlotLightbox open preview={plotExpandedPreview} zoom={plotZoom} onZoom={setPlotZoom} onClose={() => setPlotExpandedPreview(null)} />}
@@ -4202,10 +4199,16 @@ function MultiTabWorkspace() {
   const emptySnapshot = emptyWorkflowSnapshot();
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
   const [activeId, setActiveId] = useState<string>("default");
+  const [mcpEnabled, setMcpEnabled] = useState(() => loadAppSettings().mcpEnabled);
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
   const sessionStoreRef = useRef(new EditorSessionStore("default", emptySnapshot, { clientId: workspaceExecutionClientId, source: workspaceSessionSource }));
   const lifecycleRef = useRef(new EditorWorkspaceLifecycleService(localStorage, AUTOSAVE_KEY));
   const resourceLibraryRef = useRef<EditorResourceLibraryService | null>(null);
   if (!resourceLibraryRef.current) resourceLibraryRef.current = new EditorResourceLibraryService(localStorage, defaultGroupLibrary(), (path, content) => saveUserProfileFile(path, content));
+
+  const { info: mcpInfo, available: mcpAvailable } = useMcpCoreHost(sessionStoreRef.current, activeIdRef, mcpEnabled, setMcpEnabled);
+
   const [pendingCloseTabId, setPendingCloseTabId] = useState<string | null>(null);
   const [executionPhases, setExecutionPhases] = useState<Record<string, string>>({ default: getExecutionStatus(sessionStoreRef.current.ensure("default").identity).phase });
   const [completedIndicators, setCompletedIndicators] = useState<Record<string, boolean>>({});
@@ -4385,7 +4388,7 @@ function MultiTabWorkspace() {
     <TabsContext.Provider value={api}>
       <div className="workspace-shell" data-theme={resolvedTheme}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} resourceLibrary={resourceLibraryRef.current!} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} resourceLibrary={resourceLibraryRef.current!} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} mcpEnabled={mcpEnabled} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onMcpEnabledChange={setMcpEnabled} /></ReactFlowProvider>
         <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>

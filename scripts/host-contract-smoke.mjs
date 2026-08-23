@@ -14,6 +14,7 @@ assert.equal(new Set(operationIds).size, operationIds.length, "host contract ope
 
 const preload = read("desktop/preload.cjs");
 const desktopIpc = readdirSync(path.join(root, "desktop/ipc")).filter((name) => name.endsWith(".cjs")).map((name) => read(`desktop/ipc/${name}`)).join("\n");
+const desktopHost = `${desktopIpc}\n${read("desktop/services/mcp-service.cjs")}`;
 const androidTypes = read("src/platform/android-plugin.ts");
 const androidPlugin = read("android/app/src/main/java/com/dk/pydroidflow/PythonExecutorPlugin.java");
 const uiChromePlugin = read("android/app/src/main/java/com/dk/pydroidflow/UiChromePlugin.java");
@@ -27,6 +28,16 @@ for (const entry of contract.operations) {
     assert.match(preload, new RegExp(escaped), `desktop preload is missing channel ${entry.desktop.channel}`);
     assert.match(desktopIpc, new RegExp(escaped), `desktop IPC registration is missing channel ${entry.desktop.channel}`);
   }
+  if (entry.desktop?.event) {
+    const escaped = entry.desktop.event.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(preload, new RegExp(escaped), `desktop preload is missing event ${entry.desktop.event}`);
+    assert.match(desktopHost, new RegExp(escaped), `desktop host is missing event ${entry.desktop.event}`);
+  }
+  if (entry.android?.event) {
+    const escaped = entry.android.event.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    assert.match(androidTypes, new RegExp(escaped), `Android TypeScript contract is missing event ${entry.android.event}`);
+    assert.match(androidPlugin, new RegExp(escaped), `Android Java binding is missing event ${entry.android.event}`);
+  }
   if (entry.android?.method) {
     const typePattern = new RegExp(`\\b${entry.android.method}\\s*\\(`);
     assert.match(androidTypes, typePattern, `Android TypeScript contract is missing ${entry.android.method}`);
@@ -36,7 +47,7 @@ for (const entry of contract.operations) {
 }
 
 const platformTypes = read("src/platform/types.ts");
-for (const capability of ["files", "smb", "profile", "secrets", "remote", "system"]) {
+for (const capability of ["files", "smb", "profile", "secrets", "remote", "mcp", "system"]) {
   assert.match(platformTypes, new RegExp(`readonly\\s+${capability}\\s*:`), `PlatformAdapter must expose ${capability}`);
 }
 

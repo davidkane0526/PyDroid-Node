@@ -16,6 +16,7 @@ final class AndroidHostServices implements AutoCloseable {
     final AndroidSecretService secrets;
     final AndroidPythonService python;
     final AndroidRemoteService remote;
+    final AndroidMcpService mcp;
 
     AndroidHostServices(Context context) {
         smb = new AndroidSmbService(worker);
@@ -24,10 +25,12 @@ final class AndroidHostServices implements AutoCloseable {
         secrets = new AndroidSecretService(context, worker);
         python = new AndroidPythonService(worker, remoteRequests, executionController);
         remote = new AndroidRemoteService(context, worker, remoteRequests, executionController);
+        mcp = new AndroidMcpService(remoteRequests);
     }
 
     @Override
     public void close() {
+        mcp.close();
         remote.close();
         executionController.close();
         remoteRequests.shutdownNow();

@@ -34,6 +34,11 @@
     { "capability": "remote", "operation": "startServer", "desktop": { "bridge": "startRemoteServer", "channel": "pydroid:start-remote-server" }, "android": { "plugin": "PythonExecutor", "method": "startRemoteServer" } },
     { "capability": "remote", "operation": "stopServer", "desktop": { "bridge": "stopRemoteServer", "channel": "pydroid:stop-remote-server" }, "android": { "plugin": "PythonExecutor", "method": "stopRemoteServer" } },
 
+    { "capability": "mcp", "operation": "startServer", "desktop": { "bridge": "startMcpServer", "channel": "pydroid:start-mcp-server" }, "android": { "plugin": "PythonExecutor", "method": "startMcpServer" } },
+    { "capability": "mcp", "operation": "stopServer", "desktop": { "bridge": "stopMcpServer", "channel": "pydroid:stop-mcp-server" }, "android": { "plugin": "PythonExecutor", "method": "stopMcpServer" } },
+    { "capability": "mcp", "operation": "respond", "desktop": { "bridge": "completeMcpRequest", "channel": "pydroid:complete-mcp-request" }, "android": { "plugin": "PythonExecutor", "method": "completeMcpRequest" } },
+    { "capability": "mcp", "operation": "subscribeRequests", "desktop": { "bridge": "onMcpRequest", "event": "pydroid:mcp-request" }, "android": { "mode": "capacitor-event", "event": "mcpRequest" } },
+
     { "capability": "system", "operation": "setSystemTheme", "desktop": { "mode": "renderer-css" }, "android": { "plugin": "UiChrome", "method": "setTheme" } },
     { "capability": "window", "operation": "minimize", "desktop": { "bridge": "minimize", "channel": "pydroid:window-minimize" }, "android": { "mode": "not-applicable" } },
     { "capability": "window", "operation": "toggleMaximize", "desktop": { "bridge": "toggleMaximize", "channel": "pydroid:window-toggle-maximize" }, "android": { "mode": "not-applicable" } },

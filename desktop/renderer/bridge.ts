@@ -1,5 +1,7 @@
 import type {
   FilePickMode,
+  McpHostRequest,
+  McpServerInfo,
   RemoteServerInfo,
   RuntimeStats,
   SmbConnection,
@@ -30,6 +32,10 @@ export type DesktopPlatformBridge = {
   loadSmbSecret(): Promise<{ value: string }>;
   startRemoteServer(requirePin: boolean): Promise<RemoteServerInfo>;
   stopRemoteServer(): Promise<void>;
+  startMcpServer(): Promise<McpServerInfo>;
+  stopMcpServer(): Promise<{ stopped: boolean }>;
+  completeMcpRequest(requestId: string, response: string): Promise<{ completed: boolean }>;
+  onMcpRequest(callback: (request: McpHostRequest) => void): () => void;
 };
 
 export type DesktopBridge = DesktopRuntimeBridge & DesktopPlatformBridge & { windowControls?: WindowControls };

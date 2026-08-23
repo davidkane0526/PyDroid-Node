@@ -63,7 +63,7 @@ for (const source of [execution, desktopExecution]) {
   }
 }
 
-for (const capability of ["files", "smb", "profile", "secrets", "remote", "system"]) {
+for (const capability of ["files", "smb", "profile", "secrets", "remote", "mcp", "system"]) {
   assert(platformTypes.includes(`readonly ${capability}:`), `PlatformAdapter must expose ${capability}`);
 }
 

@@ -4,6 +4,7 @@ const { ensureUserProfile } = require("./services/profile-service.cjs");
 const { createPythonWorkflowService } = require("./services/python-service.cjs");
 const { createRemoteServerService } = require("./services/remote-server.cjs");
 const { createDesktopSecretStore } = require("./services/secret-service.cjs");
+const { createMcpService } = require("./services/mcp-service.cjs");
 const smbService = require("./services/smb-service.cjs");
 const { registerDesktopIpc } = require("./ipc/register.cjs");
 const { createDesktopWindow } = require("./window/create-window.cjs");
@@ -17,6 +18,7 @@ const log = createDesktopLogger(app);
 const pythonService = createPythonWorkflowService({ app, log });
 const remoteService = createRemoteServerService({ pythonService, log });
 const secretStore = createDesktopSecretStore();
+const mcpService = createMcpService({ log });
 
 function createWindow() {
   return createDesktopWindow({ log });
@@ -26,7 +28,7 @@ app.whenReady().then(() => {
   log(`[Desktop] Ready; exe=${process.execPath}; userData=${app.getPath("userData")}; log=${log.filePath}`);
   Menu.setApplicationMenu(null);
   ensureUserProfile(app);
-  registerDesktopIpc({ pythonService, remoteService, smbService, secretStore });
+  registerDesktopIpc({ pythonService, remoteService, smbService, secretStore, mcpService });
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -36,9 +38,11 @@ app.whenReady().then(() => {
 app.on("before-quit", () => {
   pythonService.shutdown();
   smbService.shutdownSmbSessions();
+  void mcpService.stop();
 });
 
 app.on("window-all-closed", async () => {
   await remoteService.stop();
+  await mcpService.stop();
   if (process.platform !== "darwin") app.quit();
 });

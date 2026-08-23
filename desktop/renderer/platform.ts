@@ -1,11 +1,13 @@
 import { decodeBase64Bytes } from "../../src/platform/bytes";
 import { createRemoteSessionClient } from "../../src/platform/remote-session";
-import type { FilePickMode, PlatformAdapter, RemoteAppConfiguration, SmbConnection } from "../../src/platform/types";
+import type { FilePickMode, McpHostRequest, PlatformAdapter, RemoteAppConfiguration, SmbConnection } from "../../src/platform/types";
 import { getDesktopBridge } from "./bridge";
 
 export type {
   ExternalWorkflowEntry,
   FilePickMode,
+  McpHostRequest,
+  McpServerInfo,
   PickedCsvFile,
   PlatformAdapter,
   RemoteAccessPolicy,
@@ -99,6 +101,24 @@ export function getPlatformAdapter(): PlatformAdapter {
       },
       async stopServer() { await getDesktopBridge()?.stopRemoteServer?.(); },
       request: remoteSession.request,
+    },
+    mcp: {
+      canHostServer: () => true,
+      async startServer() {
+        const bridge = getDesktopBridge();
+        if (!bridge?.startMcpServer) throw new Error("Desktop MCP service is unavailable");
+        return bridge.startMcpServer();
+      },
+      async stopServer() { await getDesktopBridge()?.stopMcpServer?.(); },
+      subscribeRequests(callback: (request: McpHostRequest) => void) {
+        const bridge = getDesktopBridge();
+        return bridge?.onMcpRequest ? bridge.onMcpRequest(callback) : () => undefined;
+      },
+      async respond(requestId, response) {
+        const bridge = getDesktopBridge();
+        if (!bridge?.completeMcpRequest) throw new Error("Desktop MCP response bridge is unavailable");
+        await bridge.completeMcpRequest(requestId, response);
+      },
     },
     system: {
       isNativePlatform: () => false,
