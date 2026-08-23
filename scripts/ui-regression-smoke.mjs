@@ -104,13 +104,25 @@ assert.match(dialogs, /settings-canvas-select-row[\s\S]*画布主题[\s\S]*缩�
 assert.match(dialogs, /settings-canvas-result-row[\s\S]*结果区高度[\s\S]*显示节点运行结果/, "node-result visibility should align with the result-height control row");
 assert.match(css, /\.settings-canvas-select\s*\{[^}]*grid-template-columns:\s*max-content minmax\(138px, 164px\)[^}]*gap:\s*8px;/, "canvas selector labels should sit close to their dropdowns");
 assert.match(dialogs, /settings-mcp-heading-row[\s\S]*settings-help-button[\s\S]*MCP 连接帮助/, "MCP settings card should expose a compact top-right connection-help button");
-assert.match(dialogs, /settings-mcp-token[\s\S]*输入固定 Token[\s\S]*settings-copy-button[\s\S]*复制 Token/, "MCP settings should expose a persistent user-defined Token with an explicit copy action");
-assert.match(dialogs, /settings-mcp-value[\s\S]*复制 Endpoint/, "MCP Endpoint should expose an explicit copy action");
+assert.match(dialogs, /settings-mcp-value--token[\s\S]*输入固定 Token[\s\S]*settings-copy-button[\s\S]*复制 Token/, "MCP settings should expose an editable persistent user-defined Token with an explicit copy action");
+assert.doesNotMatch(dialogs, /value=\{token\} disabled=\{enabled\}/, "MCP Token must remain editable while the server is enabled");
+assert.doesNotMatch(dialogs, /供 AI Agent \/ Codex 连接当前 Core/, "MCP card must not show the removed explanatory subtitle");
+assert.match(dialogs, /settings-mcp-value[\s\S]*复制 Local 地址[\s\S]*复制 LAN 地址/, "MCP Local and LAN endpoints should expose explicit copy actions");
 assert.match(dialogs, /showCopyNotice\(L\(`已复制 \$\{label\}`[\s\S]*settings-copy-toast/, "MCP copy actions should surface a transient success confirmation");
 assert.match(dialogs, /mcp_servers\.pydroid/, "MCP help dialog should include a Codex MCP configuration example");
 assert.match(dialogs, /X-PyDroid-Token[\s\S]*不需要 Bearer 前缀/, "MCP help should document the direct custom Token header without a Bearer prefix");
 assert.match(dialogs, /mcp-help-dialog[\s\S]*Streamable HTTP · 8766[\s\S]*复制配置/, "MCP help dialog should include Streamable HTTP connection guidance and a copy-config action");
-assert.match(css, /\.settings-mcp-values\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, "MCP Endpoint and header controls should use a balanced two-column desktop layout");
+assert.match(dialogs, /settings-mcp-toggle-button[\s\S]*MCP Server[\s\S]*settings-mcp-status[\s\S]*已开启[\s\S]*未开启/, "MCP server control should keep a stable button with an adjacent enabled/disabled status");
+assert.match(dialogs, /localDisplay[\s\S]*lanDisplay[\s\S]*settings-mcp-values/, "MCP card should retain Local/LAN placeholders even while the server is stopped");
+assert.match(css, /\.agent-connection\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/, "Agent model connection must occupy row 1 column 1");
+assert.match(css, /\.agent-mcp-section\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/, "MCP must occupy row 1 column 2");
+assert.match(css, /\.agent-audit-section\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2;/, "Audit must occupy row 2 column 1");
+assert.match(css, /\.agent-permissions\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*2;/, "AI permissions must occupy row 2 column 2");
+assert.match(css, /\.agent-connection-footer\s*\{[^}]*grid-template-columns:\s*100px minmax\(0, 1fr\)/, "Agent connection footer should preserve the same label/input alignment columns as model fields");
+assert.match(css, /\.agent-test-button\s*\{[^}]*grid-column:\s*1;/, "Test connection button must align with the left edge of the model-and-connection card");
+assert.match(css, /\.agent-connection-note\s*\{[^}]*grid-column:\s*2;/, "Agent key-storage note must align with the input-field left edge");
+assert.match(css, /\.settings-mcp-value code\s*\{[^}]*font-family:\s*inherit;/, "MCP English labels and values should use the app UI font family rather than monospace");
+assert.match(css, /\.settings-mcp-values\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, "MCP endpoint controls should use a balanced two-column desktop layout");
 assert.match(css, /@media \(max-width: 500px\)[\s\S]*\.settings-mcp-values\s*\{\s*grid-template-columns:\s*1fr;/, "MCP Endpoint and header controls should stack on narrow mobile screens");
 
 

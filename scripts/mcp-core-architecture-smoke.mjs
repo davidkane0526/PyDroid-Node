@@ -36,7 +36,7 @@ assert.match(hook, /getExecutionRuntimeDescriptors/);
 assert.match(platformTypes, /localUrl\?: string/);
 assert.match(platformTypes, /lanUrl\?: string/);
 assert.match(dialogs, /<small>Local<\/small>/, "Desktop MCP UI must expose the loopback endpoint separately");
-assert.match(dialogs, /localEndpoint \? "LAN" : "Endpoint"/, "MCP UI must distinguish LAN from local access");
+assert.match(dialogs, /<small>LAN<\/small>/, "MCP UI must expose LAN separately from local access");
 assert.match(dialogs, /127\.0\.0\.1/, "MCP connection help must recommend loopback for same-machine Codex");
 assert.match(desktop, /MCP_PORT\s*=\s*8766/);
 assert.match(desktop, /"0\.0\.0\.0"/);
