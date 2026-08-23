@@ -20,6 +20,7 @@ def test_expected_node_families_are_registered():
         "variable.set",
         "analysis.ter_matrix",
         "pulse.generate_waveform",
+        "pulse.generate_square_waveform",
         "plot.heatmap",
         "convert.json_parse",
         "ui.alert",

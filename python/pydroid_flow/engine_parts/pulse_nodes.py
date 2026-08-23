@@ -41,6 +41,77 @@ def _pulse_waveform(params: dict[str, Any]) -> pd.DataFrame:
         rows.append({"sequence": index, "time_s": moment, "voltage_V": level * ratio, "phase": "pulse"})
     return pd.DataFrame(rows, columns=["sequence", "time_s", "voltage_V", "phase"])
 
+
+def _pulse_square_waveform(params: dict[str, Any]) -> pd.DataFrame:
+    high_voltage = float(params.get("highVoltage", 5))
+    low_voltage = float(params.get("lowVoltage", 0))
+    high_time = float(params.get("highTime", 1))
+    low_time = float(params.get("lowTime", 1))
+    repeat_raw = float(params.get("repeatCount", 1))
+    start_level = str(params.get("startLevel", "high")).strip().lower()
+    time_start = float(params.get("timeStart", 0))
+    total_time = float(params.get("totalTime", 0))
+
+    if not all(math.isfinite(value) for value in (high_voltage, low_voltage, high_time, low_time, repeat_raw, time_start, total_time)):
+        raise ValueError("Square waveform parameters must be finite numbers")
+    if high_time <= 0 or low_time <= 0:
+        raise ValueError("Square waveform highTime and lowTime must be positive")
+    if not repeat_raw.is_integer() or repeat_raw < 1:
+        raise ValueError("Square waveform repeatCount must be a positive integer")
+    repeat_count = int(repeat_raw)
+    if start_level not in {"high", "low"}:
+        raise ValueError("Square waveform startLevel must be 'high' or 'low'")
+    if total_time < 0:
+        raise ValueError("Square waveform totalTime must be zero or positive")
+
+    def voltage_for(level: str) -> float:
+        return high_voltage if level == "high" else low_voltage
+
+    def duration_for(level: str) -> float:
+        return high_time if level == "high" else low_time
+
+    def toggle(level: str) -> str:
+        return "low" if level == "high" else "high"
+
+    rows: list[dict[str, Any]] = []
+    level = start_level
+    moment = time_start
+    rows.append({"sequence": 0, "time_s": moment, "voltage_V": voltage_for(level), "state": level})
+
+    # totalTime > 0 means “continue this periodic waveform for this duration”.
+    # This is intentionally independent of repeatCount so a short gate waveform can
+    # be extended to the same time range as longer drain/source channels.
+    if total_time > 0:
+        end_time = time_start + total_time
+        sequence = 0
+        while moment < end_time and not math.isclose(moment, end_time, rel_tol=0, abs_tol=1e-12):
+            next_moment = moment + duration_for(level)
+            if next_moment >= end_time or math.isclose(next_moment, end_time, rel_tol=0, abs_tol=1e-12):
+                if not math.isclose(moment, end_time, rel_tol=0, abs_tol=1e-12):
+                    sequence += 1
+                    if next_moment <= end_time or math.isclose(next_moment, end_time, rel_tol=0, abs_tol=1e-12):
+                        level = toggle(level)
+                        rows.append({"sequence": sequence, "time_s": end_time, "voltage_V": voltage_for(level), "state": level})
+                    else:
+                        rows.append({"sequence": sequence, "time_s": end_time, "voltage_V": voltage_for(level), "state": level})
+                break
+            moment = next_moment
+            level = toggle(level)
+            sequence += 1
+            rows.append({"sequence": sequence, "time_s": moment, "voltage_V": voltage_for(level), "state": level})
+            if len(rows) > 100_000:
+                raise ValueError("Square waveform exceeds the 100000-row safety limit")
+    else:
+        transition_count = repeat_count * 2
+        if transition_count + 1 > 100_000:
+            raise ValueError("Square waveform exceeds the 100000-row safety limit")
+        for sequence in range(1, transition_count + 1):
+            moment += duration_for(level)
+            level = toggle(level)
+            rows.append({"sequence": sequence, "time_s": moment, "voltage_V": voltage_for(level), "state": level})
+
+    return pd.DataFrame(rows, columns=["sequence", "time_s", "voltage_V", "state"])
+
 def _oscillating_pulse_ramp(params: dict[str, Any]) -> pd.DataFrame:
     interval = float(params.get("interval", 0.005)); total = float(params.get("totalTime", 10))
     step = abs(float(params.get("amplitudeStep", 0.2))); fixed = float(params.get("fixedVoltage", 0.6)); gate = float(params.get("gateVoltage", 0))

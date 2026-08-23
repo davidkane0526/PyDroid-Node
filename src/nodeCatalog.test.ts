@@ -95,6 +95,14 @@ describe("node function signatures", () => {
       "vgColumn", "voltageColumn", "currentColumn", "vstep", "tolerance", "mode",
     ]));
     expect(getNodeSpec("pulse.generate_waveform")!.inputPorts).toHaveLength(0);
+    const square = getNodeSpec("pulse.generate_square_waveform")!;
+    expect(square.runtimeSupport).toEqual(["python", "javascript"]);
+    expect(square.inputPorts).toHaveLength(0);
+    expect(square.outputPorts.map((port) => [port.id, port.valueType])).toEqual([["output", "table"]]);
+    expect(square.defaults).toMatchObject({ highVoltage: 5, lowVoltage: 0, repeatCount: 1, startLevel: "high", timeStart: 0, totalTime: 0 });
+    expect(square.parameters.map((parameter) => parameter.key)).toEqual([
+      "highVoltage", "lowVoltage", "highTime", "lowTime", "repeatCount", "startLevel", "timeStart", "totalTime",
+    ]);
     expect(getNodeSpec("pulse.combine_channels")!.inputPorts.map((port) => port.id)).toEqual(["drain", "source", "gate"]);
     expect(getNodeSpec("pulse.segment_measurement")!.inputPorts.map((port) => [port.id, port.required])).toEqual([["measurement", true], ["waveform", true]]);
   });

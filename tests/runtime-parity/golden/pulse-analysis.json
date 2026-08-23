@@ -371,6 +371,187 @@
           "segment"
         ]
       }
+    },
+    {
+      "id": "pulse_square_waveform",
+      "description": "Fixed high/low square waveform without auxiliary table transforms",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "square pulse",
+        "nodes": [
+          {
+            "id": "square",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "固定电平周期波形",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 5,
+                "lowVoltage": 0,
+                "highTime": 2,
+                "lowTime": 1,
+                "repeatCount": 2,
+                "startLevel": "high",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "square"
+        ],
+        "preview": {
+          "columns": [
+            "sequence",
+            "time_s",
+            "voltage_V",
+            "state"
+          ],
+          "rows": [
+            [
+              0,
+              0.0,
+              5.0,
+              "high"
+            ],
+            [
+              1,
+              2.0,
+              0.0,
+              "low"
+            ],
+            [
+              2,
+              3.0,
+              5.0,
+              "high"
+            ],
+            [
+              3,
+              5.0,
+              0.0,
+              "low"
+            ],
+            [
+              4,
+              6.0,
+              5.0,
+              "high"
+            ]
+          ],
+          "totalRows": 5,
+          "totalColumns": 4
+        }
+      }
+    },
+    {
+      "id": "pulse_square_combine_hold_last",
+      "description": "A shorter square-wave channel holds its final level when combined with a longer channel",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 1,
+        "name": "square combine hold",
+        "nodes": [
+          {
+            "id": "drain",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "Vd",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 1,
+                "lowVoltage": 1,
+                "highTime": 1,
+                "lowTime": 1,
+                "repeatCount": 1,
+                "startLevel": "high",
+                "timeStart": 0,
+                "totalTime": 4
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "gate",
+            "position": {
+              "x": 180,
+              "y": 0
+            },
+            "data": {
+              "label": "Vg",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 5,
+                "lowVoltage": 0,
+                "highTime": 1,
+                "lowTime": 1,
+                "repeatCount": 1,
+                "startLevel": "high",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "combine",
+            "position": {
+              "x": 360,
+              "y": 0
+            },
+            "data": {
+              "label": "合并",
+              "nodeType": "pulse.combine_channels",
+              "nodeVersion": 1,
+              "parameters": {
+                "timeColumn": "time_s",
+                "voltageColumn": "voltage_V"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "drain",
+            "target": "combine",
+            "sourceHandle": "output",
+            "targetHandle": "drain"
+          },
+          {
+            "id": "e2",
+            "source": "gate",
+            "target": "combine",
+            "sourceHandle": "output",
+            "targetHandle": "gate"
+          }
+        ]
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "drain",
+          "gate",
+          "combine"
+        ]
+      }
     }
   ]
 }

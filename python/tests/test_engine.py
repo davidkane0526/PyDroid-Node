@@ -434,6 +434,32 @@ def test_pulse_nodes_generate_align_and_segment_measurements_without_code_cells(
     assert segmented["preview"]["rows"] == [[0, "read", 1.0, 0.0, 2, 3.0], [0, "pulse", 2.0, 1.0, 2, 10.0]]
 
 
+def test_square_pulse_node_runs_in_workflow_and_combines_directly_as_gate_channel():
+    result = execute(
+        [
+            node("drain", "pulse.generate_square_waveform", {
+                "highVoltage": 1, "lowVoltage": 1, "highTime": 1, "lowTime": 1,
+                "repeatCount": 1, "startLevel": "high", "timeStart": 0, "totalTime": 4,
+            }),
+            node("gate", "pulse.generate_square_waveform", {
+                "highVoltage": 5, "lowVoltage": 0, "highTime": 1, "lowTime": 1,
+                "repeatCount": 1, "startLevel": "high", "timeStart": 0, "totalTime": 0,
+            }),
+            node("channels", "pulse.combine_channels"),
+        ],
+        [port_edge("drain", "channels", "drain"), port_edge("gate", "channels", "gate")],
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["columns"] == ["time_s", "Vd_V", "Vg_V"]
+    assert result["preview"]["rows"] == [
+        [0.0, 1.0, 5.0],
+        [1.0, 1.0, 0.0],
+        [2.0, 1.0, 5.0],
+        [3.0, 1.0, 5.0],
+        [4.0, 1.0, 5.0],
+    ]
+
+
 def test_batch_csv_extracts_vg_and_calculates_multi_file_ter():
     workflow = {
         "nodes": [

@@ -5,13 +5,14 @@ from typing import Any
 import pandas as pd
 
 from ..analysis_nodes import _ter_matrix
-from ..pulse_nodes import _oscillating_pulse_ramp, _pulse_combine_channels, _pulse_segment_measurement, _pulse_waveform
+from ..pulse_nodes import _oscillating_pulse_ramp, _pulse_combine_channels, _pulse_segment_measurement, _pulse_square_waveform, _pulse_waveform
 from ..values import _require_table, _resolve_column
 
 NODE_TYPES = {
     "analysis.ter_matrix",
     "analysis.linear_fit",
     "pulse.generate_waveform",
+    "pulse.generate_square_waveform",
     "pulse.generate_oscillating_ramp",
     "pulse.combine_channels",
     "pulse.segment_measurement",
@@ -48,6 +49,9 @@ def execute(
         table_result = value
     elif node_type == "pulse.generate_waveform":
         value = _pulse_waveform(params)
+        table_result = value
+    elif node_type == "pulse.generate_square_waveform":
+        value = _pulse_square_waveform(params)
         table_result = value
     elif node_type == "pulse.generate_oscillating_ramp":
         value = _oscillating_pulse_ramp(params)

@@ -48,6 +48,7 @@ const requiredJsNodeSupport = [
   "control.ts",
   "analysis.ts",
   "pulse.ts",
+  "pulse_square.ts",
   "serialization.ts",
 ];
 
