@@ -126,8 +126,10 @@ assert.match(css, /\.agent-permissions\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\
 assert.match(css, /\.agent-connection-footer\s*\{[^}]*grid-template-columns:\s*100px minmax\(0, 1fr\)/, "Agent connection footer should preserve the same label/input alignment columns as model fields");
 assert.match(css, /\.agent-connection\s*\{[^}]*align-self:\s*stretch;/, "Model connection card must stretch to the shared row height");
 assert.match(css, /\.agent-mcp-section\s*\{[^}]*align-self:\s*stretch;/, "MCP card must stretch to the shared row height");
-assert.match(css, /\.agent-connection-footer\s*\{[^}]*margin-top:\s*auto;/, "Test connection row must be pinned to the bottom of the model card");
-assert.match(css, /\.settings-mcp-enable-row\s*\{[^}]*margin-top:\s*auto;/, "MCP Server row must be pinned to the bottom of the MCP card");
+assert.match(css, /\.agent-connection-footer\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*12px;[^}]*height:\s*30px;/, "Test connection row must be hard-pinned to the shared bottom baseline");
+assert.match(css, /\.settings-mcp-enable-row\s*\{[^}]*position:\s*absolute;[^}]*bottom:\s*12px;[^}]*height:\s*30px;/, "MCP Server row must be hard-pinned to the shared bottom baseline");
+assert.match(css, /\.agent-connection\s*\{[^}]*position:\s*relative;[^}]*padding-bottom:\s*54px\s*!important;/, "Model connection card must reserve a fixed bottom action area");
+assert.match(css, /\.agent-mcp-section\s*\{[^}]*position:\s*relative;[^}]*padding-bottom:\s*54px\s*!important;/, "MCP card must reserve the same fixed bottom action area");
 assert.match(css, /\.agent-test-button\s*\{[^}]*grid-column:\s*1;/, "Test connection button must align with the left edge of the model-and-connection card");
 assert.match(css, /\.agent-connection-note\s*\{[^}]*grid-column:\s*2;/, "Agent key-storage note must align with the input-field left edge");
 assert.match(css, /\.settings-mcp-value code\s*\{[^}]*font-family:\s*inherit;/, "MCP English labels and values should use the app UI font family rather than monospace");
