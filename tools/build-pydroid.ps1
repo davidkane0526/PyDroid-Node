@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.7-dev-r107-agent-panel-polish"
+$script:BuildScriptRevision = "1.6.8-dev-r108-agent-panel-alignment"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
