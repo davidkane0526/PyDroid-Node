@@ -18,10 +18,10 @@ const server = new McpServer({
   },
 });
 
-function request(headers, body, method = "POST") {
+function request(headers, body, method = "POST", url = "http://127.0.0.1:8766/mcp") {
   return new Promise((resolve, reject) => {
     const payload = body ?? "";
-    const req = http.request("http://127.0.0.1:8766/mcp", { method, headers: { ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}), ...headers } }, (res) => {
+    const req = http.request(url, { method, headers: { ...(payload ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } : {}), ...headers } }, (res) => {
       const chunks = [];
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks).toString("utf8") }));
@@ -35,7 +35,9 @@ try {
   const token = "fixed-mcp-token";
   const info = await server.start(token);
   assert.equal(info.port, 8766);
-  assert.match(info.url, /:8766\/mcp$/);
+  assert.equal(info.url, "http://127.0.0.1:8766/mcp");
+  assert.equal(info.localUrl, "http://127.0.0.1:8766/mcp");
+  if (info.lanUrl) assert.match(info.lanUrl, /^http:\/\/(?!127\.0\.0\.1)[^/]+:8766\/mcp$/);
   assert.equal(info.token, token);
 
   const initializeBody = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "codex", version: "smoke" } } });
@@ -45,6 +47,10 @@ try {
   const initialized = await request(auth, initializeBody);
   assert.equal(initialized.status, 200);
   assert.equal(initialized.headers["content-type"], "application/json; charset=utf-8");
+  if (info.lanUrl) {
+    const lanInitialized = await request(auth, initializeBody, "POST", info.lanUrl);
+    assert.equal(lanInitialized.status, 200, `LAN endpoint did not reach the same MCP server: ${info.lanUrl}`);
+  }
   assert.equal(JSON.parse(initialized.body).result.protocolVersion, "2025-06-18");
   assert.equal(received.at(-1).method, "initialize");
   assert.equal(received.at(-1).protocolVersion, "", "initialize must not require MCP-Protocol-Version");

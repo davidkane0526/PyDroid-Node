@@ -112,9 +112,11 @@ class McpServer {
       server.listen(MCP_PORT, "0.0.0.0", () => {
         server.removeListener("error", onError);
         this.server = server;
-        const address = getLanInterfaces()[0]?.address || "127.0.0.1";
-        this.info = { url: `http://${address}:${MCP_PORT}${MCP_PATH}`, token: this.token, port: MCP_PORT };
-        this.log(`[MCP] Listening 0.0.0.0:${MCP_PORT}; url=${this.info.url}`);
+        const address = getLanInterfaces()[0]?.address || null;
+        const localUrl = `http://127.0.0.1:${MCP_PORT}${MCP_PATH}`;
+        const lanUrl = address ? `http://${address}:${MCP_PORT}${MCP_PATH}` : undefined;
+        this.info = { url: localUrl, localUrl, ...(lanUrl ? { lanUrl } : {}), token: this.token, port: MCP_PORT };
+        this.log(`[MCP] Listening 0.0.0.0:${MCP_PORT}; local=${localUrl}${lanUrl ? `; lan=${lanUrl}` : ""}`);
         server.on("error", (error) => this.log(`[MCP] ${error?.message || error}`));
         resolve(this.info);
       });

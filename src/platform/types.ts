@@ -31,6 +31,8 @@ export type RuntimeStats = { memoryBytes: number | null };
 
 export type McpServerInfo = {
   url: string;
+  localUrl?: string;
+  lanUrl?: string;
   token: string;
   port: number;
 };

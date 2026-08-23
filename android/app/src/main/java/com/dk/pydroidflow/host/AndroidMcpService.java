@@ -40,7 +40,9 @@ final class AndroidMcpService implements AutoCloseable {
                 List<LanNetworkInterfaceManager.Entry> interfaces = LanNetworkInterfaceManager.list();
                 String address = interfaces.isEmpty() ? "127.0.0.1" : interfaces.get(0).address.getHostAddress();
                 JSObject response = new JSObject();
-                response.put("url", "http://" + address + ":" + active.port() + McpServer.PATH);
+                String lanUrl = "http://" + address + ":" + active.port() + McpServer.PATH;
+                response.put("url", lanUrl);
+                response.put("lanUrl", lanUrl);
                 response.put("token", active.token());
                 response.put("port", active.port());
                 call.resolve(response);
