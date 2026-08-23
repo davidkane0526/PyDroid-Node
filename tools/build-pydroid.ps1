@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.6-dev-r106-mcp-ui-build-fix"
+$script:BuildScriptRevision = "1.6.7-dev-r107-agent-panel-polish"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
