@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.0-dev-r96-mcp-core-bridge"
+$script:BuildScriptRevision = "1.6.0-dev-r97-windows-package-launch"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -516,7 +516,15 @@ function Build-Desktop {
     New-Item -ItemType Directory -Force -Path $env:ELECTRON_BUILDER_CACHE | Out-Null
 
     Write-BuildStage -Percent 55 -Message "构建 Windows Desktop"
-    Invoke-Pnpm @("desktop:package")
+    $desktopPackageScript = Join-Path $workspace "scripts\desktop-package.mjs"
+    if (-not (Test-Path -LiteralPath $desktopPackageScript -PathType Leaf)) {
+        throw "桌面打包入口不存在：$desktopPackageScript"
+    }
+    Write-Step "使用已验证 Node 直接启动桌面打包：$script:NodeExecutable"
+    & $script:NodeExecutable $desktopPackageScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "桌面打包失败（退出码 $LASTEXITCODE）：$script:NodeExecutable $desktopPackageScript"
+    }
 
     $unpacked = Join-Path $workspace "release\win-unpacked"
     if (-not (Test-Path -LiteralPath $unpacked) -or -not (Get-ChildItem -LiteralPath $unpacked -Filter "*.exe" -File -ErrorAction SilentlyContinue)) {

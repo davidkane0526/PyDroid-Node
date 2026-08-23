@@ -66,6 +66,10 @@ assert.doesNotMatch(network, /Internet Settings|AutoConfigURL|Get-WindowsInterne
 assert.match(desktopPackage, /node_modules", "typescript", "bin", "tsc/);
 assert.match(desktopPackage, /node_modules", "vite", "bin", "vite\.js/);
 assert.match(desktopPackage, /node_modules", "electron-builder", "out", "cli", "cli\.js/);
+assert.match(build, /使用已验证 Node 直接启动桌面打包/);
+assert.match(build, /& \$script:NodeExecutable \$desktopPackageScript/);
+assert.doesNotMatch(build, /Invoke-Pnpm @\(\"desktop:package\"\)/);
+assert.match(desktopPackage, /\[desktop-package\] \$\{label\}/);
 assert.doesNotMatch(desktopPackage, /packageManagerInvocation|npm_execpath|packageWithRetry|signExecutable=false|signAndEditExecutable=false|plain exe|compatibility fallback|retry/i);
 assert.equal(existsSync(path.join(root, "scripts/desktop-package-invocation.mjs")), false, "package-manager launcher fallback must be removed");
 assert.equal(existsSync(path.join(root, "scripts/local-storage.ps1")), false, "junction-based local-storage shim must be removed");

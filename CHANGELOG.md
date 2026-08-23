@@ -1,3 +1,11 @@
+## 1.6.0 (140) — MCP Core Bridge — 2026-08-23
+
+- Added a shared MCP Core adapter for Workflow, NodeContract, execution, runtime, data and editor-model state without routing through the UI/DOM or Remote Web.
+- Added independent Desktop and Android MCP hosts on port 8766 with Bearer-token access; Remote Web remains on 8765 and keeps an independent lifecycle.
+- Added MCP Core/HTTP/JVM regression coverage while preserving the existing Workflow, NodeContract and Python/JavaScript parity contracts.
+- Windows packaging now launches `scripts/desktop-package.mjs` directly with the already validated Node executable instead of re-entering through `pnpm desktop:package`; package stages print their exact boundary so Windows launch failures are attributable to TypeScript, Vite, electron-builder or packaged smoke.
+- Build revision: `1.6.0-dev-r97-windows-package-launch`.
+
 ## 1.5.16 (139) — Dead-code audit and stale-path removal — 2026-08-23
 
 - Removed three unreachable frontend patch modules (`catalog-overrides`, `settings-version`, `ui-runtime`) and the test that only exercised the unused catalog override.

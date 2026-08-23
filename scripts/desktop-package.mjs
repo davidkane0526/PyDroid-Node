@@ -21,7 +21,12 @@ const tsc = path.join(root, "node_modules", "typescript", "bin", "tsc");
 const vite = path.join(root, "node_modules", "vite", "bin", "vite.js");
 const electronBuilder = path.join(root, "node_modules", "electron-builder", "out", "cli", "cli.js");
 
-function run(command, args, options = {}) {
+function formatCommand(command, args) {
+  return [command, ...args].map((part) => JSON.stringify(String(part))).join(" ");
+}
+
+function run(label, command, args, options = {}) {
+  console.log(`[desktop-package] ${label}`);
   const result = spawnSync(command, args, {
     cwd: root,
     env: environment,
@@ -30,20 +35,25 @@ function run(command, args, options = {}) {
     shell: false,
     ...options,
   });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`${command} exited with code ${result.status ?? 1}`);
+  if (result.error) {
+    throw new Error(`${label} could not start: ${result.error.message}\ncommand: ${formatCommand(command, args)}`, { cause: result.error });
+  }
+  if (result.status !== 0) {
+    throw new Error(`${label} exited with code ${result.status ?? 1}\ncommand: ${formatCommand(command, args)}`);
+  }
 }
 
-function runNodeTool(script, args) {
+function runNodeTool(label, script, args) {
   if (!fs.existsSync(script)) throw new Error(`Required local build tool is missing: ${script}`);
-  run(process.execPath, [script, ...args]);
+  run(label, process.execPath, [script, ...args]);
 }
 
 function buildRenderer(configPath = null) {
-  runNodeTool(tsc, ["--noEmit", "-p", configPath ? "desktop/tsconfig.json" : "tsconfig.json"]);
+  const target = configPath ? "Desktop renderer" : "Remote Web renderer";
+  runNodeTool(`${target}: TypeScript`, tsc, ["--noEmit", "-p", configPath ? "desktop/tsconfig.json" : "tsconfig.json"]);
   const args = ["build"];
   if (configPath) args.push("--config", configPath);
-  runNodeTool(vite, args);
+  runNodeTool(`${target}: Vite`, vite, args);
 }
 
 function findPackagedExecutable() {
@@ -53,6 +63,8 @@ function findPackagedExecutable() {
 }
 
 try {
+  console.log(`[desktop-package] Node: ${process.execPath}`);
+  console.log(`[desktop-package] Workspace: ${root}`);
   buildRenderer();
   buildRenderer("desktop/vite.config.ts");
 
@@ -65,12 +77,12 @@ try {
   fs.cpSync(remoteRendererSource, remoteRendererStage, { recursive: true, dereference: true });
   if (!fs.existsSync(path.join(remoteRendererStage, "index.html"))) throw new Error("Remote Web renderer staging failed: browser index.html is missing");
 
-  runNodeTool(electronBuilder, ["--win", "dir"]);
+  runNodeTool("electron-builder: win-unpacked", electronBuilder, ["--win", "dir"]);
   const packagedExecutable = findPackagedExecutable();
   if (!packagedExecutable) throw new Error(`Packaged desktop executable is missing: ${path.join(releaseDir, "PyDroid Flow.exe")}`);
 
   fs.rmSync(smokeLog, { force: true });
-  run(packagedExecutable, [], {
+  run("Packaged desktop smoke", packagedExecutable, [], {
     env: { ...environment, PYDROID_DESKTOP_SMOKE: "1", PYDROID_DESKTOP_SMOKE_LOG: smokeLog },
     timeout: 120_000,
   });
