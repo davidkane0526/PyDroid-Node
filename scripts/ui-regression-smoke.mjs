@@ -124,6 +124,10 @@ assert.match(css, /\.settings-mcp-toggle-button\s*\{[^}]*font-size:\s*12px;[^}]*
 assert.match(css, /\.agent-audit-section\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2;/, "Audit must occupy row 2 column 1");
 assert.match(css, /\.agent-permissions\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*2;/, "AI permissions must occupy row 2 column 2");
 assert.match(css, /\.agent-connection-footer\s*\{[^}]*grid-template-columns:\s*100px minmax\(0, 1fr\)/, "Agent connection footer should preserve the same label/input alignment columns as model fields");
+assert.match(css, /\.agent-connection\s*\{[^}]*align-self:\s*stretch;/, "Model connection card must stretch to the shared row height");
+assert.match(css, /\.agent-mcp-section\s*\{[^}]*align-self:\s*stretch;/, "MCP card must stretch to the shared row height");
+assert.match(css, /\.agent-connection-footer\s*\{[^}]*margin-top:\s*auto;/, "Test connection row must be pinned to the bottom of the model card");
+assert.match(css, /\.settings-mcp-enable-row\s*\{[^}]*margin-top:\s*auto;/, "MCP Server row must be pinned to the bottom of the MCP card");
 assert.match(css, /\.agent-test-button\s*\{[^}]*grid-column:\s*1;/, "Test connection button must align with the left edge of the model-and-connection card");
 assert.match(css, /\.agent-connection-note\s*\{[^}]*grid-column:\s*2;/, "Agent key-storage note must align with the input-field left edge");
 assert.match(css, /\.settings-mcp-value code\s*\{[^}]*font-family:\s*inherit;/, "MCP English labels and values should use the app UI font family rather than monospace");

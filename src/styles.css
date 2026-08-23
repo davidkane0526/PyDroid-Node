@@ -281,7 +281,7 @@ button, input, select, textarea { font: inherit; }
 .agent-dialog textarea { min-height: 86px; resize: vertical; }
 .agent-dialog .agent-plan textarea { min-height: 148px; }
 .agent-dialog .agent-plan > div { display: flex; justify-content: flex-end; gap: 8px; }
-.agent-connection { grid-column: 1; grid-row: 1; }
+.agent-connection { grid-column: 1; grid-row: 1; align-self: stretch; }
 .agent-dialog .agent-connection > h3 {
   color: var(--text-highlight);
   font-size: 13px;
@@ -289,11 +289,11 @@ button, input, select, textarea { font: inherit; }
   letter-spacing: .01em;
   text-transform: none;
 }
-.agent-mcp-section { grid-column: 2; grid-row: 1; gap: 7px; }
+.agent-mcp-section { grid-column: 2; grid-row: 1; gap: 7px; align-self: stretch; }
 .agent-audit-section { grid-column: 1; grid-row: 2; align-content: start; }
 .agent-permissions { grid-column: 2; grid-row: 2; }
 .agent-request, .agent-plan { grid-column: 1 / -1; }
-.agent-connection-footer { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: start; gap: 9px; margin-top: 2px; }
+.agent-connection-footer { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: start; gap: 9px; margin-top: auto; padding-top: 2px; }
 .agent-test-button { grid-column: 1; justify-self: start; min-height: 30px; padding: 5px 10px !important; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1.45; white-space: nowrap; }
 .agent-connection-note { grid-column: 2; display: grid; gap: 4px; min-width: 0; padding-top: 3px; }
 .agent-connection-note small { margin: 0; min-width: 0; line-height: 1.4; text-align: left; }
@@ -3134,7 +3134,7 @@ button, input, select, textarea { font: inherit; }
 .settings-mcp-value--header-span { grid-column: 1 / -1; }
 .settings-mcp-value--token input { width: 100%; min-width: 0; height: 26px; box-sizing: border-box; border: 0; padding: 0; color: var(--text); background: transparent; font-family: inherit; font-size: 12px; line-height: 1.45; outline: none; }
 .settings-mcp-value--token:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent); }
-.settings-mcp-enable-row { display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 30px; margin-top: 2px; white-space: nowrap; }
+.settings-mcp-enable-row { display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 30px; margin-top: auto; padding-top: 2px; white-space: nowrap; }
 .settings-mcp-status { white-space: nowrap; color: var(--text-muted); font-size: 12px; }
 .settings-mcp-status.is-active { color: var(--text); }
 .settings-mcp-toggle-button { min-width: 88px; min-height: 30px; padding: 5px 10px !important; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1.45; }

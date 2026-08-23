@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.11-dev-r111-agent-mcp-row-alignment"
+$script:BuildScriptRevision = "1.6.12-dev-r112-agent-mcp-bottom-alignment"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
