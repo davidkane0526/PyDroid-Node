@@ -13,7 +13,7 @@ export type McpCoreHostOptions = {
 export function attachMcpCoreHost(options: McpCoreHostOptions): () => void {
   const unbind = bindMcpCore({ sessions: options.sessions, activeWorkspaceId: options.activeWorkspaceId, execution: options.execution });
   const unsubscribe = options.platform.mcp.subscribeRequests(async (request) => {
-    const response = await handleMcpCoreRequest(request.body, request.method, request.name, request.protocolVersion);
+    const response = await handleMcpCoreRequest(request.body, request.protocolVersion);
     await options.platform.mcp.respond(request.requestId, JSON.stringify(response));
   });
   return () => { unsubscribe(); unbind(); };

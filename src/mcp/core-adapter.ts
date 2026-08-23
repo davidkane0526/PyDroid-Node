@@ -1,3 +1,4 @@
+import { APP_VERSION } from "../app-version";
 import type { EditorGraphCommand, EditorGraphCommandResult } from "../editor-core/commands";
 import type { EditorSessionStore, EditorWorkspaceSession } from "../editor-core/session";
 import { getNodeContract, listNodeContracts } from "../nodeContract";
@@ -319,39 +320,30 @@ function parseRequest(raw: string): JsonRpcRequest {
   return value as JsonRpcRequest;
 }
 
-export async function handleMcpCoreRequest(raw: string, methodHeader: string, nameHeader: string | null, protocolVersion: string): Promise<JsonRpcResponse> {
+export async function handleMcpCoreRequest(raw: string, protocolVersionHeader = ""): Promise<JsonRpcResponse> {
   let request: JsonRpcRequest;
   try { request = parseRequest(raw); }
   catch (error) { return jsonRpcError(null, -32700, "Parse error", error instanceof Error ? error.message : String(error)); }
   const id = request.id ?? null;
-  if (protocolVersion !== MCP_PROTOCOL_VERSION) return jsonRpcError(id, -32019, `Unsupported protocol version: ${protocolVersion || "missing"}`);
-  if (methodHeader !== request.method) return jsonRpcError(id, -32020, "Mcp-Method header does not match request method");
-  if (request.method === "tools/call") {
-    const requestedName = typeof request.params?.name === "string" ? request.params.name : "";
-    if (!requestedName) return jsonRpcError(id, -32602, "tools/call requires params.name");
-    if (nameHeader !== requestedName) return jsonRpcError(id, -32020, "Mcp-Name header does not match tool name");
-  } else if (nameHeader) {
-    return jsonRpcError(id, -32020, "Mcp-Name is only valid for named MCP requests");
+
+  if (request.method === "initialize") {
+    const requestedVersion = typeof request.params?.protocolVersion === "string" ? request.params.protocolVersion : "";
+    if (!requestedVersion) return jsonRpcError(id, -32602, "initialize requires params.protocolVersion");
+    return jsonRpcResult(id, {
+      protocolVersion: MCP_PROTOCOL_VERSION,
+      capabilities: { tools: {} },
+      serverInfo: { name: "PyDroid Node", version: APP_VERSION },
+    });
   }
+
+  if (protocolVersionHeader && protocolVersionHeader !== MCP_PROTOCOL_VERSION) {
+    return jsonRpcError(id, -32019, `Unsupported protocol version: ${protocolVersionHeader}`);
+  }
+
   try {
-    if (request.method === "server/discover") {
-      return jsonRpcResult(id, {
-        resultType: "complete",
-        supportedVersions: [MCP_PROTOCOL_VERSION],
-        capabilities: { tools: {} },
-        ttlMs: 60_000,
-        cacheScope: "private",
-        _meta: mcpResultMetadata(),
-      });
-    }
+    if (request.method === "ping") return jsonRpcResult(id, {});
     if (request.method === "tools/list") {
-      return jsonRpcResult(id, {
-        resultType: "complete",
-        tools: MCP_TOOLS,
-        ttlMs: 60_000,
-        cacheScope: "private",
-        _meta: mcpResultMetadata(),
-      });
+      return jsonRpcResult(id, { tools: MCP_TOOLS });
     }
     if (request.method === "tools/call") {
       const name = stringArg(request.params?.name, "params.name");
@@ -359,7 +351,6 @@ export async function handleMcpCoreRequest(raw: string, methodHeader: string, na
       try {
         const structuredContent = await callMcpTool(name, request.params?.arguments ?? {});
         return jsonRpcResult(id, {
-          resultType: "complete",
           content: [{ type: "text", text: JSON.stringify(structuredContent) }],
           structuredContent,
           _meta: mcpResultMetadata(),
@@ -367,7 +358,6 @@ export async function handleMcpCoreRequest(raw: string, methodHeader: string, na
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         return jsonRpcResult(id, {
-          resultType: "complete",
           content: [{ type: "text", text: message }],
           structuredContent: { error: message },
           isError: true,

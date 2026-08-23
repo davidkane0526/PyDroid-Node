@@ -42,7 +42,13 @@ try {
     },
   });
   try {
-    const call = (name, args) => core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } }), "tools/call", name, "2026-07-28");
+    const initialize = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "codex-smoke", version: "1" } } }));
+    assert.equal(initialize.result.protocolVersion, "2025-11-25");
+    assert.deepEqual(initialize.result.capabilities, { tools: {} });
+    assert.equal(initialize.result.serverInfo.name, "PyDroid Node");
+    const listed = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }), "2025-11-25");
+    assert.equal(listed.result.tools.length, 10);
+    const call = (name, args) => core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name, arguments: args } }), "2025-11-25");
     const add = await call("core_command", { command: "node.add", args: { nodeType: "io.read_csv", id: "mcp-read" } });
     assert.equal(add.result.structuredContent.result.changed, true);
     const read = await call("core_read", { path: "workflow.nodes" });

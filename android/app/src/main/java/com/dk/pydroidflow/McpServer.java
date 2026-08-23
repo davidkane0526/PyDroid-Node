@@ -15,6 +15,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Minimal Streamable HTTP host for the renderer-owned MCP Core adapter. */
 final class McpServer implements AutoCloseable {
@@ -24,8 +26,10 @@ final class McpServer implements AutoCloseable {
 
     static final int PORT = 8766;
     static final String PATH = "/mcp";
+    static final String PROTOCOL_VERSION = "2025-11-25";
     private static final int MAX_HEADER_BYTES = 64 * 1024;
     private static final int MAX_BODY_BYTES = 16 * 1024 * 1024;
+    private static final Pattern METHOD_PATTERN = Pattern.compile("\"method\"\\s*:\\s*\"([^\"]+)\"");
 
     private final Dispatcher dispatcher;
     private final ExecutorService requests = Executors.newCachedThreadPool();
@@ -76,11 +80,12 @@ final class McpServer implements AutoCloseable {
                 if (!PATH.equals(request.path)) { send(output, 404, rpcError(-32601, "MCP endpoint not found")); return; }
                 if (!("Bearer " + token).equals(request.headers.getOrDefault("authorization", ""))) { send(output, 401, rpcError(-32001, "Unauthorized")); return; }
                 String protocolVersion = request.headers.getOrDefault("mcp-protocol-version", "");
-                String method = request.headers.getOrDefault("mcp-method", "");
-                String name = request.headers.get("mcp-name");
-                if (protocolVersion.isEmpty()) { send(output, 400, rpcError(-32020, "Missing MCP-Protocol-Version header")); return; }
-                if (method.isEmpty()) { send(output, 400, rpcError(-32020, "Missing Mcp-Method header")); return; }
-                send(output, 200, dispatcher.dispatch(request.body, method, name, protocolVersion));
+                if (!protocolVersion.isEmpty() && !PROTOCOL_VERSION.equals(protocolVersion)) {
+                    send(output, 400, rpcError(-32019, "Unsupported MCP-Protocol-Version: " + protocolVersion)); return;
+                }
+                String method = extractMethod(request.body);
+                if (method.startsWith("notifications/")) { sendAccepted(output); return; }
+                send(output, 200, dispatcher.dispatch(request.body, method, null, protocolVersion));
             } catch (Exception exception) {
                 send(output, 500, rpcError(-32603, exception.getMessage() == null ? exception.toString() : exception.getMessage()));
             }
@@ -129,9 +134,24 @@ final class McpServer implements AutoCloseable {
         }
     }
 
+
+    private static String extractMethod(String body) {
+        Matcher matcher = METHOD_PATTERN.matcher(body);
+        return matcher.find() ? matcher.group(1) : "";
+    }
+
+    private static void sendAccepted(BufferedOutputStream output) throws IOException {
+        String headers = "HTTP/1.1 202 Accepted\r\n"
+            + "Content-Length: 0\r\n"
+            + "Cache-Control: no-store\r\n"
+            + "Connection: close\r\n\r\n";
+        output.write(headers.getBytes(StandardCharsets.ISO_8859_1));
+        output.flush();
+    }
+
     private static void send(BufferedOutputStream output, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-        String reason = status == 200 ? "OK" : status == 400 ? "Bad Request" : status == 401 ? "Unauthorized" : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Internal Server Error";
+        String reason = status == 200 ? "OK" : status == 202 ? "Accepted" : status == 400 ? "Bad Request" : status == 401 ? "Unauthorized" : status == 404 ? "Not Found" : status == 405 ? "Method Not Allowed" : "Internal Server Error";
         String headers = "HTTP/1.1 " + status + " " + reason + "\r\n"
             + "Content-Type: application/json; charset=utf-8\r\n"
             + "Content-Length: " + bytes.length + "\r\n"

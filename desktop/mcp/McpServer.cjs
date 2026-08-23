@@ -4,6 +4,7 @@ const { getLanInterfaces } = require("../lan/network.cjs");
 
 const MCP_PORT = 8766;
 const MCP_PATH = "/mcp";
+const MCP_PROTOCOL_VERSION = "2025-11-25";
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
 
 function readBody(request) {
@@ -34,8 +35,25 @@ function sendJson(response, status, value) {
   response.end(body);
 }
 
+function sendAccepted(response) {
+  response.writeHead(202, { "Cache-Control": "no-store", "Content-Length": "0" });
+  response.end();
+}
+
 function rpcError(code, message) {
   return { jsonrpc: "2.0", id: null, error: { code, message } };
+}
+
+function requestMetadata(body) {
+  try {
+    const value = JSON.parse(body);
+    if (!value || Array.isArray(value) || typeof value !== "object") return { method: "", name: null, notification: false };
+    const method = typeof value.method === "string" ? value.method : "";
+    const name = method === "tools/call" && typeof value.params?.name === "string" ? value.params.name : null;
+    return { method, name, notification: method.startsWith("notifications/") && value.id === undefined };
+  } catch {
+    return { method: "", name: null, notification: false };
+  }
 }
 
 class McpServer {
@@ -54,16 +72,19 @@ class McpServer {
       try {
         const url = new URL(request.url || "/", "http://localhost");
         if (url.pathname !== MCP_PATH) return sendJson(response, 404, rpcError(-32601, "MCP endpoint not found"));
-        if (request.method !== "POST") return sendJson(response, 405, rpcError(-32600, "MCP endpoint requires POST"));
+        if (request.method !== "POST") return sendJson(response, 405, rpcError(-32600, "MCP Streamable HTTP endpoint requires POST"));
         if (String(request.headers.authorization || "") !== `Bearer ${this.token}`) return sendJson(response, 401, rpcError(-32001, "Unauthorized"));
+
         const protocolVersion = String(request.headers["mcp-protocol-version"] || "");
-        const method = String(request.headers["mcp-method"] || "");
-        const nameValue = request.headers["mcp-name"];
-        const name = nameValue == null ? null : String(nameValue);
-        if (!protocolVersion) return sendJson(response, 400, rpcError(-32020, "Missing MCP-Protocol-Version header"));
-        if (!method) return sendJson(response, 400, rpcError(-32020, "Missing Mcp-Method header"));
+        if (protocolVersion && protocolVersion !== MCP_PROTOCOL_VERSION) {
+          return sendJson(response, 400, rpcError(-32019, `Unsupported MCP-Protocol-Version: ${protocolVersion}`));
+        }
+
         const body = await readBody(request);
-        const result = await this.dispatch({ body, method, name, protocolVersion });
+        const metadata = requestMetadata(body);
+        if (metadata.notification) return sendAccepted(response);
+
+        const result = await this.dispatch({ body, method: metadata.method, name: metadata.name, protocolVersion });
         sendJson(response, 200, result);
       } catch (error) {
         sendJson(response, 500, rpcError(-32603, error?.message || String(error)));
@@ -97,4 +118,4 @@ class McpServer {
   }
 }
 
-module.exports = { McpServer, MCP_PORT, MCP_PATH };
+module.exports = { McpServer, MCP_PORT, MCP_PATH, MCP_PROTOCOL_VERSION };

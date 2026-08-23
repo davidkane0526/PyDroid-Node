@@ -1,6 +1,6 @@
 import { APP_VERSION } from "../app-version";
 
-export const MCP_PROTOCOL_VERSION = "2026-07-28";
+export const MCP_PROTOCOL_VERSION = "2025-11-25";
 export const MCP_PORT = 8766;
 export const MCP_PATH = "/mcp";
 
