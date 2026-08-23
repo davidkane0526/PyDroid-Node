@@ -24,7 +24,7 @@ final class McpServer implements AutoCloseable {
 
     static final int PORT = 8766;
     static final String PATH = "/mcp";
-    static final String PROTOCOL_VERSION = "2025-11-25";
+    static final String PROTOCOL_VERSION = "2025-06-18";
     private static final int MAX_HEADER_BYTES = 64 * 1024;
     private static final int MAX_BODY_BYTES = 16 * 1024 * 1024;
     private static final Pattern METHOD_PATTERN = Pattern.compile("\"method\"\\s*:\\s*\"([^\"]+)\"");
@@ -84,7 +84,7 @@ final class McpServer implements AutoCloseable {
                 if (!PATH.equals(request.path)) { send(output, 404, rpcError(-32601, "MCP endpoint not found")); return; }
                 if (!token.equals(request.headers.getOrDefault("x-pydroid-token", ""))) { send(output, 401, rpcError(-32001, "Unauthorized")); return; }
                 String protocolVersion = request.headers.getOrDefault("mcp-protocol-version", "");
-                if (!protocolVersion.isEmpty() && !PROTOCOL_VERSION.equals(protocolVersion)) {
+                if (!protocolVersion.isEmpty() && !isSupportedProtocolVersion(protocolVersion)) {
                     send(output, 400, rpcError(-32019, "Unsupported MCP-Protocol-Version: " + protocolVersion)); return;
                 }
                 String method = extractMethod(request.body);
@@ -164,6 +164,10 @@ final class McpServer implements AutoCloseable {
         output.write(headers.getBytes(StandardCharsets.ISO_8859_1));
         output.write(bytes);
         output.flush();
+    }
+
+    private static boolean isSupportedProtocolVersion(String value) {
+        return "2025-06-18".equals(value) || "2025-11-25".equals(value);
     }
 
     private static String rpcError(int code, String message) {

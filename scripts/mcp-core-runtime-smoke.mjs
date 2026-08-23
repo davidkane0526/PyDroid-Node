@@ -42,13 +42,18 @@ try {
     },
   });
   try {
-    const initialize = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "codex-smoke", version: "1" } } }));
-    assert.equal(initialize.result.protocolVersion, "2025-11-25");
+    const initialize = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "codex-smoke", version: "1" } } }));
+    assert.equal(initialize.result.protocolVersion, "2025-06-18");
     assert.deepEqual(initialize.result.capabilities, { tools: {} });
     assert.equal(initialize.result.serverInfo.name, "PyDroid Node");
-    const listed = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }), "2025-11-25");
+    const listed = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} }), "2025-06-18");
+    const initialize1125 = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 11, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "codex-smoke", version: "1" } } }));
+    assert.equal(initialize1125.result.protocolVersion, "2025-11-25");
+    const listed1125 = await core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 12, method: "tools/list", params: {} }), "2025-11-25");
+    assert.equal(Array.isArray(listed1125.result.tools), true);
+
     assert.equal(listed.result.tools.length, 10);
-    const call = (name, args) => core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name, arguments: args } }), "2025-11-25");
+    const call = (name, args) => core.handleMcpCoreRequest(JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name, arguments: args } }), "2025-06-18");
     const add = await call("core_command", { command: "node.add", args: { nodeType: "io.read_csv", id: "mcp-read" } });
     assert.equal(add.result.structuredContent.result.changed, true);
     const read = await call("core_read", { path: "workflow.nodes" });

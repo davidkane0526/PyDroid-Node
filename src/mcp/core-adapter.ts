@@ -7,7 +7,7 @@ import { getWorkspaceExecutionResult } from "../execution-workspace";
 import { parseWorkflow, serializeWorkflow, type WorkflowDocument, type WorkflowNode } from "../workflow";
 import type { RuntimePreference } from "../runtime";
 import type { JsonRpcRequest, JsonRpcResponse } from "./protocol";
-import { MCP_PROTOCOL_VERSION, MCP_TOOLS, jsonRpcError, jsonRpcResult, mcpResultMetadata } from "./protocol";
+import { MCP_PROTOCOL_VERSION, MCP_PROTOCOL_VERSIONS, MCP_TOOLS, isSupportedMcpProtocolVersion, jsonRpcError, jsonRpcResult, mcpResultMetadata } from "./protocol";
 
 export type McpExecutionBridge = {
   run(session: EditorWorkspaceSession, runtime: RuntimePreference, timeoutMs?: number): Promise<unknown>;
@@ -269,6 +269,7 @@ export function describeMcpCore(): unknown {
   const current = requireBinding();
   return {
     protocolVersion: MCP_PROTOCOL_VERSION,
+    supportedProtocolVersions: MCP_PROTOCOL_VERSIONS,
     activeWorkspaceId: current.activeWorkspaceId(),
     paths: ["workflow", "workflow.nodes", "workflow.edges", "workflow.functions", "workflow.requirements", "workflow.environment", "workflow.parameters", "editor", "editor.selection", "runtime", "execution", "data", "node.contracts", "node.catalog"],
     commands: ["workflow.replace", "workflow.validate", "node.add", "node.remove", "node.updateParameters", "node.connect", "node.disconnect", "function.register", "function.remove", "editor.select", "runtime.setPreference", "execution.stop"],
@@ -340,15 +341,18 @@ export async function handleMcpCoreRequest(raw: string, protocolVersionHeader = 
   if (request.method === "initialize") {
     const requestedVersion = typeof request.params?.protocolVersion === "string" ? request.params.protocolVersion : "";
     if (!requestedVersion) return jsonRpcError(id, -32602, "initialize requires params.protocolVersion");
+    if (!isSupportedMcpProtocolVersion(requestedVersion)) {
+      return jsonRpcError(id, -32019, `Unsupported protocol version: ${requestedVersion}`, { supported: MCP_PROTOCOL_VERSIONS });
+    }
     return jsonRpcResult(id, {
-      protocolVersion: MCP_PROTOCOL_VERSION,
+      protocolVersion: requestedVersion,
       capabilities: { tools: {} },
       serverInfo: { name: "PyDroid Node", version: APP_VERSION },
     });
   }
 
-  if (protocolVersionHeader && protocolVersionHeader !== MCP_PROTOCOL_VERSION) {
-    return jsonRpcError(id, -32019, `Unsupported protocol version: ${protocolVersionHeader}`);
+  if (protocolVersionHeader && !isSupportedMcpProtocolVersion(protocolVersionHeader)) {
+    return jsonRpcError(id, -32019, `Unsupported protocol version: ${protocolVersionHeader}`, { supported: MCP_PROTOCOL_VERSIONS });
   }
 
   try {

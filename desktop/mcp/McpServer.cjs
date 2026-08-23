@@ -3,7 +3,8 @@ const { getLanInterfaces } = require("../lan/network.cjs");
 
 const MCP_PORT = 8766;
 const MCP_PATH = "/mcp";
-const MCP_PROTOCOL_VERSION = "2025-11-25";
+const MCP_PROTOCOL_VERSION = "2025-06-18";
+const MCP_PROTOCOL_VERSIONS = new Set(["2025-06-18", "2025-11-25"]);
 const MCP_TOKEN_HEADER = "x-pydroid-token";
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
 
@@ -88,7 +89,7 @@ class McpServer {
         if (String(request.headers[MCP_TOKEN_HEADER] || "") !== this.token) return sendJson(response, 401, rpcError(-32001, "Unauthorized"));
 
         const protocolVersion = String(request.headers["mcp-protocol-version"] || "");
-        if (protocolVersion && protocolVersion !== MCP_PROTOCOL_VERSION) {
+        if (protocolVersion && !MCP_PROTOCOL_VERSIONS.has(protocolVersion)) {
           return sendJson(response, 400, rpcError(-32019, `Unsupported MCP-Protocol-Version: ${protocolVersion}`));
         }
 
@@ -130,4 +131,4 @@ class McpServer {
   }
 }
 
-module.exports = { McpServer, MCP_PORT, MCP_PATH, MCP_PROTOCOL_VERSION, MCP_TOKEN_HEADER };
+module.exports = { McpServer, MCP_PORT, MCP_PATH, MCP_PROTOCOL_VERSION, MCP_PROTOCOL_VERSIONS, MCP_TOKEN_HEADER };

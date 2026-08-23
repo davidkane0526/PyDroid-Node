@@ -1,6 +1,11 @@
 import { APP_VERSION } from "../app-version";
 
-export const MCP_PROTOCOL_VERSION = "2025-11-25";
+export const MCP_PROTOCOL_VERSION = "2025-06-18";
+export const MCP_PROTOCOL_VERSIONS = ["2025-06-18", "2025-11-25"] as const;
+
+export function isSupportedMcpProtocolVersion(value: string): boolean {
+  return (MCP_PROTOCOL_VERSIONS as readonly string[]).includes(value);
+}
 export const MCP_PORT = 8766;
 export const MCP_PATH = "/mcp";
 

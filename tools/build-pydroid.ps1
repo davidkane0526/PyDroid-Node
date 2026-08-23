@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.3-dev-r102-mcp-response-auth"
+$script:BuildScriptRevision = "1.6.4-dev-r103-mcp-codex-shipping-compat"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

@@ -12,7 +12,7 @@ const build = path.join(temp, "build");
 const xyflowTypes = path.join(temp, "xyflow.d.ts");
 writeFileSync(xyflowTypes, `declare module "@xyflow/react" {\n  export type Edge<T = any> = { id: string; source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null; data?: T; [key: string]: any };\n  export type Node<T = any> = { id: string; type?: string; position: { x: number; y: number }; data: T; parentId?: string; [key: string]: any };\n  export type Connection = { source: string; target: string; sourceHandle?: string | null; targetHandle?: string | null };\n  export function addEdge(connection: any, edges: any[]): any[];\n  export function reconnectEdge(edge: any, connection: any, edges: any[]): any[];\n}\n`);
 
-function post(token, body, version = "2025-11-25") {
+function post(token, body, version = "2025-06-18") {
   return new Promise((resolve, reject) => {
     const req = http.request("http://127.0.0.1:8766/mcp", {
       method: "POST",
