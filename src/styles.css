@@ -3816,3 +3816,10 @@ button.smb-file-row { cursor: pointer; }
 .app-shell[data-theme="light"] .flow-library-item--demo { border-color: #c8dced; background: #f7fbff; }
 .app-shell[data-theme="light"] .flow-library-item--demo strong { color: #246c9c; }
 .app-shell[data-theme="light"] .flow-library-item--demo:hover { border-color: #72b5dc; background: #edf8ff; }
+.settings-mcp-token { display: grid; min-width: 0; gap: 5px; }
+.settings-mcp-token > span { color: var(--text-faint); font-size: 10px; }
+.settings-mcp-token > div { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) 28px; align-items: center; gap: 6px; }
+.settings-mcp-token input { width: 100%; min-width: 0; height: 30px; box-sizing: border-box; border: 1px solid var(--border-soft); border-radius: 8px; padding: 0 9px; color: var(--text); background: var(--surface); font: inherit; font-size: 11px; outline: none; }
+.settings-mcp-token input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 15%, transparent); }
+.settings-mcp-token input:disabled { opacity: .72; cursor: not-allowed; }
+.app-shell[data-theme="light"] .settings-mcp-token input { border-color: #dbe3ed; background: #fff; color: #1e293b; }

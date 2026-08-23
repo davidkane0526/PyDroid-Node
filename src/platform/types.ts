@@ -98,7 +98,7 @@ export interface RemotePlatformCapability {
 
 export interface McpPlatformCapability {
   canHostServer(): boolean;
-  startServer(): Promise<McpServerInfo>;
+  startServer(token: string): Promise<McpServerInfo>;
   stopServer(): Promise<void>;
   subscribeRequests(callback: (request: McpHostRequest) => void): () => void;
   respond(requestId: string, response: string): Promise<void>;

@@ -29,7 +29,7 @@ contextBridge.exposeInMainWorld("pyDroidDesktop", {
   loadSmbSecret: () => ipcRenderer.invoke("pydroid:load-smb-secret"),
   startRemoteServer: (requirePin) => ipcRenderer.invoke("pydroid:start-remote-server", requirePin),
   stopRemoteServer: () => ipcRenderer.invoke("pydroid:stop-remote-server"),
-  startMcpServer: () => ipcRenderer.invoke("pydroid:start-mcp-server"),
+  startMcpServer: (token) => ipcRenderer.invoke("pydroid:start-mcp-server", { token }),
   stopMcpServer: () => ipcRenderer.invoke("pydroid:stop-mcp-server"),
   completeMcpRequest: (requestId, response) => ipcRenderer.invoke("pydroid:complete-mcp-request", { requestId, response }),
   onMcpRequest: (callback) => {

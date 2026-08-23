@@ -120,9 +120,9 @@ export function createAndroidPlatformAdapter(): PlatformAdapter {
     },
     mcp: {
       canHostServer: () => !remoteSession.isRemoteRuntime(),
-      async startServer() {
+      async startServer(token) {
         if (remoteSession.isRemoteRuntime()) throw new Error("MCP Server is only available in the Android host app");
-        return PythonExecutor.startMcpServer();
+        return PythonExecutor.startMcpServer({ token });
       },
       async stopServer() { if (!remoteSession.isRemoteRuntime()) await PythonExecutor.stopMcpServer(); },
       subscribeRequests: subscribeMcpRequests,

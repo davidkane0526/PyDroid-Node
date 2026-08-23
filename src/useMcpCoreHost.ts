@@ -4,7 +4,7 @@ import type { EditorSessionStore } from "./editor-core";
 import { attachMcpCoreHost } from "./mcp/host";
 import { getPlatformAdapter, type McpServerInfo } from "./platform";
 
-export function useMcpCoreHost(sessions: EditorSessionStore, activeWorkspaceIdRef: { current: string }, enabled: boolean, setEnabled: (enabled: boolean) => void): { info: McpServerInfo | null; available: boolean } {
+export function useMcpCoreHost(sessions: EditorSessionStore, activeWorkspaceIdRef: { current: string }, enabled: boolean, token: string, setEnabled: (enabled: boolean) => void): { info: McpServerInfo | null; available: boolean } {
   const [info, setInfo] = useState<McpServerInfo | null>(null);
   const platform = getPlatformAdapter();
   const available = platform.mcp.canHostServer();
@@ -35,9 +35,10 @@ export function useMcpCoreHost(sessions: EditorSessionStore, activeWorkspaceIdRe
     if (!available) { setInfo(null); return; }
     let disposed = false;
     if (!enabled) { void platform.mcp.stopServer().finally(() => { if (!disposed) setInfo(null); }); return () => { disposed = true; }; }
-    void platform.mcp.startServer().then((next) => { if (!disposed) setInfo(next); }).catch(() => { if (!disposed) { setInfo(null); setEnabled(false); } });
+    if (!token.trim()) { setInfo(null); setEnabled(false); return () => { disposed = true; }; }
+    void platform.mcp.startServer(token).then((next) => { if (!disposed) setInfo(next); }).catch(() => { if (!disposed) { setInfo(null); setEnabled(false); } });
     return () => { disposed = true; };
-  }, [available, enabled, platform, setEnabled]);
+  }, [available, enabled, token, platform, setEnabled]);
 
   useEffect(() => () => { void platform.mcp.stopServer(); }, [platform]);
   return { info, available };

@@ -32,7 +32,7 @@ export type DesktopPlatformBridge = {
   loadSmbSecret(): Promise<{ value: string }>;
   startRemoteServer(requirePin: boolean): Promise<RemoteServerInfo>;
   stopRemoteServer(): Promise<void>;
-  startMcpServer(): Promise<McpServerInfo>;
+  startMcpServer(token: string): Promise<McpServerInfo>;
   stopMcpServer(): Promise<{ stopped: boolean }>;
   completeMcpRequest(requestId: string, response: string): Promise<{ completed: boolean }>;
   onMcpRequest(callback: (request: McpHostRequest) => void): () => void;

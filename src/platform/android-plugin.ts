@@ -32,7 +32,7 @@ export type PythonExecutorPlugin = {
   readSmbCsv(options: SmbConnection & { paths: string[] }): Promise<{ files: Array<{ name: string; base64: string }> }>;
   startRemoteServer(options: { requirePin: boolean }): Promise<RemoteServerInfo>;
   stopRemoteServer(): Promise<{ stopped: boolean }>;
-  startMcpServer(): Promise<McpServerInfo>;
+  startMcpServer(options: { token: string }): Promise<McpServerInfo>;
   stopMcpServer(): Promise<{ stopped: boolean }>;
   completeMcpRequest(options: { requestId: string; response: string }): Promise<{ completed: boolean }>;
   addListener(eventName: "mcpRequest", listener: (request: McpHostRequest) => void): Promise<PluginListenerHandle>;

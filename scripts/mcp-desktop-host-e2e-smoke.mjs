@@ -32,15 +32,16 @@ function request(headers, body, method = "POST") {
 }
 
 try {
-  const info = await server.start();
+  const token = "fixed-mcp-token";
+  const info = await server.start(token);
   assert.equal(info.port, 8766);
   assert.match(info.url, /:8766\/mcp$/);
-  assert.ok(info.token.length >= 24);
+  assert.equal(info.token, token);
 
   const initializeBody = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "codex", version: "smoke" } } });
   assert.equal((await request({ Accept: "application/json, text/event-stream" }, initializeBody)).status, 401, "unauthorized initialize must be rejected");
 
-  const auth = { Authorization: `Bearer ${info.token}`, Accept: "application/json, text/event-stream" };
+  const auth = { "X-PyDroid-Token": token, Accept: "application/json, text/event-stream" };
   const initialized = await request(auth, initializeBody);
   assert.equal(initialized.status, 200);
   assert.equal(initialized.headers["content-type"], "application/json; charset=utf-8");

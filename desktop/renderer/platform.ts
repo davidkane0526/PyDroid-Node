@@ -104,10 +104,10 @@ export function getPlatformAdapter(): PlatformAdapter {
     },
     mcp: {
       canHostServer: () => true,
-      async startServer() {
+      async startServer(token) {
         const bridge = getDesktopBridge();
         if (!bridge?.startMcpServer) throw new Error("Desktop MCP service is unavailable");
-        return bridge.startMcpServer();
+        return bridge.startMcpServer(token);
       },
       async stopServer() { await getDesktopBridge()?.stopMcpServer?.(); },
       subscribeRequests(callback: (request: McpHostRequest) => void) {
@@ -117,7 +117,8 @@ export function getPlatformAdapter(): PlatformAdapter {
       async respond(requestId, response) {
         const bridge = getDesktopBridge();
         if (!bridge?.completeMcpRequest) throw new Error("Desktop MCP response bridge is unavailable");
-        await bridge.completeMcpRequest(requestId, response);
+        const result = await bridge.completeMcpRequest(requestId, response);
+        if (!result.completed) throw new Error(`Desktop MCP request is no longer pending: ${requestId}`);
       },
     },
     system: {

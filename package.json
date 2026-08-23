@@ -3,7 +3,7 @@
   "description": "Cross-platform visual data-processing workflow editor with Python and JavaScript runtimes",
   "author": "PyDroid Flow contributors",
   "private": true,
-  "version": "1.6.2",
+  "version": "1.6.3",
   "packageManager": "pnpm@11.21.0",
   "engines": {
     "node": ">=24.19.0 <25"
@@ -64,7 +64,7 @@
     "test:plot-presentation": "node scripts/plot-presentation-smoke.mjs",
     "test:runtime-parameter-parity": "node scripts/runtime-parameter-parity-smoke.mjs",
     "test:notebook-import-canonical": "node scripts/notebook-import-canonical-smoke.mjs",
-    "test:mcp": "node scripts/mcp-core-architecture-smoke.mjs && node scripts/mcp-core-runtime-smoke.mjs && node scripts/mcp-desktop-host-e2e-smoke.mjs && node scripts/android-mcp-host-jvm-smoke.mjs"
+    "test:mcp": "node scripts/mcp-core-architecture-smoke.mjs && node scripts/mcp-core-runtime-smoke.mjs && node scripts/mcp-core-http-integration-smoke.mjs && node scripts/mcp-desktop-host-e2e-smoke.mjs && node scripts/android-mcp-host-jvm-smoke.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.0",

@@ -32,7 +32,9 @@ final class AndroidMcpService implements AutoCloseable {
             try {
                 McpServer active;
                 synchronized (AndroidMcpService.this) {
-                    if (server == null) server = McpServer.start(this::dispatch);
+                    String token = call.getString("token", "").trim();
+                    if (server == null) server = McpServer.start(this::dispatch, token);
+                    else if (!server.token().equals(token)) throw new IllegalStateException("Stop MCP Server before changing the Token");
                     active = server;
                 }
                 List<LanNetworkInterfaceManager.Entry> interfaces = LanNetworkInterfaceManager.list();

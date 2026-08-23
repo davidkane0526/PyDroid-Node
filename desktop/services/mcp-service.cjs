@@ -11,22 +11,25 @@ function createMcpService({ log }) {
       const window = BrowserWindow.getAllWindows().find((item) => !item.isDestroyed());
       if (!window) throw new Error("No renderer is available for MCP Core dispatch");
       return new Promise((resolve, reject) => {
+        const startedAt = Date.now();
         const timeout = setTimeout(() => {
           pending.delete(requestId);
-          reject(new Error("MCP Core dispatch timed out"));
-        }, 30_000);
-        pending.set(requestId, { resolve, reject, timeout });
+          reject(new Error(`MCP Core dispatch timed out after ${Date.now() - startedAt} ms (${request.method || "unknown"}${request.name ? `:${request.name}` : ""})`));
+        }, 15_000);
+        pending.set(requestId, { resolve, reject, timeout, startedAt, method: request.method, name: request.name });
         window.webContents.send("pydroid:mcp-request", { requestId, ...request });
       });
     },
   });
 
   function complete(requestId, response) {
-    const entry = pending.get(String(requestId || ""));
+    const key = String(requestId || "");
+    const entry = pending.get(key);
     if (!entry) return false;
-    pending.delete(String(requestId));
+    pending.delete(key);
     clearTimeout(entry.timeout);
     entry.resolve(String(response || ""));
+    log(`[MCP] ${entry.method || "request"}${entry.name ? `:${entry.name}` : ""} completed in ${Date.now() - entry.startedAt} ms`);
     return true;
   }
 
@@ -39,7 +42,7 @@ function createMcpService({ log }) {
     await server.stop();
   }
 
-  return { start: () => server.start(), stop, complete };
+  return { start: (token) => server.start(token), stop, complete };
 }
 
 module.exports = { createMcpService };

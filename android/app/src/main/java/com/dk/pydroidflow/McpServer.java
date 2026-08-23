@@ -8,8 +8,6 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -38,11 +36,9 @@ final class McpServer implements AutoCloseable {
     private final Thread acceptThread;
     private volatile boolean running = true;
 
-    private McpServer(Dispatcher dispatcher) throws IOException {
+    private McpServer(Dispatcher dispatcher, String tokenValue) throws IOException {
         this.dispatcher = dispatcher;
-        byte[] secret = new byte[24];
-        new SecureRandom().nextBytes(secret);
-        token = Base64.getUrlEncoder().withoutPadding().encodeToString(secret);
+        token = normalizeToken(tokenValue);
         serverSocket = new ServerSocket();
         serverSocket.setReuseAddress(true);
         serverSocket.bind(new InetSocketAddress("0.0.0.0", PORT));
@@ -51,12 +47,20 @@ final class McpServer implements AutoCloseable {
         acceptThread.start();
     }
 
-    static McpServer start(Dispatcher dispatcher) throws IOException {
-        return new McpServer(dispatcher);
+    static McpServer start(Dispatcher dispatcher, String token) throws IOException {
+        return new McpServer(dispatcher, token);
     }
 
     String token() { return token; }
     int port() { return PORT; }
+
+    private static String normalizeToken(String value) {
+        String token = value == null ? "" : value.trim();
+        if (token.isEmpty()) throw new IllegalArgumentException("MCP Token must not be empty");
+        if (token.length() > 256) throw new IllegalArgumentException("MCP Token must not exceed 256 characters");
+        if (token.indexOf('\r') >= 0 || token.indexOf('\n') >= 0) throw new IllegalArgumentException("MCP Token must not contain line breaks");
+        return token;
+    }
 
     private void acceptLoop() {
         while (running) {
@@ -78,7 +82,7 @@ final class McpServer implements AutoCloseable {
                 Request request = readRequest(input);
                 if (!"POST".equals(request.method)) { send(output, 405, rpcError(-32600, "MCP endpoint requires POST")); return; }
                 if (!PATH.equals(request.path)) { send(output, 404, rpcError(-32601, "MCP endpoint not found")); return; }
-                if (!("Bearer " + token).equals(request.headers.getOrDefault("authorization", ""))) { send(output, 401, rpcError(-32001, "Unauthorized")); return; }
+                if (!token.equals(request.headers.getOrDefault("x-pydroid-token", ""))) { send(output, 401, rpcError(-32001, "Unauthorized")); return; }
                 String protocolVersion = request.headers.getOrDefault("mcp-protocol-version", "");
                 if (!protocolVersion.isEmpty() && !PROTOCOL_VERSION.equals(protocolVersion)) {
                     send(output, 400, rpcError(-32019, "Unsupported MCP-Protocol-Version: " + protocolVersion)); return;

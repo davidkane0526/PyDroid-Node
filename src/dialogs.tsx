@@ -657,47 +657,40 @@ export function AutomatedDiagnosticsDialog({ open, running, report, exportStatus
 }
 
 
-function McpSettingsSection({ enabled, info, available, language, onEnabledChange }: {
+function McpSettingsSection({ enabled, token, info, available, language, onEnabledChange, onTokenChange }: {
   enabled: boolean;
+  token: string;
   info: McpServerInfo | null;
   available: boolean;
   language: string;
   onEnabledChange: (enabled: boolean) => void;
+  onTokenChange: (token: string) => void;
 }) {
   const L = (zh: string, en: string) => language === "en" ? en : zh;
   const [helpOpen, setHelpOpen] = useState(false);
   const [copyNotice, setCopyNotice] = useState<{ text: string; error?: boolean } | null>(null);
   const copyTimerRef = useRef<number | null>(null);
-  useEffect(() => () => {
-    if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
-  }, []);
+  useEffect(() => () => { if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current); }, []);
   const showCopyNotice = (text: string, error = false) => {
     if (copyTimerRef.current !== null) window.clearTimeout(copyTimerRef.current);
     setCopyNotice({ text, error });
-    copyTimerRef.current = window.setTimeout(() => {
-      setCopyNotice(null);
-      copyTimerRef.current = null;
-    }, 1400);
+    copyTimerRef.current = window.setTimeout(() => { setCopyNotice(null); copyTimerRef.current = null; }, 1400);
   };
   const copyValue = async (label: string, value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      showCopyNotice(L(`已复制 ${label}`, `${label} copied`));
-    } catch {
-      showCopyNotice(L("复制失败", "Copy failed"), true);
-    }
+    try { await navigator.clipboard.writeText(value); showCopyNotice(L(`已复制 ${label}`, `${label} copied`)); }
+    catch { showCopyNotice(L("复制失败", "Copy failed"), true); }
   };
   const endpoint = info?.url ?? "http://<PyDroid-IP>:8766/mcp";
-  const token = info?.token ?? "<Token>";
-  const codexConfig = `[mcp_servers.pydroid]\nurl = "${endpoint}"\nhttp_headers = { Authorization = "Bearer ${token}" }\nenabled = true\ndefault_tools_approval_mode = "prompt"`;
-  const displayedConfig = `[mcp_servers.pydroid]\nurl = "${endpoint}"\nhttp_headers = { Authorization = "Bearer ${L("<当前 Token>", "<current Token>")}" }\nenabled = true\ndefault_tools_approval_mode = "prompt"`;
+  const codexConfig = `[mcp_servers.pydroid]\nurl = "${endpoint}"\nhttp_headers = { "X-PyDroid-Token" = "${token}" }\nenabled = true\ndefault_tools_approval_mode = "prompt"`;
+  const displayedConfig = `[mcp_servers.pydroid]\nurl = "${endpoint}"\nhttp_headers = { "X-PyDroid-Token" = "${L("<你的 Token>", "<your Token>")}" }\nenabled = true\ndefault_tools_approval_mode = "prompt"`;
   return <>
     <section className="settings-section settings-mcp-summary">
       <div className="settings-mcp-heading-row"><div className="settings-section__heading"><h3>MCP Server</h3><small>{L("完整 Core", "Full Core")}</small></div><button type="button" className="settings-help-button" aria-label={L("MCP 连接帮助", "MCP connection help")} title={L("连接帮助", "Connection help")} onClick={() => setHelpOpen(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7.25"/><path d="M7.9 7.55A2.25 2.25 0 0 1 10.1 6c1.35 0 2.35.78 2.35 1.92 0 1.5-1.55 1.8-2.15 2.75-.2.3-.25.55-.25 1.05"/><circle className="settings-help-button__dot" cx="10.05" cy="14.2" r=".7"/></svg></button></div>
-      <label className="settings-check"><input type="checkbox" checked={enabled && available} disabled={!available} onChange={(event) => onEnabledChange(event.target.checked)} />{L("开启 MCP Server", "Enable MCP Server")}</label>
+      <label className="settings-mcp-token"><span>Token</span><div><input type="text" value={token} disabled={enabled} maxLength={256} placeholder={L("输入固定 Token", "Enter a fixed Token")} onChange={(event) => onTokenChange(event.target.value.replace(/[\r\n]/g, ""))} /><button type="button" className="settings-copy-button" disabled={!token} aria-label={L("复制 Token", "Copy Token")} title={L("复制 Token", "Copy Token")} onClick={() => void copyValue("Token", token)}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6.1" y="5.5" width="8.4" height="9" rx="1.4"/><path d="M5.7 12.2H4.9a1.4 1.4 0 0 1-1.4-1.4V4.9a1.4 1.4 0 0 1 1.4-1.4h5.9a1.4 1.4 0 0 1 1.4 1.4v.6"/></svg></button></div></label>
+      <label className="settings-check"><input type="checkbox" checked={enabled && available} disabled={!available || !token.trim()} onChange={(event) => onEnabledChange(event.target.checked)} />{L("开启 MCP Server", "Enable MCP Server")}</label>
       {info && <div className="settings-mcp-values">
         <div className="settings-mcp-value"><small>Endpoint</small><div><strong><code title={info.url}>{info.url}</code></strong><button type="button" className="settings-copy-button" aria-label={L("复制 Endpoint", "Copy Endpoint")} title={L("复制 Endpoint", "Copy Endpoint")} onClick={() => void copyValue("Endpoint", info.url)}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6.1" y="5.5" width="8.4" height="9" rx="1.4"/><path d="M5.7 12.2H4.9a1.4 1.4 0 0 1-1.4-1.4V4.9a1.4 1.4 0 0 1 1.4-1.4h5.9a1.4 1.4 0 0 1 1.4 1.4v.6"/></svg></button></div></div>
-        <div className="settings-mcp-value"><small>Token</small><div><strong><code title={L("点击复制完整 Token", "Copy the full Token")}>{info.token}</code></strong><button type="button" className="settings-copy-button" aria-label={L("复制 Token", "Copy Token")} title={L("复制 Token", "Copy Token")} onClick={() => void copyValue("Token", info.token)}><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6.1" y="5.5" width="8.4" height="9" rx="1.4"/><path d="M5.7 12.2H4.9a1.4 1.4 0 0 1-1.4-1.4V4.9a1.4 1.4 0 0 1 1.4-1.4h5.9a1.4 1.4 0 0 1 1.4 1.4v.6"/></svg></button></div></div>
+        <div className="settings-mcp-value"><small>Header</small><div><strong><code>X-PyDroid-Token</code></strong></div></div>
       </div>}
     </section>
     {copyNotice && <div className={`settings-copy-toast ${copyNotice.error ? "error" : ""}`} role="status" aria-live="polite"><svg viewBox="0 0 20 20" aria-hidden="true">{copyNotice.error ? <path d="m6 6 8 8m0-8-8 8"/> : <path d="m4.5 10.2 3.2 3.2 7.8-7.8"/>}</svg><span>{copyNotice.text}</span></div>}
@@ -705,18 +698,19 @@ function McpSettingsSection({ enabled, info, available, language, onEnabledChang
       <section className="mcp-help-dialog">
         <header><div><strong>{L("MCP 连接帮助", "MCP connection help")}</strong><small>Streamable HTTP · 8766</small></div><button type="button" className="dialog-close-button" aria-label={L("关闭帮助", "Close help")} onClick={() => setHelpOpen(false)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
         <div className="mcp-help-dialog__body">
-          <ol className="mcp-help-steps"><li><span>1</span><p>{L("开启 MCP Server，并复制 Endpoint 和 Token。", "Enable MCP Server, then copy the Endpoint and Token.")}</p></li><li><span>2</span><p>{L("Codex → 设置 → MCP Server → 添加 Streamable HTTP；URL 填 Endpoint。", "Codex → Settings → MCP Server → Add Streamable HTTP; use Endpoint for URL.")}</p></li><li><span>3</span><p>{L("“Bearer 令牌环境变量”留空。在“标头”中添加 Authorization。", "Leave “Bearer token environment variable” empty. Add Authorization under Headers.")}</p></li><li><span>4</span><p>{L("Authorization 的值填写 Bearer + 空格 + Token，保存后重启 Codex。", "Set Authorization to Bearer + space + Token, save, then restart Codex.")}</p></li></ol>
-          <section className="mcp-help-codex"><div className="mcp-help-codex__heading"><div><strong>Codex</strong><small>~/.codex/config.toml</small></div><button type="button" className="button secondary" disabled={!info} onClick={() => void copyValue(L("Codex 配置", "Codex config"), codexConfig)}>{L("复制配置", "Copy config")}</button></div><pre><code>{displayedConfig}</code></pre></section>
-          <p className="mcp-help-note">{L("8765 用于 Remote Web；8766 用于 MCP。连接后可直接读取、修改和运行当前 PyDroid Core。MCP 重新开启后 Token 会更新，请重新复制配置。", "8765 is for Remote Web; 8766 is for MCP. Once connected, the client can read, modify, and run the current PyDroid Core. The Token changes when MCP is restarted, so copy the configuration again.")}</p>
+          <ol className="mcp-help-steps"><li><span>1</span><p>{L("先填写固定 Token，再开启 MCP Server。Token 会保存在本机设置中，不会因重新编译或重启服务而变化。", "Set a fixed Token first, then enable MCP Server. It is saved in local settings and does not change after rebuilds or server restarts.")}</p></li><li><span>2</span><p>{L("Codex → 设置 → MCP Server → 添加 Streamable HTTP；URL 填 Endpoint。", "Codex → Settings → MCP Server → Add Streamable HTTP; use Endpoint for URL.")}</p></li><li><span>3</span><p>{L("“Bearer 令牌环境变量”留空。在“标头”中添加 X-PyDroid-Token。", "Leave “Bearer token environment variable” empty. Add X-PyDroid-Token under Headers.")}</p></li><li><span>4</span><p>{L("标头值直接填写你设置的 Token，不需要 Bearer 前缀。保存后重启 Codex。", "Use your Token directly as the header value; no Bearer prefix is required. Save, then restart Codex.")}</p></li></ol>
+          <section className="mcp-help-codex"><div className="mcp-help-codex__heading"><div><strong>Codex</strong><small>~/.codex/config.toml</small></div><button type="button" className="button secondary" disabled={!info || !token} onClick={() => void copyValue(L("Codex 配置", "Codex config"), codexConfig)}>{L("复制配置", "Copy config")}</button></div><pre><code>{displayedConfig}</code></pre></section>
+          <p className="mcp-help-note">{L("8765 用于 Remote Web；8766 用于 MCP。修改 Token 时先关闭 MCP Server，修改后重新开启。", "8765 is for Remote Web; 8766 is for MCP. Stop MCP Server before changing the Token, then enable it again.")}</p>
         </div>
       </section>
     </div>}
   </>;
 }
 
-export function SettingsDialog({ open, mcpEnabled, mcpInfo, mcpAvailable, themeMode, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, automatedDiagnosticsEnabled, profilePath, workspaceUri, onClose, onMcpEnabledChange, onThemeModeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onAutomatedDiagnosticsEnabledChange, onOpenDiagnostics, onConfigureFolder, onExportSettings, onImportSettings }: {
+export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailable, themeMode, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, automatedDiagnosticsEnabled, profilePath, workspaceUri, onClose, onMcpEnabledChange, onMcpTokenChange, onThemeModeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onDebugModeChange, onAutomatedDiagnosticsEnabledChange, onOpenDiagnostics, onConfigureFolder, onExportSettings, onImportSettings }: {
   open: boolean;
   mcpEnabled: boolean;
+  mcpToken: string;
   mcpInfo: McpServerInfo | null;
   mcpAvailable: boolean;
   themeMode: ThemeMode;
@@ -735,6 +729,7 @@ export function SettingsDialog({ open, mcpEnabled, mcpInfo, mcpAvailable, themeM
   workspaceUri: string | null;
   onClose: () => void;
   onMcpEnabledChange: (enabled: boolean) => void;
+  onMcpTokenChange: (token: string) => void;
   onThemeModeChange: (value: ThemeMode) => void;
   onLanguageChange: (value: "zh-CN" | "en") => void;
   onRuntimePreferenceChange: (value: RuntimePreference) => void;
@@ -762,7 +757,7 @@ export function SettingsDialog({ open, mcpEnabled, mcpInfo, mcpAvailable, themeM
 
         <section className="settings-section settings-section--canvas">{sectionHeading(L("画布", "Canvas"), L("主题、尺寸、线条与面板布局", "Theme, size, lines and panel layout"))}<div className="settings-canvas-select-row"><label className="settings-canvas-select"><span>{L("画布主题", "Canvas theme")}</span><ThemedSelect ariaLabel={L("画布主题", "Canvas theme")} value={canvas.theme} options={CANVAS_THEMES.map((theme) => ({ value: theme.id, label: L(theme.labelZh, theme.labelEn) }))} onChange={(value) => onCanvasChange({ theme: value as CanvasThemeId })} /></label><label className="settings-canvas-select"><span>{L("缩略图", "Mini map")}</span><ThemedSelect ariaLabel={L("缩略图", "Mini map")} value={canvas.miniMapMode} options={[{ value: "hide", label: L("默认隐藏", "Hidden") }, { value: "auto", label: L("自动显示", "Auto") }, { value: "show", label: L("始终显示", "Always") }]} onChange={(value) => onCanvasChange({ miniMapMode: value as CanvasSettings["miniMapMode"] })} /></label></div><div className="settings-range-grid">{range(L("节点尺寸", "Node size"), `${Math.round(canvas.nodeScale * 100)}%`, canvas.nodeScale, 0.75, 1.4, 0.05, "nodeScale")}{range(L("端点大小", "Handle size"), `${Math.round(canvas.endpointScale * 100)}%`, canvas.endpointScale, 0.7, 1.8, 0.1, "endpointScale")}{range(L("连线粗细", "Edge width"), `${canvas.edgeWidth.toFixed(1)} px`, canvas.edgeWidth, 1, 5, 0.5, "edgeWidth")}{range(L("左侧节点栏", "Left palette"), `${Math.round(canvas.paletteWidth)} px`, canvas.paletteWidth, 216, 360, 4, "paletteWidth")}{range(L("右侧参数栏", "Right inspector"), `${Math.round(canvas.inspectorWidth)} px`, canvas.inspectorWidth, 250, 560, 4, "inspectorWidth")}{range(L("横屏参数栏", "Landscape inspector"), `${Math.round(canvas.inspectorHeight)} px`, canvas.inspectorHeight, 140, 440, 4, "inspectorHeight")}</div><div className="settings-canvas-result-row">{range(L("结果区高度", "Result height"), `${Math.round(canvas.resultHeight)} px`, canvas.resultHeight, 180, 520, 4, "resultHeight")}<label className="settings-check settings-node-insights"><input type="checkbox" checked={canvas.showNodeInsights} onChange={(event) => onCanvasChange({ showNodeInsights: event.target.checked })} />{L("显示节点运行结果", "Show node results")}</label></div></section>
 
-        <McpSettingsSection enabled={mcpEnabled} info={mcpInfo} available={mcpAvailable} language={language} onEnabledChange={onMcpEnabledChange} />
+        <McpSettingsSection enabled={mcpEnabled} token={mcpToken} info={mcpInfo} available={mcpAvailable} language={language} onEnabledChange={onMcpEnabledChange} onTokenChange={onMcpTokenChange} />
 
         <section className="settings-section settings-smb-summary">{sectionHeading(L("局域网 SMB", "LAN SMB"), L("网络文件位置", "Network file locations"))}<div className="settings-summary-list"><span><small>{L("设备", "Device")}</small><strong>{smbServer || L("尚未选择", "Not selected")}</strong></span><span><small>{L("共享", "Share")}</small><strong>{smbShare || L("尚未选择", "Not selected")}</strong></span><span><small>{L("登录", "Login")}</small><strong>{smbGuest ? L("访客", "Guest") : smbUsername || L("账号未填写", "No account")}</strong></span></div><button className="button secondary" disabled={smbDisabled} onClick={onOpenSmb}>{L("打开网络文件管理器", "Open network file manager")}</button></section>
 

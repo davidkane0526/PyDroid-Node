@@ -207,7 +207,18 @@ function executionState(session: EditorWorkspaceSession): { status: unknown; res
   const errors = (phase === "failed" || phase === "timeout") && message
     ? [{ phase, message }]
     : [];
-  return { status, result, errors };
+  const resultSummary = result ? {
+    status: result.status,
+    runtimeId: result.runtimeId ?? null,
+    preview: result.preview ? { columns: result.preview.columns, totalRows: result.preview.totalRows, totalColumns: result.preview.totalColumns } : null,
+    nodeResultIds: Object.keys(result.nodeResults ?? {}),
+    executionOrder: result.executionOrder ?? [],
+    nodeTimingsMs: result.nodeTimingsMs ?? {},
+    exportCount: result.exports?.length ?? 0,
+    hasExportCsv: Boolean(result.exportCsv),
+    hasPlot: Boolean(result.plotPngBase64 || result.plotChart),
+  } : null;
+  return { status, result: resultSummary, errors };
 }
 
 function dataPreview(session: EditorWorkspaceSession, limitValue: unknown): unknown {
@@ -349,9 +360,18 @@ export async function handleMcpCoreRequest(raw: string, protocolVersionHeader = 
       const name = stringArg(request.params?.name, "params.name");
       if (!MCP_TOOLS.some((tool) => tool.name === name)) return jsonRpcError(id, -32602, `Unknown tool: ${name}`);
       try {
-        const structuredContent = await callMcpTool(name, request.params?.arguments ?? {});
+        const toolArguments = request.params?.arguments ?? {};
+        const structuredContent = await callMcpTool(name, toolArguments);
+        const readPath = toolArguments && typeof toolArguments === "object" && !Array.isArray(toolArguments)
+          ? String((toolArguments as Record<string, unknown>).path ?? "")
+          : "";
+        const text = name === "core_snapshot"
+          ? "PyDroid Core snapshot returned in structuredContent."
+          : name === "core_read"
+            ? `PyDroid Core path ${readPath} returned in structuredContent.`
+            : "PyDroid Core tool completed; structured result is available in structuredContent.";
         return jsonRpcResult(id, {
-          content: [{ type: "text", text: JSON.stringify(structuredContent) }],
+          content: [{ type: "text", text }],
           structuredContent,
           _meta: mcpResultMetadata(),
         });

@@ -1,11 +1,19 @@
-const crypto = require("node:crypto");
 const http = require("node:http");
 const { getLanInterfaces } = require("../lan/network.cjs");
 
 const MCP_PORT = 8766;
 const MCP_PATH = "/mcp";
 const MCP_PROTOCOL_VERSION = "2025-11-25";
+const MCP_TOKEN_HEADER = "x-pydroid-token";
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
+
+function normalizeToken(value) {
+  const token = String(value ?? "").trim();
+  if (!token) throw new Error("MCP Token must not be empty");
+  if (token.length > 256) throw new Error("MCP Token must not exceed 256 characters");
+  if (/\r|\n/.test(token)) throw new Error("MCP Token must not contain line breaks");
+  return token;
+}
 
 function readBody(request) {
   return new Promise((resolve, reject) => {
@@ -65,15 +73,19 @@ class McpServer {
     this.info = null;
   }
 
-  start() {
-    if (this.server) return Promise.resolve(this.info);
-    this.token = crypto.randomBytes(24).toString("base64url");
+  start(tokenValue) {
+    const token = normalizeToken(tokenValue);
+    if (this.server) {
+      if (token !== this.token) throw new Error("Stop MCP Server before changing the Token");
+      return Promise.resolve(this.info);
+    }
+    this.token = token;
     const server = http.createServer(async (request, response) => {
       try {
         const url = new URL(request.url || "/", "http://localhost");
         if (url.pathname !== MCP_PATH) return sendJson(response, 404, rpcError(-32601, "MCP endpoint not found"));
         if (request.method !== "POST") return sendJson(response, 405, rpcError(-32600, "MCP Streamable HTTP endpoint requires POST"));
-        if (String(request.headers.authorization || "") !== `Bearer ${this.token}`) return sendJson(response, 401, rpcError(-32001, "Unauthorized"));
+        if (String(request.headers[MCP_TOKEN_HEADER] || "") !== this.token) return sendJson(response, 401, rpcError(-32001, "Unauthorized"));
 
         const protocolVersion = String(request.headers["mcp-protocol-version"] || "");
         if (protocolVersion && protocolVersion !== MCP_PROTOCOL_VERSION) {
@@ -118,4 +130,4 @@ class McpServer {
   }
 }
 
-module.exports = { McpServer, MCP_PORT, MCP_PATH, MCP_PROTOCOL_VERSION };
+module.exports = { McpServer, MCP_PORT, MCP_PATH, MCP_PROTOCOL_VERSION, MCP_TOKEN_HEADER };

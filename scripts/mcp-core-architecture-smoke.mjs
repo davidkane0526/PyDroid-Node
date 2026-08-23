@@ -23,6 +23,8 @@ assert.match(core, /function\.register/, "function registration must be exposed"
 assert.doesNotMatch(core, /from\s+["']\.\.\/execution["']/, "MCP Core must not bypass platform-resolved execution facade");
 assert.doesNotMatch(core, /from\s+["']\.\.\/platform["']/, "MCP Core must not select a platform itself");
 assert.match(host, /bindMcpCore/);
+assert.match(host, /MCP response exceeds 4 MiB/, "renderer bridge must bound responses instead of hanging on oversized payloads");
+assert.match(host, /MCP Core response failed/, "renderer bridge must return explicit JSON-RPC errors on serialization/dispatch failures");
 assert.match(app, /useMcpCoreHost/);
 assert.match(hook, /attachMcpCoreHost/);
 assert.match(hook, /from "\.\/execution"/);
@@ -31,10 +33,14 @@ assert.match(hook, /getExecutionRuntimeDescriptors/);
 assert.match(desktop, /MCP_PORT\s*=\s*8766/);
 assert.match(desktop, /"0\.0\.0\.0"/);
 assert.match(desktop, /sendAccepted/);
+assert.match(desktop, /x-pydroid-token/i, "Desktop MCP must use the explicit PyDroid token header");
+assert.doesNotMatch(desktop, /randomBytes|Bearer /, "Desktop MCP token must be user-configured, not randomly generated or Bearer-prefixed");
 assert.doesNotMatch(desktop, /mcp-method|mcp-name/i, "legacy Streamable HTTP must not require 2026 standard method/name headers");
 assert.match(android, /PORT\s*=\s*8766/);
 assert.match(android, /"0\.0\.0\.0"/);
 assert.match(android, /sendAccepted/);
+assert.match(android, /x-pydroid-token/i, "Android MCP must use the explicit PyDroid token header");
+assert.doesNotMatch(android, /SecureRandom|Base64|Bearer /, "Android MCP token must be user-configured, not randomly generated or Bearer-prefixed");
 assert.doesNotMatch(android, /mcp-method|mcp-name/i, "Android MCP must not require 2026 method/name headers");
 for (const source of [protocol, core, host, desktop, android]) {
   assert.doesNotMatch(source, /8765/, "MCP code must not depend on Remote Web port 8765");
