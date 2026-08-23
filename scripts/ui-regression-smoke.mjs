@@ -107,6 +107,7 @@ assert.match(dialogs, /settings-mcp-heading-row[\s\S]*settings-help-button[\s\S]
 assert.match(dialogs, /settings-mcp-value--token[\s\S]*输入固定 Token[\s\S]*settings-copy-button[\s\S]*复制 Token/, "MCP settings should expose an editable persistent user-defined Token with an explicit copy action");
 assert.doesNotMatch(dialogs, /value=\{token\} disabled=\{enabled\}/, "MCP Token must remain editable while the server is enabled");
 assert.doesNotMatch(dialogs, /供 AI Agent \/ Codex 连接当前 Core/, "MCP card must not show the removed explanatory subtitle");
+assert.match(dialogs, /L\("MCP 服务器", "MCP Server"\)/, "Embedded MCP card title should be localized as MCP 服务器");
 assert.match(dialogs, /settings-mcp-value[\s\S]*复制 Local 地址[\s\S]*复制 LAN 地址/, "MCP Local and LAN endpoints should expose explicit copy actions");
 assert.match(dialogs, /showCopyNotice\(L\(`已复制 \$\{label\}`[\s\S]*settings-copy-toast/, "MCP copy actions should surface a transient success confirmation");
 assert.match(dialogs, /mcp_servers\.pydroid/, "MCP help dialog should include a Codex MCP configuration example");
@@ -116,6 +117,10 @@ assert.match(dialogs, /settings-mcp-toggle-button[\s\S]*MCP Server[\s\S]*setting
 assert.match(dialogs, /localDisplay[\s\S]*lanDisplay[\s\S]*settings-mcp-values/, "MCP card should retain Local/LAN placeholders even while the server is stopped");
 assert.match(css, /\.agent-connection\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*1;/, "Agent model connection must occupy row 1 column 1");
 assert.match(css, /\.agent-mcp-section\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*1;/, "MCP must occupy row 1 column 2");
+assert.match(css, /\.agent-dialog \.agent-connection > h3\s*\{[^}]*font-size:\s*13px;[^}]*font-weight:\s*700;/, "Model & connection heading should match the MCP section heading hierarchy");
+assert.match(css, /\.agent-mcp-section \.settings-mcp-value\s*\{[^}]*padding:\s*5px 8px 5px 9px;/, "MCP value cards should stay vertically compact so action rows align");
+assert.match(css, /\.agent-test-button\s*\{[^}]*font-size:\s*12px;[^}]*font-weight:\s*400;/, "Test connection typography should match the MCP Server button");
+assert.match(css, /\.settings-mcp-toggle-button\s*\{[^}]*font-size:\s*12px;[^}]*font-weight:\s*400;/, "MCP Server button typography should match Test connection");
 assert.match(css, /\.agent-audit-section\s*\{[^}]*grid-column:\s*1;[^}]*grid-row:\s*2;/, "Audit must occupy row 2 column 1");
 assert.match(css, /\.agent-permissions\s*\{[^}]*grid-column:\s*2;[^}]*grid-row:\s*2;/, "AI permissions must occupy row 2 column 2");
 assert.match(css, /\.agent-connection-footer\s*\{[^}]*grid-template-columns:\s*100px minmax\(0, 1fr\)/, "Agent connection footer should preserve the same label/input alignment columns as model fields");

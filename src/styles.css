@@ -282,12 +282,19 @@ button, input, select, textarea { font: inherit; }
 .agent-dialog .agent-plan textarea { min-height: 148px; }
 .agent-dialog .agent-plan > div { display: flex; justify-content: flex-end; gap: 8px; }
 .agent-connection { grid-column: 1; grid-row: 1; }
-.agent-mcp-section { grid-column: 2; grid-row: 1; gap: 10px; }
+.agent-dialog .agent-connection > h3 {
+  color: var(--text-highlight);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  text-transform: none;
+}
+.agent-mcp-section { grid-column: 2; grid-row: 1; gap: 7px; }
 .agent-audit-section { grid-column: 1; grid-row: 2; align-content: start; }
 .agent-permissions { grid-column: 2; grid-row: 2; }
 .agent-request, .agent-plan { grid-column: 1 / -1; }
 .agent-connection-footer { display: grid; grid-template-columns: 100px minmax(0, 1fr); align-items: start; gap: 9px; margin-top: 2px; }
-.agent-test-button { grid-column: 1; justify-self: start; min-height: 30px; padding: 5px 10px !important; font-size: 12px; white-space: nowrap; }
+.agent-test-button { grid-column: 1; justify-self: start; min-height: 30px; padding: 5px 10px !important; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1.45; white-space: nowrap; }
 .agent-connection-note { grid-column: 2; display: grid; gap: 4px; min-width: 0; padding-top: 3px; }
 .agent-connection-note small { margin: 0; min-width: 0; line-height: 1.4; text-align: left; }
 .agent-connection-note .agent-success { color: var(--success-text); }
@@ -295,7 +302,11 @@ button, input, select, textarea { font: inherit; }
 .agent-audit { display: grid; gap: 7px; margin: 0; padding-left: 18px; color: #cbd5e1; font-size: 11px; }
 .agent-audit li { display: grid; gap: 2px; }
 .agent-audit span { color: var(--text-muted); font-size: var(--font-xs); }
-.agent-mcp-section .settings-mcp-values { grid-template-columns: 1fr; }
+.agent-mcp-section .settings-mcp-values { grid-template-columns: 1fr; gap: 6px; }
+.agent-mcp-section .settings-mcp-value { gap: 2px; padding: 5px 8px 5px 9px; }
+.agent-mcp-section .settings-mcp-value > div { grid-template-columns: minmax(0, 1fr) 24px; gap: 4px; }
+.agent-mcp-section .settings-mcp-value--token input { height: 22px; }
+.agent-mcp-section .settings-copy-button { width: 24px; height: 24px; }
 .agent-mcp-section .settings-mcp-value--header-span { grid-column: auto; }
 .settings-check--inline { margin: 4px 0 0; }
 .settings-agent-mcp-toggle { color: var(--text); font-size: 12px; }
@@ -3126,7 +3137,7 @@ button, input, select, textarea { font: inherit; }
 .settings-mcp-enable-row { display: flex; align-items: center; justify-content: flex-start; gap: 8px; min-height: 30px; margin-top: 2px; white-space: nowrap; }
 .settings-mcp-status { white-space: nowrap; color: var(--text-muted); font-size: 12px; }
 .settings-mcp-status.is-active { color: var(--text); }
-.settings-mcp-toggle-button { min-width: 88px; min-height: 30px; padding: 5px 10px !important; font-size: 12px; }
+.settings-mcp-toggle-button { min-width: 88px; min-height: 30px; padding: 5px 10px !important; font-family: inherit; font-size: 12px; font-weight: 400; line-height: 1.45; }
 .settings-mcp-toggle-button.is-active { border-color: color-mix(in srgb, var(--accent) 56%, var(--border-strong)); color: var(--text-highlight); background: color-mix(in srgb, var(--accent) 22%, var(--surface)); }
 .settings-copy-button {
   display: grid;
