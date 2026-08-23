@@ -6,6 +6,7 @@ import { resolveNodeSpec } from "../customNode";
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import {
   createFunctionCallNode,
+  createFunctionMapNode,
   createFunctionDefinitionFromGroup,
   functionCallCount,
   materializeFunctionAsGroup,
@@ -40,6 +41,7 @@ export type EditorGraphCommand =
   | { type: "dissolve-group"; groupId: string }
   | { type: "save-group-as-function"; groupId: string }
   | { type: "insert-function-call"; definition: WorkflowFunctionDefinition; position: { x: number; y: number }; canvasId: string | null }
+  | { type: "insert-function-map"; definition: WorkflowFunctionDefinition; position: { x: number; y: number }; canvasId: string | null }
   | { type: "materialize-function"; definition: WorkflowFunctionDefinition; position: { x: number; y: number }; canvasId: string | null }
   | { type: "delete-function"; functionId: string }
   | { type: "insert-resource"; nodes: WorkflowNode[]; edges: WorkflowSnapshot["edges"]; primaryNodeId: string };
@@ -478,6 +480,16 @@ function insertFunctionCall(snapshot: WorkflowSnapshot, command: Extract<EditorG
   };
 }
 
+function insertFunctionMap(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "insert-function-map" }>): EditorGraphCommandResult {
+  const map = createFunctionMapNode(command.definition, command.position, command.canvasId ?? undefined);
+  return {
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes: [...snapshot.nodes, map] },
+    changed: true,
+    affectedCount: 1,
+    meta: { primaryNodeId: map.id, selectedNodeIds: [map.id], createdNodeIds: [map.id] },
+  };
+}
+
 function materializeFunction(snapshot: WorkflowSnapshot, command: Extract<EditorGraphCommand, { type: "materialize-function" }>): EditorGraphCommandResult {
   const materialized = materializeFunctionAsGroup(command.definition, command.position, command.canvasId ?? undefined);
   return {
@@ -569,6 +581,7 @@ export function applyEditorGraphCommand(snapshot: WorkflowSnapshot, command: Edi
   if (command.type === "dissolve-group") return dissolveGroup(snapshot, command.groupId);
   if (command.type === "save-group-as-function") return saveGroupAsFunction(snapshot, command.groupId);
   if (command.type === "insert-function-call") return insertFunctionCall(snapshot, command);
+  if (command.type === "insert-function-map") return insertFunctionMap(snapshot, command);
   if (command.type === "materialize-function") return materializeFunction(snapshot, command);
   if (command.type === "delete-function") return deleteFunction(snapshot, command.functionId);
   const existingIds = new Set(snapshot.nodes.map((node) => node.id));

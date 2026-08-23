@@ -1417,7 +1417,12 @@ if ${params}.get("inputKind") == "number":
 _offset = _size - _count if ${params}.get("position", "start") == "end" else int(${params}.get("offset", 0)) if ${params}.get("position") == "offset" else 0
 ${name} = ${input}.iloc[[row for base in range(0, len(${input}), _size) for row in range(base + _offset, min(base + _offset + _count, len(${input})))]]`;
   if (type === "table.periodic_tail_mean") return `_size, _tail = int(${params}.get("groupSize", 25)), int(${params}.get("tailRows", 10))
-${name} = pd.DataFrame([${input}.iloc[start:start + _size].tail(_tail).mean(numeric_only=True) for start in range(0, len(${input}), _size)])`;
+_partial = str(${params}.get("partialGroup", "include"))
+if _size <= 0 or _tail <= 0 or _tail > _size: raise ValueError("periodic_tail_mean requires 0 < tailRows <= groupSize")
+if _partial not in {"include", "drop", "error"}: raise ValueError(f"Unsupported partialGroup: {_partial}")
+if _partial == "error" and len(${input}) % _size: raise ValueError("periodic_tail_mean received an incomplete final group")
+_stop = len(${input}) if _partial == "include" else len(${input}) - len(${input}) % _size
+${name} = pd.DataFrame([${input}.iloc[start:min(start + _size, len(${input}))].tail(_tail).mean(numeric_only=True) for start in range(0, _stop, _size)])`;
   if (type === "table.row_chunks_to_columns") return `_chunks = int(${params}.get("chunks", 2))
 _parts = [pd.DataFrame(part, columns=[f"{column}_{index + 1}" for column in ${input}.columns]) for index, part in enumerate(np.array_split(${input}.to_numpy(), _chunks, axis=0))]
 ${name} = pd.concat(_parts, axis=1)`;

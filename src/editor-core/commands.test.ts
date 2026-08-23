@@ -99,6 +99,24 @@ it("saves a group as a function, inserts a call, and protects referenced definit
   expect(blocked.meta?.blockedReason).toMatch(/调用节点/);
 });
 
+it("inserts a reusable function as a list-producing function.map node", () => {
+  const definition = {
+    id: "fn-table",
+    name: "Per table",
+    version: 1,
+    inputs: [{ id: "table", label: "表格", valueType: "table" as const, internalNodeId: "abs", internalHandle: "input" }],
+    outputs: [{ id: "result", label: "结果", valueType: "table" as const, internalNodeId: "abs", internalHandle: "output" }],
+    nodes: [{ id: "abs", position: { x: 0, y: 0 }, data: { label: "绝对值", nodeType: "table.absolute", nodeVersion: 1, parameters: {}, status: "idle" as const } }],
+    edges: [],
+  };
+  const inserted = applyEditorGraphCommand(snapshot, { type: "insert-function-map", definition, position: { x: 20, y: 20 }, canvasId: null });
+  const map = inserted.snapshot.nodes.find((node) => node.id === inserted.meta?.createdNodeIds?.[0]);
+  expect(map?.data.nodeType).toBe("function.map");
+  expect(map?.data.parameters).toMatchObject({ functionId: "fn-table", mapInput: "table", collectMode: "list" });
+  expect(map?.data.functionInputs).toEqual([{ id: "table", label: "表格 列表", valueType: "list", required: true }]);
+  expect(map?.data.functionOutputs).toEqual([{ id: "output", label: "表格结果列表", valueType: "list" }]);
+});
+
 it("owns connection creation, reconnection, replacement and metadata edits", () => {
   const graph: WorkflowSnapshot = {
     nodes: [

@@ -1,6 +1,7 @@
 export type { NodeOutput, ExecutionContext } from "./nodes/support/types";
 import type { ExecutionContext, NodeOutput } from "./nodes/support/types";
 import { executeIoGenerateNode } from "./nodes/io_generate";
+import { executeTableCollectionsNode } from "./nodes/table_collections";
 import { executeTablePandasNode } from "./nodes/table_pandas";
 import { executeControlStateNode } from "./nodes/control_state";
 import { executeAnalysisPulseNode } from "./nodes/analysis_pulse";
@@ -11,6 +12,7 @@ export { terMatrix } from "./nodes/support/analysis";
 
 const DOMAIN_HANDLERS = [
   executeIoGenerateNode,
+  executeTableCollectionsNode,
   executeTablePandasNode,
   executeSequenceNode,
   executeControlStateNode,

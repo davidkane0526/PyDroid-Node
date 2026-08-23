@@ -757,6 +757,96 @@ def test_periodic_window_and_tail_mean_support_experiment_cycle_processing():
     assert result["preview"]["rows"] == [[4.0], [8.0]]
 
 
+
+def test_csv_collection_preserves_file_boundaries_metadata_and_deterministic_order():
+    files = [
+        {"name": "gate-3.5v.csv", "text": "skip 1\nskip 2\na,b\n1,10\n2,20\n"},
+        {"name": "gate--3.5v.csv", "text": "skip 1\nskip 2\na,b\n3,30\n4,40\n"},
+    ]
+    outputs, metadata, _, _ = _execute_node(
+        "io.read_csv_collection",
+        {
+            "header": "infer",
+            "skipRows": 2,
+            "sourceColumn": "source_file",
+            "metadataColumn": "Vg_V",
+            "filenamePattern": r"gate-([-+]?\d+(?:\.\d+)?)v",
+            "metadataType": "number",
+            "metadataError": "error",
+            "duplicateMetadata": "error",
+            "orderBy": "metadata_asc",
+        },
+        None,
+        "",
+        files,
+    )
+    assert len(outputs["output"]) == 2
+    assert outputs["output"][0]["a"].tolist() == [3, 4]
+    assert outputs["output"][1]["a"].tolist() == [1, 2]
+    assert outputs["warnings"] == []
+    assert metadata is outputs["metadata"]
+    assert metadata.to_dict("records") == [
+        {"source_file": "gate--3.5v.csv", "Vg_V": -3.5},
+        {"source_file": "gate-3.5v.csv", "Vg_V": 3.5},
+    ]
+
+
+def test_csv_collection_reports_duplicate_filename_metadata_explicitly():
+    files = [
+        {"name": "gate-3.5v-a.csv", "text": "x\n1\n"},
+        {"name": "gate-3.5v-b.csv", "text": "x\n2\n"},
+    ]
+    with pytest.raises(ValueError, match=r"Duplicate Vg_V=3\.5"):
+        _execute_node(
+            "io.read_csv_collection",
+            {
+                "header": "infer",
+                "metadataColumn": "Vg_V",
+                "filenamePattern": r"gate-([-+]?\d+(?:\.\d+)?)v",
+                "duplicateMetadata": "error",
+            },
+            None,
+            "",
+            files,
+        )
+
+
+def test_concat_many_supports_real_pandas_index_alignment_and_metadata_prefixes():
+    left = pd.DataFrame({"value": [1.0, 2.0]}, index=[10, 20])
+    right = pd.DataFrame({"value": [3.0, 4.0]}, index=[20, 30])
+    metadata = pd.DataFrame([
+        {"source_file": "gate--3.5v.csv", "Vg_V": -3.5},
+        {"source_file": "gate-3.5v.csv", "Vg_V": 3.5},
+    ])
+    outputs, table_result, _, _ = _execute_node(
+        "table.concat_many",
+        {"alignment": "index", "prefixMode": "metadata", "prefixColumn": "Vg_V", "prefixTemplate": "{value}V", "prefixSeparator": "_"},
+        {"tables": [left, right], "metadata": metadata},
+        "",
+        [],
+    )
+    expected = pd.DataFrame(
+        {"-3.5V_value": [1.0, 2.0, np.nan], "3.5V_value": [np.nan, 3.0, 4.0]},
+        index=[10, 20, 30],
+    )
+    pd.testing.assert_frame_equal(outputs["output"], expected)
+    assert table_result is outputs["output"]
+
+
+def test_periodic_tail_mean_has_zero_based_boundaries_and_explicit_partial_group_policy():
+    frame = pd.DataFrame({"value": [1, 2, 3, 4, 5, 6]})
+    include = _execute_node("table.periodic_tail_mean", {"groupSize": 4, "tailRows": 2, "partialGroup": "include"}, frame, "", [])[0]["output"]
+    drop = _execute_node("table.periodic_tail_mean", {"groupSize": 4, "tailRows": 2, "partialGroup": "drop"}, frame, "", [])[0]["output"]
+    assert include["value"].tolist() == [3.5, 5.5]
+    assert drop["value"].tolist() == [3.5]
+    with pytest.raises(ValueError, match="incomplete final group"):
+        _execute_node("table.periodic_tail_mean", {"groupSize": 4, "tailRows": 2, "partialGroup": "error"}, frame, "", [])
+    with pytest.raises(ValueError, match="tailRows cannot exceed groupSize"):
+        _execute_node("table.periodic_tail_mean", {"groupSize": 4, "tailRows": 5}, frame, "", [])
+    exact_cycle = pd.DataFrame({"value": list(range(125))})
+    exact = _execute_node("table.periodic_tail_mean", {"groupSize": 125, "tailRows": 10, "partialGroup": "drop"}, exact_cycle, "", [])[0]["output"]
+    assert exact["value"].tolist() == [119.5]
+
 def test_oscillating_pulse_ramp_amplitudes_grow_symmetrically():
     result = execute(
         [node("ramp", "pulse.generate_oscillating_ramp", {"interval": 0.005, "totalTime": 0.05, "amplitudeStep": 0.2, "fixedVoltage": 0.6, "gateVoltage": 0})],

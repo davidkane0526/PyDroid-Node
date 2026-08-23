@@ -83,6 +83,14 @@ describe("node function signatures", () => {
     expect(getNodeSpec("io.read_csv_batch")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "useColumns", "sourceColumn", "metadataColumn", "filenamePattern", "onError",
     ]));
+    const collection = getNodeSpec("io.read_csv_collection")!;
+    expect(collection.outputPorts.map((port) => [port.id, port.valueType])).toEqual([["output", "list"], ["metadata", "table"], ["warnings", "list"]]);
+    expect(collection.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
+      "skipRows", "sourceColumn", "metadataColumn", "filenamePattern", "metadataType", "metadataError", "duplicateMetadata", "orderBy", "onError",
+    ]));
+    const concatMany = getNodeSpec("table.concat_many")!;
+    expect(concatMany.inputPorts.map((port) => [port.id, port.valueType, port.required])).toEqual([["tables", "list", true], ["metadata", "table", undefined]]);
+    expect(concatMany.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining(["alignment", "prefixMode", "sourceColumn", "prefixColumn", "prefixTemplate"]));
     expect(getNodeSpec("analysis.ter_matrix")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "vgColumn", "voltageColumn", "currentColumn", "vstep", "tolerance", "mode",
     ]));

@@ -79,7 +79,7 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
     }
     case "table.periodic_tail_mean": {
       const frame = table();
-      const value = frame.periodicTailMean(Number(params.groupSize ?? 25), Number(params.tailRows ?? 10));
+      const value = frame.periodicTailMean(Number(params.groupSize ?? 25), Number(params.tailRows ?? 10), String(params.partialGroup ?? "include") as "include" | "drop" | "error");
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
     case "table.row_chunks_to_columns": {

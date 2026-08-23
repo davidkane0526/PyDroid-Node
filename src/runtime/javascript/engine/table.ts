@@ -435,14 +435,22 @@ export class Table {
     return new Table(this.columns, rows);
   }
 
-  periodicTailMean(groupSize: number, tailRows: number): Table {
-    if (groupSize < 1 || tailRows < 1) throw new Error("Periodic mean sizes must be positive");
+  periodicTailMean(groupSize: number, tailRows: number, partialGroup: "include" | "drop" | "error" = "include"): Table {
+    if (!Number.isInteger(groupSize) || !Number.isInteger(tailRows) || groupSize < 1 || tailRows < 1) throw new Error("Periodic mean sizes must be positive integers");
+    if (tailRows > groupSize) throw new Error("Periodic tailRows cannot exceed groupSize");
+    if (!["include", "drop", "error"].includes(partialGroup)) throw new Error(`Unsupported partialGroup: ${partialGroup}`);
     const numeric = this.numericColumns();
+    const sourceRows = this.rows();
     const rows: CellValue[][] = [];
     for (let base = 0; base < this.rowCount; base += groupSize) {
-      const chunk = this.rows().slice(base, Math.min(base + groupSize, this.rowCount));
-      if (!chunk.length) continue;
-      const tail = chunk.slice(Math.max(0, chunk.length - tailRows));
+      const end = Math.min(base + groupSize, this.rowCount);
+      const actualSize = end - base;
+      if (actualSize < groupSize) {
+        if (partialGroup === "drop") break;
+        if (partialGroup === "error") throw new Error(`Periodic tail mean found incomplete final group with ${actualSize} of ${groupSize} rows`);
+      }
+      const tailStart = Math.max(base, end - tailRows);
+      const tail = sourceRows.slice(tailStart, end);
       rows.push(numeric.map((c) => {
         const values = tail.map((r) => toNumber(r[c])).filter((value): value is number => value !== null);
         return values.length ? values.reduce((a, b) => a + b, 0) / values.length : MISSING;

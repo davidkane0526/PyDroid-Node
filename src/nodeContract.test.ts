@@ -58,6 +58,10 @@ describe("node contracts", () => {
     expect(blocked.supported).toBe(false);
     expect(blocked.unsupportedNodeTypes).toEqual([]);
     expect(blocked.parameterIssues[0]?.nodeType).toBe("io.read_csv");
+    expect(canWorkflowRunInRuntime([{ id: "concat", position: { x: 0, y: 0 }, data: { label: "concat many", nodeType: "table.concat_many", nodeVersion: 1, parameters: { alignment: "position" }, status: "idle" } }], "javascript").supported).toBe(true);
+    const indexAligned = canWorkflowRunInRuntime([{ id: "concat", position: { x: 0, y: 0 }, data: { label: "concat many", nodeType: "table.concat_many", nodeVersion: 1, parameters: { alignment: "index" }, status: "idle" } }], "javascript");
+    expect(indexAligned.supported).toBe(false);
+    expect(indexAligned.parameterIssues[0]?.nodeType).toBe("table.concat_many");
   });
   it("exposes workflow.group even though it is not a catalog node", () => {
     expect(getNodeContract("workflow.group")?.executionModel).toBe("workflow");

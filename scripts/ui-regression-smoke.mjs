@@ -8,6 +8,7 @@ const environmentOverlay = readFileSync(path.join(root, "src/WorkflowEnvironment
 const css = readFileSync(path.join(root, "src/styles.css"), "utf8");
 const uiFixes = readFileSync(path.join(root, "src/ui-fixes.css"), "utf8");
 const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts"), "utf8");
+const workflowFunctions = readFileSync(path.join(root, "src/workflow-functions.ts"), "utf8");
 const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
 const canvasThemes = readFileSync(path.join(root, "src/canvas-themes.css"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
@@ -79,7 +80,8 @@ assert.match(environmentOverlay, /closest\("\.canvas-panel"\)[\s\S]*setOpen\(fal
 assert.match(app, /exportTextFile\(fileName,[\s\S]*application\/json/, "automated diagnostics export must use the platform file-export capability");
 assert.match(app, /automatedDiagnosticsExportStatus/, "diagnostic export must surface save/cancel/failure status inside the dialog");
 assert.match(app, /const insertFunctionCall = \(definition: WorkflowFunctionDefinition, requestedPosition\?: \{ x: number; y: number \}\)/, "function resource drop must keep an optional explicit position in the UI helper contract");
-assert.match(app, /const position = requestedPosition \?\? fallbackPosition;/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
+assert.match(app, /const position = requestedPosition \?\? functionInsertionPosition\(nodes, currentCanvasId, resolvedLayoutDirection\);/, "function call insertion must honor the resource-drop position while retaining palette-button fallback placement");
+assert.match(workflowFunctions, /functionInsertionPosition[\s\S]*direction === "vertical"[\s\S]*Math\.max[\s\S]*\+ 285/, "function palette fallback placement must remain owned by the shared workflow-function helper");
 assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游依赖/, "every canvas node/group should expose the compact node-scoped run action");
 assert.match(css, /\.workflow-function-card \.flow-library-actions button \{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/, "workflow function action labels should be centered by layout rather than line-height compensation");
 assert.match(css, /\.node-run-action \{[^}]*border:\s*1px solid #334b68;[^}]*color:\s*#55a8ff;[^}]*background:\s*#192536;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/, "node run action should use the shared Soft dark material and stay hidden by default");

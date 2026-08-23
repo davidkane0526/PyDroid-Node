@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.0-dev-r99-mcp-streamable-http"
+$script:BuildScriptRevision = "1.6.1-dev-r100-batch-table-collections"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

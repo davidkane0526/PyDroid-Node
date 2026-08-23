@@ -96,9 +96,24 @@ def execute(
         table = _require_table(upstream, "Periodic tail mean")
         group_size = int(params.get("groupSize", 25))
         tail_rows = int(params.get("tailRows", 10))
+        partial_group = str(params.get("partialGroup", "include"))
         if group_size < 1 or tail_rows < 1:
-            raise ValueError("Periodic mean sizes must be positive")
-        chunks = [table.iloc[start:start + group_size].tail(tail_rows).mean(numeric_only=True) for start in range(0, len(table), group_size) if len(table.iloc[start:start + group_size])]
+            raise ValueError("Periodic mean sizes must be positive integers")
+        if tail_rows > group_size:
+            raise ValueError("Periodic tailRows cannot exceed groupSize")
+        if partial_group not in {"include", "drop", "error"}:
+            raise ValueError(f"Unsupported partialGroup: {partial_group}")
+        chunks: list[pd.Series] = []
+        for start in range(0, len(table), group_size):
+            end = min(start + group_size, len(table))
+            actual_size = end - start
+            if actual_size < group_size:
+                if partial_group == "drop":
+                    break
+                if partial_group == "error":
+                    raise ValueError(f"Periodic tail mean found incomplete final group with {actual_size} of {group_size} rows")
+            tail_start = max(start, end - tail_rows)
+            chunks.append(table.iloc[tail_start:end].mean(numeric_only=True))
         value = pd.DataFrame(chunks).reindex(columns=table.select_dtypes(include="number").columns)
     elif node_type == "table.row_chunks_to_columns":
         table = _require_table(upstream, "Row chunks to columns")

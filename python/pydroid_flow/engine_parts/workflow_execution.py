@@ -243,7 +243,7 @@ def _execute_visual_structure(
 def _node_upstream(node_id: str, node_type: str, workflow: dict[str, Any], values: dict[str, dict[str, Any]]) -> Any:
     if node_type in {"table.concat", "table.merge_rows"}:
         return _upstream_tables(node_id, workflow, values)
-    if node_type in {"pulse.combine_channels", "pulse.segment_measurement"}:
+    if node_type in {"table.concat_many", "pulse.combine_channels", "pulse.segment_measurement"}:
         return _upstream_inputs(node_id, workflow, values)
     if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value"}:
         return _upstream_inputs(node_id, workflow, values)

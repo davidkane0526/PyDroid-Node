@@ -4,10 +4,12 @@ from .conversion_ui import NODE_TYPES as CONVERSION_UI_NODE_TYPES, execute as ex
 from .io_generate import NODE_TYPES as IO_GENERATE_NODE_TYPES, execute as execute_io_generate
 from .plots import NODE_TYPES as PLOT_NODE_TYPES, execute as execute_plot
 from .sequence import NODE_TYPES as SEQUENCE_NODE_TYPES, execute as execute_sequence
+from .table_collections import NODE_TYPES as TABLE_COLLECTION_NODE_TYPES, execute as execute_table_collection
 from .table_pandas import NODE_TYPES as TABLE_PANDAS_NODE_TYPES, execute as execute_table_pandas
 
 HANDLERS = (
     (IO_GENERATE_NODE_TYPES, execute_io_generate),
+    (TABLE_COLLECTION_NODE_TYPES, execute_table_collection),
     (TABLE_PANDAS_NODE_TYPES, execute_table_pandas),
     (SEQUENCE_NODE_TYPES, execute_sequence),
     (CONTROL_STATE_NODE_TYPES, execute_control_state),

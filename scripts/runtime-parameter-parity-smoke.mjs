@@ -14,5 +14,7 @@ expect(!mod.canWorkflowRunInRuntime([node("io.read_csv", {parseDates:"date"})], 
 expect(mod.canWorkflowRunInRuntime([node("pandas.describe", {})], "javascript").supported, "default describe should remain JS portable");
 expect(!mod.canWorkflowRunInRuntime([node("pandas.describe", {percentiles:"0.1,0.5,0.9"})], "javascript").supported, "custom describe percentiles must block JS");
 expect(!mod.canWorkflowRunInRuntime([node("table.concat", {axis:1})], "javascript").supported, "horizontal concat must block JS until duplicate labels are representable");
-console.log("Runtime parameter parity smoke passed (6/6).");
+expect(mod.canWorkflowRunInRuntime([node("table.concat_many", {alignment:"position"})], "javascript").supported, "position-aligned concat_many should remain JS portable");
+expect(!mod.canWorkflowRunInRuntime([node("table.concat_many", {alignment:"index"})], "javascript").supported, "pandas index-aligned concat_many must block JS explicitly");
+console.log("Runtime parameter parity smoke passed (8/8).");
 rmSync(out, { recursive: true, force: true });

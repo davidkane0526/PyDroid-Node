@@ -21,6 +21,7 @@ const requiredPythonParts = [
 const requiredPythonNodeHandlers = [
   "__init__.py",
   "io_generate.py",
+  "table_collections.py",
   "table_pandas.py",
   "control_state.py",
   "analysis_pulse.py",
@@ -31,6 +32,7 @@ const requiredJsParts = ["engine.ts", "nodes.ts", "table.ts", "plots.ts", "csv.t
 const requiredJsWorkflowParts = ["types.ts", "input.ts", "graph.ts", "structures.ts", "result.ts", "execute.ts"];
 const requiredJsNodeHandlers = [
   "io_generate.ts",
+  "table_collections.ts",
   "table_pandas.ts",
   "control_state.ts",
   "analysis_pulse.ts",
@@ -41,6 +43,7 @@ const requiredJsNodeSupport = [
   "types.ts",
   "common.ts",
   "io.ts",
+  "io_collection.ts",
   "table_ops.ts",
   "control.ts",
   "analysis.ts",

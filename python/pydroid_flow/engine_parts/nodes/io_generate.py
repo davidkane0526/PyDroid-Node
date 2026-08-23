@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from ..io_readers import _read_csv, _read_csv_batch
+from ..io_readers import _read_csv, _read_csv_batch, _read_csv_collection
 from ..random_portable import _PortableRandom
 from ..values import _as_bool, _decode_json_compatible
 
@@ -23,6 +23,7 @@ NODE_TYPES = {
     "io.read_image",
     "io.read_csv",
     "io.read_csv_batch",
+    "io.read_csv_collection",
     "generate.empty_list",
     "generate.empty_table",
     "generate.random_table",
@@ -86,6 +87,9 @@ def execute(
     elif node_type == "io.read_csv_batch":
         value = _read_csv_batch(input_files, params)
         table_result = value
+    elif node_type == "io.read_csv_collection":
+        tables, metadata, warnings = _read_csv_collection(input_files, params)
+        return {"output": tables, "metadata": metadata, "warnings": warnings}, metadata, None, None
     elif node_type == "generate.empty_list":
         value = []
     elif node_type == "generate.empty_table":

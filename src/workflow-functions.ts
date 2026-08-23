@@ -15,10 +15,23 @@ function portSpecs(ports: WorkflowGroupPort[]): PortSpec[] {
 export function functionInputSpecs(definition: WorkflowFunctionDefinition): PortSpec[] { return portSpecs(definition.inputs); }
 export function functionOutputSpecs(definition: WorkflowFunctionDefinition): PortSpec[] { return portSpecs(definition.outputs).map((port) => ({ ...port, required: undefined })); }
 
+export function functionInsertionPosition(nodes: WorkflowNode[], canvasParentId: string | null, direction: "horizontal" | "vertical"): { x: number; y: number } {
+  const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === canvasParentId);
+  return direction === "vertical"
+    ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
+    : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
+}
+
 function functionMapInputSpecs(definition: WorkflowFunctionDefinition, mapInput: string): PortSpec[] {
   return functionInputSpecs(definition).map((port) => port.id === mapInput
     ? { ...port, label: `${port.label} 列表`, valueType: "list" }
     : port);
+}
+
+function functionMapOutputSpecs(definition: WorkflowFunctionDefinition, collectMode: string): PortSpec[] {
+  if (collectMode === "table") return [{ id: "output", label: "映射结果表", valueType: "table" }];
+  const outputLabel = definition.outputs.length === 1 && definition.outputs[0]?.valueType === "table" ? "表格结果列表" : "映射结果列表";
+  return [{ id: "output", label: outputLabel, valueType: "list" }];
 }
 
 function descendantIds(groupId: string, nodes: WorkflowNode[]): Set<string> {
@@ -117,6 +130,31 @@ export function createFunctionCallNode(
   };
 }
 
+export function createFunctionMapNode(
+  definition: WorkflowFunctionDefinition,
+  position: { x: number; y: number },
+  canvasParentId?: string,
+): WorkflowNode {
+  const mapInput = definition.inputs[0]?.id;
+  if (!mapInput) throw new Error("无输入函数不能创建映射节点");
+  const collectMode = "list";
+  return {
+    id: newId("function-map"),
+    type: "workflow",
+    position,
+    data: {
+      label: `映射 · ${definition.name}`,
+      nodeType: "function.map",
+      nodeVersion: 1,
+      parameters: { functionId: definition.id, functionVersion: definition.version, mapInput, collectMode, maxIterations: 100000 },
+      status: "idle",
+      canvasParentId,
+      functionInputs: functionMapInputSpecs(definition, mapInput),
+      functionOutputs: functionMapOutputSpecs(definition, collectMode),
+    },
+  };
+}
+
 export function synchronizeFunctionCalls(nodes: WorkflowNode[], definition: WorkflowFunctionDefinition): WorkflowNode[] {
   return nodes.map((node) => {
     if (!["function.call", "function.map"].includes(node.data.nodeType) || String(node.data.parameters.functionId ?? "") !== definition.id) return node;
@@ -128,7 +166,7 @@ export function synchronizeFunctionCalls(nodes: WorkflowNode[], definition: Work
         label: mapped ? `映射 · ${definition.name}` : definition.name,
         parameters: { ...node.data.parameters, functionVersion: definition.version },
         functionInputs: mapped ? functionMapInputSpecs(definition, String(node.data.parameters.mapInput ?? "")) : functionInputSpecs(definition),
-        functionOutputs: mapped ? (node.data.functionOutputs?.length ? node.data.functionOutputs : [{ id: "output", label: "结果", valueType: "any" }]) : functionOutputSpecs(definition),
+        functionOutputs: mapped ? functionMapOutputSpecs(definition, String(node.data.parameters.collectMode ?? "list")) : functionOutputSpecs(definition),
       },
     };
   });

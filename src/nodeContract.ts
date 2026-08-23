@@ -218,6 +218,9 @@ export function runtimeParameterBlockReason(node: NodeTypeCarrier, runtime: Node
   if (type === "table.concat" && Number(params.axis ?? 0) === 1) {
     return "table.concat(axis=1) 可能产生重复列标签，当前 JS Table 模型不表示重复列名";
   }
+  if (type === "table.concat_many" && String(params.alignment ?? "index") === "index") {
+    return "table.concat_many(alignment=index) 依赖 pandas 原始索引；当前 JS Table 只声明位置对齐语义";
+  }
   return null;
 }
 

@@ -3,6 +3,7 @@ import { Table } from "../table";
 import { parseCsv } from "../csv";
 import { asBool, parameterList, requireTable } from "./support/common";
 import { decodeJsonCompatible, readCsv, readCsvBatch, selectedFile } from "./support/io";
+import { readCsvCollection } from "./support/io_collection";
 import type { ExecutionContext, NodeOutput } from "./support/types";
 
 export function executeIoGenerateNode(nodeType: string, params: Record<string, unknown>, upstream: unknown, context: ExecutionContext): NodeOutput | null {
@@ -48,6 +49,10 @@ export function executeIoGenerateNode(nodeType: string, params: Record<string, u
     case "io.read_csv_batch": {
       const value = readCsvBatch(context, params);
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
+    case "io.read_csv_collection": {
+      const value = readCsvCollection(context, params);
+      return { outputs: { output: value.tables, metadata: value.metadata, warnings: value.warnings }, tableResult: value.metadata, plotResult, exportResult };
     }
     case "generate.empty_list": {
       return { outputs: { output: [] }, tableResult, plotResult, exportResult };

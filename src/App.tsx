@@ -59,7 +59,7 @@ import { WorkflowEnvironmentOverlay } from "./WorkflowEnvironmentOverlay";
 import { AgentDialog, AlertDialog, AutomatedDiagnosticsDialog, CodeEditorModal, ConfirmDialog, DebugDialog, ErrorDetailDialog, HistoryDialog, InputDialog, NewWorkflowDialog, PackageManager, PlotLightbox, RemoteAccessDialog, RemotePairDialog, RenameFlowDialog, ReplacementPanel, ResultDetailDialog, SettingsDialog, SmbDialog, TextPromptDialog, UnsavedChangesDialog } from "./dialogs";
 import { cloneWorkflowSnapshot, emptyWorkflowSnapshot, nodeExecutionSubgraph, upstreamSubgraph, workflowHasContent, type WorkflowSnapshot } from "./workflow-core";
 import { EditorSessionStore, EditorWorkspaceLifecycleService, applyAgentOperationsToSession, captureGroupResource, captureNodeResource, createWorkspaceSessionIdentity, describeCatalogNode, describeFlow, describeFunction, describeGroup, describeSavedNode, isEditorResourceUsable, gestureTargetForNodeType, instantiateGroupResource, instantiateNodeResource, matchesHostExecution, nodeSpecForEditor, repairWorkflowGroupInterfaces, resolveGesturePolicy, resourceRef, useEditorWorkspaceSession, validateEditorConnection, applyRuntimeNodeParameterOverride, EditorResourceLibraryService, type EditorResourceRef, type EditorWorkspaceSession, type FlowLibraryEntry, type GroupLibraryEntry, type SavedNodeEntry } from "./editor-core";
-import { functionCallCount } from "./workflow-functions";
+import { functionCallCount, functionInsertionPosition } from "./workflow-functions";
 import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { APP_VERSION } from "./app-version";
 import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
@@ -2055,7 +2055,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       setMessage(error instanceof Error ? error.message : "保存组合资源失败");
     }
   };
-
   const saveSelectedGroupAsFunction = () => {
     if (!selectedNode || selectedNode.data.nodeType !== "workflow.group") { setMessage("请先选择一个组合"); return; }
     try {
@@ -2071,13 +2070,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       setMessage(error instanceof Error ? `保存函数失败：${error.message}` : "保存函数失败");
     }
   };
-
   const insertFunctionCall = (definition: WorkflowFunctionDefinition, requestedPosition?: { x: number; y: number }) => {
-    const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
-    const fallbackPosition = resolvedLayoutDirection === "vertical"
-      ? { x: layer.length ? Math.min(...layer.map((item) => item.position.x)) : 80, y: layer.length ? Math.max(...layer.map((item) => item.position.y)) + 150 : 80 }
-      : { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 285 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
-    const position = requestedPosition ?? fallbackPosition;
+    const position = requestedPosition ?? functionInsertionPosition(nodes, currentCanvasId, resolvedLayoutDirection);
     const result = session.applyGraphCommand({ type: "insert-function-call", definition, position, canvasId: currentCanvasId });
     if (!result.changed) return;
     clearExecutionResult();
@@ -2085,7 +2079,15 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     if (callId) window.setTimeout(() => updateNodeInternals(callId), 0);
     setMessage(`已添加函数调用“${definition.name}” v${definition.version}`);
   };
-
+  const insertFunctionMap = (definition: WorkflowFunctionDefinition) => {
+    if (!definition.inputs.length) { setMessage(`函数“${definition.name}”没有输入，不能逐项映射`); return; }
+    const result = session.applyGraphCommand({ type: "insert-function-map", definition, position: functionInsertionPosition(nodes, currentCanvasId, resolvedLayoutDirection), canvasId: currentCanvasId });
+    if (!result.changed) return;
+    clearExecutionResult();
+    const mapId = result.meta?.createdNodeIds?.[0];
+    if (mapId) window.setTimeout(() => updateNodeInternals(mapId), 0);
+    setMessage(`已添加函数映射“${definition.name}” · 逐项输入 ${definition.inputs[0].label || definition.inputs[0].id}`);
+  };
   const insertFunctionEditableGroup = (definition: WorkflowFunctionDefinition) => {
     const layer = nodes.filter((item) => (item.data.canvasParentId ?? null) === currentCanvasId);
     const position = { x: layer.length ? Math.max(...layer.map((item) => item.position.x)) + 260 : 80, y: layer.length ? Math.min(...layer.map((item) => item.position.y)) : 80 };
@@ -2096,7 +2098,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     if (groupId) window.setTimeout(() => updateNodeInternals(groupId), 0);
     setMessage(`已将“${definition.name}”展开为可编辑组合；修改后可更新函数版本`);
   };
-
   const deleteWorkflowFunction = async (definition: WorkflowFunctionDefinition) => {
     const calls = functionCallCount(nodes, definition.id);
     if (calls > 0) { setMessage(`“${definition.name}”仍有 ${calls} 个调用节点，请先删除或展开这些调用`); return; }
@@ -3067,7 +3068,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     let effectiveCsvText = csvText;
     let effectiveInputFiles: Array<{ name: string; text: string; base64?: string }> = [];
     if (csvBytes) {
-      const reader = workflowNodes.find((node) => ["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json"].includes(node.data.nodeType));
+      const reader = workflowNodes.find((node) => ["io.read_csv", "io.read_csv_batch", "io.read_csv_collection", "io.read_table", "io.read_text", "io.read_json"].includes(node.data.nodeType));
       const requestedEncoding = String(reader?.data.parameters.encoding ?? "utf-8");
       const encoding = requestedEncoding === "utf-8-sig" ? "utf-8" : requestedEncoding;
       const errors = String(reader?.data.parameters.encodingErrors ?? "strict");
@@ -3192,9 +3193,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       }
       return;
     }
-    const requiresFiles = workflowNodes.some((node) => ["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(node.data.nodeType));
+    const requiresFiles = workflowNodes.some((node) => ["io.read_csv", "io.read_csv_batch", "io.read_csv_collection", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(node.data.nodeType));
     if (requiresFiles && !csvText && !csvBytes && !csvFiles.length) {
-      void chooseCsvSource(workflowNodes.some((node) => node.data.nodeType === "io.read_csv_batch") ? "files" : "files");
+      void chooseCsvSource(workflowNodes.some((node) => ["io.read_csv_batch", "io.read_csv_collection"].includes(node.data.nodeType)) ? "files" : "files");
       setMessage("请先选择数据文件");
       return;
     }
@@ -3568,7 +3569,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             {paletteTab === "groups" && <>{groupLibrary.map((entry) => { const descriptor = describeGroup(entry); const resource = resourceRef(descriptor); return <section className={`palette-group palette-group--custom ${entry.builtIn ? "palette-group--default" : ""}`} key={entry.id}><h3>{entry.name}<small>{entry.builtIn ? "内置组合" : "我的组合"}</small></h3><button className="group-resource-card" draggable={false} title={`拖动添加 · 静止长按约 0.7 秒或双击打开菜单 · ${entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点${entry.description ? ` · ${entry.description}` : ""}`} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={() => { clearPaletteResourceMenuHold(); clearPaletteDrag(); }} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } if (pointerMode === "mouse") schedulePaletteSingleClick(() => insertGroupTemplate(entry)); }}><strong>◇ {entry.name}</strong><small>{entry.nodes.filter((node) => node.data.nodeType !== "workflow.group").length} 个节点</small></button></section>; })}{!groupLibrary.length && <p className="muted">选中多个节点后点击“组合”，然后在其长按菜单中保存为组合。</p>}</>}
             {paletteTab === "functions" && <>
               <p className="muted workflow-functions-purpose">{ui("函数是带明确输入/输出契约的可复用子流程：同一段节点逻辑可在当前工作流中多次调用，并在更新函数版本后同步调用点。", "Functions are reusable subflows with explicit input/output contracts. Call the same node logic multiple times and update its call sites through function versions.")}</p>
-              {functions.map((definition) => { const resource = describeFunction(definition); return <section className="palette-group palette-group--custom workflow-function-card" key={resource.id}><h3>{resource.label}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{resource.description && <p className="muted">{resource.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button><button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>; })}
+              {functions.map((definition) => { const resource = describeFunction(definition); return <section className="palette-group palette-group--custom workflow-function-card" key={resource.id}><h3>{resource.label}<small>v{definition.version} · {functionCallCount(nodes, definition.id)} {ui("个调用", "calls")}</small></h3>{resource.description && <p className="muted">{resource.description}</p>}<div className="flow-library-actions"><button className="primary" onClick={() => insertFunctionCall(definition)}>{ui("调用", "Call")}</button>{definition.inputs.length > 0 && <button onClick={() => insertFunctionMap(definition)}>{ui("映射", "Map")}</button>}<button onClick={() => insertFunctionEditableGroup(definition)}>{ui("展开编辑", "Edit copy")}</button><button onClick={() => void deleteWorkflowFunction(definition)}>{ui("删除", "Delete")}</button></div><small>{definition.inputs.length} {ui("输入", "inputs")} · {definition.outputs.length} {ui("输出", "outputs")}</small></section>; })}
               {!functions.length && <p className="muted">{ui("当前没有可复用函数。将一组已经验证的节点保存为函数后，可通过“调用”在多个位置重复使用同一套逻辑。", "No reusable functions yet. Save a verified node group as a function to call the same logic from multiple places.")}</p>}
             </>}
             {paletteTab === "flows" && <><section className="flow-demo-section"><h3>{ui("内置 Demo", "Built-in demos")}<small>{WORKFLOW_DEMOS.length}</small></h3>{WORKFLOW_DEMOS.map((demo) => <button type="button" draggable={false} className="flow-library-item flow-library-item--demo" key={demo.id} onClick={() => openWorkflowDemo(demo)}><strong>▷ {demo.label}</strong><small>{demo.description}</small></button>)}</section><div className="flow-library-actions"><button onClick={() => void configureWorkflowFolder()}>选择用户文件夹</button><button onClick={() => void refreshExternalWorkflowLibrary()}>刷新扫描</button></div>{userProfile && <small className="flow-library-path">{userProfile.workspaceUri ? "已扫描外部文件夹" : "当前使用应用流程库"}：{userProfile.workspaceUri ?? userProfile.path}</small>}{flowLibrary.map((entry) => { const descriptor = describeFlow(entry); const resource = resourceRef(descriptor); return <button draggable={false} className={`flow-library-item ${entry.locked ? "locked" : ""}`} key={entry.id} onContextMenu={(event) => onPaletteResourceContextMenu(event, resource)} onPointerDown={(event) => onPalettePointerDown(event, resource)} onPointerMove={onPalettePointerMove} onPointerUp={onPalettePointerUp} onPointerCancel={clearPaletteDrag} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); palettePointerDragHandled.current = true; openPaletteMenuFromElement(resource, event.currentTarget); window.setTimeout(() => { palettePointerDragHandled.current = false; }, 450); }} onClick={(event) => { if (palettePointerDragHandled.current) { palettePointerDragHandled.current = false; return; } if (event.detail > 1) { clearPaletteResourceClick(); return; } schedulePaletteSingleClick(() => openLibraryFlow(entry)); }}><strong>◇ {entry.name}{entry.locked ? "  🔒" : ""}</strong><small>{entry.savedAt ? new Date(entry.savedAt).toLocaleString() : "外部文件夹"} · 可拖入画布 · 长按/双击管理</small></button>; })}{!flowLibrary.length && <p className="muted">点击顶部“保存”后，完整流程会出现在这里；Android 可选择任意用户可访问文件夹，自动扫描其中 JSON 工作流。</p>}</>}
@@ -3788,7 +3789,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
               </section>}
               {(selectedNode.data.nodeType === "function.call" || selectedNode.data.nodeType === "function.map") && <section className="group-settings function-call-settings"><strong>{selectedFunctionDefinition?.name ?? selectedNode.data.label}</strong><small>{selectedFunctionDefinition ? `函数 ${selectedFunctionDefinition.id} · v${selectedFunctionDefinition.version}` : "函数定义缺失"}</small>{selectedNode.data.nodeType === "function.call" && selectedFunctionDefinition && <button onClick={() => insertFunctionEditableGroup(selectedFunctionDefinition)}>展开为可编辑组合</button>}{selectedNode.data.nodeType === "function.map" ? <small>函数映射：输入端口“{String(selectedNode.data.parameters.mapInput ?? "")}”逐项执行，结果按 {selectedNode.data.parameters.collectMode === "table" ? "DataFrame" : "列表"} 汇总。</small> : <small>调用端口来自函数签名；更新函数时当前工作流中的调用节点会同步到新版本。</small>}</section>}
               <div className="inspector-node-overview">
-              {["io.read_csv", "io.read_csv_batch", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{selectedNode.data.nodeType === "io.read_csv_batch" ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
+              {["io.read_csv", "io.read_csv_batch", "io.read_csv_collection", "io.read_table", "io.read_text", "io.read_json", "io.read_image"].includes(selectedNode.data.nodeType) && <div className="node-file-picker"><div className="node-file-picker__actions"><button onClick={() => void chooseCsvSource("files")}>{["io.read_csv_batch", "io.read_csv_collection"].includes(selectedNode.data.nodeType) ? "选择文件（可多选）" : "选择文件"}</button>{["io.read_csv_batch", "io.read_csv_collection", "io.read_table"].includes(selectedNode.data.nodeType) && <button onClick={() => void chooseCsvSource("directory")}>选择文件夹</button>}{!remoteBrowser && <button onClick={() => { setSmbOpen(true); setSmbError(null); }}>局域网 SMB</button>}</div><span>{fileName ?? "尚未选择文件"}</span></div>}
               {selectedNode.data.nodeType !== "workflow.group" && selectedSpec?.pythonCallable && (
                 <div className="callable-signature">
                   <strong>{selectedSpec.pythonCallable}(…)</strong>

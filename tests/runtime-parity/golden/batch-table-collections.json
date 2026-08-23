@@ -1,0 +1,474 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "csv_collection_map_concat_abs",
+      "description": "Read independent CSV tables, extract filename metadata, map a reusable table workflow, concat many by position, then absolute value",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "gate-2v.csv",
+          "text": "ignored line 1\nignored line 2\na,b,c,d,e,f\n0,2,0,20,0,200\n0,4,0,40,0,400\n0,6,0,60,0,600\n0,8,0,80,0,800\n"
+        },
+        {
+          "name": "gate--3.5v.csv",
+          "text": "ignored line 1\nignored line 2\na,b,c,d,e,f\n0,-1,0,-10,0,-100\n0,-3,0,-30,0,-300\n0,-5,0,-50,0,-500\n0,-7,0,-70,0,-700\n"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Batch table collection parity",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "批量读取 CSV（独立表）",
+              "nodeType": "io.read_csv_collection",
+              "nodeVersion": 1,
+              "parameters": {
+                "separator": ",",
+                "header": "infer",
+                "skipRows": 2,
+                "sourceColumn": "source_file",
+                "metadataColumn": "Vg_V",
+                "filenamePattern": "gate-([-+]?\\d+(?:\\.\\d+)?)v",
+                "metadataType": "number",
+                "metadataError": "error",
+                "duplicateMetadata": "error",
+                "orderBy": "metadata_asc",
+                "onError": "error"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "map",
+            "position": {
+              "x": 240,
+              "y": 0
+            },
+            "data": {
+              "label": "映射 · 每文件处理",
+              "nodeType": "function.map",
+              "nodeVersion": 1,
+              "parameters": {
+                "functionId": "fn-per-file",
+                "functionVersion": 1,
+                "mapInput": "table",
+                "collectMode": "list",
+                "maxIterations": 1000
+              },
+              "status": "idle",
+              "functionInputs": [
+                {
+                  "id": "table",
+                  "label": "表格列表",
+                  "valueType": "list"
+                }
+              ],
+              "functionOutputs": [
+                {
+                  "id": "output",
+                  "label": "表格结果列表",
+                  "valueType": "list"
+                }
+              ]
+            }
+          },
+          {
+            "id": "concat",
+            "position": {
+              "x": 480,
+              "y": 0
+            },
+            "data": {
+              "label": "批量横向合并",
+              "nodeType": "table.concat_many",
+              "nodeVersion": 1,
+              "parameters": {
+                "alignment": "position",
+                "prefixMode": "metadata",
+                "sourceColumn": "source_file",
+                "prefixColumn": "Vg_V",
+                "prefixTemplate": "{value}V",
+                "prefixSeparator": "_"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "abs",
+            "position": {
+              "x": 720,
+              "y": 0
+            },
+            "data": {
+              "label": "绝对值",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "output",
+            "target": "map",
+            "targetHandle": "table"
+          },
+          {
+            "id": "e2",
+            "source": "map",
+            "sourceHandle": "output",
+            "target": "concat",
+            "targetHandle": "tables"
+          },
+          {
+            "id": "e3",
+            "source": "read",
+            "sourceHandle": "metadata",
+            "target": "concat",
+            "targetHandle": "metadata"
+          },
+          {
+            "id": "e4",
+            "source": "concat",
+            "sourceHandle": "output",
+            "target": "abs",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [
+          {
+            "id": "fn-per-file",
+            "name": "每文件处理",
+            "version": 1,
+            "inputs": [
+              {
+                "id": "table",
+                "label": "表格",
+                "valueType": "table",
+                "internalNodeId": "slice",
+                "internalHandle": "input"
+              }
+            ],
+            "outputs": [
+              {
+                "id": "result",
+                "label": "结果",
+                "valueType": "table",
+                "internalNodeId": "mean",
+                "internalHandle": "output"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "slice",
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "data": {
+                  "label": "行列切片",
+                  "nodeType": "table.slice",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "rowStart": 0,
+                    "rowStop": "",
+                    "rowStep": 1,
+                    "columnStart": 1,
+                    "columnStop": "",
+                    "columnStep": 2
+                  },
+                  "status": "idle"
+                }
+              },
+              {
+                "id": "mean",
+                "position": {
+                  "x": 220,
+                  "y": 0
+                },
+                "data": {
+                  "label": "周期末段均值",
+                  "nodeType": "table.periodic_tail_mean",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "groupSize": 2,
+                    "tailRows": 1,
+                    "partialGroup": "drop"
+                  },
+                  "status": "idle"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "id": "fe1",
+                "source": "slice",
+                "sourceHandle": "output",
+                "target": "mean",
+                "targetHandle": "input"
+              }
+            ]
+          }
+        ],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "map",
+          "concat",
+          "abs"
+        ],
+        "preview": {
+          "columns": [
+            "-3.5V_b",
+            "-3.5V_d",
+            "-3.5V_f",
+            "2V_b",
+            "2V_d",
+            "2V_f"
+          ],
+          "rows": [
+            [
+              3,
+              30,
+              300,
+              4,
+              40,
+              400
+            ],
+            [
+              7,
+              70,
+              700,
+              8,
+              80,
+              800
+            ]
+          ],
+          "totalRows": 2,
+          "totalColumns": 6
+        },
+        "nodePreviews": {
+          "read": {
+            "columns": [
+              "source_file",
+              "Vg_V"
+            ],
+            "rows": [
+              [
+                "gate--3.5v.csv",
+                -3.5
+              ],
+              [
+                "gate-2v.csv",
+                2
+              ]
+            ],
+            "totalRows": 2,
+            "totalColumns": 2
+          },
+          "concat": {
+            "columns": [
+              "-3.5V_b",
+              "-3.5V_d",
+              "-3.5V_f",
+              "2V_b",
+              "2V_d",
+              "2V_f"
+            ],
+            "rows": [
+              [
+                -3,
+                -30,
+                -300,
+                4,
+                40,
+                400
+              ],
+              [
+                -7,
+                -70,
+                -700,
+                8,
+                80,
+                800
+              ]
+            ],
+            "totalRows": 2,
+            "totalColumns": 6
+          }
+        }
+      }
+    },
+    {
+      "id": "csv_collection_duplicate_metadata_error",
+      "description": "Duplicate filename metadata fails explicitly in both runtimes",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "gate-3.5v-a.csv",
+          "text": "x\n1\n"
+        },
+        {
+          "name": "gate-3.5v-b.csv",
+          "text": "x\n2\n"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Duplicate metadata error",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "批量读取 CSV（独立表）",
+              "nodeType": "io.read_csv_collection",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer",
+                "sourceColumn": "source_file",
+                "metadataColumn": "Vg_V",
+                "filenamePattern": "gate-([-+]?\\d+(?:\\.\\d+)?)v",
+                "metadataType": "number",
+                "metadataError": "error",
+                "duplicateMetadata": "error",
+                "orderBy": "metadata_asc",
+                "onError": "error"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "error",
+        "nodeId": "read",
+        "nodeType": "io.read_csv_collection",
+        "errorMessageIncludes": [
+          "duplicate",
+          "vg_v",
+          "3.5"
+        ]
+      }
+    },
+    {
+      "id": "csv_collection_metadata_warning",
+      "description": "Unparseable filename metadata can be retained as an explicit warning while keeping table-metadata alignment",
+      "csvText": "",
+      "inputFiles": [
+        {
+          "name": "unknown.csv",
+          "text": "x\n9\n"
+        },
+        {
+          "name": "gate-1v.csv",
+          "text": "x\n1\n"
+        }
+      ],
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Metadata warning",
+        "nodes": [
+          {
+            "id": "read",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "collection",
+              "nodeType": "io.read_csv_collection",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer",
+                "sourceColumn": "source_file",
+                "metadataColumn": "Vg_V",
+                "filenamePattern": "gate-([-+]?\\d+(?:\\.\\d+)?)v",
+                "metadataType": "number",
+                "metadataError": "warn",
+                "duplicateMetadata": "error",
+                "orderBy": "metadata_asc",
+                "onError": "error"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "count",
+            "position": {
+              "x": 220,
+              "y": 0
+            },
+            "data": {
+              "label": "warning count",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "warnings",
+            "target": "count",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "read",
+          "count"
+        ],
+        "nodePreviews": {
+          "read": {
+            "columns": [
+              "source_file",
+              "Vg_V"
+            ],
+            "rows": [
+              [
+                "gate-1v.csv",
+                1
+              ],
+              [
+                "unknown.csv",
+                null
+              ]
+            ],
+            "totalRows": 2,
+            "totalColumns": 2
+          }
+        },
+        "valueResults": {
+          "count": "1"
+        }
+      }
+    }
+  ]
+}
