@@ -89,6 +89,51 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
       else if (valueType === "boolean") value = asBool(selectedValue);
       return { outputs: { output: value }, tableResult: value instanceof Table ? value : null, plotResult, exportResult };
     }
+    case "math.operation": {
+      const inputs = upstream && typeof upstream === "object" && !(upstream instanceof Table) && !Array.isArray(upstream)
+        ? upstream as Record<string, unknown>
+        : {};
+      const a = Number(Object.prototype.hasOwnProperty.call(inputs, "a") ? inputs.a : params.a ?? 0);
+      const b = Number(Object.prototype.hasOwnProperty.call(inputs, "b") ? inputs.b : params.b ?? 0);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) throw new Error("Math inputs must be finite numbers");
+      const operation = String(params.operation ?? "add");
+      let value: number;
+      if (operation === "add") value = a + b;
+      else if (operation === "subtract") value = a - b;
+      else if (operation === "multiply") value = a * b;
+      else if (operation === "divide") {
+        if (b === 0) throw new Error("Math divide by zero");
+        value = a / b;
+      } else if (operation === "power") value = a ** b;
+      else if (operation === "modulo") {
+        if (b === 0) throw new Error("Math modulo by zero");
+        value = ((a % b) + b) % b;
+      } else if (operation === "min") value = Math.min(a, b);
+      else if (operation === "max") value = Math.max(a, b);
+      else if (operation === "absolute") value = Math.abs(a);
+      else if (operation === "negate") value = -a;
+      else if (operation === "sqrt") {
+        if (a < 0) throw new Error("Math square root requires a non-negative value");
+        value = Math.sqrt(a);
+      } else throw new Error(`Unsupported math operation: ${operation}`);
+      if (!Number.isFinite(value)) throw new Error("Math result must be a finite number");
+      return { outputs: { output: value }, tableResult, plotResult, exportResult };
+    }
+    case "logic.boolean_math": {
+      const inputs = upstream && typeof upstream === "object" && !(upstream instanceof Table) && !Array.isArray(upstream)
+        ? upstream as Record<string, unknown>
+        : {};
+      const a = asBool(Object.prototype.hasOwnProperty.call(inputs, "a") ? inputs.a : params.a ?? false);
+      const b = asBool(Object.prototype.hasOwnProperty.call(inputs, "b") ? inputs.b : params.b ?? false);
+      const operation = String(params.operation ?? "and");
+      let value: boolean;
+      if (operation === "and") value = a && b;
+      else if (operation === "or") value = a || b;
+      else if (operation === "xor") value = a !== b;
+      else if (operation === "not") value = !a;
+      else throw new Error(`Unsupported boolean operation: ${operation}`);
+      return { outputs: { output: value }, tableResult, plotResult, exportResult };
+    }
     case "logic.for_range": {
       const start = Number(params.start ?? 0);
       const stop = Number(params.stop ?? 10);

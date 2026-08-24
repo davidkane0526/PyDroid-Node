@@ -13,6 +13,8 @@ NODE_TYPES = {
     "table.merge_rows",
     "logic.compare",
     "logic.switch",
+    "math.operation",
+    "logic.boolean_math",
     "logic.for_range",
     "logic.while_number",
     "variable.set",
@@ -108,6 +110,47 @@ def execute(
             value = _as_bool(value)
         table_result = value if isinstance(value, pd.DataFrame) else None
         return {"output": value}, table_result, None, None
+    elif node_type == "math.operation":
+        inputs = upstream if isinstance(upstream, dict) else {}
+        raw_a = inputs["a"] if "a" in inputs else params.get("a", 0)
+        raw_b = inputs["b"] if "b" in inputs else params.get("b", 0)
+        operation = str(params.get("operation", "add"))
+        a = float(raw_a)
+        b = float(raw_b)
+        if not math.isfinite(a) or not math.isfinite(b):
+            raise ValueError("Math inputs must be finite numbers")
+        if operation == "add": value = a + b
+        elif operation == "subtract": value = a - b
+        elif operation == "multiply": value = a * b
+        elif operation == "divide":
+            if b == 0: raise ValueError("Math divide by zero")
+            value = a / b
+        elif operation == "power": value = a ** b
+        elif operation == "modulo":
+            if b == 0: raise ValueError("Math modulo by zero")
+            value = a % b
+        elif operation == "min": value = min(a, b)
+        elif operation == "max": value = max(a, b)
+        elif operation == "absolute": value = abs(a)
+        elif operation == "negate": value = -a
+        elif operation == "sqrt":
+            if a < 0: raise ValueError("Math square root requires a non-negative value")
+            value = math.sqrt(a)
+        else: raise ValueError(f"Unsupported math operation: {operation}")
+        if isinstance(value, complex) or not math.isfinite(value):
+            raise ValueError("Math result must be a finite number")
+        return {"output": value}, None, None, None
+    elif node_type == "logic.boolean_math":
+        inputs = upstream if isinstance(upstream, dict) else {}
+        a = _as_bool(inputs["a"] if "a" in inputs else params.get("a", False))
+        b = _as_bool(inputs["b"] if "b" in inputs else params.get("b", False))
+        operation = str(params.get("operation", "and"))
+        if operation == "and": value = a and b
+        elif operation == "or": value = a or b
+        elif operation == "xor": value = a != b
+        elif operation == "not": value = not a
+        else: raise ValueError(f"Unsupported boolean operation: {operation}")
+        return {"output": value}, None, None, None
     elif node_type == "logic.for_range":
         start = int(params.get("start", 0))
         stop = int(params.get("stop", 10))

@@ -5,6 +5,8 @@ import controlFlow from "../examples/demo-04-control-flow.workflow.json?raw";
 import dynamicSockets from "../examples/demo-05-dynamic-sockets.workflow.json?raw";
 import ifZone from "../examples/demo-06-if-zone.workflow.json?raw";
 import dynamicTypes from "../examples/demo-07-dynamic-types.workflow.json?raw";
+import dynamicOperators from "../examples/demo-08-dynamic-operators.workflow.json?raw";
+import loopZones from "../examples/demo-09-loop-zones.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -55,5 +57,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 07 · 动态节点类型变体",
     description: "并排查看数字、文本、布尔节点的动态端口与内联默认值。",
     document: dynamicTypes,
+  },
+  {
+    id: "dynamic-operators",
+    label: "Demo 08 · 动态 Math / Boolean Math",
+    description: "查看二元/一元操作切换、Socket 默认值，以及连接后默认控件自动让位。",
+    document: dynamicOperators,
+  },
+  {
+    id: "loop-zones",
+    label: "Demo 09 · For / While Zones",
+    description: "For Each 与 While 使用 Start / BODY / End Zone 表达，执行语义保持不变。",
+    document: loopZones,
   },
 ] as const;

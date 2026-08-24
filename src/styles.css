@@ -4176,3 +4176,90 @@ select.node-inline-control {
 .app-shell[data-theme="light"] .workflow-if-zone .workflow-structure__lane--true { border-color: #16a34a55; background: #dcfce73d; }
 .app-shell[data-theme="light"] .workflow-if-zone .workflow-structure__lane--false { border-color: #dc262655; background: #fee2e23d; }
 .app-shell[data-theme="light"] .workflow-if-zone .workflow-structure__lane > span { background: #ffffffde; }
+
+/* Loop Zones: For Each / While use the same boundary-pair grammar as If while keeping one body lane. */
+.workflow-node.workflow-loop-zone {
+  min-width: 440px;
+  min-height: 250px;
+  border: 1px dashed color-mix(in srgb, var(--accent-hover) 30%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface-deep) 38%, transparent);
+  box-shadow: none;
+}
+.workflow-node.workflow-loop-zone.selected {
+  border-color: color-mix(in srgb, var(--accent-hover) 68%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-hover) 16%, transparent);
+}
+.workflow-loop-zone > .workflow-node__body {
+  top: 0;
+  right: auto;
+  width: 276px;
+  min-height: 74px;
+  box-sizing: border-box;
+  padding: 9px 42px 9px 54px;
+  border: 1px solid #36506d;
+  border-radius: 10px;
+  background: var(--surface-raised);
+  box-shadow: 0 7px 18px #0206173d;
+}
+.workflow-loop-zone > .node-run-action { top: 7px; right: auto; left: 242px; }
+.workflow-loop-zone > .node-selection-check { top: -9px; left: -9px; }
+.workflow-loop-zone > .workflow-structure__interior {
+  inset: 90px 10px 82px;
+  overflow: visible;
+}
+.workflow-loop-zone .workflow-structure__lane {
+  min-width: 0;
+  border: 1px dashed color-mix(in srgb, var(--accent-hover) 30%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--surface-deep) 18%, transparent);
+}
+.workflow-loop-zone .workflow-structure__lane > span {
+  top: 6px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--surface-deep) 82%, transparent);
+  font-size: 8px;
+  letter-spacing: .08em;
+}
+.workflow-loop-zone__end {
+  position: absolute;
+  z-index: 6;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  width: 276px;
+  min-height: 72px;
+  box-sizing: border-box;
+  align-content: center;
+  padding: 8px 58px 8px 14px;
+  border: 1px solid #36506d;
+  border-radius: 10px;
+  color: var(--text-bright);
+  background: var(--surface-raised);
+  box-shadow: 0 7px 18px #0206173d;
+  text-align: left;
+  pointer-events: none;
+}
+.workflow-loop-zone__end-type { overflow: hidden; color: var(--info-soft); font: calc(9.5px * var(--node-scale, 1))/1.2 ui-monospace, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.workflow-loop-zone__end strong { margin-top: 2px; font-size: calc(14px * var(--node-scale, 1)); line-height: 1.15; }
+.workflow-loop-zone.direction-horizontal > .input-port { z-index: 8; left: 0; }
+.workflow-loop-zone.direction-horizontal > .output-port { z-index: 8; right: 0; }
+.workflow-loop-zone.direction-horizontal > .input-port span { width: 58px; }
+.workflow-loop-zone.direction-horizontal > .output-port span { width: 72px; }
+.workflow-loop-zone.direction-vertical > .input-port { z-index: 8; top: 0; }
+.workflow-loop-zone.direction-vertical > .output-port { z-index: 8; bottom: 0; }
+.app-shell[data-theme="light"] .workflow-node.workflow-loop-zone {
+  border-color: #2563eb3d;
+  background: #eff6ff3d;
+  box-shadow: none;
+}
+.app-shell[data-theme="light"] .workflow-loop-zone > .workflow-node__body,
+.app-shell[data-theme="light"] .workflow-loop-zone__end {
+  border-color: #b6c8dc;
+  color: #172b45;
+  background: #ffffff;
+  box-shadow: 0 6px 15px #64748b24;
+}
+.app-shell[data-theme="light"] .workflow-loop-zone .workflow-structure__lane > span { background: #ffffffde; }

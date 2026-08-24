@@ -1,3 +1,13 @@
+## 1.6.17 (157) — Dynamic operators and loop zones — 2026-08-24
+
+- Added Python/JavaScript-parity `Math` and `Boolean Math` nodes with Blender-style socket defaults. Unary operations such as Absolute, Negate, Square Root and NOT declaratively collapse to one input socket; binary operations retain A/B sockets.
+- Migrated list Map, Reduce, Accumulate and short-segment filtering controls into the shared inline dynamic-node UI contract without changing their runtime behavior.
+- Reworked `For Each` and `While State` visual structures into Start / BODY / End boundary zones while preserving the existing control-flow node types, child graph representation and lazy/iterative runtime semantics.
+- Added dynamic While parameter variants so non-expression condition modes remove the unused expression parameter from the effective NodeSpec.
+- Extended child-drop hit testing to treat If, For and While boundary zones consistently and keep nested nodes out of the start/end boundary cards.
+- Added runnable Demo 08 for dynamic Math/Boolean operators and Demo 09 for For/While zones; both are covered by Python/JavaScript runtime parity.
+- Build revision: `1.6.17-dev-r109-dynamic-operators-loop-zones`.
+
 ## 1.6.16 (156) — Dynamic node UI layout polish — 2026-08-24
 
 - Replaced fixed-width absolute socket defaults with structured port rows so labels and controls cannot overlap.

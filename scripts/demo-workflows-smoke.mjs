@@ -11,6 +11,8 @@ const files = [
   "demo-05-dynamic-sockets.workflow.json",
   "demo-06-if-zone.workflow.json",
   "demo-07-dynamic-types.workflow.json",
+  "demo-08-dynamic-operators.workflow.json",
+  "demo-09-loop-zones.workflow.json",
 ];
 
 let failed = 0;

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 09 · For / While Zones",
+  "nodes": [
+    {"id":"range-for","type":"workflow","position":{"x":60,"y":90},"data":{"label":"生成 0..4","nodeType":"logic.for_range","nodeVersion":1,"parameters":{"start":0,"stop":5,"step":1},"status":"idle"}},
+    {"id":"for","type":"workflow","position":{"x":340,"y":50},"style":{"width":560,"height":320},"data":{"label":"For Each","nodeType":"logic.for_each_value","nodeVersion":1,"parameters":{"maxIterations":20},"status":"idle"}},
+    {"id":"for-body","type":"workflow","parentId":"for","extent":"parent","position":{"x":80,"y":125},"data":{"label":"绝对值","nodeType":"table.absolute","nodeVersion":1,"parameters":{},"status":"idle","branch":"body"}},
+    {"id":"for-count","type":"workflow","position":{"x":960,"y":110},"data":{"label":"结果数量","nodeType":"python.len","nodeVersion":1,"parameters":{},"status":"idle"}},
+    {"id":"range-while","type":"workflow","position":{"x":60,"y":490},"data":{"label":"生成状态表","nodeType":"logic.for_range","nodeVersion":1,"parameters":{"start":0,"stop":4,"step":1},"status":"idle"}},
+    {"id":"while","type":"workflow","position":{"x":340,"y":430},"style":{"width":560,"height":320},"data":{"label":"While 非空","nodeType":"logic.while_state","nodeVersion":1,"parameters":{"conditionMode":"notEmpty","condition":"value < 10","maxIterations":10},"status":"idle"}},
+    {"id":"while-body","type":"workflow","parentId":"while","extent":"parent","position":{"x":80,"y":125},"data":{"label":"删除首行","nodeType":"table.slice","nodeVersion":1,"parameters":{"rowStart":"1","rowStop":"","rowStep":1,"columnStart":"","columnStop":"","columnStep":1},"status":"idle","branch":"body"}},
+    {"id":"while-count","type":"workflow","position":{"x":960,"y":500},"data":{"label":"最终行数","nodeType":"python.len","nodeVersion":1,"parameters":{},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"range-for","sourceHandle":"output","target":"for","targetHandle":"input"},
+    {"id":"e2","source":"for","sourceHandle":"done","target":"for-count","targetHandle":"input"},
+    {"id":"e3","source":"range-while","sourceHandle":"output","target":"while","targetHandle":"input"},
+    {"id":"e4","source":"while","sourceHandle":"done","target":"while-count","targetHandle":"input"}
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {"sourceLanguage":"portable","pythonImports":[],"pythonDefinitions":[]},
+  "parameters": []
+}

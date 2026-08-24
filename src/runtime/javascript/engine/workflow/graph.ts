@@ -91,7 +91,7 @@ function upstreamInputs(nodeId: string, workflow: Workflow, values: Map<string, 
 
 export function nodeUpstream(nodeId: string, nodeType: string, workflow: Workflow, values: Map<string, Record<string, unknown>>): unknown {
   if (["table.concat", "table.merge_rows"].includes(nodeType)) return upstreamTables(nodeId, workflow, values);
-  if (["table.concat_many", "pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value", "logic.compare", "logic.switch"].includes(nodeType)) {
+  if (["table.concat_many", "pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value", "logic.compare", "logic.switch", "math.operation", "logic.boolean_math"].includes(nodeType)) {
     return upstreamInputs(nodeId, workflow, values);
   }
   return upstreamValue(nodeId, workflow, values);

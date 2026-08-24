@@ -800,6 +800,56 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
+    nodeType: "math.operation", runtimeSupport: ["python", "javascript"],
+    label: "数学运算",
+    description: "Blender 风格数值运算节点。未连接的输入直接使用节点内默认值；一元运算会自动隐藏 B 输入。",
+    tags: ["math", "数学", "运算", "加减乘除", "blender"],
+    category: "Python 内置",
+    defaults: { operation: "add", a: 0, b: 0 },
+    inputPorts: [
+      { id: "a", label: "A", valueType: "number", defaultParameter: "a" },
+      { id: "b", label: "B", valueType: "number", defaultParameter: "b" },
+    ],
+    outputPorts: [{ id: "output", label: "Value", valueType: "number" }],
+    parameters: [
+      { key: "operation", label: "运算", kind: "select", options: [
+        { label: "加", value: "add" }, { label: "减", value: "subtract" }, { label: "乘", value: "multiply" }, { label: "除", value: "divide" },
+        { label: "幂", value: "power" }, { label: "取模", value: "modulo" }, { label: "最小", value: "min" }, { label: "最大", value: "max" },
+        { label: "绝对值", value: "absolute" }, { label: "取负", value: "negate" }, { label: "平方根", value: "sqrt" },
+      ] },
+      { key: "a", label: "A 默认值", kind: "number" },
+      { key: "b", label: "B 默认值", kind: "number" },
+    ],
+    ui: { inlineParameters: ["operation"], inlineParameterLabels: { operation: null }, inlineLayout: "row" },
+    dynamicVariants: [
+      { when: { operation: "absolute" }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
+      { when: { operation: "negate" }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
+      { when: { operation: "sqrt" }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
+    ],
+  },
+  {
+    nodeType: "logic.boolean_math", runtimeSupport: ["python", "javascript"],
+    label: "布尔运算",
+    description: "组合布尔条件。AND / OR / XOR 使用两个输入，NOT 自动收敛为单输入。",
+    tags: ["logic", "boolean", "布尔", "and", "or", "not", "xor", "blender"],
+    category: "逻辑控制",
+    defaults: { operation: "and", a: false, b: false },
+    inputPorts: [
+      { id: "a", label: "A", valueType: "boolean", defaultParameter: "a" },
+      { id: "b", label: "B", valueType: "boolean", defaultParameter: "b" },
+    ],
+    outputPorts: [{ id: "output", label: "Boolean", valueType: "boolean" }],
+    parameters: [
+      { key: "operation", label: "运算", kind: "select", options: [{ label: "AND", value: "and" }, { label: "OR", value: "or" }, { label: "XOR", value: "xor" }, { label: "NOT", value: "not" }] },
+      { key: "a", label: "A 默认值", kind: "boolean" },
+      { key: "b", label: "B 默认值", kind: "boolean" },
+    ],
+    ui: { inlineParameters: ["operation"], inlineParameterLabels: { operation: null }, inlineLayout: "row" },
+    dynamicVariants: [
+      { when: { operation: "not" }, inputPorts: [{ id: "a", label: "Value", valueType: "boolean", defaultParameter: "a" }], hiddenParameters: ["b"] },
+    ],
+  },
+  {
     nodeType: "logic.if_value", runtimeSupport: ["python", "javascript"], executionModel: "control-flow",
     label: "If",
     description: "惰性条件结构。Condition 只选择并执行 True 或 False 分支；Input 作为分支的数据上下文。",
@@ -817,7 +867,7 @@ export const NODE_CATALOG: NodeSpec[] = [
   },
   {
     nodeType: "logic.for_each_value", runtimeSupport: ["python", "javascript"], executionModel: "control-flow",
-    label: "For Each 结构",
+    label: "For Each",
     description: "遍历列表、元组、文本、对象或表格等输入；循环体每次接收一个元素，结果统一按顺序收集为列表。",
     tags: ["logic", "for", "foreach", "循环", "迭代", "任意类型", "通用"],
     category: "逻辑控制",
@@ -831,10 +881,11 @@ export const NODE_CATALOG: NodeSpec[] = [
     parameters: [
       { key: "maxIterations", label: "最大迭代次数", kind: "number", min: 1, max: 100000, step: 1 },
     ],
+    ui: { inlineParameters: ["maxIterations"], inlineParameterLabels: { maxIterations: "上限" }, inlineLayout: "row" },
   },
   {
     nodeType: "logic.while_state", runtimeSupport: ["python", "javascript"], executionModel: "control-flow",
-    label: "While 状态结构",
+    label: "While",
     description: "以任意值作为循环状态，条件成立时执行循环体并以循环体结果作为下一轮状态。",
     tags: ["logic", "while", "循环", "状态", "反馈", "通用"],
     category: "逻辑控制",
@@ -848,6 +899,11 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "conditionMode", label: "继续条件模式", kind: "select", options: [{ label: "表达式", value: "expression" }, { label: "状态为真", value: "truthy" }, { label: "状态非空", value: "notEmpty" }] },
       { key: "condition", label: "继续条件", kind: "text", required: true, placeholder: "value < 10", description: "表达式模式支持 value、iteration、数值运算、比较和 and/or/not。" },
       { key: "maxIterations", label: "最大迭代次数", kind: "number", min: 1, max: 10000, step: 1 },
+    ],
+    ui: { inlineParameters: ["conditionMode"], inlineParameterLabels: { conditionMode: null }, inlineLayout: "row" },
+    dynamicVariants: [
+      { when: { conditionMode: "truthy" }, hiddenParameters: ["condition"] },
+      { when: { conditionMode: "notEmpty" }, hiddenParameters: ["condition"] },
     ],
   },
   {
@@ -1213,6 +1269,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "input", label: "数字列表", valueType: "list", required: true }],
     outputPorts: [{ id: "output", label: "映射结果", valueType: "list" }],
     parameters: [{ key: "expression", label: "映射表达式", kind: "text" }],
+    ui: { inlineParameters: ["expression"], inlineParameterLabels: { expression: null }, inlineLayout: "row" },
   },
   {
     nodeType: "sequence.reduce", runtimeSupport: ["python", "javascript"],
@@ -1222,6 +1279,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "input", label: "数字列表", valueType: "list", required: true }],
     outputPorts: [{ id: "output", label: "结果", valueType: "number" }],
     parameters: [{ key: "method", label: "归约方式", kind: "select", options: [{ label: "求和", value: "sum" }, { label: "平均", value: "mean" }, { label: "最小", value: "min" }, { label: "最大", value: "max" }, { label: "乘积", value: "product" }, { label: "计数", value: "count" }] }],
+    ui: { inlineParameters: ["method"], inlineParameterLabels: { method: null }, inlineLayout: "row" },
   },
   {
     nodeType: "sequence.accumulate", runtimeSupport: ["python", "javascript"],
@@ -1231,6 +1289,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "input", label: "数字列表", valueType: "list", required: true }],
     outputPorts: [{ id: "output", label: "累计列表", valueType: "list" }, { id: "last", label: "最终累计值", valueType: "number" }],
     parameters: [{ key: "method", label: "累计方式", kind: "select", options: [{ label: "累加", value: "sum" }, { label: "累乘", value: "product" }, { label: "运行最小值", value: "min" }, { label: "运行最大值", value: "max" }] }],
+    ui: { inlineParameters: ["method"], inlineParameterLabels: { method: null }, inlineLayout: "row" },
   },
   {
     nodeType: "sequence.consecutive_segments", runtimeSupport: ["python", "javascript"],
@@ -1248,6 +1307,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "input", label: "整数列表", valueType: "list", required: true }],
     outputPorts: [{ id: "output", label: "过滤后列表", valueType: "list" }],
     parameters: [{ key: "minLength", label: "最短区间长度", kind: "number", min: 1, step: 1 }],
+    ui: { inlineParameters: ["minLength"], inlineParameterLabels: { minLength: "最短" }, inlineLayout: "row" },
   },
   {
     nodeType: "convert.table_to_csv", runtimeSupport: ["python", "javascript"], label: "表格转 CSV 文本", description: "将 DataFrame 转换为 CSV 字符串，不写入文件。", tags: ["转换", "csv", "文本"], pythonCallable: "pandas.DataFrame.to_csv", category: "Python 内置", defaults: { includeIndex: false },

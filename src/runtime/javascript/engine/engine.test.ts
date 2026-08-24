@@ -301,6 +301,23 @@ describe("动态逻辑节点", () => {
     }, "");
     expect(result.status).toBe("success");
   });
+
+  it("Math 支持二元和一元操作", () => {
+    const added = run({ nodes: [node("math", "math.operation", { operation: "add", a: 2, b: 3 })], edges: [] }, "");
+    expect(added.status).toBe("success");
+    expect((added.nodeResults as Record<string, { value?: unknown }>).math.value).toBe(5);
+
+    const rooted = run({ nodes: [node("math", "math.operation", { operation: "sqrt", a: 81, b: 999 })], edges: [] }, "");
+    expect(rooted.status).toBe("success");
+    expect((rooted.nodeResults as Record<string, { value?: unknown }>).math.value).toBe(9);
+  });
+
+  it("Boolean Math 支持 XOR 和 NOT", () => {
+    const xor = run({ nodes: [node("bool", "logic.boolean_math", { operation: "xor", a: true, b: false })], edges: [] }, "");
+    expect((xor.nodeResults as Record<string, { value?: unknown }>).bool.value).toBe(true);
+    const not = run({ nodes: [node("bool", "logic.boolean_math", { operation: "not", a: true, b: true })], edges: [] }, "");
+    expect((not.nodeResults as Record<string, { value?: unknown }>).bool.value).toBe(false);
+  });
 });
 
 describe("通用控制结构", () => {

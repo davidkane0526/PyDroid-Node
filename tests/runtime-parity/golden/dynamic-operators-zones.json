@@ -1,0 +1,477 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "dynamic_math_operation",
+      "description": "dynamic_math_operation",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "dynamic_math_operation",
+        "nodes": [
+          {
+            "id": "node",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "dynamic_math_operation",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "modulo",
+                "a": -7,
+                "b": 4
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "dynamic_boolean_math",
+      "description": "dynamic_boolean_math",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "dynamic_boolean_math",
+        "nodes": [
+          {
+            "id": "node",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "dynamic_boolean_math",
+              "nodeType": "logic.boolean_math",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "not",
+                "a": true,
+                "b": false
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "demo_08_dynamic_operators",
+      "description": "Demo 08 · 动态 Math / Boolean Math",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 08 · 动态 Math / Boolean Math",
+        "nodes": [
+          {
+            "id": "add",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 120
+            },
+            "data": {
+              "label": "2 + 3",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 2,
+                "b": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "multiply",
+            "type": "workflow",
+            "position": {
+              "x": 390,
+              "y": 120
+            },
+            "data": {
+              "label": "结果 × 4",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "multiply",
+                "a": 0,
+                "b": 4
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "compare",
+            "type": "workflow",
+            "position": {
+              "x": 720,
+              "y": 120
+            },
+            "data": {
+              "label": "是否 > 10",
+              "nodeType": "logic.compare",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "number",
+                "operation": "greater",
+                "a": 0,
+                "b": 10
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "not",
+            "type": "workflow",
+            "position": {
+              "x": 1040,
+              "y": 120
+            },
+            "data": {
+              "label": "NOT",
+              "nodeType": "logic.boolean_math",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "not",
+                "a": false,
+                "b": false
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "switch",
+            "type": "workflow",
+            "position": {
+              "x": 1340,
+              "y": 120
+            },
+            "data": {
+              "label": "选择文本",
+              "nodeType": "logic.switch",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "text",
+                "condition": false,
+                "falseValue": "大于 10",
+                "trueValue": "不大于 10"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print",
+            "type": "workflow",
+            "position": {
+              "x": 1700,
+              "y": 120
+            },
+            "data": {
+              "label": "输出结果",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "动态运算",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "add",
+            "sourceHandle": "output",
+            "target": "multiply",
+            "targetHandle": "a"
+          },
+          {
+            "id": "e2",
+            "source": "multiply",
+            "sourceHandle": "output",
+            "target": "compare",
+            "targetHandle": "a"
+          },
+          {
+            "id": "e3",
+            "source": "compare",
+            "sourceHandle": "output",
+            "target": "not",
+            "targetHandle": "a"
+          },
+          {
+            "id": "e4",
+            "source": "not",
+            "sourceHandle": "output",
+            "target": "switch",
+            "targetHandle": "condition"
+          },
+          {
+            "id": "e5",
+            "source": "switch",
+            "sourceHandle": "output",
+            "target": "print",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "demo_09_loop_zones",
+      "description": "Demo 09 · For / While Zones",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 09 · For / While Zones",
+        "nodes": [
+          {
+            "id": "range-for",
+            "type": "workflow",
+            "position": {
+              "x": 60,
+              "y": 90
+            },
+            "data": {
+              "label": "生成 0..4",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 5,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "for",
+            "type": "workflow",
+            "position": {
+              "x": 340,
+              "y": 50
+            },
+            "style": {
+              "width": 560,
+              "height": 320
+            },
+            "data": {
+              "label": "For Each",
+              "nodeType": "logic.for_each_value",
+              "nodeVersion": 1,
+              "parameters": {
+                "maxIterations": 20
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "for-body",
+            "type": "workflow",
+            "parentId": "for",
+            "extent": "parent",
+            "position": {
+              "x": 80,
+              "y": 125
+            },
+            "data": {
+              "label": "绝对值",
+              "nodeType": "table.absolute",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle",
+              "branch": "body"
+            }
+          },
+          {
+            "id": "for-count",
+            "type": "workflow",
+            "position": {
+              "x": 960,
+              "y": 110
+            },
+            "data": {
+              "label": "结果数量",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "range-while",
+            "type": "workflow",
+            "position": {
+              "x": 60,
+              "y": 490
+            },
+            "data": {
+              "label": "生成状态表",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 4,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "while",
+            "type": "workflow",
+            "position": {
+              "x": 340,
+              "y": 430
+            },
+            "style": {
+              "width": 560,
+              "height": 320
+            },
+            "data": {
+              "label": "While 非空",
+              "nodeType": "logic.while_state",
+              "nodeVersion": 1,
+              "parameters": {
+                "conditionMode": "notEmpty",
+                "condition": "value < 10",
+                "maxIterations": 10
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "while-body",
+            "type": "workflow",
+            "parentId": "while",
+            "extent": "parent",
+            "position": {
+              "x": 80,
+              "y": 125
+            },
+            "data": {
+              "label": "删除首行",
+              "nodeType": "table.slice",
+              "nodeVersion": 1,
+              "parameters": {
+                "rowStart": "1",
+                "rowStop": "",
+                "rowStep": 1,
+                "columnStart": "",
+                "columnStop": "",
+                "columnStep": 1
+              },
+              "status": "idle",
+              "branch": "body"
+            }
+          },
+          {
+            "id": "while-count",
+            "type": "workflow",
+            "position": {
+              "x": 960,
+              "y": 500
+            },
+            "data": {
+              "label": "最终行数",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "range-for",
+            "sourceHandle": "output",
+            "target": "for",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "for",
+            "sourceHandle": "done",
+            "target": "for-count",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e3",
+            "source": "range-while",
+            "sourceHandle": "output",
+            "target": "while",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e4",
+            "source": "while",
+            "sourceHandle": "done",
+            "target": "while-count",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    }
+  ]
+}

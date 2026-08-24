@@ -58,8 +58,13 @@ describe("node function signatures", () => {
     expect(getNodeSpec("logic.if_value")!.parameters).toEqual([]);
     expect(getNodeSpec("logic.compare")?.runtimeSupport).toEqual(["python", "javascript"]);
     expect(getNodeSpec("logic.switch")?.runtimeSupport).toEqual(["python", "javascript"]);
+    expect(getNodeSpec("math.operation")?.runtimeSupport).toEqual(["python", "javascript"]);
+    expect(getNodeSpec("logic.boolean_math")?.runtimeSupport).toEqual(["python", "javascript"]);
     expect(getNodeSpec("logic.for_each_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "last", "lastItem"]);
+    expect(getNodeSpec("logic.for_each_value")!.ui?.inlineParameters).toEqual(["maxIterations"]);
     expect(getNodeSpec("logic.while_state")!.parameters.map((parameter) => parameter.key)).toEqual(["conditionMode", "condition", "maxIterations"]);
+    expect(getNodeSpec("sequence.reduce")!.ui?.inlineParameters).toEqual(["method"]);
+    expect(getNodeSpec("sequence.accumulate")!.ui?.inlineParameters).toEqual(["method"]);
     expect(getNodeSpec("sequence.accumulate")!.outputPorts.map((port) => port.id)).toEqual(["output", "last"]);
     expect(getNodeSpec("plot.heatmap")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "rowLabelColumn", "xTickInterval", "yTickInterval", "xTickRotation", "origin", "aspect",
@@ -150,6 +155,19 @@ describe("node function signatures", () => {
     ]);
     expect(switchTable.outputPorts).toEqual([{ id: "output", label: "Result", valueType: "table" }]);
     expect(switchTable.parameters.map((parameter) => parameter.key)).toEqual(["valueType", "condition"]);
+  });
+
+  it("resolves unary Math / Boolean Math ports and While condition variants", () => {
+    const sqrt = resolveNodeSpec(getNodeSpec("math.operation"), { operation: "sqrt", a: 9, b: 3 })!;
+    expect(sqrt.inputPorts.map((port) => [port.id, port.label, port.defaultParameter])).toEqual([["a", "Value", "a"]]);
+    expect(sqrt.parameters.map((parameter) => parameter.key)).toEqual(["operation", "a"]);
+
+    const not = resolveNodeSpec(getNodeSpec("logic.boolean_math"), { operation: "not", a: true, b: false })!;
+    expect(not.inputPorts.map((port) => port.id)).toEqual(["a"]);
+    expect(not.parameters.map((parameter) => parameter.key)).toEqual(["operation", "a"]);
+
+    const truthyWhile = resolveNodeSpec(getNodeSpec("logic.while_state"), { conditionMode: "truthy", condition: "value < 10", maxIterations: 5 })!;
+    expect(truthyWhile.parameters.map((parameter) => parameter.key)).toEqual(["conditionMode", "maxIterations"]);
   });
 
   it("reports unsupported or missing Python annotations", () => {

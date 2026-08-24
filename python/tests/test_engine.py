@@ -991,6 +991,24 @@ def test_dynamic_compare_and_switch_nodes_use_socket_fallbacks():
     assert coerced["nodeResults"]["switch"]["value"] == "12"
 
 
+def test_dynamic_math_and_boolean_nodes_support_binary_and_unary_variants():
+    added = execute([node("math", "math.operation", {"operation": "add", "a": 2, "b": 3})], [], "")
+    assert added["status"] == "success"
+    assert added["nodeResults"]["math"]["value"] == 5.0
+
+    rooted = execute([node("math", "math.operation", {"operation": "sqrt", "a": 81, "b": 999})], [], "")
+    assert rooted["status"] == "success"
+    assert rooted["nodeResults"]["math"]["value"] == 9.0
+
+    boolean = execute([node("bool", "logic.boolean_math", {"operation": "xor", "a": True, "b": False})], [], "")
+    assert boolean["status"] == "success"
+    assert boolean["nodeResults"]["bool"]["value"] is True
+
+    inverted = execute([node("bool", "logic.boolean_math", {"operation": "not", "a": True, "b": True})], [], "")
+    assert inverted["status"] == "success"
+    assert inverted["nodeResults"]["bool"]["value"] is False
+
+
 def test_structure_branch_rejects_multiple_sinks():
     structure = node("if", "logic.if_value")
     child_a = node("a", "table.absolute")

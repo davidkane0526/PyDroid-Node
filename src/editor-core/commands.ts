@@ -16,7 +16,7 @@ import {
 import { arrangeCanvasSnapshot, type EditorLayoutDirection } from "./layout";
 import { validateEditorConnection } from "./connection";
 import { deriveGroupInterface, nodeSpecForEditor } from "./workflow-structure";
-import { isIfStructureNodeType, isVisualStructureNodeType } from "../workflow-structure-types";
+import { isBoundaryStructureNodeType, isIfStructureNodeType, isVisualStructureNodeType } from "../workflow-structure-types";
 
 export type EditorGraphCommand =
   | { type: "insert-node"; node: WorkflowNode }
@@ -337,9 +337,9 @@ function commitNodeDrag(snapshot: WorkflowSnapshot, command: Extract<EditorGraph
     if ((candidate.data.canvasParentId ?? null) !== canvasId) return false;
     const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
     const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
-    const ifZone = isIfStructureNodeType(candidate.data.nodeType);
+    const boundaryZone = isBoundaryStructureNodeType(candidate.data.nodeType);
     return absolute.x > candidate.position.x + 12 && absolute.x < candidate.position.x + width - 100
-      && absolute.y > candidate.position.y + (ifZone ? 88 : 58) && absolute.y < candidate.position.y + height - (ifZone ? 78 : 28);
+      && absolute.y > candidate.position.y + (boundaryZone ? 88 : 58) && absolute.y < candidate.position.y + height - (boundaryZone ? 78 : 28);
   });
   const nodes = snapshot.nodes.map((node) => {
     if (node.id !== moved.id) return node;
