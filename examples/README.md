@@ -9,6 +9,11 @@
 - `demo-05-dynamic-sockets.workflow.json` ～ `demo-09-loop-zones.workflow.json`：展示动态 Socket、Compare/Switch、If/For/While Zone。
 - `demo-10-parameter-sockets.workflow.json`：展示普通节点参数由连线覆盖，含随机表 Count 与 Head N。
 - `demo-11-dynamic-data-nodes.workflow.json`：展示数值序列表与周期统计的参数 Socket 组合。
+- `demo-12-dynamic-table-parameters.workflow.json` ～ `demo-16-dynamic-pulse-channels.workflow.json`：展示动态表格/绘图参数、Pulse 参数、多输入 Concat、多聚合与多通道组合。
+- `demo-17-column-math-pipeline.workflow.json`：展示可链式列运算与动态标量。
+- `demo-18-series-registry.workflow.json`：展示结构化 `Series → Registry → Plot`。
+- `demo-19-series-groups.workflow.json`：展示 Series `group/visible` 与 Registry include/exclude 筛选。
+- `demo-20-scientific-column-transforms.workflow.json`：展示 `Clip → Sqrt → Min-Max Normalize` 科学列变换。
 - `logic-control-demo.workflow.json`、`periodic-oscillating-pulse.workflow.json`、`ter-matrix.workflow.json`：保留的专项示例。
 
 建议验收时在 **Soft + Light**、**Soft + Dark**、**Classic + Light/Dark** 之间切换，重点观察节点厚度、文字层级、端口、运行按钮、函数/组合/控制流区分以及 hover 是否稳定。

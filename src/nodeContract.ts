@@ -169,14 +169,34 @@ export function validateNodeContracts(): string[] {
     if (contract.executionModel !== "function" && contract.functionRole !== "none") errors.push(`非函数节点不能声明 functionRole：${spec.nodeType}`);
     const parameterKeys = new Set(spec.parameters.map((parameter) => parameter.key));
     const defaultKeys = new Set(Object.keys(spec.defaults));
+    const socketGroupIds = new Set<string>();
+    for (const group of spec.socketGroups ?? []) {
+      if (!group.id.trim()) errors.push(`Socket Group 元数据 id 不能为空：${spec.nodeType}`);
+      if (socketGroupIds.has(group.id)) errors.push(`Socket Group 元数据 id 重复：${spec.nodeType}.${group.id}`);
+      socketGroupIds.add(group.id);
+      if (!group.label.trim()) errors.push(`Socket Group 元数据 label 不能为空：${spec.nodeType}.${group.id}`);
+    }
+    for (const group of spec.socketGroups ?? []) {
+      if (group.parentId && !socketGroupIds.has(group.parentId)) errors.push(`Socket Group parent 不存在：${spec.nodeType}.${group.id} -> ${group.parentId}`);
+      if (group.parentId === group.id) errors.push(`Socket Group 不能引用自身为 parent：${spec.nodeType}.${group.id}`);
+      const visited = new Set<string>([group.id]);
+      let parent = group.parentId;
+      while (parent) {
+        if (visited.has(parent)) { errors.push(`Socket Group parent 存在循环：${spec.nodeType}.${group.id}`); break; }
+        visited.add(parent);
+        parent = spec.socketGroups?.find((item) => item.id === parent)?.parentId;
+      }
+    }
     const validateParameterSocket = (port: import("./nodeCatalog").PortSpec, owner: string) => {
+      if (port.socketGroup && !socketGroupIds.has(port.socketGroup)) errors.push(`Socket 引用了不存在的分组：${spec.nodeType}.${owner}.${port.id} -> ${port.socketGroup}`);
       if (!port.defaultParameter) return;
       if (!parameterKeys.has(port.defaultParameter)) errors.push(`Socket 默认参数不存在：${spec.nodeType}.${owner}.${port.id} -> ${port.defaultParameter}`);
       if (spec.nodeType !== "logic.switch" && port.id !== port.defaultParameter) {
         errors.push(`通用参数 Socket 的端口 id 必须与参数 key 一致：${spec.nodeType}.${owner}.${port.id} -> ${port.defaultParameter}`);
       }
     };
-    for (const port of spec.inputPorts) validateParameterSocket(port, "base");
+    for (const port of spec.inputPorts) validateParameterSocket(port, "base-input");
+    for (const port of spec.outputPorts) validateParameterSocket(port, "base-output");
     for (const [index, variant] of (spec.variants ?? []).entries()) {
       for (const key of Object.keys(variant.when)) {
         if (!parameterKeys.has(key) && !defaultKeys.has(key)) errors.push(`Node Variant 条件参数不存在：${spec.nodeType}.variants[${index}].${key}`);
@@ -187,7 +207,8 @@ export function validateNodeContracts(): string[] {
       for (const key of Object.keys(variant.parameterPatches ?? {})) {
         if (!parameterKeys.has(key)) errors.push(`Node Variant 参数补丁目标不存在：${spec.nodeType}.variants[${index}].${key}`);
       }
-      for (const port of variant.inputPorts ?? []) validateParameterSocket(port, `variants[${index}]`);
+      for (const port of variant.inputPorts ?? []) validateParameterSocket(port, `variants[${index}].input`);
+      for (const port of variant.outputPorts ?? []) validateParameterSocket(port, `variants[${index}].output`);
     }
     const groupIds = new Set<string>();
     for (const group of spec.inputPortGroups ?? []) {
@@ -198,6 +219,7 @@ export function validateNodeContracts(): string[] {
       for (const key of Object.keys(group.when ?? {})) {
         if (!parameterKeys.has(key) && !defaultKeys.has(key)) errors.push(`Socket Group 条件参数不存在：${spec.nodeType}.${group.id}.${key}`);
       }
+      if (group.socketGroup && !socketGroupIds.has(group.socketGroup)) errors.push(`动态 Input Port Group 引用了不存在的分组：${spec.nodeType}.${group.id} -> ${group.socketGroup}`);
       for (const port of group.ports ?? []) validateParameterSocket(port, `group:${group.id}`);
       const repeat = group.repeat;
       if (!repeat) continue;

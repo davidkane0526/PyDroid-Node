@@ -14,6 +14,7 @@ export type PortSpec = {
   valueType: ValueType;
   required?: boolean;
   defaultParameter?: string;
+  socketGroup?: string;
 };
 
 export type ParameterSpec = {
@@ -39,6 +40,7 @@ export type NodeConditionValue = string | number | boolean | null | Array<string
 export type InputPortGroupSpec = {
   id: string;
   when?: Record<string, NodeConditionValue>;
+  socketGroup?: string;
   ports?: PortSpec[];
   repeat?: {
     countParameter: string;
@@ -49,6 +51,12 @@ export type InputPortGroupSpec = {
     min?: number;
     max?: number;
   };
+};
+
+export type SocketGroupSpec = {
+  id: string;
+  label: string;
+  parentId?: string;
 };
 
 export type NodeVariant = {
@@ -90,6 +98,7 @@ export type NodeSpec = {
   ui?: NodeUiSpec;
   variants?: NodeVariant[];
   inputPortGroups?: InputPortGroupSpec[];
+  socketGroups?: SocketGroupSpec[];
 };
 
 const TABLE_INPUT: PortSpec[] = [{ id: "input", label: "表格", valueType: "table", required: true }];
@@ -419,10 +428,10 @@ export const NODE_CATALOG: NodeSpec[] = [
   {
     nodeType: "table.column_math", runtimeSupport: ["python", "javascript"],
     label: "列运算",
-    description: "对选定数值列执行统一标量运算；多个列运算节点可直接串联成清晰的数据处理流水线。",
-    tags: ["column", "列", "运算", "scale", "offset", "multiply", "power"],
+    description: "对选定数值列执行标量、变换、裁剪、归一化或标准化；多个节点可直接串联成数据处理流水线。",
+    tags: ["column", "列", "运算", "scale", "offset", "multiply", "power", "log", "normalize", "zscore", "clip"],
     category: "表格处理",
-    defaults: { columns: "0", operation: "multiply", operand: 1 },
+    defaults: { columns: "0", operation: "multiply", operand: 1, operand2: 1 },
     inputPorts: [
       { id: "input", label: "表格", valueType: "table", required: true },
       { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
@@ -433,17 +442,32 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "columns", label: "目标列", kind: "text", required: true, placeholder: "0,1 或 voltage,current" },
       { key: "operation", label: "运算", kind: "select", options: [
         { label: "加", value: "add" }, { label: "减", value: "subtract" }, { label: "乘", value: "multiply" },
-        { label: "除", value: "divide" }, { label: "乘方", value: "power" },
+        { label: "除", value: "divide" }, { label: "乘方", value: "power" }, { label: "裁剪", value: "clip" },
         { label: "绝对值", value: "absolute" }, { label: "取负", value: "negate" },
+        { label: "平方根", value: "sqrt" }, { label: "平方", value: "square" },
+        { label: "log10", value: "log10" }, { label: "ln", value: "ln" }, { label: "exp", value: "exp" },
+        { label: "倒数", value: "reciprocal" }, { label: "Min-Max 归一化", value: "normalize" }, { label: "Z-score 标准化", value: "zscore" },
       ] },
       { key: "operand", label: "标量", kind: "number" },
+      { key: "operand2", label: "第二标量", kind: "number", advanced: true },
     ],
     ui: { inlineParameters: ["operation"], inlineParameterLabels: { operation: null }, inlineLayout: "row" },
     variants: [
-      { when: { operation: ["absolute", "negate"] }, inputPorts: [
+      { when: { operation: ["absolute", "negate", "sqrt", "square", "log10", "ln", "exp", "reciprocal", "normalize", "zscore"] }, inputPorts: [
         { id: "input", label: "表格", valueType: "table", required: true },
         { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
-      ], hiddenParameters: ["operand"] },
+      ], hiddenParameters: ["operand", "operand2"] },
+      { when: { operation: ["add", "subtract", "multiply", "divide", "power"] }, inputPorts: [
+        { id: "input", label: "表格", valueType: "table", required: true },
+        { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+        { id: "operand", label: "Value", valueType: "number", defaultParameter: "operand" },
+      ], hiddenParameters: ["operand2"] },
+      { when: { operation: "clip" }, inputPorts: [
+        { id: "input", label: "表格", valueType: "table", required: true },
+        { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+        { id: "operand", label: "Min", valueType: "number", defaultParameter: "operand" },
+        { id: "operand2", label: "Max", valueType: "number", defaultParameter: "operand2" },
+      ], parameterPatches: { operand: { label: "下限" }, operand2: { label: "上限", advanced: false } } },
     ],
   },
   {
@@ -1284,18 +1308,27 @@ export const NODE_CATALOG: NodeSpec[] = [
   {
     nodeType: "plot.series", runtimeSupport: ["python", "javascript"],
     label: "Series",
-    description: "声明一条曲线的列与显示属性；输出可交给 Series Registry 统一组合。",
-    tags: ["plot", "series", "curve", "曲线", "图例"],
+    description: "声明一条曲线的列、可见性、分组与显示属性；输出可交给 Series Registry 统一组合。",
+    tags: ["plot", "series", "curve", "曲线", "图例", "分组", "可见性"],
     category: "绘图",
-    defaults: { y: "1", label: "", lineStyle: "-", marker: "", lineWidth: 1.5 },
+    defaults: { y: "1", label: "", group: "", visible: true, lineStyle: "-", marker: "", lineWidth: 1.5 },
+    socketGroups: [
+      { id: "data", label: "数据" },
+      { id: "presentation", label: "显示" },
+      { id: "identity", label: "标识", parentId: "presentation" },
+    ],
     inputPorts: [
-      { id: "y", label: "Y", valueType: "any", defaultParameter: "y" },
-      { id: "lineWidth", label: "Width", valueType: "number", defaultParameter: "lineWidth" },
+      { id: "y", label: "Y", valueType: "any", defaultParameter: "y", socketGroup: "data" },
+      { id: "group", label: "Group", valueType: "text", defaultParameter: "group", socketGroup: "identity" },
+      { id: "visible", label: "Visible", valueType: "boolean", defaultParameter: "visible", socketGroup: "presentation" },
+      { id: "lineWidth", label: "Width", valueType: "number", defaultParameter: "lineWidth", socketGroup: "presentation" },
     ],
     outputPorts: [{ id: "output", label: "Series", valueType: "object" }],
     parameters: [
       { key: "y", label: "Y 列", kind: "text", required: true, placeholder: "current 或 1" },
       { key: "label", label: "图例名称", kind: "text", placeholder: "留空使用列名" },
+      { key: "group", label: "曲线分组", kind: "text", placeholder: "例如 drain 或 gate" },
+      { key: "visible", label: "显示曲线", kind: "boolean" },
       { key: "lineStyle", label: "线型", kind: "select", options: [
         { label: "实线", value: "-" }, { label: "虚线", value: "--" }, { label: "点划线", value: "-." }, { label: "点线", value: ":" },
       ] },
@@ -1309,15 +1342,27 @@ export const NODE_CATALOG: NodeSpec[] = [
   {
     nodeType: "plot.series_registry", runtimeSupport: ["python", "javascript"],
     label: "Series Registry",
-    description: "按确定顺序收集多条 Series 声明，作为折线图的结构化曲线配置。",
-    tags: ["plot", "series", "registry", "多曲线", "图例"],
+    description: "按确定顺序收集多条 Series，并可按 group 统一包含或排除曲线。",
+    tags: ["plot", "series", "registry", "多曲线", "图例", "分组", "可见性"],
     category: "绘图",
-    defaults: { seriesCount: 3 },
-    inputPorts: [],
+    defaults: { seriesCount: 3, groupMode: "all", groups: "" },
+    socketGroups: [
+      { id: "registry", label: "Registry" },
+      { id: "registryFilter", label: "分组筛选", parentId: "registry" },
+      { id: "registryItems", label: "Series", parentId: "registry" },
+    ],
+    inputPorts: [{ id: "groups", label: "Groups", valueType: "any", defaultParameter: "groups", socketGroup: "registryFilter" }],
     outputPorts: [{ id: "output", label: "Series List", valueType: "list" }],
-    parameters: [{ key: "seriesCount", label: "曲线数量", kind: "number", min: 1, max: 16, step: 1 }],
-    ui: { inlineParameters: ["seriesCount"], inlineParameterLabels: { seriesCount: null }, inlineLayout: "row" },
-    inputPortGroups: [{ id: "series", repeat: { countParameter: "seriesCount", idPrefix: "series", labelPrefix: "Series", valueType: "object", required: true, min: 1, max: 16 } }],
+    parameters: [
+      { key: "seriesCount", label: "曲线数量", kind: "number", min: 1, max: 16, step: 1 },
+      { key: "groupMode", label: "分组模式", kind: "select", options: [
+        { label: "全部", value: "all" }, { label: "仅包含", value: "include" }, { label: "排除", value: "exclude" },
+      ] },
+      { key: "groups", label: "分组", kind: "list", itemType: "text", placeholder: "drain,gate" },
+    ],
+    ui: { inlineParameters: ["seriesCount", "groupMode"], inlineParameterLabels: { seriesCount: null, groupMode: null }, inlineLayout: "row" },
+    variants: [{ when: { groupMode: "all" }, inputPorts: [], hiddenParameters: ["groups"] }],
+    inputPortGroups: [{ id: "series", socketGroup: "registryItems", repeat: { countParameter: "seriesCount", idPrefix: "series", labelPrefix: "Series", valueType: "object", required: true, min: 1, max: 16 } }],
   },
   {
     nodeType: "plot.line", runtimeSupport: ["python", "javascript"],
@@ -1374,7 +1419,7 @@ export const NODE_CATALOG: NodeSpec[] = [
         ],
       },
       { key: "lineWidth", label: "线宽", kind: "number", min: 0.5, max: 5, step: 0.5, control: "slider", rememberDefault: true },
-      { key: "seriesConfig", label: "曲线配置", kind: "textarea", advanced: true, placeholder: '[{"y":"current","label":"Id","lineStyle":"-","marker":"o","lineWidth":2}]', description: "可选 JSON 数组；每项支持 y、label、lineStyle、marker、lineWidth。填写后覆盖 Y 列的统一样式。" },
+      { key: "seriesConfig", label: "曲线配置", kind: "textarea", advanced: true, placeholder: '[{"y":"current","label":"Id","group":"drain","visible":true,"lineWidth":2}]', description: "可选 JSON 数组；每项支持 y、label、group、visible、lineStyle、marker、lineWidth。填写后覆盖 Y 列的统一样式。" },
       { key: "figureWidth", label: "图片宽度", kind: "number", min: 4, max: 16, step: 0.5, control: "slider", rememberDefault: true },
       { key: "figureHeight", label: "图片高度", kind: "number", min: 3, max: 12, step: 0.5, control: "slider", rememberDefault: true },
       { key: "dpi", label: "清晰度 DPI", kind: "number", min: 72, max: 240, step: 12, control: "slider", rememberDefault: true },

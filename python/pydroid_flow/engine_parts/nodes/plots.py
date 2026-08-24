@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 
 from ..presentation import _apply_scientific_notation
-from ..values import _as_bool, _optional_float, _require_table, _resolve_column, _resolve_columns
+from ..values import _as_bool, _optional_float, _parameter_list, _require_table, _resolve_column, _resolve_columns
 
 NODE_TYPES = {
     "plot.series",
@@ -50,10 +50,13 @@ def execute(
             raise ValueError(f"Unsupported Series marker: {marker}")
         if not 0 < line_width <= 20:
             raise ValueError("Series lineWidth must be between 0 and 20")
-        value = {"y": y, "lineStyle": line_style, "marker": marker, "lineWidth": line_width}
+        value = {"y": y, "visible": _as_bool(params.get("visible", True)), "lineStyle": line_style, "marker": marker, "lineWidth": line_width}
         label = str(params.get("label", "")).strip()
+        group = str(params.get("group", "")).strip()
         if label:
             value["label"] = label
+        if group:
+            value["group"] = group
     elif node_type == "plot.series_registry":
         if not isinstance(upstream, dict):
             raise ValueError("Series Registry requires named Series inputs")
@@ -72,7 +75,20 @@ def execute(
         entries.sort(key=lambda item: item[0])
         if len(entries) != expected:
             raise ValueError(f"Series Registry requires {expected} connected Series inputs")
-        value = [dict(item) for _, item in entries]
+        group_mode = str(params.get("groupMode", "all"))
+        if group_mode not in {"all", "include", "exclude"}:
+            raise ValueError(f"Unsupported Series Registry groupMode: {group_mode}")
+        groups = {str(item).strip() for item in _parameter_list(params.get("groups")) if str(item).strip()}
+        if group_mode != "all" and not groups:
+            raise ValueError("Series Registry group filter requires at least one group")
+        value = []
+        for _, item in entries:
+            result = dict(item)
+            currently_visible = _as_bool(result.get("visible", True))
+            group = str(result.get("group", "")).strip()
+            group_match = group in groups
+            result["visible"] = currently_visible and (group_mode == "all" or (group_match if group_mode == "include" else not group_match))
+            value.append(result)
     elif node_type == "plot.line":
         table = _require_table(upstream, "Line plot")
         x_column = _resolve_column(table, params["xColumn"]) if str(params.get("xColumn", "")).strip() else None
@@ -100,7 +116,10 @@ def execute(
                 if not isinstance(series_config, list) or not all(isinstance(item, dict) for item in series_config):
                     raise ValueError("Line plot seriesConfig must be an array of objects")
                 x_values = table[x_column] if x_column is not None else table.index
+                visible_count = 0
                 for item in series_config:
+                    if not _as_bool(item.get("visible", True)):
+                        continue
                     y_raw = item.get("y", item.get("column"))
                     if y_raw is None or str(y_raw).strip() == "":
                         raise ValueError("Line plot series item requires y")
@@ -115,9 +134,10 @@ def execute(
                         marker=str(item.get("marker", params.get("marker", ""))) or None,
                         linewidth=width,
                     )
+                    visible_count += 1
                 axis.set_xscale("log" if _as_bool(params.get("logX", False)) else "linear")
                 axis.set_yscale("log" if _as_bool(params.get("logY", False)) else "linear")
-                if _as_bool(params.get("legend", True)):
+                if visible_count and _as_bool(params.get("legend", True)):
                     axis.legend()
             else:
                 table.plot(

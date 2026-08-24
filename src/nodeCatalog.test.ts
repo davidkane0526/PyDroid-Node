@@ -213,7 +213,22 @@ describe("node function signatures", () => {
 
     const registry = resolveNodeSpec(getNodeSpec("plot.series_registry"), { seriesCount: 2 })!;
     expect(registry.inputPorts.map((port) => [port.id, port.valueType])).toEqual([["series1", "object"], ["series2", "object"]]);
+    const filteredRegistry = resolveNodeSpec(getNodeSpec("plot.series_registry"), { seriesCount: 2, groupMode: "include", groups: "signal" })!;
+    expect(filteredRegistry.inputPorts.map((port) => [port.id, port.socketGroup])).toEqual([["groups", "registryFilter"], ["series1", "registryItems"], ["series2", "registryItems"]]);
+    expect(getNodeSpec("plot.series_registry")!.socketGroups).toEqual([
+      { id: "registry", label: "Registry" },
+      { id: "registryFilter", label: "分组筛选", parentId: "registry" },
+      { id: "registryItems", label: "Series", parentId: "registry" },
+    ]);
+    expect(getNodeSpec("plot.series")!.inputPorts.map((port) => [port.id, port.socketGroup])).toEqual([
+      ["y", "data"], ["group", "identity"], ["visible", "presentation"], ["lineWidth", "presentation"],
+    ]);
     expect(getNodeSpec("plot.series")!.outputPorts).toEqual([{ id: "output", label: "Series", valueType: "object" }]);
+
+    const clipped = resolveNodeSpec(getNodeSpec("table.column_math"), { operation: "clip" })!;
+    expect(clipped.inputPorts.map((port) => [port.id, port.label])).toEqual([["input", "表格"], ["columns", "Columns"], ["operand", "Min"], ["operand2", "Max"]]);
+    const normalized = resolveNodeSpec(getNodeSpec("table.column_math"), { operation: "normalize" })!;
+    expect(normalized.inputPorts.map((port) => port.id)).toEqual(["input", "columns"]);
   });
 
   it("resolves unary Math / Boolean Math ports and While condition variants", () => {

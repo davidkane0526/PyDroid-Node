@@ -1,3 +1,14 @@
+## 1.6.22 (162) — Series visibility groups, scientific column transforms and nested Socket Groups — 2026-08-25
+
+- Extended the shared Socket metadata contract with declarative `socketGroups`. Groups can form parent/child hierarchies and ports/repeated input groups can reference them without coupling runtime behavior to layout. NodeContract now rejects missing parents, cycles and unknown group references.
+- Extended structured `plot.series` with `visible` and `group`. `visible=false` is now a real runtime semantic: hidden configured series are omitted from the final Line Plot in both Python and JavaScript while their registry metadata remains intact.
+- Extended `plot.series_registry` with `all/include/exclude` group filtering and a generic `Groups` parameter Socket. Group filtering only further restricts visibility and never re-enables a Series that was explicitly hidden.
+- Expanded `table.column_math` with Clip, Sqrt, Square, Log10, Ln, Exp, Reciprocal, Min-Max Normalize and Z-score operations. Unary transforms remove unused operand sockets; Clip exposes deterministic Min/Max sockets. Constant-column and invalid-domain cases fail explicitly.
+- Split JavaScript Column Math into `nodes/support/table_column_math.ts`, keeping the main `table_pandas.ts` handler at 231 lines instead of growing the shared domain handler.
+- Kept Workflow→Notebook serialization aligned with the new Column Math and Series/Registry semantics, including visibility, group filtering and generic parameter-Socket overrides.
+- Added runnable Demo 19 for Series group/visibility filtering and Demo 20 for `Clip → Sqrt → Normalize`; both are Python/JavaScript golden parity fixtures and are registered in the built-in Demo smoke suite.
+- Build revision: `1.6.22-dev-r114-series-groups-column-transforms`.
+
 ## 1.6.21 (161) — Node variants, input port groups and Series Registry — 2026-08-25
 
 - Generalized the dynamic NodeSpec layer: `dynamicVariants` is now the reusable `variants` contract, variant conditions can match a scalar or a declared value set, and repeated sockets are represented by `inputPortGroups`. Existing Compare/Math/random/fill, Concat and Pulse behavior is migrated to the shared contracts instead of maintaining feature-specific dynamic-port mechanisms.

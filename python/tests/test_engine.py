@@ -1350,6 +1350,33 @@ def test_column_math_supports_dynamic_scalar_and_unary_operations():
     assert absolute["output"]["x"].tolist() == [2.0, 4.0, 6.0]
 
 
+def test_column_math_supports_scientific_transforms_and_clip():
+    frame = pd.DataFrame({"x": [1.0, 4.0, 9.0]})
+    clipped = _execute_node("table.column_math", {"columns": "x", "operation": "clip", "operand": 2, "operand2": 8}, frame, "", [])[0]["output"]
+    assert clipped["x"].tolist() == [2.0, 4.0, 8.0]
+
+    rooted = _execute_node("table.column_math", {"columns": "x", "operation": "sqrt"}, clipped, "", [])[0]["output"]
+    assert rooted["x"].tolist() == pytest.approx([np.sqrt(2), 2.0, np.sqrt(8)])
+
+    normalized = _execute_node("table.column_math", {"columns": "x", "operation": "normalize"}, rooted, "", [])[0]["output"]
+    assert normalized["x"].tolist() == pytest.approx([0.0, (2 - np.sqrt(2)) / (np.sqrt(8) - np.sqrt(2)), 1.0])
+
+    standardized = _execute_node("table.column_math", {"columns": "x", "operation": "zscore"}, pd.DataFrame({"x": [1.0, 2.0, 3.0]}), "", [])[0]["output"]
+    assert standardized["x"].tolist() == pytest.approx([-np.sqrt(1.5), 0.0, np.sqrt(1.5)])
+
+    with pytest.raises(ValueError, match="positive"):
+        _execute_node("table.column_math", {"columns": "x", "operation": "log10"}, pd.DataFrame({"x": [0.0, 1.0]}), "", [])
+
+
+def test_series_registry_applies_visibility_and_group_filter_without_overriding_hidden_series():
+    drain = _execute_node("plot.series", {"y": "Drain_V", "label": "Drain", "group": "signal", "visible": True, "lineStyle": "-", "marker": "", "lineWidth": 2}, None, "", [])[0]["output"]
+    gate = _execute_node("plot.series", {"y": "Gate_V", "label": "Gate", "group": "control", "visible": True, "lineStyle": "--", "marker": "", "lineWidth": 1.5}, None, "", [])[0]["output"]
+    hidden = _execute_node("plot.series", {"y": "Gate_V", "label": "Hidden", "group": "signal", "visible": False, "lineStyle": ":", "marker": "", "lineWidth": 1}, None, "", [])[0]["output"]
+    registry = _execute_node("plot.series_registry", {"seriesCount": 3, "groupMode": "include", "groups": "signal"}, {"series1": drain, "series2": gate, "series3": hidden}, "", [])[0]["output"]
+    assert [item["group"] for item in registry] == ["signal", "control", "signal"]
+    assert [item["visible"] for item in registry] == [True, False, False]
+
+
 def test_series_registry_preserves_declared_socket_order():
     drain = _execute_node(
         "plot.series",

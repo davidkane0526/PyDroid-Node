@@ -21,7 +21,7 @@ function inputPortGroups(base: NodeSpec, parameters: Record<string, unknown>): P
   const ports: PortSpec[] = [];
   for (const group of base.inputPortGroups ?? []) {
     if (group.when && !matchesVariant(group.when, parameters)) continue;
-    ports.push(...(group.ports ?? []));
+    ports.push(...(group.ports ?? []).map((port) => ({ ...port, socketGroup: port.socketGroup ?? group.socketGroup })));
     const repeat = group.repeat;
     if (!repeat) continue;
     const raw = Number(parameters[repeat.countParameter] ?? repeat.min ?? 1);
@@ -34,6 +34,7 @@ function inputPortGroups(base: NodeSpec, parameters: Record<string, unknown>): P
         label: `${repeat.labelPrefix} ${index}`,
         valueType: repeat.valueType,
         required: repeat.required,
+        socketGroup: group.socketGroup,
       });
     }
   }

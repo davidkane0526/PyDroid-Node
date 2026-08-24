@@ -93,7 +93,7 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
   const xValues = xColumn ? table.column(xColumn).map((value) => (isMissing(value) ? null : value)) : null;
   const configured = lineSeriesConfig(params.seriesConfig);
   const effectiveSeries = configured.length
-    ? configured.map((item) => {
+    ? configured.filter((item) => asBool(item.visible ?? true)).map((item) => {
         const rawY = item.y ?? item.column;
         if (rawY === null || rawY === undefined || String(rawY).trim() === "") throw new Error("Line plot series item requires y");
         const column = resolveColumn(table, rawY) as string;
@@ -102,15 +102,16 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
         return {
           column,
           label: String(item.label ?? column),
+          group: String(item.group ?? "").trim(),
           lineStyle: String(item.lineStyle ?? params.lineStyle ?? "-"),
           marker: String(item.marker ?? params.marker ?? ""),
           lineWidth,
         };
       })
     : yColumns.map((column) => ({
-        column, label: column, lineStyle: String(params.lineStyle ?? "-"), marker: String(params.marker ?? ""), lineWidth: Number(params.lineWidth ?? 1.5),
+        column, label: column, group: "", lineStyle: String(params.lineStyle ?? "-"), marker: String(params.marker ?? ""), lineWidth: Number(params.lineWidth ?? 1.5),
       }));
-  if (!effectiveSeries.length) throw new Error("Line plot requires at least one Y column");
+  if (!configured.length && !effectiveSeries.length) throw new Error("Line plot requires at least one Y column");
   const series = effectiveSeries.map((item) => {
     const yValues = table.column(item.column);
     const data = yValues.map((value, r) => [xValues ? xValues[r] : r, isMissing(value) ? null : value]);
@@ -121,6 +122,7 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
       showSymbol: Boolean(item.marker.trim()),
       symbol: markerSymbol(item.marker) ?? "circle",
       lineStyle: { width: item.lineWidth, type: LINE_STYLES[item.lineStyle] ?? "solid" },
+      ...(item.group ? { __pydroidGroup: item.group } : {}),
       connectNulls: false,
     };
   });

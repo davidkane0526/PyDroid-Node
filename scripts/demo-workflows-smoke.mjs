@@ -22,6 +22,8 @@ const files = [
   "demo-16-dynamic-pulse-channels.workflow.json",
   "demo-17-column-math-pipeline.workflow.json",
   "demo-18-series-registry.workflow.json",
+  "demo-19-series-groups.workflow.json",
+  "demo-20-scientific-column-transforms.workflow.json",
 ];
 
 let failed = 0;

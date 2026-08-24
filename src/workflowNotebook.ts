@@ -1458,10 +1458,13 @@ if ${params}.get("inputKind") == "number":
   if (type === "table.column_math") return `_column_math_columns = _column_names(${input}, ${params}.get("columns", ""))
 if not _column_math_columns: raise ValueError("Column math requires at least one target column")
 _column_math_operation = str(${params}.get("operation", "multiply"))
-if _column_math_operation not in {"add", "subtract", "multiply", "divide", "power", "absolute", "negate"}: raise ValueError(f"Unsupported column math operation: {_column_math_operation}")
-_column_math_operand = float(${params}.get("operand", 1))
-if not np.isfinite(_column_math_operand): raise ValueError("Column math operand must be finite")
+_column_math_supported = {"add", "subtract", "multiply", "divide", "power", "clip", "absolute", "negate", "sqrt", "square", "log10", "ln", "exp", "reciprocal", "normalize", "zscore"}
+if _column_math_operation not in _column_math_supported: raise ValueError(f"Unsupported column math operation: {_column_math_operation}")
+_column_math_operand = float(${params}.get("operand", 1)) if _column_math_operation in {"add", "subtract", "multiply", "divide", "power", "clip"} else 0.0
+_column_math_operand2 = float(${params}.get("operand2", 1)) if _column_math_operation == "clip" else 0.0
+if not np.isfinite(_column_math_operand) or not np.isfinite(_column_math_operand2): raise ValueError("Column math operands must be finite")
 if _column_math_operation == "divide" and _column_math_operand == 0: raise ValueError("Column math cannot divide by zero")
+if _column_math_operation == "clip" and _column_math_operand > _column_math_operand2: raise ValueError("Column math clip minimum cannot exceed maximum")
 ${name} = ${input}.copy()
 for _column_name in _column_math_columns:
     _column_values = pd.to_numeric(${name}[_column_name], errors="raise")
@@ -1470,8 +1473,31 @@ for _column_name in _column_math_columns:
     elif _column_math_operation == "multiply": ${name}[_column_name] = _column_values * _column_math_operand
     elif _column_math_operation == "divide": ${name}[_column_name] = _column_values / _column_math_operand
     elif _column_math_operation == "power": ${name}[_column_name] = _column_values.pow(_column_math_operand)
+    elif _column_math_operation == "clip": ${name}[_column_name] = _column_values.clip(lower=_column_math_operand, upper=_column_math_operand2)
     elif _column_math_operation == "absolute": ${name}[_column_name] = _column_values.abs()
-    else: ${name}[_column_name] = -_column_values`;
+    elif _column_math_operation == "negate": ${name}[_column_name] = -_column_values
+    elif _column_math_operation == "sqrt":
+        if (_column_values.dropna() < 0).any(): raise ValueError(f"Column math sqrt requires non-negative values in {_column_name}")
+        ${name}[_column_name] = np.sqrt(_column_values)
+    elif _column_math_operation == "square": ${name}[_column_name] = _column_values.pow(2)
+    elif _column_math_operation == "log10":
+        if (_column_values.dropna() <= 0).any(): raise ValueError(f"Column math log10 requires positive values in {_column_name}")
+        ${name}[_column_name] = np.log10(_column_values)
+    elif _column_math_operation == "ln":
+        if (_column_values.dropna() <= 0).any(): raise ValueError(f"Column math ln requires positive values in {_column_name}")
+        ${name}[_column_name] = np.log(_column_values)
+    elif _column_math_operation == "exp": ${name}[_column_name] = np.exp(_column_values)
+    elif _column_math_operation == "reciprocal":
+        if (_column_values.dropna() == 0).any(): raise ValueError(f"Column math reciprocal cannot divide by zero in {_column_name}")
+        ${name}[_column_name] = 1 / _column_values
+    elif _column_math_operation == "normalize":
+        _minimum, _maximum = _column_values.min(), _column_values.max()
+        if _maximum == _minimum: raise ValueError(f"Column math cannot normalize constant column {_column_name}")
+        ${name}[_column_name] = (_column_values - _minimum) / (_maximum - _minimum)
+    else:
+        _mean, _std = _column_values.mean(), _column_values.std(ddof=0)
+        if _std == 0: raise ValueError(f"Column math cannot standardize constant column {_column_name}")
+        ${name}[_column_name] = (_column_values - _mean) / _std`;
   if (type === "table.absolute") return `${name} = ${input}.abs()`;
   if (type === "table.transpose") return `${name} = ${input}.transpose().reset_index(drop=True)`;
   if (type === "table.slice") return `${name} = ${input}.iloc[slice(${params}.get("rowStart") or None, ${params}.get("rowStop") or None, int(${params}.get("rowStep", 1))), slice(${params}.get("columnStart") or None, ${params}.get("columnStop") or None, int(${params}.get("columnStep", 1)))]`;
@@ -1714,9 +1740,10 @@ _series_line_width = float(${params}.get("lineWidth", 1.5))
 if _series_line_style not in {"-", "--", "-.", ":"}: raise ValueError(f"Unsupported Series lineStyle: {_series_line_style}")
 if _series_marker not in {"", "o", "s", "^", "."}: raise ValueError(f"Unsupported Series marker: {_series_marker}")
 if not 0 < _series_line_width <= 20: raise ValueError("Series lineWidth must be between 0 and 20")
-${name} = {"y": _series_y, "lineStyle": _series_line_style, "marker": _series_marker, "lineWidth": _series_line_width}
-_series_label = str(${params}.get("label", "")).strip()
-if _series_label: ${name}["label"] = _series_label`;
+${name} = {"y": _series_y, "visible": _generic_bool(${params}.get("visible", True)), "lineStyle": _series_line_style, "marker": _series_marker, "lineWidth": _series_line_width}
+_series_label, _series_group = str(${params}.get("label", "")).strip(), str(${params}.get("group", "")).strip()
+if _series_label: ${name}["label"] = _series_label
+if _series_group: ${name}["group"] = _series_group`;
   if (type === "plot.series_registry") return `_series_inputs = ${input}
 if not isinstance(_series_inputs, dict): raise ValueError("Series Registry requires named Series inputs")
 _series_entries = []
@@ -1729,7 +1756,18 @@ for _series_port, _series_item in _series_inputs.items():
 _series_expected = int(${params}.get("seriesCount", len(_series_entries) or 1))
 _series_entries.sort(key=lambda item: item[0])
 if len(_series_entries) != _series_expected: raise ValueError(f"Series Registry requires {_series_expected} connected Series inputs")
-${name} = [dict(item) for _, item in _series_entries]`;
+_series_group_mode = str(${params}.get("groupMode", "all"))
+if _series_group_mode not in {"all", "include", "exclude"}: raise ValueError(f"Unsupported Series Registry groupMode: {_series_group_mode}")
+_series_groups_raw = ${params}.get("groups", "")
+_series_groups = set(_parameter_list(_series_groups_raw)) if _series_groups_raw is not None else set()
+if _series_group_mode != "all" and not _series_groups: raise ValueError("Series Registry group filter requires at least one group")
+${name} = []
+for _, _series_item in _series_entries:
+    _series_result = dict(_series_item)
+    _series_group = str(_series_result.get("group", "")).strip()
+    _series_match = _series_group in _series_groups
+    _series_result["visible"] = _generic_bool(_series_result.get("visible", True)) and (_series_group_mode == "all" or (_series_match if _series_group_mode == "include" else not _series_match))
+    ${name}.append(_series_result)`;
   if (type === "plot.line") return `_series_raw = ${params}.get("seriesConfig", "")
 _series = json.loads(_series_raw) if isinstance(_series_raw, str) and _series_raw.strip() else (_series_raw or [])
 _x_column = _column(${input}, ${params}.get("xColumn")) if str(${params}.get("xColumn", "")).strip() else None
@@ -1737,10 +1775,13 @@ if _series:
     if not isinstance(_series, list): raise ValueError("Line plot seriesConfig must be a JSON array")
     _figure, _axis = plt.subplots(figsize=(float(${params}.get("figureWidth", 8)), float(${params}.get("figureHeight", 4.5))))
     _x_values = ${input}[_x_column] if _x_column is not None else ${input}.index
+    _visible_series_count = 0
     for _item in _series:
+        if not _generic_bool(_item.get("visible", True)): continue
         _y_column = _column(${input}, _item.get("y", _item.get("column")))
         _axis.plot(_x_values, ${input}[_y_column], label=str(_item.get("label", _y_column)), linestyle=str(_item.get("lineStyle", ${params}.get("lineStyle", "-"))), marker=str(_item.get("marker", ${params}.get("marker", ""))) or None, linewidth=float(_item.get("lineWidth", ${params}.get("lineWidth", 1.5))))
-    if ${params}.get("legend", True): _axis.legend()
+        _visible_series_count += 1
+    if _visible_series_count and ${params}.get("legend", True): _axis.legend()
 else:
     _axis = ${input}.plot(x=_x_column, y=_column_names(${input}, ${params}.get("yColumns", "")) or None, linewidth=float(${params}.get("lineWidth", 1.5)), marker=${params}.get("marker") or None)
 _axis.set(title=${params}.get("title", ""), xlabel=${params}.get("xLabel", ""), ylabel=${params}.get("yLabel", ""))
@@ -1852,6 +1893,17 @@ def _columns(raw):
         try: output.append(_column_index(item))
         except (TypeError, ValueError): output.append(str(item).strip())
     return output
+
+def _parameter_list(raw):
+    if raw is None: return []
+    if isinstance(raw, (list, tuple, set, frozenset, np.ndarray, pd.Index)): return [str(item) for item in raw]
+    text = str(raw).strip()
+    if not text: return []
+    if text.startswith("["):
+        parsed = json.loads(text)
+        if not isinstance(parsed, list): raise ValueError("Expected a JSON array or comma-separated values")
+        return [str(item) for item in parsed]
+    return [item.strip() for item in text.split(",") if item.strip()]
 
 def _column(frame, raw):
     text = str(raw).strip()

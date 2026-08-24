@@ -47,18 +47,23 @@ describe("workflow notebook DSL", () => {
     const factor = node("factor", "math.operation", { operation: "add", a: 1, b: 2 });
     const reader = node("reader", "io.read_csv", { separator: ",", header: "infer", skipRows: 0, useColumns: "" });
     const scale = node("scale", "table.column_math", { columns: "value", operation: "multiply", operand: 1 });
-    const series = node("series", "plot.series", { y: "value", label: "Value", lineStyle: "-", marker: "", lineWidth: 1.5 });
-    const registry = node("registry", "plot.series_registry", { seriesCount: 1 });
-    const source = serializeWorkflowNotebook("dynamic", [factor, reader, scale, series, registry], [
+    const series = node("series", "plot.series", { y: "value", label: "Value", group: "signal", visible: false, lineStyle: "-", marker: "", lineWidth: 1.5 });
+    const groupSwitch = node("group", "logic.switch", { valueType: "text", condition: true, falseValue: "control", trueValue: "signal" });
+    const registry = node("registry", "plot.series_registry", { seriesCount: 1, groupMode: "include", groups: "signal" });
+    const source = serializeWorkflowNotebook("dynamic", [factor, reader, scale, series, groupSwitch, registry], [
       { id: "e1", source: "reader", sourceHandle: "output", target: "scale", targetHandle: "input" },
       { id: "e2", source: "factor", sourceHandle: "output", target: "scale", targetHandle: "operand" },
       { id: "e3", source: "factor", sourceHandle: "output", target: "series", targetHandle: "lineWidth" },
       { id: "e4", source: "series", sourceHandle: "output", target: "registry", targetHandle: "series1" },
+      { id: "e5", source: "group", sourceHandle: "output", target: "registry", targetHandle: "groups" },
     ]);
     expect(source).toContain('node_scale_params["operand"] = node_factor');
     expect(source).toContain('_column_math_columns = _column_names(node_reader, node_scale_params.get("columns", ""))');
     expect(source).toContain('node_series_params["lineWidth"] = node_factor');
+    expect(source).toContain('{"y": _series_y, "visible": _generic_bool(node_series_params.get("visible", True))');
+    expect(source).toContain('node_registry_params["groups"] = node_group');
     expect(source).toContain('_series_inputs = {"series1": node_series}');
+    expect(source).toContain('_series_group_mode = str(node_registry_params.get("groupMode", "all"))');
   });
 
   it("round-trips nodes, edges and package requirements", () => {

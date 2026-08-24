@@ -16,6 +16,8 @@ import groupbyMultiSeries from "../examples/demo-15-groupby-multi-series.workflo
 import dynamicPulseChannels from "../examples/demo-16-dynamic-pulse-channels.workflow.json?raw";
 import columnMathPipeline from "../examples/demo-17-column-math-pipeline.workflow.json?raw";
 import seriesRegistry from "../examples/demo-18-series-registry.workflow.json?raw";
+import seriesGroups from "../examples/demo-19-series-groups.workflow.json?raw";
+import scientificColumnTransforms from "../examples/demo-20-scientific-column-transforms.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -132,5 +134,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 18 · Series Registry",
     description: "两条 Series 声明通过动态 Socket Group 汇入 Registry，再结构化驱动折线图。",
     document: seriesRegistry,
+  },
+  {
+    id: "series-groups",
+    label: "Demo 19 · Series 分组与可见性",
+    description: "Series 声明 group/visible，Registry 由动态 Groups Socket 统一筛选可见曲线。",
+    document: seriesGroups,
+  },
+  {
+    id: "scientific-column-transforms",
+    label: "Demo 20 · 科学列变换",
+    description: "动态上下限驱动 Clip，再串联 Sqrt 与 Min-Max 归一化。",
+    document: scientificColumnTransforms,
   },
 ] as const;

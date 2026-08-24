@@ -1,6 +1,6 @@
 import { areaPlot, barPlot, boxPlot, heatmapPlot, histogramPlot, linePlot, scatterPlot } from "../plots";
 import { Table } from "../table";
-import { requireTable } from "./support/common";
+import { asBool, parameterList, requireTable } from "./support/common";
 import type { ExecutionContext, NodeOutput } from "./support/types";
 
 export function executePlotsNode(nodeType: string, params: Record<string, unknown>, upstream: unknown, context: ExecutionContext): NodeOutput | null {
@@ -19,9 +19,11 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
       if (!["-", "--", "-.", ":"].includes(lineStyle)) throw new Error(`Unsupported Series lineStyle: ${lineStyle}`);
       if (!["", "o", "s", "^", "."].includes(marker)) throw new Error(`Unsupported Series marker: ${marker}`);
       if (!(lineWidth > 0 && lineWidth <= 20)) throw new Error("Series lineWidth must be between 0 and 20");
-      const value: Record<string, unknown> = { y, lineStyle, marker, lineWidth };
+      const value: Record<string, unknown> = { y, visible: asBool(params.visible ?? true), lineStyle, marker, lineWidth };
       const label = String(params.label ?? "").trim();
+      const group = String(params.group ?? "").trim();
       if (label) value.label = label;
+      if (group) value.group = group;
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "plot.series_registry": {
@@ -36,7 +38,18 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
       }).sort((left, right) => left[0] - right[0]);
       const expected = Number(params.seriesCount ?? (entries.length || 1));
       if (!Number.isInteger(expected) || expected < 1 || entries.length !== expected) throw new Error(`Series Registry requires ${expected} connected Series inputs`);
-      const value = entries.map(([, item]) => item);
+      const groupMode = String(params.groupMode ?? "all");
+      if (!["all", "include", "exclude"].includes(groupMode)) throw new Error(`Unsupported Series Registry groupMode: ${groupMode}`);
+      const groups = new Set(parameterList(params.groups).map((item) => String(item).trim()).filter(Boolean));
+      if (groupMode !== "all" && !groups.size) throw new Error("Series Registry group filter requires at least one group");
+      const value = entries.map(([, item]) => {
+        const result = { ...item };
+        const currentlyVisible = asBool(result.visible ?? true);
+        const group = String(result.group ?? "").trim();
+        const groupMatch = groups.has(group);
+        result.visible = currentlyVisible && (groupMode === "all" || (groupMode === "include" ? groupMatch : !groupMatch));
+        return result;
+      });
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "plot.line": {
