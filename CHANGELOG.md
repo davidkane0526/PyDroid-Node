@@ -1,3 +1,14 @@
+## 1.6.19 (159) — Dynamic scientific parameters and column references — 2026-08-24
+
+- Extended the shared parameter-Socket contract to table column selection, value sorting, pivot/group aggregation, scientific plots and pulse generators without adding per-node runtime routing branches. Only parameters that are useful to drive from upstream computation are exposed; titles, labels, DPI and other presentation/configuration fields remain Inspector-owned.
+- Defined dynamic column references as a cross-runtime semantic instead of an Inspector text convention: column parameters now accept column-name text, integral numeric indices, comma-separated values or JSON/list inputs where applicable. Python and JavaScript resolve integral numeric outputs such as `1.0` identically.
+- Migrated `table.select_columns`, `table.pivot`, `table.group_aggregate`, `table.groupby_aggregate` and `pandas.sort_values` to parameter Sockets, with aggregation/sort modes kept as compact inline controls.
+- Migrated plot column references and high-value numeric presentation parameters: Line exposes X/Y/Width, Scatter exposes X/Y/Size/Alpha, Histogram exposes Y/Bins/Alpha, Bar/Area expose X/Y/Alpha, Box exposes only Y, and Heatmap exposes row-label column plus color min/max. Socket exposure follows parameters actually consumed by each plot runtime rather than mirroring legacy Inspector fields.
+- Migrated pulse generators to dynamically driven electrical parameters: generic pulse exposes Vmax/Vstep/Vread/Ratio, fixed-level periodic waveform exposes High/Low voltage, High/Low duration and Repeat, and oscillating ramp exposes interval/total time/amplitude step/read/gate voltage.
+- Strengthened NodeContract validation so every declared Socket default must reference a real parameter, and ordinary generic parameter Sockets must use the same port id and parameter key. `logic.switch` remains the deliberate typed-value exception.
+- Added runnable Demo 12 for dynamic table/plot parameters and Demo 13 for dynamic Pulse/Plot composition; both produce real plot artifacts in Python and JavaScript parity tests.
+- Build revision: `1.6.19-dev-r111-dynamic-scientific-parameters`.
+
 ## 1.6.18 (158) — Generic parameter sockets and data-node cleanup — 2026-08-24
 
 - Generalized parameter Socket execution in both Python and JavaScript runtimes: any ordinary named input whose port id matches a NodeSpec parameter now overrides that parameter, while the ordinary `input` Socket remains the data input. Custom Python functions keep their existing signature-owned multi-input binding.

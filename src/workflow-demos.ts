@@ -9,6 +9,8 @@ import dynamicOperators from "../examples/demo-08-dynamic-operators.workflow.jso
 import loopZones from "../examples/demo-09-loop-zones.workflow.json?raw";
 import parameterSockets from "../examples/demo-10-parameter-sockets.workflow.json?raw";
 import dynamicDataNodes from "../examples/demo-11-dynamic-data-nodes.workflow.json?raw";
+import dynamicTableParameters from "../examples/demo-12-dynamic-table-parameters.workflow.json?raw";
+import dynamicPulsePlot from "../examples/demo-13-dynamic-pulse-plot.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -83,5 +85,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 11 · 动态数据节点",
     description: "数值序列表与周期统计使用参数 Socket，展示数据节点与参数节点的统一组合方式。",
     document: dynamicDataNodes,
+  },
+  {
+    id: "dynamic-table-parameters",
+    label: "Demo 12 · 动态表格参数",
+    description: "列选择、排序、分组聚合与绘图参数由普通节点动态驱动。",
+    document: dynamicTableParameters,
+  },
+  {
+    id: "dynamic-pulse-plot",
+    label: "Demo 13 · 动态 Pulse 与 Plot",
+    description: "用 Math 动态驱动脉冲高电平、重复次数和绘图线宽。",
+    document: dynamicPulsePlot,
   },
 ] as const;

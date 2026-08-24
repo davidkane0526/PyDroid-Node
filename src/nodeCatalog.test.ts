@@ -178,6 +178,25 @@ describe("node function signatures", () => {
       ["input", undefined], ["n", "n"],
     ]);
     expect(getNodeSpec("table.periodic_tail_mean")!.inputPorts.map((port) => port.id)).toEqual(["input", "groupSize", "tailRows"]);
+
+    expect(getNodeSpec("table.select_columns")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["input", undefined], ["columns", "columns"],
+    ]);
+    expect(getNodeSpec("pandas.sort_values")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["input", undefined], ["columns", "columns"], ["ascending", "ascending"],
+    ]);
+    expect(getNodeSpec("table.groupby_aggregate")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["input", undefined], ["groupBy", "groupBy"],
+    ]);
+    expect(getNodeSpec("pulse.generate_square_waveform")!.inputPorts.map((port) => port.defaultParameter)).toEqual([
+      "highVoltage", "lowVoltage", "highTime", "lowTime", "repeatCount",
+    ]);
+    expect(getNodeSpec("plot.line")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["input", undefined], ["xColumn", "xColumn"], ["yColumns", "yColumns"], ["lineWidth", "lineWidth"],
+    ]);
+    expect(getNodeSpec("plot.histogram")!.inputPorts.map((port) => port.id)).toEqual(["input", "yColumns", "bins", "alpha"]);
+    expect(getNodeSpec("plot.box")!.inputPorts.map((port) => port.id)).toEqual(["input", "yColumns"]);
+    expect(getNodeSpec("plot.scatter")!.inputPorts.map((port) => port.id)).toEqual(["input", "xColumn", "yColumns", "pointSize", "alpha"]);
   });
 
   it("resolves unary Math / Boolean Math ports and While condition variants", () => {

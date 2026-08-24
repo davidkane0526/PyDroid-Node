@@ -93,6 +93,21 @@ def test_generic_parameter_socket_drives_source_node_without_data_input():
     assert result["preview"]["totalRows"] == 4
 
 
+def test_dynamic_column_socket_accepts_integral_numeric_reference():
+    result = execute(
+        [
+            node("read", "io.read_csv", {"header": "infer"}),
+            node("column", "math.operation", {"operation": "add", "a": 0, "b": 1}),
+            node("select", "table.select_columns", {"columns": "0"}),
+        ],
+        [port_edge("read", "select", "input"), port_edge("column", "select", "columns")],
+        "time,current\n0,1.5\n1,2.5\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["columns"] == ["current"]
+    assert result["preview"]["rows"] == [[1.5], [2.5]]
+
+
 def test_native_random_source_connects_directly_to_print():
     result = execute(
         [node("random", "generate.random_table", {"count": 5, "seed": 1}), node("print", "python.print")],

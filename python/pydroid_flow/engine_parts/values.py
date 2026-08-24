@@ -26,10 +26,46 @@ def _require_table(value: Any, operation: str) -> pd.DataFrame:
         raise ValueError(f"{operation} requires a table input")
     return value
 
+def _column_reference_items(raw: Any) -> list[Any]:
+    if raw is None:
+        return []
+    if isinstance(raw, (list, tuple)):
+        return list(raw)
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool):
+        return [raw]
+    text = str(raw).strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        parsed = _decode_json_compatible(text, "列引用")
+        if not isinstance(parsed, list):
+            raise ValueError("Column references must be a JSON array or comma-separated values")
+        return parsed
+    return [item.strip() for item in text.split(",") if item.strip()]
+
+def _column_index(raw: Any) -> int:
+    if isinstance(raw, bool):
+        raise ValueError(f"Invalid column index: {raw}")
+    if isinstance(raw, int):
+        return raw
+    if isinstance(raw, float):
+        if raw.is_integer():
+            return int(raw)
+        raise ValueError(f"Invalid column index: {raw}")
+    text = str(raw).strip()
+    try:
+        value = float(text)
+    except ValueError as exception:
+        raise ValueError(f"Invalid column index: {text}") from exception
+    if not value.is_integer():
+        raise ValueError(f"Invalid column index: {text}")
+    return int(value)
+
 def _parse_columns(raw: Any, column_count: int) -> list[int]:
-    if raw is None or str(raw).strip() == "":
+    items = _column_reference_items(raw)
+    if not items:
         return list(range(column_count))
-    columns = [int(item.strip()) for item in str(raw).split(",")]
+    columns = [_column_index(item) for item in items]
     invalid = [column for column in columns if column < 0 or column >= column_count]
     if invalid:
         raise ValueError(f"Column indexes out of range: {invalid}")
@@ -40,7 +76,7 @@ def _resolve_column(frame: pd.DataFrame, raw: Any) -> Any:
     if value in frame.columns:
         return value
     try:
-        index = int(value)
+        index = _column_index(raw)
     except ValueError as exception:
         raise ValueError(f"Unknown column: {value}") from exception
     if index < 0 or index >= len(frame.columns):
@@ -48,9 +84,7 @@ def _resolve_column(frame: pd.DataFrame, raw: Any) -> Any:
     return frame.columns[index]
 
 def _resolve_columns(frame: pd.DataFrame, raw: Any) -> list[Any]:
-    if raw is None or not str(raw).strip():
-        return []
-    return [_resolve_column(frame, item) for item in str(raw).split(",") if item.strip()]
+    return [_resolve_column(frame, item) for item in _column_reference_items(raw)]
 
 def _rename_columns(frame: pd.DataFrame, raw: Any) -> pd.DataFrame:
     text = str(raw or "").strip()

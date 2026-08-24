@@ -167,6 +167,14 @@ export function validateNodeContracts(): string[] {
     if (contract.stateScope === "none" && contract.stateAccess !== "none") errors.push(`无状态节点不能声明 stateAccess：${spec.nodeType}`);
     if (contract.stateScope !== "none" && contract.stateAccess === "none") errors.push(`有状态节点缺少 stateAccess：${spec.nodeType}`);
     if (contract.executionModel !== "function" && contract.functionRole !== "none") errors.push(`非函数节点不能声明 functionRole：${spec.nodeType}`);
+    const parameterKeys = new Set(spec.parameters.map((parameter) => parameter.key));
+    for (const port of spec.inputPorts) {
+      if (!port.defaultParameter) continue;
+      if (!parameterKeys.has(port.defaultParameter)) errors.push(`Socket 默认参数不存在：${spec.nodeType}.${port.id} -> ${port.defaultParameter}`);
+      if (spec.nodeType !== "logic.switch" && port.id !== port.defaultParameter) {
+        errors.push(`通用参数 Socket 的端口 id 必须与参数 key 一致：${spec.nodeType}.${port.id} -> ${port.defaultParameter}`);
+      }
+    }
     if (contract.runtimes.javascript && contract.parityClass === "C") errors.push(`JavaScript 节点不能声明 C 级 parity：${spec.nodeType}`);
     if (!contract.runtimes.javascript && contract.parityClass !== "C") errors.push(`Python-only 节点必须声明 C 级 parity：${spec.nodeType}`);
   }

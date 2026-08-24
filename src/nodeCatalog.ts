@@ -384,7 +384,10 @@ export const NODE_CATALOG: NodeSpec[] = [
     label: "选择列",
     category: "表格处理",
     defaults: { columns: "0,1" },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+    ],
     outputPorts: TABLE_OUTPUT,
     parameters: [{ key: "columns", label: "列序号", kind: "text", placeholder: "0,1,2", description: "使用英文逗号分隔；留空表示保留所有列。" }],
   },
@@ -562,7 +565,12 @@ export const NODE_CATALOG: NodeSpec[] = [
     description: "将长表按行键、列键和值列转换为矩阵，适合多文件扫描结果和热图输入。",
     category: "表格处理",
     defaults: { index: "", columns: "", values: "", aggregate: "mean", resetIndex: true },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "index", label: "Rows", valueType: "any", defaultParameter: "index" },
+      { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+      { id: "values", label: "Values", valueType: "any", defaultParameter: "values" },
+    ],
     outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "index", label: "行键列", kind: "text", required: true, placeholder: "Vg_V" },
@@ -571,13 +579,19 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "aggregate", label: "重复值聚合", kind: "select", options: [{ label: "平均值", value: "mean" }, { label: "首项", value: "first" }, { label: "最大值", value: "max" }, { label: "最小值", value: "min" }] },
       { key: "resetIndex", label: "将行键保留为首列", kind: "boolean" },
     ],
+    ui: { inlineParameters: ["aggregate"], inlineParameterLabels: { aggregate: null }, inlineLayout: "row" },
   },
   {
     nodeType: "table.group_aggregate", runtimeSupport: ["python", "javascript"],
     label: "分组聚合",
     category: "统计",
     defaults: { groupSize: 20, startRow: 0, endRow: 20, method: "mean" },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "groupSize", label: "Group", valueType: "number", defaultParameter: "groupSize" },
+      { id: "startRow", label: "Start", valueType: "number", defaultParameter: "startRow" },
+      { id: "endRow", label: "End", valueType: "number", defaultParameter: "endRow" },
+    ],
     outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "groupSize", label: "每组行数", kind: "number", min: 1, step: 1 },
@@ -596,6 +610,7 @@ export const NODE_CATALOG: NodeSpec[] = [
         ],
       },
     ],
+    ui: { inlineParameters: ["method"], inlineParameterLabels: { method: null }, inlineLayout: "row" },
   },
   {
     nodeType: "table.groupby_aggregate", runtimeSupport: ["python", "javascript"],
@@ -604,7 +619,10 @@ export const NODE_CATALOG: NodeSpec[] = [
     tags: ["pandas", "groupby", "分组", "聚合", "统计"],
     category: "统计",
     defaults: { groupBy: "", method: "mean" },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "groupBy", label: "Group By", valueType: "any", defaultParameter: "groupBy" },
+    ],
     outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "groupBy", label: "分组列", kind: "text", required: true, placeholder: "Vg_V", description: "列名或列序号，多个用英文逗号分隔。" },
@@ -623,6 +641,7 @@ export const NODE_CATALOG: NodeSpec[] = [
         ],
       },
     ],
+    ui: { inlineParameters: ["method"], inlineParameterLabels: { method: null }, inlineLayout: "row" },
   },
   {
     nodeType: "pandas.dropna", runtimeSupport: ["python", "javascript"],
@@ -664,13 +683,18 @@ export const NODE_CATALOG: NodeSpec[] = [
     tags: ["pandas", "sort_values", "排序"],
     category: "Pandas 常用",
     defaults: { columns: "0", ascending: true, naPosition: "last" },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+      { id: "ascending", label: "Ascending", valueType: "boolean", defaultParameter: "ascending" },
+    ],
     outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "columns", label: "排序列", kind: "text", required: true, description: "列名或列序号，多个用英文逗号分隔。" },
       { key: "ascending", label: "升序", kind: "boolean" },
       { key: "naPosition", label: "空值位置", kind: "select", options: [{ label: "末尾", value: "last" }, { label: "开头", value: "first" }] },
     ],
+    ui: { inlineParameters: ["naPosition"], inlineParameterLabels: { naPosition: null }, inlineLayout: "row" },
   },
   {
     nodeType: "pandas.query", runtimeSupport: ["python", "javascript"],
@@ -993,7 +1017,12 @@ export const NODE_CATALOG: NodeSpec[] = [
     tags: ["pulse", "脉冲", "波形", "电压", "Vd", "Vs", "Vg"],
     category: "统计",
     defaults: { voltageMax: 3, voltageStep: 0.2, readVoltage: 0.1, pulseTime: 0.01, readTime: 0.01, timeShift: 0, cycles: 1, ratio: 1 },
-    inputPorts: [], outputPorts: TABLE_OUTPUT,
+    inputPorts: [
+      { id: "voltageMax", label: "Vmax", valueType: "number", defaultParameter: "voltageMax" },
+      { id: "voltageStep", label: "Vstep", valueType: "number", defaultParameter: "voltageStep" },
+      { id: "readVoltage", label: "Vread", valueType: "number", defaultParameter: "readVoltage" },
+      { id: "ratio", label: "Ratio", valueType: "number", defaultParameter: "ratio" },
+    ], outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "voltageMax", label: "最大脉冲电压 · Vmax", kind: "number", required: true, step: 0.1 },
       { key: "voltageStep", label: "脉冲电压步长 · Vstep", kind: "number", required: true, min: 0.0000001, step: 0.1 },
@@ -1004,6 +1033,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "cycles", label: "扫描周期", kind: "select", options: [{ label: "1/4 周期", value: 0.25 }, { label: "1/2 周期", value: 0.5 }, { label: "1 周期", value: 1 }, { label: "2 周期", value: 2 }, { label: "3 周期", value: 3 }] },
       { key: "ratio", label: "通道电压倍率", kind: "number", step: 0.1, description: "同一主波形映射到不同通道时使用；-1 可生成反相波形。" },
     ],
+    ui: { inlineParameters: ["cycles"], inlineParameterLabels: { cycles: null }, inlineLayout: "row" },
   },
   {
     nodeType: "pulse.generate_square_waveform", runtimeSupport: ["python", "javascript"],
@@ -1012,7 +1042,13 @@ export const NODE_CATALOG: NodeSpec[] = [
     tags: ["pulse", "脉冲", "方波", "周期", "固定电平", "Vd", "Vs", "Vg"],
     category: "统计",
     defaults: { highVoltage: 5, lowVoltage: 0, highTime: 1, lowTime: 1, repeatCount: 1, startLevel: "high", timeStart: 0, totalTime: 0 },
-    inputPorts: [],
+    inputPorts: [
+      { id: "highVoltage", label: "High V", valueType: "number", defaultParameter: "highVoltage" },
+      { id: "lowVoltage", label: "Low V", valueType: "number", defaultParameter: "lowVoltage" },
+      { id: "highTime", label: "High t", valueType: "number", defaultParameter: "highTime" },
+      { id: "lowTime", label: "Low t", valueType: "number", defaultParameter: "lowTime" },
+      { id: "repeatCount", label: "Repeat", valueType: "number", defaultParameter: "repeatCount" },
+    ],
     outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "highVoltage", label: "高电平（V）", kind: "number", required: true, step: 0.1 },
@@ -1024,6 +1060,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "timeStart", label: "起始时间（s）", kind: "number", step: 0.001 },
       { key: "totalTime", label: "总时长（s，0 按重复次数）", kind: "number", min: 0, step: 0.001, description: "大于 0 时忽略 repeatCount，按高/低周期连续生成到 timeStart + totalTime。适合让 Vg 覆盖更长的 Vd/Vs 时间范围。" },
     ],
+    ui: { inlineParameters: ["startLevel"], inlineParameterLabels: { startLevel: null }, inlineLayout: "row" },
   },
   {
     nodeType: "pulse.generate_oscillating_ramp", runtimeSupport: ["python", "javascript"],
@@ -1032,7 +1069,13 @@ export const NODE_CATALOG: NodeSpec[] = [
     tags: ["pulse", "脉冲", "震荡", "周期", "三端口"],
     category: "统计",
     defaults: { interval: 0.005, totalTime: 10, amplitudeStep: 0.2, fixedVoltage: 0.6, gateVoltage: 0 },
-    inputPorts: [], outputPorts: TABLE_OUTPUT,
+    inputPorts: [
+      { id: "interval", label: "Δt", valueType: "number", defaultParameter: "interval" },
+      { id: "totalTime", label: "Total", valueType: "number", defaultParameter: "totalTime" },
+      { id: "amplitudeStep", label: "ΔV", valueType: "number", defaultParameter: "amplitudeStep" },
+      { id: "fixedVoltage", label: "Read V", valueType: "number", defaultParameter: "fixedVoltage" },
+      { id: "gateVoltage", label: "Gate V", valueType: "number", defaultParameter: "gateVoltage" },
+    ], outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "interval", label: "时间间隔（s）", kind: "number", required: true, min: 0.000001, step: 0.001 },
       { key: "totalTime", label: "总时间（s）", kind: "number", required: true, min: 0.000001, step: 0.1 },
@@ -1190,7 +1233,12 @@ export const NODE_CATALOG: NodeSpec[] = [
       figureHeight: 4.5,
       dpi: 120,
     },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "xColumn", label: "X", valueType: "any", defaultParameter: "xColumn" },
+      { id: "yColumns", label: "Y", valueType: "any", defaultParameter: "yColumns" },
+      { id: "lineWidth", label: "Width", valueType: "number", defaultParameter: "lineWidth" },
+    ],
     outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
     parameters: [
       { key: "xColumn", label: "X 列", kind: "text", placeholder: "留空使用行号", description: "填写列名或列序号。" },
@@ -1220,11 +1268,21 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "figureHeight", label: "图片高度", kind: "number", min: 3, max: 12, step: 0.5, control: "slider", rememberDefault: true },
       { key: "dpi", label: "清晰度 DPI", kind: "number", min: 72, max: 240, step: 12, control: "slider", rememberDefault: true },
     ],
+    ui: { inlineParameters: ["lineStyle", "marker"], inlineParameterLabels: { lineStyle: null, marker: null }, inlineLayout: "row" },
   },
   ...([{"nodeType":"plot.scatter","label":"散点图","description":"按 X/Y 数值列绘制散点关系。"},{"nodeType":"plot.bar","label":"柱状图","description":"按分类或数值 X 轴绘制柱状比较。"},{"nodeType":"plot.histogram","label":"直方图","description":"显示一个或多个数值列的分布。"},{"nodeType":"plot.box","label":"箱线图","description":"比较数值列的中位数、四分位数与异常值。"},{"nodeType":"plot.area","label":"面积图","description":"绘制随 X 轴变化的堆叠或重叠面积。"}] as const).map((item): NodeSpec => ({
     ...item, runtimeSupport: ["python", "javascript"], category: "绘图", tags: ["plot", "绘图", item.label],
     defaults: { xColumn: "", yColumns: "", title: "", xLabel: "", yLabel: "", legend: true, grid: true, scientificNotation: true, bins: 20, pointSize: 24, alpha: .8, figureWidth: 8, figureHeight: 4.5, dpi: 120 },
-    inputPorts: TABLE_INPUT, outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      ...(["plot.scatter", "plot.bar", "plot.area"].includes(item.nodeType)
+        ? [{ id: "xColumn", label: "X", valueType: "any" as const, defaultParameter: "xColumn" }]
+        : []),
+      { id: "yColumns", label: "Y", valueType: "any", defaultParameter: "yColumns" },
+      ...(item.nodeType === "plot.histogram" ? [{ id: "bins", label: "Bins", valueType: "number" as const, defaultParameter: "bins" }] : []),
+      ...(item.nodeType === "plot.scatter" ? [{ id: "pointSize", label: "Size", valueType: "number" as const, defaultParameter: "pointSize" }] : []),
+      ...(item.nodeType !== "plot.box" ? [{ id: "alpha", label: "Alpha", valueType: "number" as const, defaultParameter: "alpha" }] : []),
+    ], outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
     parameters: [
       { key: "xColumn", label: "X 列", kind: "text", placeholder: item.nodeType === "plot.scatter" ? "散点图必填" : "留空使用行号" },
       { key: "yColumns", label: "Y 列", kind: "list", itemType: "text", placeholder: item.nodeType === "plot.scatter" ? "散点图仅填写一列" : "留空使用全部数值列" },
@@ -1248,7 +1306,12 @@ export const NODE_CATALOG: NodeSpec[] = [
       colorMap: "viridis", colorMin: null, colorMax: null, showColorBar: true,
       colorBarLabel: "", figureWidth: 9, figureHeight: 6, dpi: 160,
     },
-    inputPorts: TABLE_INPUT,
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "rowLabelColumn", label: "Rows", valueType: "any", defaultParameter: "rowLabelColumn" },
+      { id: "colorMin", label: "Min", valueType: "number", defaultParameter: "colorMin" },
+      { id: "colorMax", label: "Max", valueType: "number", defaultParameter: "colorMax" },
+    ],
     outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
     parameters: [
       { key: "rowLabelColumn", label: "行标签列", kind: "text", placeholder: "0 或 Vg_V", description: "留空则使用默认行号。" },
@@ -1270,6 +1333,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "figureHeight", label: "图片高度", kind: "number", min: 3, max: 12, step: 0.5, control: "slider", rememberDefault: true },
       { key: "dpi", label: "清晰度 DPI", kind: "number", min: 72, max: 300, step: 12, control: "slider", rememberDefault: true },
     ],
+    ui: { inlineParameters: ["colorMap"], inlineParameterLabels: { colorMap: null }, inlineLayout: "row" },
   },
   {
     nodeType: "convert.to_text", runtimeSupport: ["python", "javascript"],

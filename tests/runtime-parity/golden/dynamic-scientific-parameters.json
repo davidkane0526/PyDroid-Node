@@ -1,0 +1,472 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "demo_12_dynamic_table_parameters",
+      "description": "Demo 12 · 动态表格参数",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 12 · 动态表格参数",
+        "nodes": [
+          {
+            "id": "random",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 130
+            },
+            "data": {
+              "label": "随机表格",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 12,
+                "distribution": "uniform",
+                "min": 0,
+                "max": 10,
+                "mean": 0,
+                "std": 1,
+                "seed": 12,
+                "indexColumn": "index",
+                "valueColumn": "value"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "select-index",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 390
+            },
+            "data": {
+              "label": "0 + 1 → Columns",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 0,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "select",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 100
+            },
+            "data": {
+              "label": "动态选择列",
+              "nodeType": "table.select_columns",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "0,1"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sort-index",
+            "type": "workflow",
+            "position": {
+              "x": 700,
+              "y": 390
+            },
+            "data": {
+              "label": "0 + 0 → Columns",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 0,
+                "b": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "descending",
+            "type": "workflow",
+            "position": {
+              "x": 720,
+              "y": 650
+            },
+            "data": {
+              "label": "0 > 1",
+              "nodeType": "logic.compare",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "number",
+                "operation": "greater",
+                "a": 0,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "sort",
+            "type": "workflow",
+            "position": {
+              "x": 850,
+              "y": 100
+            },
+            "data": {
+              "label": "动态排序",
+              "nodeType": "pandas.sort_values",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "0",
+                "ascending": true,
+                "naPosition": "last"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "group-size",
+            "type": "workflow",
+            "position": {
+              "x": 1160,
+              "y": 430
+            },
+            "data": {
+              "label": "2 + 2",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 2,
+                "b": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "group",
+            "type": "workflow",
+            "position": {
+              "x": 1250,
+              "y": 100
+            },
+            "data": {
+              "label": "动态分组聚合",
+              "nodeType": "table.group_aggregate",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupSize": 3,
+                "startRow": 0,
+                "endRow": 4,
+                "method": "mean"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "width",
+            "type": "workflow",
+            "position": {
+              "x": 1540,
+              "y": 450
+            },
+            "data": {
+              "label": "1 + 1",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "type": "workflow",
+            "position": {
+              "x": 1650,
+              "y": 100
+            },
+            "data": {
+              "label": "动态折线图",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "",
+                "yColumns": "0",
+                "title": "动态表格参数",
+                "xLabel": "组",
+                "yLabel": "均值",
+                "legend": false,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 1.5,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "random",
+            "sourceHandle": "output",
+            "target": "select",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e3",
+            "source": "select-index",
+            "sourceHandle": "output",
+            "target": "select",
+            "targetHandle": "columns"
+          },
+          {
+            "id": "e4",
+            "source": "select",
+            "sourceHandle": "output",
+            "target": "sort",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e6",
+            "source": "sort-index",
+            "sourceHandle": "output",
+            "target": "sort",
+            "targetHandle": "columns"
+          },
+          {
+            "id": "e7",
+            "source": "descending",
+            "sourceHandle": "output",
+            "target": "sort",
+            "targetHandle": "ascending"
+          },
+          {
+            "id": "e8",
+            "source": "sort",
+            "sourceHandle": "output",
+            "target": "group",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e9",
+            "source": "group-size",
+            "sourceHandle": "output",
+            "target": "group",
+            "targetHandle": "groupSize"
+          },
+          {
+            "id": "e10",
+            "source": "group",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e11",
+            "source": "width",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "lineWidth"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    },
+    {
+      "id": "demo_13_dynamic_pulse_plot",
+      "description": "Demo 13 · 动态 Pulse 与 Plot",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 13 · 动态 Pulse 与 Plot",
+        "nodes": [
+          {
+            "id": "high",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 80
+            },
+            "data": {
+              "label": "2 + 3 V",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 2,
+                "b": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "repeat",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 340
+            },
+            "data": {
+              "label": "1 + 2 次",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "pulse",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 100
+            },
+            "data": {
+              "label": "动态固定电平波形",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 4,
+                "lowVoltage": 0,
+                "highTime": 0.5,
+                "lowTime": 0.5,
+                "repeatCount": 1,
+                "startLevel": "high",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "width",
+            "type": "workflow",
+            "position": {
+              "x": 770,
+              "y": 440
+            },
+            "data": {
+              "label": "1 + 1 线宽",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "type": "workflow",
+            "position": {
+              "x": 880,
+              "y": 100
+            },
+            "data": {
+              "label": "动态脉冲折线图",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "time_s",
+                "yColumns": "voltage_V",
+                "title": "动态脉冲",
+                "xLabel": "Time (s)",
+                "yLabel": "Voltage (V)",
+                "legend": false,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 1.5,
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "high",
+            "sourceHandle": "output",
+            "target": "pulse",
+            "targetHandle": "highVoltage"
+          },
+          {
+            "id": "e2",
+            "source": "repeat",
+            "sourceHandle": "output",
+            "target": "pulse",
+            "targetHandle": "repeatCount"
+          },
+          {
+            "id": "e3",
+            "source": "pulse",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e4",
+            "source": "width",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "lineWidth"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    }
+  ]
+}
