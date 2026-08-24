@@ -58,12 +58,31 @@ describe("workflow notebook DSL", () => {
       { id: "e5", source: "group", sourceHandle: "output", target: "registry", targetHandle: "groups" },
     ]);
     expect(source).toContain('node_scale_params["operand"] = node_factor');
-    expect(source).toContain('_column_math_columns = _column_names(node_reader, node_scale_params.get("columns", ""))');
+    expect(source).toContain('node_scale = _apply_column_transform(node_reader, node_scale_params)');
     expect(source).toContain('node_series_params["lineWidth"] = node_factor');
     expect(source).toContain('{"y": _series_y, "visible": _generic_bool(node_series_params.get("visible", True))');
     expect(source).toContain('node_registry_params["groups"] = node_group');
     expect(source).toContain('_series_inputs = {"series1": node_series}');
     expect(source).toContain('_series_group_mode = str(node_registry_params.get("groupMode", "all"))');
+  });
+
+  it("exports declared column transforms as an ordered pipeline", () => {
+    const node = (id: string, nodeType: string, parameters: Record<string, unknown>) => ({
+      id, type: "workflow", position: { x: 0, y: 0 },
+      data: { label: id, nodeType, nodeVersion: 1, parameters, status: "idle" },
+    } as WorkflowNode);
+    const reader = node("reader2", "io.read_csv", { separator: ",", header: "infer", skipRows: 0, useColumns: "" });
+    const scale = node("scale2", "table.column_transform", { columns: "value", operation: "multiply", operand: 2 });
+    const clip = node("clip2", "table.column_transform", { columns: "value", operation: "clip", operand: 1, operand2: 8 });
+    const pipeline = node("pipeline2", "table.column_pipeline", { transformCount: 2 });
+    const source = serializeWorkflowNotebook("pipeline", [reader, scale, clip, pipeline], [
+      { id: "p1", source: "reader2", sourceHandle: "output", target: "pipeline2", targetHandle: "input" },
+      { id: "p2", source: "scale2", sourceHandle: "output", target: "pipeline2", targetHandle: "transform1" },
+      { id: "p3", source: "clip2", sourceHandle: "output", target: "pipeline2", targetHandle: "transform2" },
+    ]);
+    expect(source).toContain("node_scale2 = _column_transform_spec(node_scale2_params)");
+    expect(source).toContain('_pipeline_inputs = {"input": node_reader2, "transform1": node_scale2, "transform2": node_clip2}');
+    expect(source).toContain("node_pipeline2 = _apply_column_transform(node_pipeline2, _pipeline_transform)");
   });
 
   it("round-trips nodes, edges and package requirements", () => {

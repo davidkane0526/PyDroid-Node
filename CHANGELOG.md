@@ -1,3 +1,13 @@
+## 1.6.23 (163) — Legend Group/Solo, declarative column pipelines and NodeSpec authoring SDK — 2026-08-25
+
+- Separated Series filtering identity from legend interaction identity: `group` remains the Registry data/filter group, while new `legendGroup` is preserved as plot metadata for future grouped legend interactions. Added real `solo` semantics; after ordinary visibility/group filtering, any effective Solo Series hides all effective non-Solo Series without re-enabling explicitly hidden curves.
+- Added declarative `table.column_transform` and `table.column_pipeline`. Transform nodes describe a column operation without consuming a table; Pipeline exposes 1–16 ordered Transform sockets and applies them deterministically to one table, reusing the existing Column Math implementation rather than creating another transform engine.
+- Kept both runtime domain handlers below their existing ownership limits by splitting Python Series logic into `engine_parts/plot_series.py` and Column Pipeline logic into dedicated Python/JavaScript helpers instead of relaxing architecture guards.
+- Added `src/nodeSpecSdk.ts` as the stable NodeSpec authoring surface. It exports the dynamic-node declaration types, SDK version, `defineNodeSpec`, declaration validation and `resolveNodeSpec`; this is an authoring contract only and does not pretend to be a third-party runtime/plugin loader.
+- Extended Workflow→Notebook serialization with Legend Group/Solo and Transform/Pipeline semantics. Independent generated Notebook workflows using CSV → Series/Registry/Plot and CSV → Transform/Pipeline execute successfully as ordinary Python scripts.
+- Added runnable Demo 21 for shared Legend Group + Solo selection and Demo 22 for a three-stage declared Column Transform Pipeline. Both are Python/JavaScript golden parity fixtures and are registered in the built-in Demo smoke suite.
+- Build revision: `1.6.23-dev-r115-legend-solo-column-pipeline-sdk`.
+
 ## 1.6.22 (162) — Series visibility groups, scientific column transforms and nested Socket Groups — 2026-08-25
 
 - Extended the shared Socket metadata contract with declarative `socketGroups`. Groups can form parent/child hierarchies and ports/repeated input groups can reference them without coupling runtime behavior to layout. NodeContract now rejects missing parents, cycles and unknown group references.

@@ -1455,49 +1455,26 @@ ${name} = input(f"{${params}.get('title', '输入')}: {${params}.get('prompt', '
 if ${params}.get("inputKind") == "number":
     ${name} = float(${name})`;
   if (type === "table.select_columns") return `${name} = ${input}.iloc[:, _columns(${params}.get("columns", ""))]`;
-  if (type === "table.column_math") return `_column_math_columns = _column_names(${input}, ${params}.get("columns", ""))
-if not _column_math_columns: raise ValueError("Column math requires at least one target column")
-_column_math_operation = str(${params}.get("operation", "multiply"))
-_column_math_supported = {"add", "subtract", "multiply", "divide", "power", "clip", "absolute", "negate", "sqrt", "square", "log10", "ln", "exp", "reciprocal", "normalize", "zscore"}
-if _column_math_operation not in _column_math_supported: raise ValueError(f"Unsupported column math operation: {_column_math_operation}")
-_column_math_operand = float(${params}.get("operand", 1)) if _column_math_operation in {"add", "subtract", "multiply", "divide", "power", "clip"} else 0.0
-_column_math_operand2 = float(${params}.get("operand2", 1)) if _column_math_operation == "clip" else 0.0
-if not np.isfinite(_column_math_operand) or not np.isfinite(_column_math_operand2): raise ValueError("Column math operands must be finite")
-if _column_math_operation == "divide" and _column_math_operand == 0: raise ValueError("Column math cannot divide by zero")
-if _column_math_operation == "clip" and _column_math_operand > _column_math_operand2: raise ValueError("Column math clip minimum cannot exceed maximum")
-${name} = ${input}.copy()
-for _column_name in _column_math_columns:
-    _column_values = pd.to_numeric(${name}[_column_name], errors="raise")
-    if _column_math_operation == "add": ${name}[_column_name] = _column_values + _column_math_operand
-    elif _column_math_operation == "subtract": ${name}[_column_name] = _column_values - _column_math_operand
-    elif _column_math_operation == "multiply": ${name}[_column_name] = _column_values * _column_math_operand
-    elif _column_math_operation == "divide": ${name}[_column_name] = _column_values / _column_math_operand
-    elif _column_math_operation == "power": ${name}[_column_name] = _column_values.pow(_column_math_operand)
-    elif _column_math_operation == "clip": ${name}[_column_name] = _column_values.clip(lower=_column_math_operand, upper=_column_math_operand2)
-    elif _column_math_operation == "absolute": ${name}[_column_name] = _column_values.abs()
-    elif _column_math_operation == "negate": ${name}[_column_name] = -_column_values
-    elif _column_math_operation == "sqrt":
-        if (_column_values.dropna() < 0).any(): raise ValueError(f"Column math sqrt requires non-negative values in {_column_name}")
-        ${name}[_column_name] = np.sqrt(_column_values)
-    elif _column_math_operation == "square": ${name}[_column_name] = _column_values.pow(2)
-    elif _column_math_operation == "log10":
-        if (_column_values.dropna() <= 0).any(): raise ValueError(f"Column math log10 requires positive values in {_column_name}")
-        ${name}[_column_name] = np.log10(_column_values)
-    elif _column_math_operation == "ln":
-        if (_column_values.dropna() <= 0).any(): raise ValueError(f"Column math ln requires positive values in {_column_name}")
-        ${name}[_column_name] = np.log(_column_values)
-    elif _column_math_operation == "exp": ${name}[_column_name] = np.exp(_column_values)
-    elif _column_math_operation == "reciprocal":
-        if (_column_values.dropna() == 0).any(): raise ValueError(f"Column math reciprocal cannot divide by zero in {_column_name}")
-        ${name}[_column_name] = 1 / _column_values
-    elif _column_math_operation == "normalize":
-        _minimum, _maximum = _column_values.min(), _column_values.max()
-        if _maximum == _minimum: raise ValueError(f"Column math cannot normalize constant column {_column_name}")
-        ${name}[_column_name] = (_column_values - _minimum) / (_maximum - _minimum)
-    else:
-        _mean, _std = _column_values.mean(), _column_values.std(ddof=0)
-        if _std == 0: raise ValueError(f"Column math cannot standardize constant column {_column_name}")
-        ${name}[_column_name] = (_column_values - _mean) / _std`;
+  if (type === "table.column_math") return `${name} = _apply_column_transform(${input}, ${params})`;
+  if (type === "table.column_transform") return `${name} = _column_transform_spec(${params})`;
+  if (type === "table.column_pipeline") return `_pipeline_inputs = ${input}
+if not isinstance(_pipeline_inputs, dict): raise ValueError("Column transform Pipeline requires named inputs")
+_pipeline_expected = int(${params}.get("transformCount", 1))
+if _pipeline_expected < 1 or _pipeline_expected > 16: raise ValueError("Column transform Pipeline transformCount must be between 1 and 16")
+_pipeline_entries = []
+for _pipeline_port, _pipeline_item in _pipeline_inputs.items():
+    if not str(_pipeline_port).startswith("transform"): continue
+    try: _pipeline_order = int(str(_pipeline_port)[9:])
+    except ValueError as exc: raise ValueError(f"Invalid Column transform Pipeline port: {_pipeline_port}") from exc
+    if not isinstance(_pipeline_item, dict): raise ValueError(f"Column transform Pipeline input {_pipeline_port} must be a Transform object")
+    _pipeline_entries.append((_pipeline_order, _pipeline_item))
+_pipeline_entries.sort(key=lambda item: item[0])
+if len(_pipeline_entries) != _pipeline_expected: raise ValueError(f"Column transform Pipeline requires {_pipeline_expected} connected Transform inputs")
+${name} = _pipeline_inputs.get("input")
+if not isinstance(${name}, pd.DataFrame): raise ValueError("Column transform Pipeline requires a table input")
+for _pipeline_index, (_pipeline_order, _pipeline_transform) in enumerate(_pipeline_entries, start=1):
+    if _pipeline_order != _pipeline_index: raise ValueError("Column transform Pipeline inputs must use consecutive Transform ports")
+    ${name} = _apply_column_transform(${name}, _pipeline_transform)`;
   if (type === "table.absolute") return `${name} = ${input}.abs()`;
   if (type === "table.transpose") return `${name} = ${input}.transpose().reset_index(drop=True)`;
   if (type === "table.slice") return `${name} = ${input}.iloc[slice(${params}.get("rowStart") or None, ${params}.get("rowStop") or None, int(${params}.get("rowStep", 1))), slice(${params}.get("columnStart") or None, ${params}.get("columnStop") or None, int(${params}.get("columnStep", 1)))]`;
@@ -1741,9 +1718,13 @@ if _series_line_style not in {"-", "--", "-.", ":"}: raise ValueError(f"Unsuppor
 if _series_marker not in {"", "o", "s", "^", "."}: raise ValueError(f"Unsupported Series marker: {_series_marker}")
 if not 0 < _series_line_width <= 20: raise ValueError("Series lineWidth must be between 0 and 20")
 ${name} = {"y": _series_y, "visible": _generic_bool(${params}.get("visible", True)), "lineStyle": _series_line_style, "marker": _series_marker, "lineWidth": _series_line_width}
-_series_label, _series_group = str(${params}.get("label", "")).strip(), str(${params}.get("group", "")).strip()
+_series_label = str(${params}.get("label", "")).strip()
+_series_group = str(${params}.get("group", "")).strip()
+_series_legend_group = str(${params}.get("legendGroup", "")).strip()
 if _series_label: ${name}["label"] = _series_label
-if _series_group: ${name}["group"] = _series_group`;
+if _series_group: ${name}["group"] = _series_group
+if _series_legend_group: ${name}["legendGroup"] = _series_legend_group
+if _generic_bool(${params}.get("solo", False)): ${name}["solo"] = True`;
   if (type === "plot.series_registry") return `_series_inputs = ${input}
 if not isinstance(_series_inputs, dict): raise ValueError("Series Registry requires named Series inputs")
 _series_entries = []
@@ -1767,7 +1748,10 @@ for _, _series_item in _series_entries:
     _series_group = str(_series_result.get("group", "")).strip()
     _series_match = _series_group in _series_groups
     _series_result["visible"] = _generic_bool(_series_result.get("visible", True)) and (_series_group_mode == "all" or (_series_match if _series_group_mode == "include" else not _series_match))
-    ${name}.append(_series_result)`;
+    ${name}.append(_series_result)
+_series_has_solo = any(_generic_bool(_item.get("visible", True)) and _generic_bool(_item.get("solo", False)) for _item in ${name})
+if _series_has_solo:
+    for _item in ${name}: _item["visible"] = _generic_bool(_item.get("visible", True)) and _generic_bool(_item.get("solo", False))`;
   if (type === "plot.line") return `_series_raw = ${params}.get("seriesConfig", "")
 _series = json.loads(_series_raw) if isinstance(_series_raw, str) and _series_raw.strip() else (_series_raw or [])
 _x_column = _column(${input}, ${params}.get("xColumn")) if str(${params}.get("xColumn", "")).strip() else None
@@ -1921,6 +1905,68 @@ def _column_names(frame, raw):
 def _generic_bool(raw):
     if isinstance(raw, str): return raw.strip().lower() in {"1", "true", "yes", "on"}
     return bool(raw)
+
+def _column_transform_spec(params):
+    columns = params.get("columns")
+    if columns is None or (isinstance(columns, str) and not columns.strip()): raise ValueError("Column transform requires at least one target column")
+    operation = str(params.get("operation", "multiply"))
+    supported = {"add", "subtract", "multiply", "divide", "power", "clip", "absolute", "negate", "sqrt", "square", "log10", "ln", "exp", "reciprocal", "normalize", "zscore"}
+    if operation not in supported: raise ValueError(f"Unsupported column math operation: {operation}")
+    result = {"columns": columns, "operation": operation}
+    if operation in {"add", "subtract", "multiply", "divide", "power", "clip"}:
+        result["operand"] = float(params.get("operand", 1))
+        if not np.isfinite(result["operand"]): raise ValueError("Column math operand must be finite")
+    if operation == "clip":
+        result["operand2"] = float(params.get("operand2", 1))
+        if not np.isfinite(result["operand2"]): raise ValueError("Column math second operand must be finite")
+        if result["operand"] > result["operand2"]: raise ValueError("Column math clip minimum cannot exceed maximum")
+    if operation == "divide" and result["operand"] == 0: raise ValueError("Column math cannot divide by zero")
+    return result
+
+def _apply_column_transform(frame, params):
+    transform = _column_transform_spec(params)
+    columns = _column_names(frame, transform.get("columns"))
+    if not columns: raise ValueError("Column math requires at least one target column")
+    operation = transform["operation"]
+    operand = float(transform.get("operand", 0))
+    operand2 = float(transform.get("operand2", 0))
+    output = frame.copy()
+    for column in columns:
+        values = pd.to_numeric(output[column], errors="raise")
+        if operation == "add": output[column] = values + operand
+        elif operation == "subtract": output[column] = values - operand
+        elif operation == "multiply": output[column] = values * operand
+        elif operation == "divide": output[column] = values / operand
+        elif operation == "power": output[column] = values.pow(operand)
+        elif operation == "clip": output[column] = values.clip(lower=operand, upper=operand2)
+        elif operation == "absolute": output[column] = values.abs()
+        elif operation == "negate": output[column] = -values
+        elif operation == "sqrt":
+            if (values.dropna() < 0).any(): raise ValueError(f"Column math sqrt requires non-negative values in {column}")
+            output[column] = np.sqrt(values)
+        elif operation == "square": output[column] = values.pow(2)
+        elif operation == "log10":
+            if (values.dropna() <= 0).any(): raise ValueError(f"Column math log10 requires positive values in {column}")
+            output[column] = np.log10(values)
+        elif operation == "ln":
+            if (values.dropna() <= 0).any(): raise ValueError(f"Column math ln requires positive values in {column}")
+            output[column] = np.log(values)
+        elif operation == "exp":
+            result = np.exp(values)
+            if not np.isfinite(result.dropna().to_numpy()).all(): raise ValueError(f"Column math exp overflow in {column}")
+            output[column] = result
+        elif operation == "reciprocal":
+            if (values.dropna() == 0).any(): raise ValueError(f"Column math reciprocal cannot divide by zero in {column}")
+            output[column] = 1 / values
+        elif operation == "normalize":
+            minimum, maximum = values.min(), values.max()
+            if maximum == minimum: raise ValueError(f"Column math cannot normalize constant column {column}")
+            output[column] = (values - minimum) / (maximum - minimum)
+        else:
+            mean, std = values.mean(), values.std(ddof=0)
+            if std == 0: raise ValueError(f"Column math cannot standardize constant column {column}")
+            output[column] = (values - mean) / std
+    return output
 
 def _generic_truthy(value):
     if value is None: return False

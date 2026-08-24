@@ -103,13 +103,15 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
           column,
           label: String(item.label ?? column),
           group: String(item.group ?? "").trim(),
+          legendGroup: String(item.legendGroup ?? "").trim(),
+          solo: asBool(item.solo ?? false),
           lineStyle: String(item.lineStyle ?? params.lineStyle ?? "-"),
           marker: String(item.marker ?? params.marker ?? ""),
           lineWidth,
         };
       })
     : yColumns.map((column) => ({
-        column, label: column, group: "", lineStyle: String(params.lineStyle ?? "-"), marker: String(params.marker ?? ""), lineWidth: Number(params.lineWidth ?? 1.5),
+        column, label: column, group: "", legendGroup: "", solo: false, lineStyle: String(params.lineStyle ?? "-"), marker: String(params.marker ?? ""), lineWidth: Number(params.lineWidth ?? 1.5),
       }));
   if (!configured.length && !effectiveSeries.length) throw new Error("Line plot requires at least one Y column");
   const series = effectiveSeries.map((item) => {
@@ -123,6 +125,8 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
       symbol: markerSymbol(item.marker) ?? "circle",
       lineStyle: { width: item.lineWidth, type: LINE_STYLES[item.lineStyle] ?? "solid" },
       ...(item.group ? { __pydroidGroup: item.group } : {}),
+      ...(item.legendGroup ? { __pydroidLegendGroup: item.legendGroup } : {}),
+      ...(item.solo ? { __pydroidSolo: true } : {}),
       connectNulls: false,
     };
   });

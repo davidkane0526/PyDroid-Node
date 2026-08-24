@@ -19,21 +19,33 @@ def _finite(raw: Any, label: str) -> float:
     return value
 
 
-def column_math(table: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
-    columns = _resolve_columns(table, params.get("columns"))
-    if not columns:
-        raise ValueError("Column math requires at least one target column")
+def column_transform_spec(params: dict[str, Any]) -> dict[str, Any]:
+    columns = params.get("columns")
+    if columns is None or (isinstance(columns, str) and not columns.strip()):
+        raise ValueError("Column transform requires at least one target column")
     operation = str(params.get("operation", "multiply"))
     if operation not in _BINARY | _UNARY | {"clip"}:
         raise ValueError(f"Unsupported column math operation: {operation}")
-
-    operand = _finite(params.get("operand", 1), "operand") if operation in _BINARY | {"clip"} else 0.0
-    operand2 = _finite(params.get("operand2", 1), "second operand") if operation == "clip" else 0.0
-    if operation == "divide" and operand == 0:
+    result: dict[str, Any] = {"columns": columns, "operation": operation}
+    if operation in _BINARY | {"clip"}:
+        result["operand"] = _finite(params.get("operand", 1), "operand")
+    if operation == "clip":
+        result["operand2"] = _finite(params.get("operand2", 1), "second operand")
+        if result["operand"] > result["operand2"]:
+            raise ValueError("Column math clip minimum cannot exceed maximum")
+    if operation == "divide" and result["operand"] == 0:
         raise ValueError("Column math cannot divide by zero")
-    if operation == "clip" and operand > operand2:
-        raise ValueError("Column math clip minimum cannot exceed maximum")
+    return result
 
+
+def column_math(table: pd.DataFrame, params: dict[str, Any]) -> pd.DataFrame:
+    transform = column_transform_spec(params)
+    columns = _resolve_columns(table, transform.get("columns"))
+    if not columns:
+        raise ValueError("Column math requires at least one target column")
+    operation = str(transform["operation"])
+    operand = float(transform.get("operand", 0.0))
+    operand2 = float(transform.get("operand2", 0.0))
     value = table.copy()
     for column in columns:
         numeric = pd.to_numeric(value[column], errors="raise")

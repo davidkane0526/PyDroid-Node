@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "demo_21_legend_group_solo",
+      "description": "Demo 21 · Legend Group 与 Solo",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 21 · Legend Group 与 Solo",
+        "nodes": [
+          {
+            "id": "drain",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 80
+            },
+            "data": {
+              "label": "Drain Waveform",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 4,
+                "lowVoltage": 0,
+                "highTime": 0.5,
+                "lowTime": 0.5,
+                "repeatCount": 2,
+                "startLevel": "high",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "gate",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 340
+            },
+            "data": {
+              "label": "Gate Waveform",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 1,
+                "lowVoltage": -1,
+                "highTime": 0.5,
+                "lowTime": 0.5,
+                "repeatCount": 2,
+                "startLevel": "low",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "combine",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 190
+            },
+            "data": {
+              "label": "Drain + Gate",
+              "nodeType": "pulse.combine_channels",
+              "nodeVersion": 1,
+              "parameters": {
+                "inputMode": "channels",
+                "channelCount": 2,
+                "channelNames": "Drain,Gate",
+                "timeColumn": "time_s",
+                "voltageColumn": "voltage_V"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "series-drain",
+            "type": "workflow",
+            "position": {
+              "x": 820,
+              "y": 380
+            },
+            "data": {
+              "label": "Drain · bias",
+              "nodeType": "plot.series",
+              "nodeVersion": 1,
+              "parameters": {
+                "y": "Drain_V",
+                "label": "Drain",
+                "group": "signal",
+                "legendGroup": "bias",
+                "visible": true,
+                "solo": false,
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "series-gate",
+            "type": "workflow",
+            "position": {
+              "x": 820,
+              "y": 620
+            },
+            "data": {
+              "label": "Gate · bias · SOLO",
+              "nodeType": "plot.series",
+              "nodeVersion": 1,
+              "parameters": {
+                "y": "Gate_V",
+                "label": "Gate",
+                "group": "control",
+                "legendGroup": "bias",
+                "visible": true,
+                "solo": true,
+                "lineStyle": "--",
+                "marker": "s",
+                "lineWidth": 1.5
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "registry",
+            "type": "workflow",
+            "position": {
+              "x": 1240,
+              "y": 500
+            },
+            "data": {
+              "label": "Solo Registry",
+              "nodeType": "plot.series_registry",
+              "nodeVersion": 1,
+              "parameters": {
+                "seriesCount": 2,
+                "groupMode": "all",
+                "groups": ""
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "type": "workflow",
+            "position": {
+              "x": 1640,
+              "y": 200
+            },
+            "data": {
+              "label": "Solo Series",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "time_s",
+                "yColumns": "Drain_V,Gate_V",
+                "title": "Legend Group + Solo",
+                "xLabel": "time (s)",
+                "yLabel": "Voltage (V)",
+                "legend": true,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "",
+                "lineWidth": 1.5,
+                "seriesConfig": "",
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "drain",
+            "sourceHandle": "output",
+            "target": "combine",
+            "targetHandle": "channel1"
+          },
+          {
+            "id": "e2",
+            "source": "gate",
+            "sourceHandle": "output",
+            "target": "combine",
+            "targetHandle": "channel2"
+          },
+          {
+            "id": "e3",
+            "source": "series-drain",
+            "sourceHandle": "output",
+            "target": "registry",
+            "targetHandle": "series1"
+          },
+          {
+            "id": "e4",
+            "source": "series-gate",
+            "sourceHandle": "output",
+            "target": "registry",
+            "targetHandle": "series2"
+          },
+          {
+            "id": "e5",
+            "source": "combine",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e6",
+            "source": "registry",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "seriesConfig"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "plotNodes": [
+          "plot"
+        ],
+        "semanticValueResults": {
+          "registry": [
+            {
+              "y": "Drain_V",
+              "visible": false,
+              "lineStyle": "-",
+              "marker": "o",
+              "lineWidth": 2,
+              "label": "Drain",
+              "group": "signal",
+              "legendGroup": "bias"
+            },
+            {
+              "y": "Gate_V",
+              "visible": true,
+              "lineStyle": "--",
+              "marker": "s",
+              "lineWidth": 1.5,
+              "label": "Gate",
+              "group": "control",
+              "legendGroup": "bias",
+              "solo": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "demo_22_column_transform_pipeline",
+      "description": "Demo 22 · 批量列变换 Pipeline",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 22 · 批量列变换 Pipeline",
+        "nodes": [
+          {
+            "id": "random",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 160
+            },
+            "data": {
+              "label": "Positive Data",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 10,
+                "distribution": "uniform",
+                "min": 0.5,
+                "max": 8,
+                "mean": 0,
+                "std": 1,
+                "seed": 22,
+                "indexColumn": "index",
+                "valueColumn": "value"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "scale-value",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 500
+            },
+            "data": {
+              "label": "1 + 1 → Scale",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "transform-scale",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 420
+            },
+            "data": {
+              "label": "Transform · ×2",
+              "nodeType": "table.column_transform",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "value",
+                "operation": "multiply",
+                "operand": 1,
+                "operand2": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "transform-clip",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 640
+            },
+            "data": {
+              "label": "Transform · Clip",
+              "nodeType": "table.column_transform",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "value",
+                "operation": "clip",
+                "operand": 1,
+                "operand2": 10
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "transform-normalize",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 860
+            },
+            "data": {
+              "label": "Transform · Normalize",
+              "nodeType": "table.column_transform",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "value",
+                "operation": "normalize",
+                "operand": 1,
+                "operand2": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "pipeline",
+            "type": "workflow",
+            "position": {
+              "x": 900,
+              "y": 480
+            },
+            "data": {
+              "label": "3-step Column Pipeline",
+              "nodeType": "table.column_pipeline",
+              "nodeVersion": 1,
+              "parameters": {
+                "transformCount": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "type": "workflow",
+            "position": {
+              "x": 1360,
+              "y": 260
+            },
+            "data": {
+              "label": "Pipeline Result",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "index",
+                "yColumns": "value",
+                "title": "Scale → Clip → Normalize",
+                "xLabel": "index",
+                "yLabel": "normalized value",
+                "legend": true,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 1.5,
+                "seriesConfig": "",
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "scale-value",
+            "sourceHandle": "output",
+            "target": "transform-scale",
+            "targetHandle": "operand"
+          },
+          {
+            "id": "e2",
+            "source": "random",
+            "sourceHandle": "output",
+            "target": "pipeline",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e3",
+            "source": "transform-scale",
+            "sourceHandle": "output",
+            "target": "pipeline",
+            "targetHandle": "transform1"
+          },
+          {
+            "id": "e4",
+            "source": "transform-clip",
+            "sourceHandle": "output",
+            "target": "pipeline",
+            "targetHandle": "transform2"
+          },
+          {
+            "id": "e5",
+            "source": "transform-normalize",
+            "sourceHandle": "output",
+            "target": "pipeline",
+            "targetHandle": "transform3"
+          },
+          {
+            "id": "e6",
+            "source": "pipeline",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "plotNodes": [
+          "plot"
+        ]
+      }
+    }
+  ]
+}

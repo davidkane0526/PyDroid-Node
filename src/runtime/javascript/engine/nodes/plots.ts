@@ -22,8 +22,11 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
       const value: Record<string, unknown> = { y, visible: asBool(params.visible ?? true), lineStyle, marker, lineWidth };
       const label = String(params.label ?? "").trim();
       const group = String(params.group ?? "").trim();
+      const legendGroup = String(params.legendGroup ?? "").trim();
       if (label) value.label = label;
       if (group) value.group = group;
+      if (legendGroup) value.legendGroup = legendGroup;
+      if (asBool(params.solo ?? false)) value.solo = true;
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "plot.series_registry": {
@@ -50,6 +53,8 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
         result.visible = currentlyVisible && (groupMode === "all" || (groupMode === "include" ? groupMatch : !groupMatch));
         return result;
       });
+      const hasSolo = value.some((item) => asBool(item.visible ?? true) && asBool(item.solo ?? false));
+      if (hasSolo) value.forEach((item) => { item.visible = asBool(item.visible ?? true) && asBool(item.solo ?? false); });
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "plot.line": {

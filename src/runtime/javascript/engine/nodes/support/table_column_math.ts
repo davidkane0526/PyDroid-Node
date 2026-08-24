@@ -10,16 +10,28 @@ function finiteNumber(raw: unknown, label: string): number {
   return value;
 }
 
-export function columnMath(frame: Table, params: Record<string, unknown>): Table {
-  const columns = resolveColumns(frame, params.columns);
-  if (!columns.length) throw new Error("Column math requires at least one target column");
+export function columnTransformSpec(params: Record<string, unknown>): Record<string, unknown> {
+  const columns = params.columns;
+  if (columns === null || columns === undefined || (typeof columns === "string" && !columns.trim())) throw new Error("Column transform requires at least one target column");
   const operation = String(params.operation ?? "multiply");
   if (!BINARY.has(operation) && !UNARY.has(operation) && operation !== "clip") throw new Error(`Unsupported column math operation: ${operation}`);
+  const result: Record<string, unknown> = { columns, operation };
+  if (BINARY.has(operation) || operation === "clip") result.operand = finiteNumber(params.operand ?? 1, "operand");
+  if (operation === "clip") {
+    result.operand2 = finiteNumber(params.operand2 ?? 1, "second operand");
+    if (Number(result.operand) > Number(result.operand2)) throw new Error("Column math clip minimum cannot exceed maximum");
+  }
+  if (operation === "divide" && Number(result.operand) === 0) throw new Error("Column math cannot divide by zero");
+  return result;
+}
 
-  const operand = BINARY.has(operation) || operation === "clip" ? finiteNumber(params.operand ?? 1, "operand") : 0;
-  const operand2 = operation === "clip" ? finiteNumber(params.operand2 ?? 1, "second operand") : 0;
-  if (operation === "divide" && operand === 0) throw new Error("Column math cannot divide by zero");
-  if (operation === "clip" && operand > operand2) throw new Error("Column math clip minimum cannot exceed maximum");
+export function columnMath(frame: Table, params: Record<string, unknown>): Table {
+  const transform = columnTransformSpec(params);
+  const columns = resolveColumns(frame, transform.columns);
+  if (!columns.length) throw new Error("Column math requires at least one target column");
+  const operation = String(transform.operation);
+  const operand = Number(transform.operand ?? 0);
+  const operand2 = Number(transform.operand2 ?? 0);
 
   const selected = new Map(columns.map((column) => [frame.columnIndex(column), column]));
   const sourceRows = frame.rows();

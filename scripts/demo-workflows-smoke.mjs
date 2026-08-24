@@ -24,6 +24,8 @@ const files = [
   "demo-18-series-registry.workflow.json",
   "demo-19-series-groups.workflow.json",
   "demo-20-scientific-column-transforms.workflow.json",
+  "demo-21-legend-group-solo.workflow.json",
+  "demo-22-column-transform-pipeline.workflow.json",
 ];
 
 let failed = 0;

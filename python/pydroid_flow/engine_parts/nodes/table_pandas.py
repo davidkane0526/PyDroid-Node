@@ -8,6 +8,7 @@ import pandas as pd
 from ..analysis_nodes import _filter_range, _group_aggregate
 from ..random_portable import _portable_sample_count, _portable_sample_indexes
 from ..table_column_math import column_math
+from ..table_column_pipeline import column_pipeline, column_transform_output
 from ..table_groupby import groupby_aggregate
 from ..values import _as_bool, _optional_float, _parameter_list, _parse_columns, _rename_columns, _require_table, _resolve_columns, _scalar_value
 
@@ -15,6 +16,8 @@ NODE_TYPES = {
     "table.concat",
     "table.select_columns",
     "table.column_math",
+    "table.column_transform",
+    "table.column_pipeline",
     "table.absolute",
     "table.transpose",
     "table.slice",
@@ -67,6 +70,11 @@ def execute(
         value = table.iloc[:, _parse_columns(params.get("columns"), len(table.columns))]
     elif node_type == "table.column_math":
         value = column_math(_require_table(upstream, "Column math"), params)
+    elif node_type == "table.column_transform":
+        value = column_transform_output(params)
+        return {"output": value}, None, None, None
+    elif node_type == "table.column_pipeline":
+        value = column_pipeline(upstream, params)
     elif node_type == "table.absolute":
         value = _require_table(upstream, "Absolute value").abs()
     elif node_type == "table.transpose":

@@ -316,3 +316,5 @@ bash scripts/cloud-check.sh
 ### Dev architecture status (1.4.34)
 
 `dev` has completed/frozen multi-workspace execution and Phase 4 Unified NodeSpec / Node Contract. Desktop Python can run multiple workspaces concurrently; Android queues Python workspaces safely. Node runtime support, node version, side-effect/cache/state semantics and future function/variable-node capabilities now flow through NodeSpec/NodeContract. Phase 5 is active: `pnpm test:parity` executes the same golden workflows in Python and JavaScript and compares semantic results.
+
+Dynamic-node authoring now has a declaration-only SDK surface in `src/nodeSpecSdk.ts`. `NodeSpec` authors can use Variants, nested Socket Groups and repeated Input Port Groups through the same resolver used by first-party nodes. This surface validates declarations but does not load arbitrary third-party runtime code. Structured plotting also supports Series `group`, `legendGroup`, `visible` and `solo`, while table workflows can compose ordered `Column Transform → Column Pipeline` declarations without duplicating the transform runtime.

@@ -18,6 +18,8 @@ import columnMathPipeline from "../examples/demo-17-column-math-pipeline.workflo
 import seriesRegistry from "../examples/demo-18-series-registry.workflow.json?raw";
 import seriesGroups from "../examples/demo-19-series-groups.workflow.json?raw";
 import scientificColumnTransforms from "../examples/demo-20-scientific-column-transforms.workflow.json?raw";
+import legendGroupSolo from "../examples/demo-21-legend-group-solo.workflow.json?raw";
+import columnTransformPipeline from "../examples/demo-22-column-transform-pipeline.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -146,5 +148,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 20 · 科学列变换",
     description: "动态上下限驱动 Clip，再串联 Sqrt 与 Min-Max 归一化。",
     document: scientificColumnTransforms,
+  },
+  {
+    id: "legend-group-solo",
+    label: "Demo 21 · Legend Group 与 Solo",
+    description: "Series 声明 legendGroup 与 solo；Registry 检测有效 Solo 后仅保留单显曲线。",
+    document: legendGroupSolo,
+  },
+  {
+    id: "column-transform-pipeline",
+    label: "Demo 22 · 批量列变换 Pipeline",
+    description: "三个 Column Transform 声明通过动态 Transform Socket 按顺序作用于同一张表。",
+    document: columnTransformPipeline,
   },
 ] as const;

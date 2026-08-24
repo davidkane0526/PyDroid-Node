@@ -1401,3 +1401,46 @@ def test_series_registry_preserves_declared_socket_order():
     )
     assert [item["y"] for item in registry["output"]] == ["Drain_V", "Gate_V"]
     assert [item["label"] for item in registry["output"]] == ["Drain", "Gate"]
+
+
+def test_series_registry_solo_preserves_legend_group_and_only_hides_effective_non_solo_series():
+    drain = _execute_node(
+        "plot.series",
+        {"y": "Drain_V", "label": "Drain", "group": "signal", "legendGroup": "bias", "visible": True, "solo": False, "lineStyle": "-", "marker": "", "lineWidth": 2},
+        None, "", [],
+    )[0]["output"]
+    gate = _execute_node(
+        "plot.series",
+        {"y": "Gate_V", "label": "Gate", "group": "control", "legendGroup": "bias", "visible": True, "solo": True, "lineStyle": "--", "marker": "", "lineWidth": 1.5},
+        None, "", [],
+    )[0]["output"]
+    hidden_solo = _execute_node(
+        "plot.series",
+        {"y": "Aux_V", "label": "Hidden", "group": "signal", "legendGroup": "aux", "visible": False, "solo": True, "lineStyle": ":", "marker": "", "lineWidth": 1},
+        None, "", [],
+    )[0]["output"]
+    registry = _execute_node(
+        "plot.series_registry",
+        {"seriesCount": 3, "groupMode": "all", "groups": ""},
+        {"series1": drain, "series2": gate, "series3": hidden_solo},
+        "", [],
+    )[0]["output"]
+    assert [item.get("legendGroup") for item in registry] == ["bias", "bias", "aux"]
+    assert [item["visible"] for item in registry] == [False, True, False]
+    assert registry[1]["solo"] is True
+
+
+def test_column_transform_pipeline_applies_declared_transforms_in_socket_order():
+    frame = pd.DataFrame({"value": [1.0, 3.0, 5.0], "keep": [10, 20, 30]})
+    scale = _execute_node("table.column_transform", {"columns": "value", "operation": "multiply", "operand": 2}, None, "", [])[0]["output"]
+    clip = _execute_node("table.column_transform", {"columns": "value", "operation": "clip", "operand": 2, "operand2": 8}, None, "", [])[0]["output"]
+    normalize = _execute_node("table.column_transform", {"columns": "value", "operation": "normalize"}, None, "", [])[0]["output"]
+    result, table_result, _, _ = _execute_node(
+        "table.column_pipeline",
+        {"transformCount": 3},
+        {"input": frame, "transform1": scale, "transform2": clip, "transform3": normalize},
+        "", [],
+    )
+    assert table_result is result["output"]
+    assert result["output"]["value"].tolist() == pytest.approx([0.0, 2 / 3, 1.0])
+    assert result["output"]["keep"].tolist() == [10, 20, 30]
