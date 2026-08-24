@@ -809,9 +809,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { id: "input", label: "上下文", valueType: "any", required: false },
     ],
     outputPorts: [
-      { id: "done", label: "完成", valueType: "any" },
-      { id: "true", label: "True", valueType: "any" },
-      { id: "false", label: "False", valueType: "any" },
+      { id: "done", label: "Result", valueType: "any" },
     ],
     parameters: [],
   },

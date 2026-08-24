@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 06 · Blender 风格 If Zone",
+  "nodes": [
+    {
+      "id": "range",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 150
+      },
+      "data": {
+        "label": "生成 0..4",
+        "nodeType": "logic.for_range",
+        "nodeVersion": 1,
+        "parameters": {
+          "start": 0,
+          "stop": 5,
+          "step": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "count",
+      "type": "workflow",
+      "position": {
+        "x": 320,
+        "y": 150
+      },
+      "data": {
+        "label": "计算数量",
+        "nodeType": "python.len",
+        "nodeVersion": 1,
+        "parameters": {},
+        "status": "idle"
+      }
+    },
+    {
+      "id": "compare",
+      "type": "workflow",
+      "position": {
+        "x": 575,
+        "y": 150
+      },
+      "data": {
+        "label": "数量 > 0",
+        "nodeType": "logic.compare",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "number",
+          "operation": "greater",
+          "a": 0,
+          "b": 0
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "if",
+      "type": "workflow",
+      "position": {
+        "x": 900,
+        "y": 70
+      },
+      "data": {
+        "label": "惰性条件",
+        "nodeType": "logic.if_value",
+        "nodeVersion": 1,
+        "parameters": {},
+        "status": "idle"
+      },
+      "style": {
+        "width": 560,
+        "height": 330
+      }
+    },
+    {
+      "id": "true-print",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 120
+      },
+      "data": {
+        "label": "True 分支",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "TRUE 分支：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle",
+        "branch": "true"
+      },
+      "parentId": "if",
+      "extent": "parent"
+    },
+    {
+      "id": "false-print",
+      "type": "workflow",
+      "position": {
+        "x": 310,
+        "y": 120
+      },
+      "data": {
+        "label": "False 分支",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "FALSE 分支：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle",
+        "branch": "false"
+      },
+      "parentId": "if",
+      "extent": "parent"
+    },
+    {
+      "id": "final",
+      "type": "workflow",
+      "position": {
+        "x": 1525,
+        "y": 150
+      },
+      "data": {
+        "label": "Zone 结果",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "End If：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "range",
+      "sourceHandle": "output",
+      "target": "count",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "count",
+      "sourceHandle": "output",
+      "target": "compare",
+      "targetHandle": "a"
+    },
+    {
+      "id": "e3",
+      "source": "compare",
+      "sourceHandle": "output",
+      "target": "if",
+      "targetHandle": "condition"
+    },
+    {
+      "id": "e4",
+      "source": "count",
+      "sourceHandle": "output",
+      "target": "if",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e5",
+      "source": "if",
+      "sourceHandle": "done",
+      "target": "final",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

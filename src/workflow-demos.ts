@@ -2,6 +2,9 @@ import scientificPipeline from "../examples/demo-01-scientific-pipeline.workflow
 import nativeFunction from "../examples/demo-02-native-function.workflow.json?raw";
 import compositeGroup from "../examples/demo-03-composite-group.workflow.json?raw";
 import controlFlow from "../examples/demo-04-control-flow.workflow.json?raw";
+import dynamicSockets from "../examples/demo-05-dynamic-sockets.workflow.json?raw";
+import ifZone from "../examples/demo-06-if-zone.workflow.json?raw";
+import dynamicTypes from "../examples/demo-07-dynamic-types.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -34,5 +37,23 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 04 · If / For / While 控制流",
     description: "检查原生结构容器、分支/循环子节点、端口和连线。",
     document: controlFlow,
+  },
+  {
+    id: "dynamic-sockets",
+    label: "Demo 05 · 动态 Socket 与 Compare / Switch",
+    description: "未连接输入直接使用节点内默认值；连线后默认值控件自动让位。",
+    document: dynamicSockets,
+  },
+  {
+    id: "if-zone",
+    label: "Demo 06 · Blender 风格 If Zone",
+    description: "Compare 驱动惰性 If Zone，只执行 TRUE / FALSE 中被选中的分支。",
+    document: ifZone,
+  },
+  {
+    id: "dynamic-types",
+    label: "Demo 07 · 动态节点类型变体",
+    description: "并排查看数字、文本、布尔节点的动态端口与内联默认值。",
+    document: dynamicTypes,
   },
 ] as const;

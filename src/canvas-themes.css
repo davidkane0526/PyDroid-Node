@@ -243,3 +243,29 @@
   background: #111c2a;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .react-flow__controls button:hover { background: #182638; }
+
+/* Keep If Zone as a boundary pair instead of reverting to the generic Soft structure card. */
+.app-shell[data-canvas-theme="soft"] .workflow-node.workflow-structure.workflow-if-zone,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.workflow-structure.workflow-if-zone {
+  border-style: dashed;
+  background: color-mix(in srgb, var(--canvas-bg) 38%, transparent);
+  box-shadow: none;
+}
+.app-shell[data-canvas-theme="soft"] .workflow-if-zone > .workflow-node__body,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-if-zone > .workflow-node__body,
+.app-shell[data-canvas-theme="soft"] .workflow-if-zone__end,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-if-zone__end {
+  border-radius: 10px;
+}
+.app-shell[data-canvas-theme="soft"] .workflow-if-zone > .workflow-node__body,
+.app-shell[data-canvas-theme="soft"] .workflow-if-zone__end {
+  border-color: #cbdcf0;
+  background: rgba(251,253,255,.98);
+  box-shadow: 0 5px 14px rgba(91,119,159,.12);
+}
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-if-zone > .workflow-node__body,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-if-zone__end {
+  border-color: #344b63;
+  background: #19293b;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 7px 16px rgba(0,0,0,.22);
+}

@@ -54,7 +54,7 @@ describe("node function signatures", () => {
     expect(getNodeSpec("logic.for_each_subflow")).toBeUndefined();
     expect(getNodeSpec("logic.while_subflow")).toBeUndefined();
     expect(getNodeSpec("logic.if_value")!.inputPorts.map((port) => port.id)).toEqual(["condition", "input"]);
-    expect(getNodeSpec("logic.if_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "true", "false"]);
+    expect(getNodeSpec("logic.if_value")!.outputPorts.map((port) => port.id)).toEqual(["done"]);
     expect(getNodeSpec("logic.if_value")!.parameters).toEqual([]);
     expect(getNodeSpec("logic.compare")?.runtimeSupport).toEqual(["python", "javascript"]);
     expect(getNodeSpec("logic.switch")?.runtimeSupport).toEqual(["python", "javascript"]);

@@ -8,6 +8,9 @@ const files = [
   "demo-02-native-function.workflow.json",
   "demo-03-composite-group.workflow.json",
   "demo-04-control-flow.workflow.json",
+  "demo-05-dynamic-sockets.workflow.json",
+  "demo-06-if-zone.workflow.json",
+  "demo-07-dynamic-types.workflow.json",
 ];
 
 let failed = 0;

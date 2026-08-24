@@ -112,6 +112,8 @@ try {
   for (const relativePath of [
     "src/workflow.ts",
     "src/nodeCatalog.ts",
+    "src/nodeSpec.ts",
+    "src/customNode.ts",
     "src/nodeContract.ts",
     "src/workflow-core/migrations.ts",
     "src/workflow-core/schema-migrations.ts",

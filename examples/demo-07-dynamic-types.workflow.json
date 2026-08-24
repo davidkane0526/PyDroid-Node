@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 07 · 动态节点类型变体",
+  "nodes": [
+    {
+      "id": "number-compare",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 70
+      },
+      "data": {
+        "label": "数字比较",
+        "nodeType": "logic.compare",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "number",
+          "operation": "lessEqual",
+          "a": 2.5,
+          "b": 3
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "text-compare",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 245
+      },
+      "data": {
+        "label": "文本比较",
+        "nodeType": "logic.compare",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "text",
+          "operation": "contains",
+          "a": "PyDroid Node",
+          "b": "Node"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "bool-switch",
+      "type": "workflow",
+      "position": {
+        "x": 420,
+        "y": 70
+      },
+      "data": {
+        "label": "布尔 Switch",
+        "nodeType": "logic.switch",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "boolean",
+          "condition": true,
+          "falseValue": false,
+          "trueValue": true
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "number-switch",
+      "type": "workflow",
+      "position": {
+        "x": 420,
+        "y": 245
+      },
+      "data": {
+        "label": "数字 Switch",
+        "nodeType": "logic.switch",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "number",
+          "condition": false,
+          "falseValue": -1,
+          "trueValue": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "print-a",
+      "type": "workflow",
+      "position": {
+        "x": 760,
+        "y": 70
+      },
+      "data": {
+        "label": "数字比较结果",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "数字比较：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "print-b",
+      "type": "workflow",
+      "position": {
+        "x": 760,
+        "y": 245
+      },
+      "data": {
+        "label": "文本比较结果",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "文本比较：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "number-compare",
+      "sourceHandle": "output",
+      "target": "print-a",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "text-compare",
+      "sourceHandle": "output",
+      "target": "print-b",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

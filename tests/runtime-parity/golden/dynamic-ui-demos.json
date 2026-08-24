@@ -1,0 +1,509 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "demo_05_dynamic_sockets",
+      "description": "Demo 05 · 动态 Socket 与 Compare / Switch",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 05 · 动态 Socket 与 Compare / Switch",
+        "nodes": [
+          {
+            "id": "compare",
+            "type": "workflow",
+            "position": {
+              "x": 80,
+              "y": 120
+            },
+            "data": {
+              "label": "比较默认值",
+              "nodeType": "logic.compare",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "number",
+                "operation": "greater",
+                "a": 7,
+                "b": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "switch",
+            "type": "workflow",
+            "position": {
+              "x": 390,
+              "y": 120
+            },
+            "data": {
+              "label": "条件选择文本",
+              "nodeType": "logic.switch",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "text",
+                "condition": false,
+                "falseValue": "未通过",
+                "trueValue": "通过"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print",
+            "type": "workflow",
+            "position": {
+              "x": 720,
+              "y": 120
+            },
+            "data": {
+              "label": "输出选择结果",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "Switch：",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "compare",
+            "sourceHandle": "output",
+            "target": "switch",
+            "targetHandle": "condition"
+          },
+          {
+            "id": "e2",
+            "source": "switch",
+            "sourceHandle": "output",
+            "target": "print",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "compare",
+          "switch",
+          "print"
+        ]
+      }
+    },
+    {
+      "id": "demo_06_if_zone",
+      "description": "Demo 06 · Blender 风格 If Zone",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 06 · Blender 风格 If Zone",
+        "nodes": [
+          {
+            "id": "range",
+            "type": "workflow",
+            "position": {
+              "x": 60,
+              "y": 150
+            },
+            "data": {
+              "label": "生成 0..4",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 5,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "count",
+            "type": "workflow",
+            "position": {
+              "x": 320,
+              "y": 150
+            },
+            "data": {
+              "label": "计算数量",
+              "nodeType": "python.len",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            }
+          },
+          {
+            "id": "compare",
+            "type": "workflow",
+            "position": {
+              "x": 575,
+              "y": 150
+            },
+            "data": {
+              "label": "数量 > 0",
+              "nodeType": "logic.compare",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "number",
+                "operation": "greater",
+                "a": 0,
+                "b": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "if",
+            "type": "workflow",
+            "position": {
+              "x": 900,
+              "y": 70
+            },
+            "data": {
+              "label": "惰性条件",
+              "nodeType": "logic.if_value",
+              "nodeVersion": 1,
+              "parameters": {},
+              "status": "idle"
+            },
+            "style": {
+              "width": 560,
+              "height": 330
+            }
+          },
+          {
+            "id": "true-print",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 120
+            },
+            "data": {
+              "label": "True 分支",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "TRUE 分支：",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle",
+              "branch": "true"
+            },
+            "parentId": "if",
+            "extent": "parent"
+          },
+          {
+            "id": "false-print",
+            "type": "workflow",
+            "position": {
+              "x": 310,
+              "y": 120
+            },
+            "data": {
+              "label": "False 分支",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "FALSE 分支：",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle",
+              "branch": "false"
+            },
+            "parentId": "if",
+            "extent": "parent"
+          },
+          {
+            "id": "final",
+            "type": "workflow",
+            "position": {
+              "x": 1525,
+              "y": 150
+            },
+            "data": {
+              "label": "Zone 结果",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "End If：",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "range",
+            "sourceHandle": "output",
+            "target": "count",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "count",
+            "sourceHandle": "output",
+            "target": "compare",
+            "targetHandle": "a"
+          },
+          {
+            "id": "e3",
+            "source": "compare",
+            "sourceHandle": "output",
+            "target": "if",
+            "targetHandle": "condition"
+          },
+          {
+            "id": "e4",
+            "source": "count",
+            "sourceHandle": "output",
+            "target": "if",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e5",
+            "source": "if",
+            "sourceHandle": "done",
+            "target": "final",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "range",
+          "count",
+          "compare",
+          "if",
+          "final"
+        ]
+      }
+    },
+    {
+      "id": "demo_07_dynamic_types",
+      "description": "Demo 07 · 动态节点类型变体",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 07 · 动态节点类型变体",
+        "nodes": [
+          {
+            "id": "number-compare",
+            "type": "workflow",
+            "position": {
+              "x": 60,
+              "y": 70
+            },
+            "data": {
+              "label": "数字比较",
+              "nodeType": "logic.compare",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "number",
+                "operation": "lessEqual",
+                "a": 2.5,
+                "b": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "text-compare",
+            "type": "workflow",
+            "position": {
+              "x": 60,
+              "y": 245
+            },
+            "data": {
+              "label": "文本比较",
+              "nodeType": "logic.compare",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "text",
+                "operation": "contains",
+                "a": "PyDroid Node",
+                "b": "Node"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "bool-switch",
+            "type": "workflow",
+            "position": {
+              "x": 420,
+              "y": 70
+            },
+            "data": {
+              "label": "布尔 Switch",
+              "nodeType": "logic.switch",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "boolean",
+                "condition": true,
+                "falseValue": false,
+                "trueValue": true
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "number-switch",
+            "type": "workflow",
+            "position": {
+              "x": 420,
+              "y": 245
+            },
+            "data": {
+              "label": "数字 Switch",
+              "nodeType": "logic.switch",
+              "nodeVersion": 1,
+              "parameters": {
+                "valueType": "number",
+                "condition": false,
+                "falseValue": -1,
+                "trueValue": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print-a",
+            "type": "workflow",
+            "position": {
+              "x": 760,
+              "y": 70
+            },
+            "data": {
+              "label": "数字比较结果",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "数字比较：",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print-b",
+            "type": "workflow",
+            "position": {
+              "x": 760,
+              "y": 245
+            },
+            "data": {
+              "label": "文本比较结果",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "文本比较：",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "number-compare",
+            "sourceHandle": "output",
+            "target": "print-a",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "text-compare",
+            "sourceHandle": "output",
+            "target": "print-b",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": [
+          "number-compare",
+          "text-compare",
+          "bool-switch",
+          "number-switch",
+          "print-a",
+          "print-b"
+        ]
+      }
+    }
+  ]
+}

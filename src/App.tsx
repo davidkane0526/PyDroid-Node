@@ -66,6 +66,7 @@ import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-str
 import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "./canvas-theme";
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
+import { ParameterField } from "./ParameterField";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -476,6 +477,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     ? Math.max(58 + inlineParameters.length * 24, 24 + maxPortCount * 34)
     : direction === "vertical" ? 92 + inlineParameters.length * 24 : 58 + inlineParameters.length * 24) * nodeScale;
   const isStructure = isVisualStructureNodeType(data.nodeType);
+  const isIfZone = isIfStructureNodeType(data.nodeType);
   const isFunctionNode = data.nodeType === "function.call" || data.nodeType === "function.map" || Boolean(data.functionSourceId);
   const isGroupNode = data.nodeType === "workflow.group";
   const nodeKindClasses = `${isFunctionNode ? "node-kind-function" : ""} ${isGroupNode ? "node-kind-group" : ""} ${isStructure ? "node-kind-flow" : "node-kind-node"}`;
@@ -488,18 +490,28 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     observer.observe(element);
     return () => observer.disconnect();
   }, [direction, endpointScale, horizontalPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
+  const inputPortStyle = (index: number): CSSProperties => {
+    if (isIfZone && direction === "horizontal") return { top: `${28 + index * 26}px` };
+    if (isIfZone && direction === "vertical") return { left: `${70 + index * 78}px` };
+    return direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` };
+  };
+  const outputPortStyle = (index: number): CSSProperties => {
+    if (isIfZone && direction === "horizontal") return { top: `calc(100% - ${56 - index * 19}px)` };
+    if (isIfZone && direction === "vertical") return { left: `calc(100% - ${190 - index * 62}px)` };
+    return direction === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
+  };
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfStructureNodeType(data.nodeType) ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isIfZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
-      {isStructure && <NodeResizer minWidth={360} minHeight={220} isVisible={selected} />}
+      {isStructure && <NodeResizer minWidth={isIfZone ? 440 : 360} minHeight={isIfZone ? 250 : 220} isVisible={selected} />}
       <Handle className="notebook-order-handle" id="__notebook_order_in" type="target" position={direction === "horizontal" ? Position.Left : Position.Top} isConnectable={false} />
       <Handle className="notebook-order-handle" id="__notebook_order_out" type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} isConnectable={false} />
       {inputPorts.map((port, index) => {
         const defaultSpec = port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined;
         const connected = nodeConnections.isInputConnected(id, port.id);
         return (
-          <div className={`input-port ${defaultSpec && !connected ? "input-port--with-default" : ""}`} style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
+          <div className={`input-port ${defaultSpec && !connected ? "input-port--with-default" : ""}`} style={Object.assign(inputPortStyle(index), { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
             <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
             {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
             {defaultSpec && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
@@ -518,10 +530,11 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         </div>
       </div>
       {isStructure && <div className="workflow-structure__interior">
-        {isIfStructureNodeType(data.nodeType) ? <><div className="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span></div><div className="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span></div></> : <div className="workflow-structure__lane workflow-structure__lane--body"><span>循环体 · 每次迭代的数据由左侧隧道进入</span></div>}
+        {isIfZone ? <><div className="workflow-structure__lane workflow-structure__lane--true"><span>TRUE</span></div><div className="workflow-structure__lane workflow-structure__lane--false"><span>FALSE</span></div></> : <div className="workflow-structure__lane workflow-structure__lane--body"><span>循环体 · 每次迭代的数据由左侧隧道进入</span></div>}
       </div>}
+      {isIfZone && <div className="workflow-if-zone__end" aria-hidden="true"><div className="workflow-if-zone__end-type">logic.if_end</div><strong>End If</strong></div>}
       {outputPorts.map((port, index) => (
-        <div className="output-port" style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
+        <div className="output-port" style={Object.assign(outputPortStyle(index), { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
           {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
           <Handle id={port.id} type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} />
         </div>
@@ -532,116 +545,6 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         {nodeResult.kind === "value" && <><strong>{data.nodeType === "python.print" ? "打印结果" : "结果"}</strong><span>{nodeResult.text}</span></>}
       </div>}
     </div>
-  );
-}
-
-function ParameterField({
-  spec,
-  value,
-  onChange,
-  onExpand,
-}: {
-  spec: ParameterSpec;
-  value: string | number | boolean | null | undefined;
-  onChange: (value: string | number | boolean | null) => void;
-  onExpand?: () => void;
-}) {
-  const displayValue = value === undefined ? spec.defaultValue : value;
-  if (spec.kind === "boolean") {
-    return (
-      <label className="field field--checkbox">
-        <span>{spec.label}</span>
-        <span className="switch"><input type="checkbox" checked={Boolean(displayValue)} onChange={(event) => onChange(event.target.checked)} /><i /></span>
-      </label>
-    );
-  }
-  if (spec.kind === "select") {
-    return (
-      <label className="field">
-        <span>{spec.label}</span>
-        <select
-          value={String(displayValue ?? "")}
-          onChange={(event) => {
-            const option = spec.options?.find((item) => String(item.value) === event.target.value);
-            onChange(option?.value ?? event.target.value);
-          }}
-        >
-          {spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}
-        </select>
-      </label>
-    );
-  }
-  if (spec.kind === "textarea") {
-    return (
-      <label className="field">
-        <span className="field__heading">{spec.label}{onExpand && <button type="button" onClick={onExpand}>全屏编辑</button>}</span>
-        <textarea
-          value={String(displayValue ?? "")}
-          placeholder={spec.placeholder}
-          required={spec.required}
-          onChange={(event) => onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== "Tab") return;
-            event.preventDefault();
-            const input = event.currentTarget;
-            const start = input.selectionStart;
-            const next = `${input.value.slice(0, start)}    ${input.value.slice(input.selectionEnd)}`;
-            onChange(next);
-            window.requestAnimationFrame(() => input.setSelectionRange(start + 4, start + 4));
-          }}
-          spellCheck={false}
-        />
-        {spec.description && <small>{spec.description}</small>}
-      </label>
-    );
-  }
-  if (spec.kind === "list") {
-    return (
-      <label className="field">
-        <span>{spec.label}</span>
-        <input
-          type="text"
-          value={String(displayValue ?? "")}
-          placeholder={spec.placeholder ?? (spec.itemType === "text" ? "a,b,c" : "0,1,2")}
-          required={spec.required}
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <small>{spec.description ? `${spec.description} · ` : ""}可输入 JSON 数组或用英文逗号分隔。</small>
-      </label>
-    );
-  }
-  if (spec.kind === "number" && spec.control === "slider" && spec.min !== undefined && spec.max !== undefined) {
-    const numericValue = Number(displayValue ?? spec.min);
-    return (
-      <label className="field field--range">
-        <span>{spec.label}<output>{numericValue}</output></span>
-        <input
-          type="range"
-          value={numericValue}
-          min={spec.min}
-          max={spec.max}
-          step={spec.step}
-          onChange={(event) => onChange(Number(event.target.value))}
-        />
-        {spec.description && <small>{spec.description}</small>}
-      </label>
-    );
-  }
-  return (
-    <label className="field">
-      <span>{spec.label}</span>
-      <input
-        type={spec.kind === "number" ? "number" : "text"}
-        value={String(displayValue ?? "")}
-        placeholder={spec.placeholder}
-        required={spec.required}
-        min={spec.min}
-        max={spec.max}
-        step={spec.step}
-        onChange={(event) => onChange(spec.kind === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value)}
-      />
-      {spec.description && <small>{spec.description}</small>}
-    </label>
   );
 }
 
@@ -1762,7 +1665,8 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
         if ((candidate.data.canvasParentId ?? null) !== currentCanvasId || !isVisualStructureNodeType(candidate.data.nodeType)) return false;
         const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
         const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
-        return position.x > candidate.position.x + 12 && position.x < candidate.position.x + width - 80 && position.y > candidate.position.y + 58 && position.y < candidate.position.y + height - 24;
+        const ifZone = isIfStructureNodeType(candidate.data.nodeType);
+        return position.x > candidate.position.x + 12 && position.x < candidate.position.x + width - 80 && position.y > candidate.position.y + (ifZone ? 88 : 58) && position.y < candidate.position.y + height - (ifZone ? 78 : 24);
       });
       if (container) {
         const relative = { x: Math.max(26, position.x - container.position.x), y: Math.max(104, position.y - container.position.y) };

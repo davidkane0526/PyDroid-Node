@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 05 · 动态 Socket 与 Compare / Switch",
+  "nodes": [
+    {
+      "id": "compare",
+      "type": "workflow",
+      "position": {
+        "x": 80,
+        "y": 120
+      },
+      "data": {
+        "label": "比较默认值",
+        "nodeType": "logic.compare",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "number",
+          "operation": "greater",
+          "a": 7,
+          "b": 3
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "switch",
+      "type": "workflow",
+      "position": {
+        "x": 390,
+        "y": 120
+      },
+      "data": {
+        "label": "条件选择文本",
+        "nodeType": "logic.switch",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "text",
+          "condition": false,
+          "falseValue": "未通过",
+          "trueValue": "通过"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "print",
+      "type": "workflow",
+      "position": {
+        "x": 720,
+        "y": 120
+      },
+      "data": {
+        "label": "输出选择结果",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "Switch：",
+          "format": "text",
+          "includeType": false,
+          "maxRows": 10,
+          "maxChars": 1000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "compare",
+      "sourceHandle": "output",
+      "target": "switch",
+      "targetHandle": "condition"
+    },
+    {
+      "id": "e2",
+      "source": "switch",
+      "sourceHandle": "output",
+      "target": "print",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

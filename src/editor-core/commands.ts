@@ -337,8 +337,9 @@ function commitNodeDrag(snapshot: WorkflowSnapshot, command: Extract<EditorGraph
     if ((candidate.data.canvasParentId ?? null) !== canvasId) return false;
     const width = Number(candidate.measured?.width ?? candidate.width ?? candidate.style?.width ?? 520);
     const height = Number(candidate.measured?.height ?? candidate.height ?? candidate.style?.height ?? 300);
+    const ifZone = isIfStructureNodeType(candidate.data.nodeType);
     return absolute.x > candidate.position.x + 12 && absolute.x < candidate.position.x + width - 100
-      && absolute.y > candidate.position.y + 58 && absolute.y < candidate.position.y + height - 28;
+      && absolute.y > candidate.position.y + (ifZone ? 88 : 58) && absolute.y < candidate.position.y + height - (ifZone ? 78 : 28);
   });
   const nodes = snapshot.nodes.map((node) => {
     if (node.id !== moved.id) return node;

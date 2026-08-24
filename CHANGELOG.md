@@ -1,3 +1,11 @@
+## 1.6.15 (155) — Blender-style If Zone and dynamic UI demos — 2026-08-24
+
+- Reworked the visual `If` structure from one heavy container card into a Blender-style Zone with a compact `If` start boundary, a separate `End If` result boundary, and lightweight TRUE/FALSE branch regions while keeping the existing lazy one-branch-only runtime semantics.
+- Simplified the visible If contract to a single `Result` output; branch selection is expressed by the Zone rather than redundant True/False result sockets. Child-drop hit testing now excludes the start/end boundary areas.
+- Added three built-in runnable demos for dynamic Socket defaults, Compare/Switch, If Zone lazy execution and dynamic value-type variants. All three demos are also Python/JavaScript parity fixtures.
+- Moved generic inspector parameter rendering out of `App.tsx` into `ParameterField.tsx`, restoring the Phase 9 ownership audit without relaxing its line-count threshold.
+- Build revision: `1.6.15-dev-r107-if-zone`.
+
 ## 1.6.14 (154) — Dynamic node UI foundation — 2026-08-24
 
 - Generalized resolved NodeSpec handling so declarative dynamic variants can change ports and parameter presentation without teaching the runtime about UI state; the existing Python-function signature resolver now uses the same path.

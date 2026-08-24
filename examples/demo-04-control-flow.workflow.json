@@ -90,9 +90,7 @@
         "label": "结果非空",
         "nodeType": "logic.if_value",
         "nodeVersion": 1,
-        "parameters": {
-          "invert": false
-        },
+        "parameters": {},
         "status": "idle"
       }
     },
