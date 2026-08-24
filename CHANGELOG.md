@@ -1,3 +1,14 @@
+## 1.6.18 (158) — Generic parameter sockets and data-node cleanup — 2026-08-24
+
+- Generalized parameter Socket execution in both Python and JavaScript runtimes: any ordinary named input whose port id matches a NodeSpec parameter now overrides that parameter, while the ordinary `input` Socket remains the data input. Custom Python functions keep their existing signature-owned multi-input binding.
+- Generalized upstream collection so ordinary nodes automatically receive a multi-port map when any non-`input` Socket is connected; new parameter-socket nodes therefore require no per-node runtime routing exceptions.
+- Applied the same named-port collection rule inside reusable Workflow Functions, so ordinary parameter Sockets behave identically before and after a node chain is encapsulated as a function.
+- Migrated Random Table, Head, Tail, DataFrame Round, Fill Missing, Range Filter, Periodic Tail Mean, Row Chunks, short-segment filtering, JSON indentation, scalar Round and numeric range generation to the shared Socket-default contract. Random Table and Fill Missing also use declarative dynamic variants to remove irrelevant controls/ports.
+- Dynamic variants now resolve against NodeSpec defaults plus stored parameters, so omitted default-valued fields produce the same effective node contract as newly created nodes.
+- Reclassified the old standalone `logic.for_range` and `logic.while_number` utilities as data/list-processing nodes. Their runtime node types remain unchanged, but product labels are now `数值序列表` and `数值递推` so they no longer masquerade as BODY-based For/While control-flow Zones.
+- Added runnable Demo 10 for generic parameter Sockets and Demo 11 for dynamically driven data nodes; both are covered by Python/JavaScript runtime parity.
+- Build revision: `1.6.18-dev-r110-generic-parameter-sockets`.
+
 ## 1.6.17 (157) — Dynamic operators and loop zones — 2026-08-24
 
 - Added Python/JavaScript-parity `Math` and `Boolean Math` nodes with Blender-style socket defaults. Unary operations such as Absolute, Negate, Square Root and NOT declaratively collapse to one input socket; binary operations retain A/B sockets.

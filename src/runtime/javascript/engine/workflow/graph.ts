@@ -94,6 +94,8 @@ export function nodeUpstream(nodeId: string, nodeType: string, workflow: Workflo
   if (["table.concat_many", "pulse.combine_channels", "pulse.segment_measurement", "custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value", "logic.compare", "logic.switch", "math.operation", "logic.boolean_math"].includes(nodeType)) {
     return upstreamInputs(nodeId, workflow, values);
   }
+  const incoming = dataEdges(workflow).filter((edge) => edge.target === nodeId);
+  if (incoming.some((edge) => (edge.targetHandle || "input") !== "input")) return upstreamInputs(nodeId, workflow, values);
   return upstreamValue(nodeId, workflow, values);
 }
 

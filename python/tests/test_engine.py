@@ -66,6 +66,33 @@ def test_cross_runtime_source_generators_have_expected_python_shapes():
     ])
 
 
+def test_generic_parameter_socket_overrides_standard_node_parameter():
+    result = execute(
+        [
+            node("read", "io.read_csv", {"header": "infer"}),
+            node("n", "math.operation", {"operation": "add", "a": 1, "b": 1}),
+            node("head", "pandas.head", {"n": 5}),
+        ],
+        [port_edge("read", "head", "input"), port_edge("n", "head", "n")],
+        "voltage,current\n0,0.1\n1,0.2\n2,0.3\n3,0.4\n",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["rows"] == [[0, 0.1], [1, 0.2]]
+
+
+def test_generic_parameter_socket_drives_source_node_without_data_input():
+    result = execute(
+        [
+            node("count", "math.operation", {"operation": "add", "a": 2, "b": 2}),
+            node("random", "generate.random_table", {"count": 100, "seed": 7, "min": 0, "max": 1}),
+        ],
+        [port_edge("count", "random", "count")],
+        "",
+    )
+    assert result["status"] == "success"
+    assert result["preview"]["totalRows"] == 4
+
+
 def test_native_random_source_connects_directly_to_print():
     result = execute(
         [node("random", "generate.random_table", {"count": 5, "seed": 1}), node("print", "python.print")],

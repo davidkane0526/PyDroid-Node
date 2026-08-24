@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 10 · 通用参数 Socket",
+  "nodes": [
+    {"id":"count","type":"workflow","position":{"x":70,"y":80},"data":{"label":"2 + 3","nodeType":"math.operation","nodeVersion":1,"parameters":{"operation":"add","a":2,"b":3},"status":"idle"}},
+    {"id":"random","type":"workflow","position":{"x":390,"y":80},"data":{"label":"正态随机表","nodeType":"generate.random_table","nodeVersion":1,"parameters":{"count":100,"distribution":"normal","min":0,"max":1,"mean":10,"std":2,"seed":7,"indexColumn":"index","valueColumn":"value"},"status":"idle"}},
+    {"id":"head-n","type":"workflow","position":{"x":390,"y":360},"data":{"label":"1 + 2","nodeType":"math.operation","nodeVersion":1,"parameters":{"operation":"add","a":1,"b":2},"status":"idle"}},
+    {"id":"head","type":"workflow","position":{"x":780,"y":120},"data":{"label":"动态 Head","nodeType":"pandas.head","nodeVersion":1,"parameters":{"n":5},"status":"idle"}},
+    {"id":"print","type":"workflow","position":{"x":1130,"y":120},"data":{"label":"输出前三行","nodeType":"python.print","nodeVersion":1,"parameters":{"prefix":"参数 Socket","format":"text","includeType":false,"maxRows":10,"maxChars":1000,"encoding":"utf-8","encodingErrors":"replace","bytesFormat":"decode","end":"\n"},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"count","sourceHandle":"output","target":"random","targetHandle":"count"},
+    {"id":"e2","source":"random","sourceHandle":"output","target":"head","targetHandle":"input"},
+    {"id":"e3","source":"head-n","sourceHandle":"output","target":"head","targetHandle":"n"},
+    {"id":"e4","source":"head","sourceHandle":"output","target":"print","targetHandle":"input"}
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {"sourceLanguage":"portable","pythonImports":[],"pythonDefinitions":[]},
+  "parameters": []
+}

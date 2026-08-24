@@ -64,6 +64,7 @@ function upstreamForFunctionNode(
   if (MULTI_INPUT_NODE_TYPES.has(node.data.nodeType)) return inputs;
   const entries = Object.entries(inputs);
   if (!entries.length) return null;
+  if (entries.some(([port]) => port !== "input")) return inputs;
   if (entries.length > 1) throw new Error(`Function node ${node.id} currently accepts only one input`);
   return entries[0][1];
 }

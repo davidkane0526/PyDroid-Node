@@ -7,6 +7,8 @@ import ifZone from "../examples/demo-06-if-zone.workflow.json?raw";
 import dynamicTypes from "../examples/demo-07-dynamic-types.workflow.json?raw";
 import dynamicOperators from "../examples/demo-08-dynamic-operators.workflow.json?raw";
 import loopZones from "../examples/demo-09-loop-zones.workflow.json?raw";
+import parameterSockets from "../examples/demo-10-parameter-sockets.workflow.json?raw";
+import dynamicDataNodes from "../examples/demo-11-dynamic-data-nodes.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -69,5 +71,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 09 · For / While Zones",
     description: "For Each 与 While 使用 Start / BODY / End Zone 表达，执行语义保持不变。",
     document: loopZones,
+  },
+  {
+    id: "parameter-sockets",
+    label: "Demo 10 · 通用参数 Socket",
+    description: "普通节点参数可由连线覆盖；随机表 Count 与 Head N 都由上游 Math 节点驱动。",
+    document: parameterSockets,
+  },
+  {
+    id: "dynamic-data-nodes",
+    label: "Demo 11 · 动态数据节点",
+    description: "数值序列表与周期统计使用参数 Socket，展示数据节点与参数节点的统一组合方式。",
+    document: dynamicDataNodes,
   },
 ] as const;

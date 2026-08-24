@@ -247,6 +247,9 @@ def _node_upstream(node_id: str, node_type: str, workflow: dict[str, Any], value
         return _upstream_inputs(node_id, workflow, values)
     if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value", "logic.compare", "logic.switch", "math.operation", "logic.boolean_math"}:
         return _upstream_inputs(node_id, workflow, values)
+    incoming = [edge for edge in _data_edges(workflow) if edge.get("target") == node_id]
+    if any((edge.get("targetHandle") or "input") != "input" for edge in incoming):
+        return _upstream_inputs(node_id, workflow, values)
     return _upstream_value(node_id, workflow, values)
 
 
@@ -385,6 +388,8 @@ def _function_node_upstream(
         return inputs
     if not inputs:
         return None
+    if any(port != "input" for port in inputs):
+        return inputs
     if len(inputs) > 1:
         raise ValueError(f"Function node {node['id']} currently accepts only one input")
     return next(iter(inputs.values()))

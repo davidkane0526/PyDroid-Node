@@ -59,6 +59,34 @@ describe("工作流执行", () => {
     expect(preview.rows).toEqual([[2, 0.3], [3, 0.4]]);
   });
 
+  it("普通节点参数可由同名 Socket 连线覆盖默认值", () => {
+    const result = run({
+      nodes: [
+        node("read", "io.read_csv", { header: "infer" }),
+        node("n", "math.operation", { operation: "add", a: 1, b: 1 }),
+        node("head", "pandas.head", { n: 5 }),
+      ],
+      edges: [
+        edge("read", "head", { targetHandle: "input" }),
+        edge("n", "head", { targetHandle: "n" }),
+      ],
+    }, SAMPLE_CSV);
+    expect(result.status).toBe("success");
+    expect((result.preview as { rows: unknown[][] }).rows).toEqual([[0, 0.1], [1, 0.2]]);
+  });
+
+  it("无数据输入节点也可由参数 Socket 驱动", () => {
+    const result = run({
+      nodes: [
+        node("count", "math.operation", { operation: "add", a: 2, b: 2 }),
+        node("random", "generate.random_table", { count: 100, seed: 7, min: 0, max: 1 }),
+      ],
+      edges: [edge("count", "random", { targetHandle: "count" })],
+    });
+    expect(result.status).toBe("success");
+    expect((result.preview as { totalRows: number }).totalRows).toBe(4);
+  });
+
   it("原生随机数源可直接连接到打印节点，并在 JS 后端复现", () => {
     const workflow = {
       nodes: [

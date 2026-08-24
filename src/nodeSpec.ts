@@ -27,9 +27,10 @@ function applyParameterPatches(
 export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<string, unknown>): NodeSpec | undefined {
   if (!base) return undefined;
 
+  const effectiveParameters: Record<string, unknown> = { ...base.defaults, ...parameters };
   let resolved = base;
   for (const variant of base.dynamicVariants ?? []) {
-    if (!matchesVariant(variant.when, parameters)) continue;
+    if (!matchesVariant(variant.when, effectiveParameters)) continue;
     const hidden = new Set(variant.hiddenParameters ?? []);
     resolved = {
       ...resolved,
@@ -40,7 +41,7 @@ export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<s
   }
 
   if (base.nodeType !== "custom.python_function") return resolved;
-  const signature = parsePythonFunctionSignature(String(parameters.code ?? ""));
+  const signature = parsePythonFunctionSignature(String(effectiveParameters.code ?? ""));
   if (signature.error) return resolved;
   return {
     ...resolved,

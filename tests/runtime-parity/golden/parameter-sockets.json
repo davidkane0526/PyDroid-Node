@@ -1,0 +1,664 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "demo_10_parameter_sockets",
+      "description": "Demo 10 · 通用参数 Socket",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 10 · 通用参数 Socket",
+        "nodes": [
+          {
+            "id": "count",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 80
+            },
+            "data": {
+              "label": "2 + 3",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 2,
+                "b": 3
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "random",
+            "type": "workflow",
+            "position": {
+              "x": 390,
+              "y": 80
+            },
+            "data": {
+              "label": "正态随机表",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 100,
+                "distribution": "normal",
+                "min": 0,
+                "max": 1,
+                "mean": 10,
+                "std": 2,
+                "seed": 7,
+                "indexColumn": "index",
+                "valueColumn": "value"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "head-n",
+            "type": "workflow",
+            "position": {
+              "x": 390,
+              "y": 360
+            },
+            "data": {
+              "label": "1 + 2",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "head",
+            "type": "workflow",
+            "position": {
+              "x": 780,
+              "y": 120
+            },
+            "data": {
+              "label": "动态 Head",
+              "nodeType": "pandas.head",
+              "nodeVersion": 1,
+              "parameters": {
+                "n": 5
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print",
+            "type": "workflow",
+            "position": {
+              "x": 1130,
+              "y": 120
+            },
+            "data": {
+              "label": "输出前三行",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "参数 Socket",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "count",
+            "sourceHandle": "output",
+            "target": "random",
+            "targetHandle": "count"
+          },
+          {
+            "id": "e2",
+            "source": "random",
+            "sourceHandle": "output",
+            "target": "head",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e3",
+            "source": "head-n",
+            "sourceHandle": "output",
+            "target": "head",
+            "targetHandle": "n"
+          },
+          {
+            "id": "e4",
+            "source": "head",
+            "sourceHandle": "output",
+            "target": "print",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "demo_11_dynamic_data_nodes",
+      "description": "Demo 11 · 动态数据节点",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 11 · 动态数据节点",
+        "nodes": [
+          {
+            "id": "stop",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 70
+            },
+            "data": {
+              "label": "10 + 2",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 10,
+                "b": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "step",
+            "type": "workflow",
+            "position": {
+              "x": 70,
+              "y": 330
+            },
+            "data": {
+              "label": "1 + 1",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "range",
+            "type": "workflow",
+            "position": {
+              "x": 430,
+              "y": 150
+            },
+            "data": {
+              "label": "数值序列表",
+              "nodeType": "logic.for_range",
+              "nodeVersion": 1,
+              "parameters": {
+                "start": 0,
+                "stop": 100,
+                "step": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "period",
+            "type": "workflow",
+            "position": {
+              "x": 760,
+              "y": 380
+            },
+            "data": {
+              "label": "2 + 1",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 2,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "tail",
+            "type": "workflow",
+            "position": {
+              "x": 800,
+              "y": 120
+            },
+            "data": {
+              "label": "周期末段均值",
+              "nodeType": "table.periodic_tail_mean",
+              "nodeVersion": 1,
+              "parameters": {
+                "groupSize": 25,
+                "tailRows": 1,
+                "partialGroup": "include"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "print",
+            "type": "workflow",
+            "position": {
+              "x": 1210,
+              "y": 120
+            },
+            "data": {
+              "label": "输出周期结果",
+              "nodeType": "python.print",
+              "nodeVersion": 1,
+              "parameters": {
+                "prefix": "动态数据节点",
+                "format": "text",
+                "includeType": false,
+                "maxRows": 10,
+                "maxChars": 1000,
+                "encoding": "utf-8",
+                "encodingErrors": "replace",
+                "bytesFormat": "decode",
+                "end": "\n"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "stop",
+            "sourceHandle": "output",
+            "target": "range",
+            "targetHandle": "stop"
+          },
+          {
+            "id": "e2",
+            "source": "step",
+            "sourceHandle": "output",
+            "target": "range",
+            "targetHandle": "step"
+          },
+          {
+            "id": "e3",
+            "source": "range",
+            "sourceHandle": "output",
+            "target": "tail",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e4",
+            "source": "period",
+            "sourceHandle": "output",
+            "target": "tail",
+            "targetHandle": "groupSize"
+          },
+          {
+            "id": "e5",
+            "source": "tail",
+            "sourceHandle": "output",
+            "target": "print",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "fillna_parameter_socket",
+      "description": "fillna value is driven by a generic parameter socket",
+      "csvText": "a,b\n1,\n,3\n",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "fillna_parameter_socket",
+        "nodes": [
+          {
+            "id": "read",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "value",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "value",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 4,
+                "b": 5
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "fill",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "fill",
+              "nodeType": "pandas.fillna",
+              "nodeVersion": 1,
+              "parameters": {
+                "method": "value",
+                "value": "0"
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "output",
+            "target": "fill",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "value",
+            "sourceHandle": "output",
+            "target": "fill",
+            "targetHandle": "value"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "round_parameter_socket",
+      "description": "pandas round digits are driven by a generic parameter socket",
+      "csvText": "v\n1.2345\n2.3456\n",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "round_parameter_socket",
+        "nodes": [
+          {
+            "id": "read",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "read",
+              "nodeType": "io.read_csv",
+              "nodeVersion": 1,
+              "parameters": {
+                "header": "infer"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "digits",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "digits",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "round",
+            "type": "workflow",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "round",
+              "nodeType": "pandas.round",
+              "nodeVersion": 1,
+              "parameters": {
+                "decimals": 0
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "read",
+            "sourceHandle": "output",
+            "target": "round",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "digits",
+            "sourceHandle": "output",
+            "target": "round",
+            "targetHandle": "decimals"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "function_parameter_socket",
+      "description": "Ordinary parameter sockets work inside reusable workflow functions in Python and JavaScript",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Function parameter socket parity",
+        "nodes": [
+          {
+            "id": "call",
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "data": {
+              "label": "动态 Head 函数",
+              "nodeType": "function.call",
+              "nodeVersion": 1,
+              "parameters": {
+                "functionId": "fn-dynamic-head",
+                "functionVersion": 1
+              },
+              "status": "idle",
+              "functionInputs": [],
+              "functionOutputs": [
+                {
+                  "id": "result",
+                  "label": "结果",
+                  "valueType": "table"
+                }
+              ]
+            }
+          }
+        ],
+        "edges": [],
+        "functions": [
+          {
+            "id": "fn-dynamic-head",
+            "name": "动态 Head 函数",
+            "version": 1,
+            "inputs": [],
+            "outputs": [
+              {
+                "id": "result",
+                "label": "结果",
+                "valueType": "table",
+                "internalNodeId": "head",
+                "internalHandle": "output"
+              }
+            ],
+            "nodes": [
+              {
+                "id": "random",
+                "position": {
+                  "x": 0,
+                  "y": 0
+                },
+                "data": {
+                  "label": "随机表",
+                  "nodeType": "generate.random_table",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "count": 5,
+                    "distribution": "uniform",
+                    "min": 0,
+                    "max": 1,
+                    "mean": 0,
+                    "std": 1,
+                    "seed": 7,
+                    "indexColumn": "index",
+                    "valueColumn": "value"
+                  },
+                  "status": "idle"
+                }
+              },
+              {
+                "id": "n",
+                "position": {
+                  "x": 0,
+                  "y": 220
+                },
+                "data": {
+                  "label": "1 + 1",
+                  "nodeType": "math.operation",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "operation": "add",
+                    "a": 1,
+                    "b": 1
+                  },
+                  "status": "idle"
+                }
+              },
+              {
+                "id": "head",
+                "position": {
+                  "x": 320,
+                  "y": 80
+                },
+                "data": {
+                  "label": "动态 Head",
+                  "nodeType": "pandas.head",
+                  "nodeVersion": 1,
+                  "parameters": {
+                    "n": 5
+                  },
+                  "status": "idle"
+                }
+              }
+            ],
+            "edges": [
+              {
+                "id": "f1",
+                "source": "random",
+                "sourceHandle": "output",
+                "target": "head",
+                "targetHandle": "input"
+              },
+              {
+                "id": "f2",
+                "source": "n",
+                "sourceHandle": "output",
+                "target": "head",
+                "targetHandle": "n"
+              }
+            ]
+          }
+        ],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    }
+  ]
+}

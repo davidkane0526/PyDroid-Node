@@ -1292,7 +1292,7 @@ def _analyze_numeric_while(
         "semantic": True,
         "kind": "WhileNumber",
         "nodeType": "logic.while_number",
-        "label": f"While 数值循环 · {state_name}",
+        "label": f"数值递推 · {state_name}",
         "parameters": {
             "start": start,
             "condition": condition,

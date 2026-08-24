@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 11 · 动态数据节点",
+  "nodes": [
+    {"id":"stop","type":"workflow","position":{"x":70,"y":70},"data":{"label":"10 + 2","nodeType":"math.operation","nodeVersion":1,"parameters":{"operation":"add","a":10,"b":2},"status":"idle"}},
+    {"id":"step","type":"workflow","position":{"x":70,"y":330},"data":{"label":"1 + 1","nodeType":"math.operation","nodeVersion":1,"parameters":{"operation":"add","a":1,"b":1},"status":"idle"}},
+    {"id":"range","type":"workflow","position":{"x":430,"y":150},"data":{"label":"数值序列表","nodeType":"logic.for_range","nodeVersion":1,"parameters":{"start":0,"stop":100,"step":1},"status":"idle"}},
+    {"id":"period","type":"workflow","position":{"x":760,"y":380},"data":{"label":"2 + 1","nodeType":"math.operation","nodeVersion":1,"parameters":{"operation":"add","a":2,"b":1},"status":"idle"}},
+    {"id":"tail","type":"workflow","position":{"x":800,"y":120},"data":{"label":"周期末段均值","nodeType":"table.periodic_tail_mean","nodeVersion":1,"parameters":{"groupSize":25,"tailRows":1,"partialGroup":"include"},"status":"idle"}},
+    {"id":"print","type":"workflow","position":{"x":1210,"y":120},"data":{"label":"输出周期结果","nodeType":"python.print","nodeVersion":1,"parameters":{"prefix":"动态数据节点","format":"text","includeType":false,"maxRows":10,"maxChars":1000,"encoding":"utf-8","encodingErrors":"replace","bytesFormat":"decode","end":"\n"},"status":"idle"}}
+  ],
+  "edges": [
+    {"id":"e1","source":"stop","sourceHandle":"output","target":"range","targetHandle":"stop"},
+    {"id":"e2","source":"step","sourceHandle":"output","target":"range","targetHandle":"step"},
+    {"id":"e3","source":"range","sourceHandle":"output","target":"tail","targetHandle":"input"},
+    {"id":"e4","source":"period","sourceHandle":"output","target":"tail","targetHandle":"groupSize"},
+    {"id":"e5","source":"tail","sourceHandle":"output","target":"print","targetHandle":"input"}
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {"sourceLanguage":"portable","pythonImports":[],"pythonDefinitions":[]},
+  "parameters": []
+}

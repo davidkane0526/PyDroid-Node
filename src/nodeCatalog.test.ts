@@ -46,8 +46,9 @@ describe("node function signatures", () => {
       ["false", "table"],
     ]);
     expect(getNodeSpec("table.merge_rows")!.inputPorts.map((port) => port.id)).toEqual(["left", "right"]);
-    expect(getNodeSpec("logic.for_range")!.inputPorts).toHaveLength(0);
-    expect(getNodeSpec("logic.for_range")!.ui?.inlineParameters).toEqual(["start", "stop", "step"]);
+    expect(getNodeSpec("logic.for_range")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([["start", "start"], ["stop", "stop"], ["step", "step"]]);
+    expect(getNodeSpec("logic.for_range")!.category).toBe("列表处理");
+    expect(getNodeSpec("logic.while_number")!.category).toBe("列表处理");
     expect(getNodeSpec("logic.while_number")!.parameters.map((parameter) => parameter.key)).toContain("maxIterations");
     expect(getNodeSpec("logic.while_number")!.outputPorts.map((port) => port.id)).toEqual(["output", "last", "iterations"]);
     expect(getNodeSpec("logic.if_subflow")).toBeUndefined();
@@ -155,6 +156,28 @@ describe("node function signatures", () => {
     ]);
     expect(switchTable.outputPorts).toEqual([{ id: "output", label: "Result", valueType: "table" }]);
     expect(switchTable.parameters.map((parameter) => parameter.key)).toEqual(["valueType", "condition"]);
+  });
+
+  it("resolves dynamic parameter sockets for ordinary data nodes", () => {
+    const defaultRandom = resolveNodeSpec(getNodeSpec("generate.random_table"), {})!;
+    expect(defaultRandom.parameters.map((parameter) => parameter.key)).not.toContain("mean");
+    expect(defaultRandom.parameters.map((parameter) => parameter.key)).not.toContain("std");
+
+    const normalRandom = resolveNodeSpec(getNodeSpec("generate.random_table"), { distribution: "normal" })!;
+    expect(normalRandom.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["count", "count"], ["mean", "mean"], ["std", "std"], ["seed", "seed"],
+    ]);
+    expect(normalRandom.parameters.map((parameter) => parameter.key)).not.toContain("min");
+    expect(normalRandom.parameters.map((parameter) => parameter.key)).not.toContain("max");
+
+    const forwardFill = resolveNodeSpec(getNodeSpec("pandas.fillna"), { method: "forward" })!;
+    expect(forwardFill.inputPorts.map((port) => port.id)).toEqual(["input"]);
+    expect(forwardFill.parameters.map((parameter) => parameter.key)).toEqual(["method"]);
+
+    expect(getNodeSpec("pandas.head")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["input", undefined], ["n", "n"],
+    ]);
+    expect(getNodeSpec("table.periodic_tail_mean")!.inputPorts.map((port) => port.id)).toEqual(["input", "groupSize", "tailRows"]);
   });
 
   it("resolves unary Math / Boolean Math ports and While condition variants", () => {
