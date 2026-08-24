@@ -168,19 +168,44 @@ export function validateNodeContracts(): string[] {
     if (contract.stateScope !== "none" && contract.stateAccess === "none") errors.push(`有状态节点缺少 stateAccess：${spec.nodeType}`);
     if (contract.executionModel !== "function" && contract.functionRole !== "none") errors.push(`非函数节点不能声明 functionRole：${spec.nodeType}`);
     const parameterKeys = new Set(spec.parameters.map((parameter) => parameter.key));
-    for (const port of spec.inputPorts) {
-      if (!port.defaultParameter) continue;
-      if (!parameterKeys.has(port.defaultParameter)) errors.push(`Socket 默认参数不存在：${spec.nodeType}.${port.id} -> ${port.defaultParameter}`);
+    const defaultKeys = new Set(Object.keys(spec.defaults));
+    const validateParameterSocket = (port: import("./nodeCatalog").PortSpec, owner: string) => {
+      if (!port.defaultParameter) return;
+      if (!parameterKeys.has(port.defaultParameter)) errors.push(`Socket 默认参数不存在：${spec.nodeType}.${owner}.${port.id} -> ${port.defaultParameter}`);
       if (spec.nodeType !== "logic.switch" && port.id !== port.defaultParameter) {
-        errors.push(`通用参数 Socket 的端口 id 必须与参数 key 一致：${spec.nodeType}.${port.id} -> ${port.defaultParameter}`);
+        errors.push(`通用参数 Socket 的端口 id 必须与参数 key 一致：${spec.nodeType}.${owner}.${port.id} -> ${port.defaultParameter}`);
       }
+    };
+    for (const port of spec.inputPorts) validateParameterSocket(port, "base");
+    for (const [index, variant] of (spec.variants ?? []).entries()) {
+      for (const key of Object.keys(variant.when)) {
+        if (!parameterKeys.has(key) && !defaultKeys.has(key)) errors.push(`Node Variant 条件参数不存在：${spec.nodeType}.variants[${index}].${key}`);
+      }
+      for (const key of variant.hiddenParameters ?? []) {
+        if (!parameterKeys.has(key)) errors.push(`Node Variant 隐藏参数不存在：${spec.nodeType}.variants[${index}].${key}`);
+      }
+      for (const key of Object.keys(variant.parameterPatches ?? {})) {
+        if (!parameterKeys.has(key)) errors.push(`Node Variant 参数补丁目标不存在：${spec.nodeType}.variants[${index}].${key}`);
+      }
+      for (const port of variant.inputPorts ?? []) validateParameterSocket(port, `variants[${index}]`);
     }
-    for (const repeated of spec.repeatedInputPorts ?? []) {
-      const countParameter = spec.parameters.find((parameter) => parameter.key === repeated.countParameter);
-      if (!countParameter) errors.push(`重复 Socket 数量参数不存在：${spec.nodeType}.${repeated.countParameter}`);
-      else if (countParameter.kind !== "number") errors.push(`重复 Socket 数量参数必须为 number：${spec.nodeType}.${repeated.countParameter}`);
-      if (!repeated.idPrefix.trim() || !repeated.labelPrefix.trim()) errors.push(`重复 Socket 前缀不能为空：${spec.nodeType}`);
-      if ((repeated.min ?? 1) < 1 || (repeated.max ?? 32) < (repeated.min ?? 1)) errors.push(`重复 Socket 数量范围无效：${spec.nodeType}`);
+    const groupIds = new Set<string>();
+    for (const group of spec.inputPortGroups ?? []) {
+      if (!group.id.trim()) errors.push(`Socket Group id 不能为空：${spec.nodeType}`);
+      if (groupIds.has(group.id)) errors.push(`Socket Group id 重复：${spec.nodeType}.${group.id}`);
+      groupIds.add(group.id);
+      if (!(group.ports?.length) && !group.repeat) errors.push(`Socket Group 必须声明 ports 或 repeat：${spec.nodeType}.${group.id}`);
+      for (const key of Object.keys(group.when ?? {})) {
+        if (!parameterKeys.has(key) && !defaultKeys.has(key)) errors.push(`Socket Group 条件参数不存在：${spec.nodeType}.${group.id}.${key}`);
+      }
+      for (const port of group.ports ?? []) validateParameterSocket(port, `group:${group.id}`);
+      const repeat = group.repeat;
+      if (!repeat) continue;
+      const countParameter = spec.parameters.find((parameter) => parameter.key === repeat.countParameter);
+      if (!countParameter) errors.push(`Socket Group 数量参数不存在：${spec.nodeType}.${repeat.countParameter}`);
+      else if (countParameter.kind !== "number") errors.push(`Socket Group 数量参数必须为 number：${spec.nodeType}.${repeat.countParameter}`);
+      if (!repeat.idPrefix.trim() || !repeat.labelPrefix.trim()) errors.push(`Socket Group 重复端口前缀不能为空：${spec.nodeType}.${group.id}`);
+      if ((repeat.min ?? 1) < 1 || (repeat.max ?? 32) < (repeat.min ?? 1)) errors.push(`Socket Group 数量范围无效：${spec.nodeType}.${group.id}`);
     }
     if (contract.runtimes.javascript && contract.parityClass === "C") errors.push(`JavaScript 节点不能声明 C 级 parity：${spec.nodeType}`);
     if (!contract.runtimes.javascript && contract.parityClass !== "C") errors.push(`Python-only 节点必须声明 C 级 parity：${spec.nodeType}`);

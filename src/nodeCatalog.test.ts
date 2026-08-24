@@ -104,6 +104,7 @@ describe("node function signatures", () => {
     expect(concatMany.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining(["inputMode", "inputCount", "alignment", "prefixMode", "sourceColumn", "prefixColumn", "prefixTemplate"]));
     const concatPorts = resolveNodeSpec(concatMany, { inputMode: "ports", inputCount: 4 })!;
     expect(concatPorts.inputPorts.map((port) => port.id)).toEqual(["metadata", "table1", "table2", "table3", "table4"]);
+    expect(concatMany.inputPortGroups?.[0]?.id).toBe("tables");
     expect(getNodeSpec("analysis.ter_matrix")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "vgColumn", "voltageColumn", "currentColumn", "vstep", "tolerance", "mode",
     ]));
@@ -205,6 +206,14 @@ describe("node function signatures", () => {
     expect(getNodeSpec("plot.histogram")!.inputPorts.map((port) => port.id)).toEqual(["input", "yColumns", "bins", "alpha"]);
     expect(getNodeSpec("plot.box")!.inputPorts.map((port) => port.id)).toEqual(["input", "yColumns"]);
     expect(getNodeSpec("plot.scatter")!.inputPorts.map((port) => port.id)).toEqual(["input", "xColumn", "yColumns", "pointSize", "alpha"]);
+
+    const columnAbsolute = resolveNodeSpec(getNodeSpec("table.column_math"), { operation: "absolute", columns: "value", operand: 2 })!;
+    expect(columnAbsolute.inputPorts.map((port) => port.id)).toEqual(["input", "columns"]);
+    expect(columnAbsolute.parameters.map((parameter) => parameter.key)).toEqual(["columns", "operation"]);
+
+    const registry = resolveNodeSpec(getNodeSpec("plot.series_registry"), { seriesCount: 2 })!;
+    expect(registry.inputPorts.map((port) => [port.id, port.valueType])).toEqual([["series1", "object"], ["series2", "object"]]);
+    expect(getNodeSpec("plot.series")!.outputPorts).toEqual([{ id: "output", label: "Series", valueType: "object" }]);
   });
 
   it("resolves unary Math / Boolean Math ports and While condition variants", () => {

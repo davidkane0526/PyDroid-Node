@@ -39,6 +39,28 @@ describe("workflow notebook DSL", () => {
     expect(primarySource).toContain('node_acc["output"]');
   });
 
+  it("exports parameter sockets separately from data inputs and keeps named port groups", () => {
+    const node = (id: string, nodeType: string, parameters: Record<string, unknown>) => ({
+      id, type: "workflow", position: { x: 0, y: 0 },
+      data: { label: id, nodeType, nodeVersion: 1, parameters, status: "idle" },
+    } as WorkflowNode);
+    const factor = node("factor", "math.operation", { operation: "add", a: 1, b: 2 });
+    const reader = node("reader", "io.read_csv", { separator: ",", header: "infer", skipRows: 0, useColumns: "" });
+    const scale = node("scale", "table.column_math", { columns: "value", operation: "multiply", operand: 1 });
+    const series = node("series", "plot.series", { y: "value", label: "Value", lineStyle: "-", marker: "", lineWidth: 1.5 });
+    const registry = node("registry", "plot.series_registry", { seriesCount: 1 });
+    const source = serializeWorkflowNotebook("dynamic", [factor, reader, scale, series, registry], [
+      { id: "e1", source: "reader", sourceHandle: "output", target: "scale", targetHandle: "input" },
+      { id: "e2", source: "factor", sourceHandle: "output", target: "scale", targetHandle: "operand" },
+      { id: "e3", source: "factor", sourceHandle: "output", target: "series", targetHandle: "lineWidth" },
+      { id: "e4", source: "series", sourceHandle: "output", target: "registry", targetHandle: "series1" },
+    ]);
+    expect(source).toContain('node_scale_params["operand"] = node_factor');
+    expect(source).toContain('_column_math_columns = _column_names(node_reader, node_scale_params.get("columns", ""))');
+    expect(source).toContain('node_series_params["lineWidth"] = node_factor');
+    expect(source).toContain('_series_inputs = {"series1": node_series}');
+  });
+
   it("round-trips nodes, edges and package requirements", () => {
     const source = serializeWorkflowNotebook("测试", [sampleNode], [], ["scipy==1.12.0"]);
     expect(source).toContain("import pandas as pd");

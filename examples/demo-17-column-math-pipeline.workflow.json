@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 17 · 动态列运算流水线",
+  "nodes": [
+    {
+      "id": "random",
+      "type": "workflow",
+      "position": { "x": 60, "y": 120 },
+      "data": {
+        "label": "随机数据",
+        "nodeType": "generate.random_table",
+        "nodeVersion": 1,
+        "parameters": { "count": 8, "distribution": "uniform", "min": -2, "max": 2, "mean": 0, "std": 1, "seed": 17, "indexColumn": "index", "valueColumn": "value" },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "factor",
+      "type": "workflow",
+      "position": { "x": 100, "y": 420 },
+      "data": {
+        "label": "1 + 1 → 标量",
+        "nodeType": "math.operation",
+        "nodeVersion": 1,
+        "parameters": { "operation": "add", "a": 1, "b": 1 },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "scale",
+      "type": "workflow",
+      "position": { "x": 500, "y": 100 },
+      "data": {
+        "label": "value × 动态标量",
+        "nodeType": "table.column_math",
+        "nodeVersion": 1,
+        "parameters": { "columns": "value", "operation": "multiply", "operand": 1 },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "absolute",
+      "type": "workflow",
+      "position": { "x": 930, "y": 100 },
+      "data": {
+        "label": "value 绝对值",
+        "nodeType": "table.column_math",
+        "nodeVersion": 1,
+        "parameters": { "columns": "value", "operation": "absolute", "operand": 1 },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": { "x": 1360, "y": 100 },
+      "data": {
+        "label": "处理结果",
+        "nodeType": "plot.line",
+        "nodeVersion": 1,
+        "parameters": { "xColumn": "index", "yColumns": "value", "title": "Column Math Pipeline", "xLabel": "index", "yLabel": "|2 × value|", "legend": true, "grid": true, "logX": false, "logY": false, "scientificNotation": true, "lineStyle": "-", "marker": "o", "lineWidth": 1.5, "seriesConfig": "", "figureWidth": 8, "figureHeight": 4.5, "dpi": 120 },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    { "id": "e1", "source": "random", "sourceHandle": "output", "target": "scale", "targetHandle": "input" },
+    { "id": "e2", "source": "factor", "sourceHandle": "output", "target": "scale", "targetHandle": "operand" },
+    { "id": "e3", "source": "scale", "sourceHandle": "output", "target": "absolute", "targetHandle": "input" },
+    { "id": "e4", "source": "absolute", "sourceHandle": "output", "target": "plot", "targetHandle": "input" }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": { "sourceLanguage": "portable", "pythonImports": [], "pythonDefinitions": [] },
+  "parameters": []
+}

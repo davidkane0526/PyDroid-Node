@@ -1,6 +1,6 @@
 import type { Edge } from "@xyflow/react";
 import { parseWorkflow, type WorkflowDocument, type WorkflowEnvironment, type WorkflowFunctionDefinition, type WorkflowNode, type WorkflowParameterDefinition } from "./workflow";
-import { getNodeSpec, type ValueType } from "./nodeCatalog";
+import { getNodeSpec, type PortSpec, type ValueType } from "./nodeCatalog";
 import { getNodeContract } from "./nodeContract";
 import { parsePythonFunctionSignature } from "./customNode";
 import { resolveNodeSpec } from "./nodeSpec";
@@ -228,16 +228,28 @@ export function summarizeNotebookConversion(cells: NotebookCell[], analyses: Not
   };
 }
 
-function resolvedNodePorts(node: WorkflowNode | undefined, direction: "input" | "output"): string[] {
+function resolvedNodePortSpecs(node: WorkflowNode | undefined, direction: "input" | "output"): PortSpec[] {
   if (!node) return [];
   if (node.data.nodeType === "workflow.group") {
-    return (direction === "input" ? node.data.groupInputs : node.data.groupOutputs)?.map((port) => port.id) ?? [];
+    return (direction === "input" ? node.data.groupInputs : node.data.groupOutputs)?.map((port) => ({
+      id: port.id,
+      label: port.label,
+      valueType: port.valueType,
+    })) ?? [];
   }
   if (node.data.nodeType === "function.call" || node.data.nodeType === "function.map") {
-    return (direction === "input" ? node.data.functionInputs : node.data.functionOutputs)?.map((port) => port.id) ?? [];
+    return (direction === "input" ? node.data.functionInputs : node.data.functionOutputs)?.map((port) => ({
+      id: port.id,
+      label: port.label,
+      valueType: port.valueType,
+    })) ?? [];
   }
   const spec = resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters);
-  return (direction === "input" ? spec?.inputPorts : spec?.outputPorts)?.map((port) => port.id) ?? [];
+  return direction === "input" ? spec?.inputPorts ?? [] : spec?.outputPorts ?? [];
+}
+
+function resolvedNodePorts(node: WorkflowNode | undefined, direction: "input" | "output"): string[] {
+  return resolvedNodePortSpecs(node, direction).map((port) => port.id);
 }
 
 function connectablePort(node: WorkflowNode | undefined, direction: "input" | "output", index = 0): string | undefined {
@@ -1261,10 +1273,42 @@ function edgeValueExpression(edge: Edge, nodes: WorkflowNode[] = []): string {
   return edge.sourceHandle && edge.sourceHandle !== "output" ? `${source}[${JSON.stringify(edge.sourceHandle)}]` : source;
 }
 
+function parameterSocketBindings(nodeId: string, edges: Edge[], nodes: WorkflowNode[] = []): Array<{ parameter: string; expression: string }> {
+  const node = nodes.find((candidate) => candidate.id === nodeId);
+  if (!node) return [];
+  const parameterByPort = new Map(
+    resolvedNodePortSpecs(node, "input")
+      .filter((port) => port.defaultParameter)
+      .map((port) => [port.id, port.defaultParameter!] as const),
+  );
+  return edges
+    .filter((edge) => edge.target === nodeId && !isNotebookVisualEdge(edge))
+    .flatMap((edge) => {
+      const parameter = parameterByPort.get(edge.targetHandle ?? "input");
+      return parameter ? [{ parameter, expression: edgeValueExpression(edge, nodes) }] : [];
+    });
+}
+
+function parameterSocketBindingCode(nodeId: string, edges: Edge[], nodes: WorkflowNode[] = []): string {
+  const name = variableName(nodeId);
+  return parameterSocketBindings(nodeId, edges, nodes)
+    .map(({ parameter, expression }) => `${name}_params[${JSON.stringify(parameter)}] = ${expression}`)
+    .join("\n");
+}
+
 function inputExpression(nodeId: string, edges: Edge[], nodes: WorkflowNode[] = []): string {
-  const incoming = edges.filter((edge) => edge.target === nodeId && !isNotebookVisualEdge(edge));
+  const node = nodes.find((candidate) => candidate.id === nodeId);
+  const parameterByPort = new Map(
+    resolvedNodePortSpecs(node, "input")
+      .filter((port) => port.defaultParameter)
+      .map((port) => [port.id, port.defaultParameter!] as const),
+  );
+  const incoming = edges.filter((edge) => {
+    if (edge.target !== nodeId || isNotebookVisualEdge(edge)) return false;
+    return !parameterByPort.has(edge.targetHandle ?? "input");
+  });
   if (!incoming.length) return "None";
-  if (incoming.length === 1) return edgeValueExpression(incoming[0], nodes);
+  if (incoming.length === 1 && (!incoming[0].targetHandle || incoming[0].targetHandle === "input")) return edgeValueExpression(incoming[0], nodes);
   return `{${incoming.map((edge) => `${JSON.stringify(edge.targetHandle ?? "input")}: ${edgeValueExpression(edge, nodes)}`).join(", ")}}`;
 }
 
@@ -1313,6 +1357,8 @@ function structureOperationCode(node: WorkflowNode, edges: Edge[], nodes: Workfl
       const incoming = branchEdges.filter((edge) => edge.target === child.id);
       const childInput = incoming.length ? inputExpression(child.id, branchEdges, nodes) : "_seed";
       lines.push(`    ${childName}_params = ${pythonLiteral(child.data.parameters)}`);
+      const childParameterBindings = parameterSocketBindingCode(child.id, branchEdges, nodes);
+      if (childParameterBindings) lines.push(indentPython(childParameterBindings));
       lines.push(indentPython(operationCode(child, branchEdges, nodes, childInput, true)));
       lines.push(`    _child_values[${JSON.stringify(child.id)}] = ${childName}`);
     }
@@ -1409,6 +1455,23 @@ ${name} = input(f"{${params}.get('title', '输入')}: {${params}.get('prompt', '
 if ${params}.get("inputKind") == "number":
     ${name} = float(${name})`;
   if (type === "table.select_columns") return `${name} = ${input}.iloc[:, _columns(${params}.get("columns", ""))]`;
+  if (type === "table.column_math") return `_column_math_columns = _column_names(${input}, ${params}.get("columns", ""))
+if not _column_math_columns: raise ValueError("Column math requires at least one target column")
+_column_math_operation = str(${params}.get("operation", "multiply"))
+if _column_math_operation not in {"add", "subtract", "multiply", "divide", "power", "absolute", "negate"}: raise ValueError(f"Unsupported column math operation: {_column_math_operation}")
+_column_math_operand = float(${params}.get("operand", 1))
+if not np.isfinite(_column_math_operand): raise ValueError("Column math operand must be finite")
+if _column_math_operation == "divide" and _column_math_operand == 0: raise ValueError("Column math cannot divide by zero")
+${name} = ${input}.copy()
+for _column_name in _column_math_columns:
+    _column_values = pd.to_numeric(${name}[_column_name], errors="raise")
+    if _column_math_operation == "add": ${name}[_column_name] = _column_values + _column_math_operand
+    elif _column_math_operation == "subtract": ${name}[_column_name] = _column_values - _column_math_operand
+    elif _column_math_operation == "multiply": ${name}[_column_name] = _column_values * _column_math_operand
+    elif _column_math_operation == "divide": ${name}[_column_name] = _column_values / _column_math_operand
+    elif _column_math_operation == "power": ${name}[_column_name] = _column_values.pow(_column_math_operand)
+    elif _column_math_operation == "absolute": ${name}[_column_name] = _column_values.abs()
+    else: ${name}[_column_name] = -_column_values`;
   if (type === "table.absolute") return `${name} = ${input}.abs()`;
   if (type === "table.transpose") return `${name} = ${input}.transpose().reset_index(drop=True)`;
   if (type === "table.slice") return `${name} = ${input}.iloc[slice(${params}.get("rowStart") or None, ${params}.get("rowStop") or None, int(${params}.get("rowStep", 1))), slice(${params}.get("columnStart") or None, ${params}.get("columnStop") or None, int(${params}.get("columnStep", 1)))]`;
@@ -1514,6 +1577,66 @@ else:
   if (type === "table.split_condition") return `_matching = ${input}.query(${params}["condition"])
 ${name} = {"true": _matching.reset_index(drop=True), "false": ${input}.loc[~${input}.index.isin(_matching.index)].reset_index(drop=True)}`;
   if (type === "table.merge_rows" || type === "table.concat") return `${name} = pd.concat(list(${input}.values()), ignore_index=${params}.get("ignoreIndex", True))`;
+  if (type === "logic.compare") return `_compare_type = str(${params}.get("valueType", "number"))
+_compare_operation = str(${params}.get("operation", "greater"))
+def _normalize_compare(_raw):
+    if _compare_type == "number":
+        _value = float(_raw)
+        if not np.isfinite(_value): raise ValueError("Compare number inputs must be finite numbers")
+        return _value
+    if _compare_type == "boolean": return _generic_bool(_raw)
+    return str(_raw if _raw is not None else "")
+_compare_a, _compare_b = _normalize_compare(${params}.get("a")), _normalize_compare(${params}.get("b"))
+if _compare_operation == "equal": ${name} = _compare_a == _compare_b
+elif _compare_operation == "notEqual": ${name} = _compare_a != _compare_b
+elif _compare_operation == "greater": ${name} = _compare_a > _compare_b
+elif _compare_operation == "greaterEqual": ${name} = _compare_a >= _compare_b
+elif _compare_operation == "less": ${name} = _compare_a < _compare_b
+elif _compare_operation == "lessEqual": ${name} = _compare_a <= _compare_b
+elif _compare_operation == "contains": ${name} = str(_compare_b) in str(_compare_a)
+elif _compare_operation == "startsWith": ${name} = str(_compare_a).startswith(str(_compare_b))
+elif _compare_operation == "endsWith": ${name} = str(_compare_a).endswith(str(_compare_b))
+else: raise ValueError(f"Unsupported compare operation: {_compare_operation}")`;
+  if (type === "logic.switch") return `_switch_inputs = ${input} if isinstance(${input}, dict) else {}
+_switch_condition = _switch_inputs.get("condition", ${params}.get("condition", False))
+_switch_false = _switch_inputs.get("false", ${params}.get("falseValue"))
+_switch_true = _switch_inputs.get("true", ${params}.get("trueValue"))
+${name} = _switch_true if _generic_bool(_switch_condition) else _switch_false
+_switch_type = str(${params}.get("valueType", "number"))
+if _switch_type == "number":
+    ${name} = float(${name})
+    if not np.isfinite(${name}): raise ValueError("Switch number value must be a finite number")
+elif _switch_type == "text": ${name} = str(${name} if ${name} is not None else "")
+elif _switch_type == "boolean": ${name} = _generic_bool(${name})`;
+  if (type === "math.operation") return `_math_operation = str(${params}.get("operation", "add"))
+_math_a, _math_b = float(${params}.get("a", 0)), float(${params}.get("b", 0))
+if not np.isfinite(_math_a) or not np.isfinite(_math_b): raise ValueError("Math inputs must be finite numbers")
+if _math_operation == "add": ${name} = _math_a + _math_b
+elif _math_operation == "subtract": ${name} = _math_a - _math_b
+elif _math_operation == "multiply": ${name} = _math_a * _math_b
+elif _math_operation == "divide":
+    if _math_b == 0: raise ValueError("Math divide by zero")
+    ${name} = _math_a / _math_b
+elif _math_operation == "power": ${name} = _math_a ** _math_b
+elif _math_operation == "modulo":
+    if _math_b == 0: raise ValueError("Math modulo by zero")
+    ${name} = _math_a % _math_b
+elif _math_operation == "min": ${name} = min(_math_a, _math_b)
+elif _math_operation == "max": ${name} = max(_math_a, _math_b)
+elif _math_operation == "absolute": ${name} = abs(_math_a)
+elif _math_operation == "negate": ${name} = -_math_a
+elif _math_operation == "sqrt":
+    if _math_a < 0: raise ValueError("Math square root requires a non-negative value")
+    ${name} = np.sqrt(_math_a)
+else: raise ValueError(f"Unsupported math operation: {_math_operation}")
+if not np.isfinite(${name}): raise ValueError("Math result must be a finite number")`;
+  if (type === "logic.boolean_math") return `_boolean_operation = str(${params}.get("operation", "and"))
+_boolean_a, _boolean_b = _generic_bool(${params}.get("a", False)), _generic_bool(${params}.get("b", False))
+if _boolean_operation == "and": ${name} = _boolean_a and _boolean_b
+elif _boolean_operation == "or": ${name} = _boolean_a or _boolean_b
+elif _boolean_operation == "xor": ${name} = _boolean_a != _boolean_b
+elif _boolean_operation == "not": ${name} = not _boolean_a
+else: raise ValueError(f"Unsupported boolean operation: {_boolean_operation}")`;
   if (type === "logic.for_range") return `_values = list(range(int(${params}.get("start", 0)), int(${params}.get("stop", 10)), int(${params}.get("step", 1))))
 ${name} = pd.DataFrame({"iteration": range(len(_values)), "value": _values})`;
   if (type === "logic.while_number") return `_value, _rows = float(${params}.get("start", 0)), []
@@ -1584,6 +1707,29 @@ for _index, _event in _events.iterrows():
     _segment = _samples.iloc[_start:_end]["current"].iloc[_leading:None if _trailing == 0 else -_trailing]
     _rows.append({"sequence": int(_event.get("sequence", _index)), "phase": str(_event.get("phase", "pulse")), "waveform_time_s": _event["_time"], "voltage_V": _event["_voltage"], "sample_count": len(_segment), "mean_current_A": _segment.mean()})
 ${name} = pd.DataFrame(_rows)`;
+  if (type === "plot.series") return `_series_y = ${params}.get("y")
+if _series_y is None or str(_series_y).strip() == "": raise ValueError("Series requires a Y column")
+_series_line_style, _series_marker = str(${params}.get("lineStyle", "-")), str(${params}.get("marker", ""))
+_series_line_width = float(${params}.get("lineWidth", 1.5))
+if _series_line_style not in {"-", "--", "-.", ":"}: raise ValueError(f"Unsupported Series lineStyle: {_series_line_style}")
+if _series_marker not in {"", "o", "s", "^", "."}: raise ValueError(f"Unsupported Series marker: {_series_marker}")
+if not 0 < _series_line_width <= 20: raise ValueError("Series lineWidth must be between 0 and 20")
+${name} = {"y": _series_y, "lineStyle": _series_line_style, "marker": _series_marker, "lineWidth": _series_line_width}
+_series_label = str(${params}.get("label", "")).strip()
+if _series_label: ${name}["label"] = _series_label`;
+  if (type === "plot.series_registry") return `_series_inputs = ${input}
+if not isinstance(_series_inputs, dict): raise ValueError("Series Registry requires named Series inputs")
+_series_entries = []
+for _series_port, _series_item in _series_inputs.items():
+    if not str(_series_port).startswith("series"): continue
+    try: _series_order = int(str(_series_port)[6:])
+    except ValueError as exc: raise ValueError(f"Invalid Series Registry input port: {_series_port}") from exc
+    if not isinstance(_series_item, dict): raise ValueError(f"Series Registry input {_series_port} must be a Series object")
+    _series_entries.append((_series_order, _series_item))
+_series_expected = int(${params}.get("seriesCount", len(_series_entries) or 1))
+_series_entries.sort(key=lambda item: item[0])
+if len(_series_entries) != _series_expected: raise ValueError(f"Series Registry requires {_series_expected} connected Series inputs")
+${name} = [dict(item) for _, item in _series_entries]`;
   if (type === "plot.line") return `_series_raw = ${params}.get("seriesConfig", "")
 _series = json.loads(_series_raw) if isinstance(_series_raw, str) and _series_raw.strip() else (_series_raw or [])
 _x_column = _column(${input}, ${params}.get("xColumn")) if str(${params}.get("xColumn", "")).strip() else None
@@ -1680,16 +1826,49 @@ import matplotlib.pyplot as plt
 # 修改为本机文件；批量节点会读取列表中的全部 CSV。
 input_files = [Path("replace-with-data.csv")]
 
+def _column_reference_items(raw):
+    if raw is None: return []
+    if isinstance(raw, (list, tuple, np.ndarray, pd.Index)): return list(raw)
+    if isinstance(raw, (int, float, np.integer, np.floating)) and not isinstance(raw, (bool, np.bool_)): return [raw]
+    text = str(raw).strip()
+    if not text: return []
+    if text.startswith("["):
+        parsed = json.loads(text)
+        if not isinstance(parsed, list): raise ValueError("Column references must be a JSON array or comma-separated values")
+        return parsed
+    return [item.strip() for item in text.split(",") if item.strip()]
+
+def _column_index(raw):
+    if isinstance(raw, (bool, np.bool_)): raise ValueError(f"Invalid column index: {raw}")
+    value = float(raw)
+    if not np.isfinite(value) or not value.is_integer(): raise ValueError(f"Invalid column index: {raw}")
+    return int(value)
+
 def _columns(raw):
-    if raw is None or str(raw).strip() == "": return None
-    return [int(item) if str(item).strip().lstrip("-").isdigit() else str(item).strip() for item in str(raw).split(",")]
+    items = _column_reference_items(raw)
+    if not items: return None
+    output = []
+    for item in items:
+        try: output.append(_column_index(item))
+        except (TypeError, ValueError): output.append(str(item).strip())
+    return output
 
 def _column(frame, raw):
-    if raw is None or str(raw).strip() == "": return None
-    return frame.columns[int(raw)] if str(raw).lstrip("-").isdigit() else raw
+    text = str(raw).strip()
+    if not text: return None
+    if raw in frame.columns: return raw
+    if text in frame.columns: return text
+    try: index = _column_index(raw)
+    except (TypeError, ValueError) as exc: raise ValueError(f"Unknown column: {text}") from exc
+    if index < 0 or index >= len(frame.columns): raise ValueError(f"Column index out of range: {index}")
+    return frame.columns[index]
 
 def _column_names(frame, raw):
-    return [_column(frame, item.strip()) for item in str(raw).split(",") if item.strip()]
+    return [_column(frame, item) for item in _column_reference_items(raw)]
+
+def _generic_bool(raw):
+    if isinstance(raw, str): return raw.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(raw)
 
 def _generic_truthy(value):
     if value is None: return False
@@ -1773,6 +1952,7 @@ export function serializeWorkflowNotebook(name: string, nodes: WorkflowNode[], e
 # pydroid-tags: ${(node.data.tags ?? []).join(",")}
 # pydroid-structure: ${JSON.stringify(structure)}
 ${name}_params = ${pythonLiteral(node.data.parameters)}
+${parameterSocketBindingCode(node.id, edges, nodes)}
 
 ${operationCode(node, edges, nodes)}`;
     }),

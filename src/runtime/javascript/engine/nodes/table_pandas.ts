@@ -24,6 +24,32 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
       const value = table().selectColumns(parseColumns(params.columns, table().columns.length));
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
+    case "table.column_math": {
+      const frame = table();
+      const columns = resolveColumns(frame, params.columns);
+      if (!columns.length) throw new Error("Column math requires at least one target column");
+      const operation = String(params.operation ?? "multiply");
+      if (!["add", "subtract", "multiply", "divide", "power", "absolute", "negate"].includes(operation)) {
+        throw new Error(`Unsupported column math operation: ${operation}`);
+      }
+      const operand = Number(params.operand ?? 1);
+      if (!Number.isFinite(operand)) throw new Error("Column math operand must be finite");
+      if (operation === "divide" && operand === 0) throw new Error("Column math cannot divide by zero");
+      const selected = new Set(columns.map((column) => frame.columnIndex(column)));
+      const value = new Table(frame.columns, frame.rows().map((row) => row.map((cell, columnIndex) => {
+        if (!selected.has(columnIndex) || isMissing(cell)) return cell;
+        const number = toNumber(cell);
+        if (number === null) throw new Error(`Column math requires numeric values in ${frame.columns[columnIndex]}`);
+        if (operation === "add") return number + operand;
+        if (operation === "subtract") return number - operand;
+        if (operation === "multiply") return number * operand;
+        if (operation === "divide") return number / operand;
+        if (operation === "power") return number ** operand;
+        if (operation === "absolute") return Math.abs(number);
+        return -number;
+      })));
+      return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
+    }
     case "table.absolute": {
       const value = table().abs();
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };

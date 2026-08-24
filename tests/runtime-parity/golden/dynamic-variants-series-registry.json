@@ -1,0 +1,399 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "demo_17_column_math_pipeline",
+      "description": "Demo 17 · 动态列运算流水线",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 17 · 动态列运算流水线",
+        "nodes": [
+          {
+            "id": "random",
+            "type": "workflow",
+            "position": {
+              "x": 60,
+              "y": 120
+            },
+            "data": {
+              "label": "随机数据",
+              "nodeType": "generate.random_table",
+              "nodeVersion": 1,
+              "parameters": {
+                "count": 8,
+                "distribution": "uniform",
+                "min": -2,
+                "max": 2,
+                "mean": 0,
+                "std": 1,
+                "seed": 17,
+                "indexColumn": "index",
+                "valueColumn": "value"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "factor",
+            "type": "workflow",
+            "position": {
+              "x": 100,
+              "y": 420
+            },
+            "data": {
+              "label": "1 + 1 → 标量",
+              "nodeType": "math.operation",
+              "nodeVersion": 1,
+              "parameters": {
+                "operation": "add",
+                "a": 1,
+                "b": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "scale",
+            "type": "workflow",
+            "position": {
+              "x": 500,
+              "y": 100
+            },
+            "data": {
+              "label": "value × 动态标量",
+              "nodeType": "table.column_math",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "value",
+                "operation": "multiply",
+                "operand": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "absolute",
+            "type": "workflow",
+            "position": {
+              "x": 930,
+              "y": 100
+            },
+            "data": {
+              "label": "value 绝对值",
+              "nodeType": "table.column_math",
+              "nodeVersion": 1,
+              "parameters": {
+                "columns": "value",
+                "operation": "absolute",
+                "operand": 1
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "type": "workflow",
+            "position": {
+              "x": 1360,
+              "y": 100
+            },
+            "data": {
+              "label": "处理结果",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "index",
+                "yColumns": "value",
+                "title": "Column Math Pipeline",
+                "xLabel": "index",
+                "yLabel": "|2 × value|",
+                "legend": true,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 1.5,
+                "seriesConfig": "",
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "random",
+            "sourceHandle": "output",
+            "target": "scale",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e2",
+            "source": "factor",
+            "sourceHandle": "output",
+            "target": "scale",
+            "targetHandle": "operand"
+          },
+          {
+            "id": "e3",
+            "source": "scale",
+            "sourceHandle": "output",
+            "target": "absolute",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e4",
+            "source": "absolute",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "input"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    },
+    {
+      "id": "demo_18_series_registry",
+      "description": "Demo 18 · Series Registry",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Demo 18 · Series Registry",
+        "nodes": [
+          {
+            "id": "drain",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 80
+            },
+            "data": {
+              "label": "Drain Waveform",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 4,
+                "lowVoltage": 0,
+                "highTime": 0.5,
+                "lowTime": 0.5,
+                "repeatCount": 2,
+                "startLevel": "high",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "gate",
+            "type": "workflow",
+            "position": {
+              "x": 40,
+              "y": 340
+            },
+            "data": {
+              "label": "Gate Waveform",
+              "nodeType": "pulse.generate_square_waveform",
+              "nodeVersion": 1,
+              "parameters": {
+                "highVoltage": 1,
+                "lowVoltage": -1,
+                "highTime": 0.5,
+                "lowTime": 0.5,
+                "repeatCount": 2,
+                "startLevel": "low",
+                "timeStart": 0,
+                "totalTime": 0
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "combine",
+            "type": "workflow",
+            "position": {
+              "x": 470,
+              "y": 180
+            },
+            "data": {
+              "label": "Drain + Gate",
+              "nodeType": "pulse.combine_channels",
+              "nodeVersion": 1,
+              "parameters": {
+                "inputMode": "channels",
+                "channelCount": 2,
+                "channelNames": "Drain,Gate",
+                "timeColumn": "time_s",
+                "voltageColumn": "voltage_V"
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "drain-series",
+            "type": "workflow",
+            "position": {
+              "x": 850,
+              "y": 420
+            },
+            "data": {
+              "label": "Drain Series",
+              "nodeType": "plot.series",
+              "nodeVersion": 1,
+              "parameters": {
+                "y": "Drain_V",
+                "label": "Drain",
+                "lineStyle": "-",
+                "marker": "o",
+                "lineWidth": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "gate-series",
+            "type": "workflow",
+            "position": {
+              "x": 850,
+              "y": 660
+            },
+            "data": {
+              "label": "Gate Series",
+              "nodeType": "plot.series",
+              "nodeVersion": 1,
+              "parameters": {
+                "y": "Gate_V",
+                "label": "Gate",
+                "lineStyle": "--",
+                "marker": "s",
+                "lineWidth": 1.5
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "registry",
+            "type": "workflow",
+            "position": {
+              "x": 1240,
+              "y": 500
+            },
+            "data": {
+              "label": "2 Series",
+              "nodeType": "plot.series_registry",
+              "nodeVersion": 1,
+              "parameters": {
+                "seriesCount": 2
+              },
+              "status": "idle"
+            }
+          },
+          {
+            "id": "plot",
+            "type": "workflow",
+            "position": {
+              "x": 1650,
+              "y": 180
+            },
+            "data": {
+              "label": "Registry Plot",
+              "nodeType": "plot.line",
+              "nodeVersion": 1,
+              "parameters": {
+                "xColumn": "time_s",
+                "yColumns": "Drain_V,Gate_V",
+                "title": "Series Registry",
+                "xLabel": "time (s)",
+                "yLabel": "Voltage (V)",
+                "legend": true,
+                "grid": true,
+                "logX": false,
+                "logY": false,
+                "scientificNotation": true,
+                "lineStyle": "-",
+                "marker": "",
+                "lineWidth": 1.5,
+                "seriesConfig": "",
+                "figureWidth": 8,
+                "figureHeight": 4.5,
+                "dpi": 120
+              },
+              "status": "idle"
+            }
+          }
+        ],
+        "edges": [
+          {
+            "id": "e1",
+            "source": "drain",
+            "sourceHandle": "output",
+            "target": "combine",
+            "targetHandle": "channel1"
+          },
+          {
+            "id": "e2",
+            "source": "gate",
+            "sourceHandle": "output",
+            "target": "combine",
+            "targetHandle": "channel2"
+          },
+          {
+            "id": "e3",
+            "source": "drain-series",
+            "sourceHandle": "output",
+            "target": "registry",
+            "targetHandle": "series1"
+          },
+          {
+            "id": "e4",
+            "source": "gate-series",
+            "sourceHandle": "output",
+            "target": "registry",
+            "targetHandle": "series2"
+          },
+          {
+            "id": "e5",
+            "source": "combine",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "input"
+          },
+          {
+            "id": "e6",
+            "source": "registry",
+            "sourceHandle": "output",
+            "target": "plot",
+            "targetHandle": "seriesConfig"
+          }
+        ],
+        "functions": [],
+        "requirements": [],
+        "environment": {
+          "sourceLanguage": "portable",
+          "pythonImports": [],
+          "pythonDefinitions": []
+        },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success"
+      }
+    }
+  ]
+}

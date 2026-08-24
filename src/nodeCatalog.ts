@@ -34,19 +34,25 @@ export type ParameterSpec = {
   rememberDefault?: boolean;
 };
 
-export type RepeatedInputPortSpec = {
-  countParameter: string;
-  idPrefix: string;
-  labelPrefix: string;
-  valueType: ValueType;
-  required?: boolean;
-  min?: number;
-  max?: number;
-  when?: Record<string, string | number | boolean | null>;
+export type NodeConditionValue = string | number | boolean | null | Array<string | number | boolean | null>;
+
+export type InputPortGroupSpec = {
+  id: string;
+  when?: Record<string, NodeConditionValue>;
+  ports?: PortSpec[];
+  repeat?: {
+    countParameter: string;
+    idPrefix: string;
+    labelPrefix: string;
+    valueType: ValueType;
+    required?: boolean;
+    min?: number;
+    max?: number;
+  };
 };
 
-export type DynamicNodeVariant = {
-  when: Record<string, string | number | boolean | null>;
+export type NodeVariant = {
+  when: Record<string, NodeConditionValue>;
   inputPorts?: PortSpec[];
   outputPorts?: PortSpec[];
   parameterPatches?: Record<string, Partial<ParameterSpec>>;
@@ -82,8 +88,8 @@ export type NodeSpec = {
   stateAccess?: NodeStateAccess;
   functionRole?: NodeFunctionRole;
   ui?: NodeUiSpec;
-  dynamicVariants?: DynamicNodeVariant[];
-  repeatedInputPorts?: RepeatedInputPortSpec[];
+  variants?: NodeVariant[];
+  inputPortGroups?: InputPortGroupSpec[];
 };
 
 const TABLE_INPUT: PortSpec[] = [{ id: "input", label: "表格", valueType: "table", required: true }];
@@ -275,9 +281,8 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "valueColumn", label: "数值列名", kind: "text", required: true },
     ],
     ui: { inlineParameters: ["distribution"], inlineParameterLabels: { distribution: null }, inlineLayout: "row" },
-    dynamicVariants: [
-      { when: { distribution: "uniform" }, hiddenParameters: ["mean", "std"] },
-      { when: { distribution: "integer" }, hiddenParameters: ["mean", "std"] },
+    variants: [
+      { when: { distribution: ["uniform", "integer"] }, hiddenParameters: ["mean", "std"] },
       { when: { distribution: "normal" }, inputPorts: [
         { id: "count", label: "Count", valueType: "number", defaultParameter: "count" },
         { id: "mean", label: "Mean", valueType: "number", defaultParameter: "mean" },
@@ -393,11 +398,11 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "prefixSeparator", label: "前缀分隔符", kind: "text", placeholder: "_" },
     ],
     ui: { inlineParameters: ["inputMode", "inputCount"], inlineParameterLabels: { inputMode: null, inputCount: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { inputMode: "list" }, inputPorts: [{ id: "tables", label: "表格列表", valueType: "list", required: true }, { id: "metadata", label: "文件元数据", valueType: "table" }], hiddenParameters: ["inputCount"] },
       { when: { inputMode: "ports" }, inputPorts: [{ id: "metadata", label: "文件元数据", valueType: "table" }] },
     ],
-    repeatedInputPorts: [{ countParameter: "inputCount", idPrefix: "table", labelPrefix: "Table", valueType: "table", required: true, min: 2, max: 16, when: { inputMode: "ports" } }],
+    inputPortGroups: [{ id: "tables", when: { inputMode: "ports" }, repeat: { countParameter: "inputCount", idPrefix: "table", labelPrefix: "Table", valueType: "table", required: true, min: 2, max: 16 } }],
   },
   {
     nodeType: "table.select_columns", runtimeSupport: ["python", "javascript"],
@@ -410,6 +415,36 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
     outputPorts: TABLE_OUTPUT,
     parameters: [{ key: "columns", label: "列序号", kind: "text", placeholder: "0,1,2", description: "使用英文逗号分隔；留空表示保留所有列。" }],
+  },
+  {
+    nodeType: "table.column_math", runtimeSupport: ["python", "javascript"],
+    label: "列运算",
+    description: "对选定数值列执行统一标量运算；多个列运算节点可直接串联成清晰的数据处理流水线。",
+    tags: ["column", "列", "运算", "scale", "offset", "multiply", "power"],
+    category: "表格处理",
+    defaults: { columns: "0", operation: "multiply", operand: 1 },
+    inputPorts: [
+      { id: "input", label: "表格", valueType: "table", required: true },
+      { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+      { id: "operand", label: "Value", valueType: "number", defaultParameter: "operand" },
+    ],
+    outputPorts: TABLE_OUTPUT,
+    parameters: [
+      { key: "columns", label: "目标列", kind: "text", required: true, placeholder: "0,1 或 voltage,current" },
+      { key: "operation", label: "运算", kind: "select", options: [
+        { label: "加", value: "add" }, { label: "减", value: "subtract" }, { label: "乘", value: "multiply" },
+        { label: "除", value: "divide" }, { label: "乘方", value: "power" },
+        { label: "绝对值", value: "absolute" }, { label: "取负", value: "negate" },
+      ] },
+      { key: "operand", label: "标量", kind: "number" },
+    ],
+    ui: { inlineParameters: ["operation"], inlineParameterLabels: { operation: null }, inlineLayout: "row" },
+    variants: [
+      { when: { operation: ["absolute", "negate"] }, inputPorts: [
+        { id: "input", label: "表格", valueType: "table", required: true },
+        { id: "columns", label: "Columns", valueType: "any", defaultParameter: "columns" },
+      ], hiddenParameters: ["operand"] },
+    ],
   },
   {
     nodeType: "table.absolute", runtimeSupport: ["python", "javascript"],
@@ -664,7 +699,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "aggregations", label: "按列聚合", kind: "textarea", placeholder: '{"current":["mean","std"],"voltage":"max"}', description: "JSON 对象。键为列名或列序号，值为聚合方法或方法数组。" },
     ],
     ui: { inlineParameters: ["aggregateMode", "method"], inlineParameterLabels: { aggregateMode: null, method: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { aggregateMode: "single" }, hiddenParameters: ["aggregations"] },
       { when: { aggregateMode: "multi" }, inputPorts: [{ id: "input", label: "表格", valueType: "table", required: true }, { id: "groupBy", label: "Group By", valueType: "any", defaultParameter: "groupBy" }, { id: "aggregations", label: "Aggregations", valueType: "any", defaultParameter: "aggregations" }], hiddenParameters: ["method"] },
     ],
@@ -697,9 +732,8 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "value", label: "填充值", kind: "text", description: "数字会自动转换；其他内容按文本填充。" },
     ],
     ui: { inlineParameters: ["method"], inlineParameterLabels: { method: null }, inlineLayout: "row" },
-    dynamicVariants: [
-      { when: { method: "forward" }, inputPorts: TABLE_INPUT, hiddenParameters: ["value"] },
-      { when: { method: "backward" }, inputPorts: TABLE_INPUT, hiddenParameters: ["value"] },
+    variants: [
+      { when: { method: ["forward", "backward"] }, inputPorts: TABLE_INPUT, hiddenParameters: ["value"] },
     ],
   },
   {
@@ -844,7 +878,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "b", label: "B 默认值", kind: "number" },
     ],
     ui: { inlineParameters: ["valueType", "operation"], inlineParameterLabels: { valueType: null, operation: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { valueType: "number" }, inputPorts: [{ id: "a", label: "A", valueType: "number", defaultParameter: "a" }, { id: "b", label: "B", valueType: "number", defaultParameter: "b" }], parameterPatches: { a: { kind: "number" }, b: { kind: "number" }, operation: { options: [{ label: ">", value: "greater" }, { label: ">=", value: "greaterEqual" }, { label: "<", value: "less" }, { label: "<=", value: "lessEqual" }, { label: "=", value: "equal" }, { label: "!=", value: "notEqual" }] } } },
       { when: { valueType: "text" }, inputPorts: [{ id: "a", label: "A", valueType: "text", defaultParameter: "a" }, { id: "b", label: "B", valueType: "text", defaultParameter: "b" }], parameterPatches: { a: { kind: "text" }, b: { kind: "text" }, operation: { options: [{ label: "=", value: "equal" }, { label: "!=", value: "notEqual" }, { label: "包含", value: "contains" }, { label: "开头是", value: "startsWith" }, { label: "结尾是", value: "endsWith" }] } } },
       { when: { valueType: "boolean" }, inputPorts: [{ id: "a", label: "A", valueType: "boolean", defaultParameter: "a" }, { id: "b", label: "B", valueType: "boolean", defaultParameter: "b" }], parameterPatches: { a: { kind: "boolean" }, b: { kind: "boolean" }, operation: { options: [{ label: "=", value: "equal" }, { label: "!=", value: "notEqual" }] } } },
@@ -870,7 +904,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "trueValue", label: "True 默认值", kind: "number" },
     ],
     ui: { inlineParameters: ["valueType"], inlineParameterLabels: { valueType: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { valueType: "any" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "any", required: true }, { id: "true", label: "True", valueType: "any", required: true }], outputPorts: [{ id: "output", label: "Result", valueType: "any" }], hiddenParameters: ["falseValue", "trueValue"] },
       { when: { valueType: "number" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "number", defaultParameter: "falseValue" }, { id: "true", label: "True", valueType: "number", defaultParameter: "trueValue" }], outputPorts: [{ id: "output", label: "Result", valueType: "number" }], parameterPatches: { falseValue: { kind: "number" }, trueValue: { kind: "number" } } },
       { when: { valueType: "text" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "text", defaultParameter: "falseValue" }, { id: "true", label: "True", valueType: "text", defaultParameter: "trueValue" }], outputPorts: [{ id: "output", label: "Result", valueType: "text" }], parameterPatches: { falseValue: { kind: "text" }, trueValue: { kind: "text" } } },
@@ -902,10 +936,8 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "b", label: "B 默认值", kind: "number" },
     ],
     ui: { inlineParameters: ["operation"], inlineParameterLabels: { operation: null }, inlineLayout: "row" },
-    dynamicVariants: [
-      { when: { operation: "absolute" }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
-      { when: { operation: "negate" }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
-      { when: { operation: "sqrt" }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
+    variants: [
+      { when: { operation: ["absolute", "negate", "sqrt"] }, inputPorts: [{ id: "a", label: "Value", valueType: "number", defaultParameter: "a" }], hiddenParameters: ["b"] },
     ],
   },
   {
@@ -926,7 +958,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "b", label: "B 默认值", kind: "boolean" },
     ],
     ui: { inlineParameters: ["operation"], inlineParameterLabels: { operation: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { operation: "not" }, inputPorts: [{ id: "a", label: "Value", valueType: "boolean", defaultParameter: "a" }], hiddenParameters: ["b"] },
     ],
   },
@@ -982,7 +1014,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "maxIterations", label: "最大迭代次数", kind: "number", min: 1, max: 10000, step: 1 },
     ],
     ui: { inlineParameters: ["conditionMode"], inlineParameterLabels: { conditionMode: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { conditionMode: "truthy" }, hiddenParameters: ["condition"] },
       { when: { conditionMode: "notEmpty" }, hiddenParameters: ["condition"] },
     ],
@@ -1126,11 +1158,11 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "voltageColumn", label: "电压列", kind: "text", required: true },
     ],
     ui: { inlineParameters: ["inputMode", "channelCount"], inlineParameterLabels: { inputMode: null, channelCount: null }, inlineLayout: "row" },
-    dynamicVariants: [
+    variants: [
       { when: { inputMode: "vds" }, inputPorts: [{ id: "drain", label: "Vd 波形", valueType: "table" }, { id: "source", label: "Vs 波形", valueType: "table" }, { id: "gate", label: "Vg 波形", valueType: "table" }], hiddenParameters: ["channelCount", "channelNames"] },
       { when: { inputMode: "channels" }, inputPorts: [] },
     ],
-    repeatedInputPorts: [{ countParameter: "channelCount", idPrefix: "channel", labelPrefix: "Channel", valueType: "table", min: 1, max: 12, when: { inputMode: "channels" } }],
+    inputPortGroups: [{ id: "channels", when: { inputMode: "channels" }, repeat: { countParameter: "channelCount", idPrefix: "channel", labelPrefix: "Channel", valueType: "table", min: 1, max: 12 } }],
   },
   {
     nodeType: "pulse.segment_measurement", runtimeSupport: ["python", "javascript"],
@@ -1248,6 +1280,44 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [{ id: "previous", label: "顺序（可选）", valueType: "any", required: false }],
     outputPorts: [{ id: "output", label: "变量值", valueType: "any" }],
     parameters: [{ key: "name", label: "变量名", kind: "text", required: true, placeholder: "workspace_value", description: "工作区变量不会跨标签页或 Remote Web 客户端共享。" }],
+  },
+  {
+    nodeType: "plot.series", runtimeSupport: ["python", "javascript"],
+    label: "Series",
+    description: "声明一条曲线的列与显示属性；输出可交给 Series Registry 统一组合。",
+    tags: ["plot", "series", "curve", "曲线", "图例"],
+    category: "绘图",
+    defaults: { y: "1", label: "", lineStyle: "-", marker: "", lineWidth: 1.5 },
+    inputPorts: [
+      { id: "y", label: "Y", valueType: "any", defaultParameter: "y" },
+      { id: "lineWidth", label: "Width", valueType: "number", defaultParameter: "lineWidth" },
+    ],
+    outputPorts: [{ id: "output", label: "Series", valueType: "object" }],
+    parameters: [
+      { key: "y", label: "Y 列", kind: "text", required: true, placeholder: "current 或 1" },
+      { key: "label", label: "图例名称", kind: "text", placeholder: "留空使用列名" },
+      { key: "lineStyle", label: "线型", kind: "select", options: [
+        { label: "实线", value: "-" }, { label: "虚线", value: "--" }, { label: "点划线", value: "-." }, { label: "点线", value: ":" },
+      ] },
+      { key: "marker", label: "数据点", kind: "select", options: [
+        { label: "无", value: "" }, { label: "圆形", value: "o" }, { label: "方形", value: "s" }, { label: "三角形", value: "^" }, { label: "点", value: "." },
+      ] },
+      { key: "lineWidth", label: "线宽", kind: "number", min: 0.5, max: 20, step: 0.5 },
+    ],
+    ui: { inlineParameters: ["lineStyle", "marker"], inlineParameterLabels: { lineStyle: null, marker: null }, inlineLayout: "row" },
+  },
+  {
+    nodeType: "plot.series_registry", runtimeSupport: ["python", "javascript"],
+    label: "Series Registry",
+    description: "按确定顺序收集多条 Series 声明，作为折线图的结构化曲线配置。",
+    tags: ["plot", "series", "registry", "多曲线", "图例"],
+    category: "绘图",
+    defaults: { seriesCount: 3 },
+    inputPorts: [],
+    outputPorts: [{ id: "output", label: "Series List", valueType: "list" }],
+    parameters: [{ key: "seriesCount", label: "曲线数量", kind: "number", min: 1, max: 16, step: 1 }],
+    ui: { inlineParameters: ["seriesCount"], inlineParameterLabels: { seriesCount: null }, inlineLayout: "row" },
+    inputPortGroups: [{ id: "series", repeat: { countParameter: "seriesCount", idPrefix: "series", labelPrefix: "Series", valueType: "object", required: true, min: 1, max: 16 } }],
   },
   {
     nodeType: "plot.line", runtimeSupport: ["python", "javascript"],

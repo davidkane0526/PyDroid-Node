@@ -14,6 +14,8 @@ import dynamicPulsePlot from "../examples/demo-13-dynamic-pulse-plot.workflow.js
 import dynamicMultiInputConcat from "../examples/demo-14-dynamic-multi-input-concat.workflow.json?raw";
 import groupbyMultiSeries from "../examples/demo-15-groupby-multi-series.workflow.json?raw";
 import dynamicPulseChannels from "../examples/demo-16-dynamic-pulse-channels.workflow.json?raw";
+import columnMathPipeline from "../examples/demo-17-column-math-pipeline.workflow.json?raw";
+import seriesRegistry from "../examples/demo-18-series-registry.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -118,5 +120,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 16 · 动态 Pulse 多通道",
     description: "合并节点按通道数量生成 Socket，并将四路独立波形对齐为一张多通道表。",
     document: dynamicPulseChannels,
+  },
+  {
+    id: "column-math-pipeline",
+    label: "Demo 17 · 动态列运算流水线",
+    description: "Math 动态驱动列运算标量，并串联乘法与绝对值节点处理表格列。",
+    document: columnMathPipeline,
+  },
+  {
+    id: "series-registry",
+    label: "Demo 18 · Series Registry",
+    description: "两条 Series 声明通过动态 Socket Group 汇入 Registry，再结构化驱动折线图。",
+    document: seriesRegistry,
   },
 ] as const;

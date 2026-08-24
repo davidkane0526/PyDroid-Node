@@ -20,6 +20,8 @@ const files = [
   "demo-14-dynamic-multi-input-concat.workflow.json",
   "demo-15-groupby-multi-series.workflow.json",
   "demo-16-dynamic-pulse-channels.workflow.json",
+  "demo-17-column-math-pipeline.workflow.json",
+  "demo-18-series-registry.workflow.json",
 ];
 
 let failed = 0;

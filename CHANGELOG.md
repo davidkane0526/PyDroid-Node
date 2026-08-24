@@ -1,3 +1,14 @@
+## 1.6.21 (161) — Node variants, input port groups and Series Registry — 2026-08-25
+
+- Generalized the dynamic NodeSpec layer: `dynamicVariants` is now the reusable `variants` contract, variant conditions can match a scalar or a declared value set, and repeated sockets are represented by `inputPortGroups`. Existing Compare/Math/random/fill, Concat and Pulse behavior is migrated to the shared contracts instead of maintaining feature-specific dynamic-port mechanisms.
+- Added `table.column_math`, a chainable dynamic column transform for Add/Subtract/Multiply/Divide/Power/Absolute/Negate. Column selection follows the shared name/integral-index contract and unary operations remove the unused operand Socket declaratively.
+- Added structured `plot.series` and `plot.series_registry` nodes. Series descriptors carry Y column, optional label, line style, marker and width; Registry exposes a deterministic 1–16 Series port group and feeds the existing Line Plot `seriesConfig` parameter without a plot-runtime special bridge.
+- Made Workflow→Notebook export honor the same generic parameter-Socket semantics as the main runtimes and Workflow Functions: connected parameter sockets override the generated `_params` dictionary while ordinary data inputs stay separate, and named single-port groups remain named maps rather than collapsing to anonymous scalar input.
+- Updated Notebook column-reference helpers to accept names, integral numeric values, lists/arrays and JSON/comma-separated references consistently with the runtime contract; Notebook export now includes Column Math, Compare/Switch, Math/Boolean Math and structured Series/Registry code paths.
+- Split Column Math into `engine_parts/table_column_math.py` after the architecture guard caught `table_pandas.py` exceeding its existing 260-line domain limit; the handler is back to 237 lines without relaxing the guard.
+- Added runnable Demo 17 for a chained dynamic column-math pipeline and Demo 18 for `Series → Series Registry → Line Plot`. Both are Python/JavaScript parity fixtures and are now included in the built-in Demo smoke registry.
+- Build revision: `1.6.21-dev-r113-node-variants-series-registry`.
+
 ## 1.6.20 (160) — Dynamic repeated sockets, multi-aggregate GroupBy and plot series — 2026-08-24
 
 - Added a reusable `repeatedInputPorts` NodeSpec contract. Repeated sockets are derived deterministically from an ordinary numeric parameter and optional mode condition, so the editor, validation and runtimes share one resolved port contract instead of hard-coded UI-only ports.

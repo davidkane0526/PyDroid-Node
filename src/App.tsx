@@ -478,7 +478,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const inspectorParameterCount = (spec?.parameters ?? []).filter((parameter) => !inlineOwnedParameterKeys.has(parameter.key)).length;
   const inputDefaultSpecs = inputPorts.map((port) => port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
   const hasInlineSocketDefaults = inputDefaultSpecs.length > 0;
-  const hasDynamicUi = Boolean(hasInlineSocketDefaults || inlineParameters.length || spec?.dynamicVariants?.length);
+  const hasDynamicUi = Boolean(hasInlineSocketDefaults || inlineParameters.length || (spec?.variants?.length || spec?.inputPortGroups?.length));
   const labelUnits = visualTextUnits(data.label);
   const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
   const longestInputPortUnits = Math.max(0, ...inputPorts.map((port) => visualTextUnits(port.label ?? "")));

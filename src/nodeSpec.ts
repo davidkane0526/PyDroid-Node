@@ -1,11 +1,11 @@
 import { parsePythonFunctionSignature } from "./customNode";
-import type { NodeSpec, ParameterSpec, PortSpec } from "./nodeCatalog";
+import type { NodeConditionValue, NodeSpec, ParameterSpec, PortSpec } from "./nodeCatalog";
 
 function matchesVariant(
-  when: Record<string, string | number | boolean | null>,
+  when: Record<string, NodeConditionValue>,
   parameters: Record<string, unknown>,
 ): boolean {
-  return Object.entries(when).every(([key, expected]) => parameters[key] === expected);
+  return Object.entries(when).every(([key, expected]) => Array.isArray(expected) ? expected.includes(parameters[key] as string | number | boolean | null) : parameters[key] === expected);
 }
 
 function applyParameterPatches(
@@ -17,10 +17,13 @@ function applyParameterPatches(
 }
 
 
-function repeatedInputPorts(base: NodeSpec, parameters: Record<string, unknown>): PortSpec[] {
+function inputPortGroups(base: NodeSpec, parameters: Record<string, unknown>): PortSpec[] {
   const ports: PortSpec[] = [];
-  for (const repeat of base.repeatedInputPorts ?? []) {
-    if (repeat.when && !matchesVariant(repeat.when, parameters)) continue;
+  for (const group of base.inputPortGroups ?? []) {
+    if (group.when && !matchesVariant(group.when, parameters)) continue;
+    ports.push(...(group.ports ?? []));
+    const repeat = group.repeat;
+    if (!repeat) continue;
     const raw = Number(parameters[repeat.countParameter] ?? repeat.min ?? 1);
     const minimum = Math.max(1, Math.trunc(repeat.min ?? 1));
     const maximum = Math.max(minimum, Math.trunc(repeat.max ?? 32));
@@ -50,7 +53,7 @@ export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<s
 
   const effectiveParameters: Record<string, unknown> = { ...base.defaults, ...parameters };
   let resolved = base;
-  for (const variant of base.dynamicVariants ?? []) {
+  for (const variant of base.variants ?? []) {
     if (!matchesVariant(variant.when, effectiveParameters)) continue;
     const hidden = new Set(variant.hiddenParameters ?? []);
     resolved = {
@@ -61,8 +64,8 @@ export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<s
     };
   }
 
-  const repeated = repeatedInputPorts(base, effectiveParameters);
-  if (repeated.length) resolved = { ...resolved, inputPorts: [...resolved.inputPorts, ...repeated] };
+  const groupedPorts = inputPortGroups(base, effectiveParameters);
+  if (groupedPorts.length) resolved = { ...resolved, inputPorts: [...resolved.inputPorts, ...groupedPorts] };
 
   if (base.nodeType !== "custom.python_function") return resolved;
   const signature = parsePythonFunctionSignature(String(effectiveParameters.code ?? ""));

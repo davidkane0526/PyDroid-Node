@@ -1325,3 +1325,52 @@ def test_logic_expression_python_reference_uses_short_circuit_floor_mod_and_powe
     assert _logic_expression("value % 2", -5, 0) == 1
     assert _logic_expression("value ** 2", -5, 0) == 25
     assert _logic_expression("value != 0 and 1 / value > 0.1", 0, 0) is False
+
+
+def test_column_math_supports_dynamic_scalar_and_unary_operations():
+    frame = pd.DataFrame({"x": [1.0, -2.0, 3.0], "y": [10.0, 20.0, 30.0]})
+    scaled, table_result, _, _ = _execute_node(
+        "table.column_math",
+        {"columns": "x", "operation": "multiply", "operand": 2},
+        frame,
+        "",
+        [],
+    )
+    assert table_result is scaled["output"]
+    assert scaled["output"]["x"].tolist() == [2.0, -4.0, 6.0]
+    assert scaled["output"]["y"].tolist() == [10.0, 20.0, 30.0]
+
+    absolute, _, _, _ = _execute_node(
+        "table.column_math",
+        {"columns": "x", "operation": "absolute", "operand": 999},
+        scaled["output"],
+        "",
+        [],
+    )
+    assert absolute["output"]["x"].tolist() == [2.0, 4.0, 6.0]
+
+
+def test_series_registry_preserves_declared_socket_order():
+    drain = _execute_node(
+        "plot.series",
+        {"y": "Drain_V", "label": "Drain", "lineStyle": "-", "marker": "o", "lineWidth": 2},
+        None,
+        "",
+        [],
+    )[0]["output"]
+    gate = _execute_node(
+        "plot.series",
+        {"y": "Gate_V", "label": "Gate", "lineStyle": "--", "marker": "s", "lineWidth": 1.5},
+        None,
+        "",
+        [],
+    )[0]["output"]
+    registry, _, _, _ = _execute_node(
+        "plot.series_registry",
+        {"seriesCount": 2},
+        {"series2": gate, "series1": drain},
+        "",
+        [],
+    )
+    assert [item["y"] for item in registry["output"]] == ["Drain_V", "Gate_V"]
+    assert [item["label"] for item in registry["output"]] == ["Drain", "Gate"]
