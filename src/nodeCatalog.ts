@@ -44,6 +44,8 @@ export type DynamicNodeVariant = {
 
 export type NodeUiSpec = {
   inlineParameters?: string[];
+  inlineParameterLabels?: Record<string, string | null>;
+  inlineLayout?: "stack" | "row";
 };
 
 export type NodeSpec = {
@@ -760,7 +762,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "a", label: "A 默认值", kind: "number" },
       { key: "b", label: "B 默认值", kind: "number" },
     ],
-    ui: { inlineParameters: ["valueType", "operation"] },
+    ui: { inlineParameters: ["valueType", "operation"], inlineParameterLabels: { valueType: null, operation: null }, inlineLayout: "row" },
     dynamicVariants: [
       { when: { valueType: "number" }, inputPorts: [{ id: "a", label: "A", valueType: "number", defaultParameter: "a" }, { id: "b", label: "B", valueType: "number", defaultParameter: "b" }], parameterPatches: { a: { kind: "number" }, b: { kind: "number" }, operation: { options: [{ label: ">", value: "greater" }, { label: ">=", value: "greaterEqual" }, { label: "<", value: "less" }, { label: "<=", value: "lessEqual" }, { label: "=", value: "equal" }, { label: "!=", value: "notEqual" }] } } },
       { when: { valueType: "text" }, inputPorts: [{ id: "a", label: "A", valueType: "text", defaultParameter: "a" }, { id: "b", label: "B", valueType: "text", defaultParameter: "b" }], parameterPatches: { a: { kind: "text" }, b: { kind: "text" }, operation: { options: [{ label: "=", value: "equal" }, { label: "!=", value: "notEqual" }, { label: "包含", value: "contains" }, { label: "开头是", value: "startsWith" }, { label: "结尾是", value: "endsWith" }] } } },
@@ -786,7 +788,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "falseValue", label: "False 默认值", kind: "number" },
       { key: "trueValue", label: "True 默认值", kind: "number" },
     ],
-    ui: { inlineParameters: ["valueType"] },
+    ui: { inlineParameters: ["valueType"], inlineParameterLabels: { valueType: null }, inlineLayout: "row" },
     dynamicVariants: [
       { when: { valueType: "any" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "any", required: true }, { id: "true", label: "True", valueType: "any", required: true }], outputPorts: [{ id: "output", label: "Result", valueType: "any" }], hiddenParameters: ["falseValue", "trueValue"] },
       { when: { valueType: "number" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "number", defaultParameter: "falseValue" }, { id: "true", label: "True", valueType: "number", defaultParameter: "trueValue" }], outputPorts: [{ id: "output", label: "Result", valueType: "number" }], parameterPatches: { falseValue: { kind: "number" }, trueValue: { kind: "number" } } },
@@ -1010,7 +1012,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "stop", label: "结束值 · stop（不包含）", kind: "number", step: 1 },
       { key: "step", label: "步长 · step", kind: "number", step: 1 },
     ],
-    ui: { inlineParameters: ["start", "stop", "step"] },
+    ui: { inlineParameters: ["start", "stop", "step"], inlineParameterLabels: { start: "起始", stop: "结束", step: "步长" }, inlineLayout: "stack" },
   },
   {
     nodeType: "logic.while_number", runtimeSupport: ["python", "javascript"],

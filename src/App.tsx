@@ -438,6 +438,20 @@ function InlineNodeControl({
   return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
 }
 
+function inlineControlPreferredWidth(spec: ParameterSpec): number {
+  if (spec.kind === "boolean") return 74;
+  if (spec.kind === "number") return 82;
+  if (spec.kind === "select") {
+    const longest = Math.max(0, ...(spec.options ?? []).map((option) => Array.from(String(option.label)).reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? 2 : 1), 0)));
+    return Math.min(132, Math.max(78, 34 + longest * 6));
+  }
+  return 112;
+}
+
+function visualTextUnits(value: string): number {
+  return Array.from(value).reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? 1.65 : 1), 0);
+}
+
 function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const spec: NodeSpec | undefined = data.nodeType === "workflow.group"
     ? { nodeType: "workflow.group", label: data.label, category: "逻辑控制" as const, defaults: {}, parameters: [], inputPorts: data.groupInputs ?? [], outputPorts: data.groupOutputs ?? [] }
@@ -457,30 +471,48 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const outputPorts = spec?.outputPorts ?? [];
   const inlineParameterKeys = spec?.ui?.inlineParameters ?? [];
   const inlineParameters = inlineParameterKeys.map((key) => spec?.parameters.find((parameter) => parameter.key === key)).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
+  const inlineLayout = spec?.ui?.inlineLayout ?? "stack";
+  const inlineParameterLabels = spec?.ui?.inlineParameterLabels ?? {};
   const parameterByKey = new Map((spec?.parameters ?? []).map((parameter) => [parameter.key, parameter]));
   const inlineOwnedParameterKeys = new Set([...inlineParameterKeys, ...inputPorts.flatMap((port) => port.defaultParameter ? [port.defaultParameter] : [])]);
   const inspectorParameterCount = (spec?.parameters ?? []).filter((parameter) => !inlineOwnedParameterKeys.has(parameter.key)).length;
-  const hasInlineSocketDefaults = inputPorts.some((port) => Boolean(port.defaultParameter));
-  const labelLength = Array.from(data.label).length;
+  const inputDefaultSpecs = inputPorts.map((port) => port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
+  const hasInlineSocketDefaults = inputDefaultSpecs.length > 0;
+  const hasDynamicUi = Boolean(hasInlineSocketDefaults || inlineParameters.length || spec?.dynamicVariants?.length);
+  const labelUnits = visualTextUnits(data.label);
   const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
-  const longestPortLabel = Math.max(0, ...[...inputPorts, ...outputPorts].map((port) => Array.from(port.label ?? "").length));
-  const horizontalPortLabelWidth = Math.min(96, Math.max(48, 24 + longestPortLabel * 6.5));
-  const verticalPortLabelWidth = Math.min(108, Math.max(68, 26 + longestPortLabel * 6.5));
+  const longestInputPortUnits = Math.max(0, ...inputPorts.map((port) => visualTextUnits(port.label ?? "")));
+  const longestOutputPortUnits = Math.max(0, ...outputPorts.map((port) => visualTextUnits(port.label ?? "")));
+  const inputPortLabelWidth = Math.min(148, Math.max(44, 18 + longestInputPortUnits * 6.1));
+  const outputPortLabelWidth = Math.min(148, Math.max(44, 18 + longestOutputPortUnits * 6.1));
+  const verticalPortLabelWidth = Math.min(132, Math.max(66, 22 + Math.max(longestInputPortUnits, longestOutputPortUnits) * 6));
+  const socketControlWidth = Math.max(0, ...inputDefaultSpecs.map(inlineControlPreferredWidth));
+  const inputRailWidth = inputPorts.length ? 14 + inputPortLabelWidth + (hasInlineSocketDefaults ? 8 + socketControlWidth : 0) : 0;
+  const outputRailWidth = outputPorts.length ? 14 + outputPortLabelWidth : 0;
+  const inlineToolbarWidth = inlineParameters.length
+    ? inlineLayout === "row"
+      ? Math.min(248, inlineParameters.reduce((sum, parameter) => sum + inlineControlPreferredWidth(parameter), 0) + Math.max(0, inlineParameters.length - 1) * 6)
+      : Math.min(188, Math.max(...inlineParameters.map((parameter) => inlineControlPreferredWidth(parameter) + 54)))
+    : 0;
   const contentWidth = direction === "vertical"
-    ? Math.min(270, Math.max(154, 96 + labelLength * 12))
-    : Math.min(300, Math.max(168, 112 + labelLength * 16));
+    ? Math.min(300, Math.max(156, 94 + labelUnits * 10, inlineToolbarWidth + 20))
+    : Math.min(320, Math.max(142, 88 + labelUnits * 9.5, inlineToolbarWidth + 20));
+  const verticalPortItemWidth = Math.max(verticalPortLabelWidth, socketControlWidth || 0, 82);
   const portDrivenWidth = direction === "vertical"
-    ? Math.max(contentWidth, maxPortCount ? 28 + maxPortCount * (verticalPortLabelWidth + 12) : contentWidth)
-    : Math.max(contentWidth, 96 + horizontalPortLabelWidth * 2 + (hasInlineSocketDefaults ? 88 : 0));
-  const nodeWidth = Math.min(direction === "vertical" ? 720 : 420, Math.max(data.nodeType === "workflow.group" ? 230 : 0, portDrivenWidth)) * nodeScale;
+    ? Math.max(contentWidth, maxPortCount ? 26 + maxPortCount * (verticalPortItemWidth + 12) : contentWidth)
+    : Math.max(contentWidth + inputRailWidth + outputRailWidth + 18, 188);
+  const nodeWidth = Math.min(direction === "vertical" ? 760 : 560, Math.max(data.nodeType === "workflow.group" ? 230 : 0, portDrivenWidth)) * nodeScale;
+  const inlineRows = inlineParameters.length ? (inlineLayout === "row" ? 1 : inlineParameters.length) : 0;
+  const horizontalPortHeight = hasDynamicUi ? 38 : 34;
   const nodeMinHeight = (direction === "horizontal" && maxPortCount
-    ? Math.max(58 + inlineParameters.length * 24, 24 + maxPortCount * 34)
-    : direction === "vertical" ? 92 + inlineParameters.length * 24 : 58 + inlineParameters.length * 24) * nodeScale;
+    ? Math.max(62 + inlineRows * 27, 28 + maxPortCount * horizontalPortHeight)
+    : direction === "vertical" ? (hasInlineSocketDefaults ? 126 : 94) + inlineRows * 27 : 62 + inlineRows * 27) * nodeScale;
   const isStructure = isVisualStructureNodeType(data.nodeType);
   const isIfZone = isIfStructureNodeType(data.nodeType);
   const isFunctionNode = data.nodeType === "function.call" || data.nodeType === "function.map" || Boolean(data.functionSourceId);
   const isGroupNode = data.nodeType === "workflow.group";
   const nodeKindClasses = `${isFunctionNode ? "node-kind-function" : ""} ${isGroupNode ? "node-kind-group" : ""} ${isStructure ? "node-kind-flow" : "node-kind-node"}`;
+  const visibleTypeLabel = hasDynamicUi ? (spec?.label && spec.label !== data.label ? spec.label : null) : data.nodeType;
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
     refresh();
@@ -489,7 +521,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     const observer = new ResizeObserver(refresh);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [direction, endpointScale, horizontalPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
+  }, [direction, endpointScale, inputPortLabelWidth, outputPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
   const inputPortStyle = (index: number): CSSProperties => {
     if (isIfZone && direction === "horizontal") return { top: `${28 + index * 26}px` };
     if (isIfZone && direction === "vertical") return { left: `${70 + index * 78}px` };
@@ -501,7 +533,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     return direction === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
   };
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isIfZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isIfZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
       {isStructure && <NodeResizer minWidth={isIfZone ? 440 : 360} minHeight={isIfZone ? 250 : 220} isVisible={selected} />}
@@ -513,15 +545,21 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         return (
           <div className={`input-port ${defaultSpec && !connected ? "input-port--with-default" : ""}`} style={Object.assign(inputPortStyle(index), { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
             <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
-            {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
-            {defaultSpec && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
+            <div className="node-port-content node-port-content--input">
+              {port.label && <span className="node-port-label" title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
+              {defaultSpec && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
+            </div>
           </div>
         );
       })}
       <div className="workflow-node__body">
-        <div className="workflow-node__type" title={data.nodeType}>{data.nodeType}</div>
+        {visibleTypeLabel && <div className="workflow-node__type" title={data.nodeType}>{visibleTypeLabel}</div>}
         <div className="workflow-node__label" title={data.label}>{data.label}</div>
-        {inlineParameters.length > 0 && <div className="workflow-node__inline-controls">{inlineParameters.map((parameter) => <label key={parameter.key}><span>{parameter.label}</span><InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>)}</div>}
+        {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout}`}>{inlineParameters.map((parameter) => {
+          const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
+          const showLabel = declaredLabel !== null && declaredLabel !== "";
+          return <label className={showLabel ? "" : "workflow-node__inline-control--label-hidden"} key={parameter.key} title={parameter.label}>{showLabel && <span>{declaredLabel}</span>}<InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>;
+        })}</div>}
         <div className="workflow-node__meta">
           {data.nodeType === "workflow.group"
             ? <span className="workflow-node__meta-count">{`${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作`}</span>
@@ -535,7 +573,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
       {isIfZone && <div className="workflow-if-zone__end" aria-hidden="true"><div className="workflow-if-zone__end-type">logic.if_end</div><strong>End If</strong></div>}
       {outputPorts.map((port, index) => (
         <div className="output-port" style={Object.assign(outputPortStyle(index), { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
-          {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
+          <div className="node-port-content node-port-content--output">{port.label && <span className="node-port-label" title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}</div>
           <Handle id={port.id} type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} />
         </div>
       ))}

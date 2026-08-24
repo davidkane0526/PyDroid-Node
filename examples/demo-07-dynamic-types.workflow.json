@@ -27,7 +27,7 @@
       "type": "workflow",
       "position": {
         "x": 60,
-        "y": 245
+        "y": 270
       },
       "data": {
         "label": "文本比较",
@@ -46,7 +46,7 @@
       "id": "bool-switch",
       "type": "workflow",
       "position": {
-        "x": 420,
+        "x": 540,
         "y": 70
       },
       "data": {
@@ -66,8 +66,8 @@
       "id": "number-switch",
       "type": "workflow",
       "position": {
-        "x": 420,
-        "y": 245
+        "x": 540,
+        "y": 270
       },
       "data": {
         "label": "数字 Switch",
@@ -86,7 +86,7 @@
       "id": "print-a",
       "type": "workflow",
       "position": {
-        "x": 760,
+        "x": 1040,
         "y": 70
       },
       "data": {
@@ -111,8 +111,8 @@
       "id": "print-b",
       "type": "workflow",
       "position": {
-        "x": 760,
-        "y": 245
+        "x": 1040,
+        "y": 270
       },
       "data": {
         "label": "文本比较结果",

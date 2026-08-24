@@ -1,3 +1,13 @@
+## 1.6.16 (156) — Dynamic node UI layout polish — 2026-08-24
+
+- Replaced fixed-width absolute socket defaults with structured port rows so labels and controls cannot overlap.
+- Input and output rails now size independently from their own labels; socket controls reserve width from their control type and select contents.
+- Dynamic nodes remove redundant technical type text by default; renamed nodes show only the friendly node type as secondary context.
+- Added declarative inline-parameter label overrides and row/stack layouts. Compare/Switch use compact toolbar controls; For Range uses short inline labels while retaining full parameter semantics.
+- Vertical dynamic-node layout now reserves stable input-control space and overrides legacy port-label positioning without changing connection geometry.
+- Re-spaced Demo 05 and Demo 07 for the refined dynamic node widths.
+- Build revision: `1.6.16-dev-r108-dynamic-ui-polish`.
+
 ## 1.6.15 (155) — Blender-style If Zone and dynamic UI demos — 2026-08-24
 
 - Reworked the visual `If` structure from one heavy container card into a Blender-style Zone with a compact `If` start boundary, a separate `End If` result boundary, and lightweight TRUE/FALSE branch regions while keeping the existing lazy one-branch-only runtime semantics.

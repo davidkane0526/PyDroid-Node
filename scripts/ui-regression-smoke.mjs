@@ -89,7 +89,10 @@ assert.match(css, /\.workflow-node:hover > \.node-run-action[^}]*opacity:\s*1;[^
 assert.match(css, /app-shell\.native-platform \.workflow-node\.selected > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "native touch UI should reveal the run action only for the selected node");
 assert.match(css, /app-shell\[data-theme="light"\] \.node-run-action \{[^}]*border-color:\s*#c9dcf4;[^}]*color:\s*#0877f9;[^}]*background:\s*rgba\(255,255,255,\.84\);/, "light mode should use the shared Soft run-control material in every canvas theme");
 assert.match(app, /nodeExecutionSubgraph\(nodes, edges, nodeId\)/, "node-scoped execution must derive its upstream context from the graph instead of running the whole workspace");
-assert.match(app, /maxPortCount[\s\S]*nodeMinHeight[\s\S]*horizontalPortLabelWidth/, "node geometry should adapt to endpoint count and endpoint-label width");
+assert.match(app, /maxPortCount[\s\S]*inputPortLabelWidth[\s\S]*outputPortLabelWidth[\s\S]*inputRailWidth[\s\S]*outputRailWidth[\s\S]*nodeMinHeight/, "node geometry should adapt independently to input/output labels, socket controls and endpoint count");
+assert.match(css, /workflow-node--dynamic-ui[\s\S]*node-port-content--input[\s\S]*input-port-label-width[\s\S]*socket-control-width/, "dynamic socket UI should use a structured label/control row instead of overlapping absolute controls");
+assert.doesNotMatch(css, /node-inline-control--socket\s*\{[^}]*width:\s*70px/, "dynamic socket controls must not regress to the fixed 70px width that clipped values");
+assert.match(app, /inlineParameterLabels[\s\S]*inlineLayout[\s\S]*workflow-node__inline-control--label-hidden/, "dynamic node UI should support declarative compact labels and row/stack layouts");
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");
 assert.match(css, /\.notebook-order-handle\s*\{[^}]*opacity:\s*0\s*!important;[^}]*pointer-events:\s*none\s*!important;/, "Notebook order handles must remain invisible and non-interactive");
 

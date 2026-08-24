@@ -6,7 +6,7 @@
       "id": "compare",
       "type": "workflow",
       "position": {
-        "x": 80,
+        "x": 60,
         "y": 120
       },
       "data": {
@@ -26,7 +26,7 @@
       "id": "switch",
       "type": "workflow",
       "position": {
-        "x": 390,
+        "x": 540,
         "y": 120
       },
       "data": {
@@ -46,7 +46,7 @@
       "id": "print",
       "type": "workflow",
       "position": {
-        "x": 720,
+        "x": 1040,
         "y": 120
       },
       "data": {

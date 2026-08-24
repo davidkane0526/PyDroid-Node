@@ -3851,59 +3851,116 @@ button.smb-file-row { cursor: pointer; }
 .app-shell[data-theme="light"] .flow-library-item--demo strong { color: #246c9c; }
 .app-shell[data-theme="light"] .flow-library-item--demo:hover { border-color: #72b5dc; background: #edf8ff; }
 
-/* Dynamic node UI: Blender-style inline parameters and unconnected socket defaults. */
-.workflow-node.has-inline-input-defaults.has-inputs .workflow-node__body {
-  margin-left: calc(var(--port-label-width, 42px) + 96px);
+/* Dynamic node UI: compact Blender-style rows with one source of meaning per control. */
+.workflow-node--dynamic-ui.has-inputs .workflow-node__body {
+  margin-left: var(--input-rail-width, 0px);
+}
+.workflow-node--dynamic-ui.has-outputs .workflow-node__body {
+  margin-right: var(--output-rail-width, 0px);
+}
+.workflow-node--dynamic-ui .workflow-node__body {
+  gap: calc(2px * var(--node-scale, 1));
+  min-height: calc(48px * var(--node-scale, 1));
+  text-align: left;
+}
+.workflow-node--dynamic-ui .workflow-node__type {
+  margin-bottom: 0;
+  color: var(--text-faint);
+  font-family: inherit;
+  font-size: calc(9px * var(--node-scale, 1));
+  font-weight: 620;
+  line-height: 1.1;
+}
+.workflow-node--dynamic-ui .workflow-node__label {
+  padding-right: calc(24px * var(--node-scale, 1));
+  font-size: calc(13px * var(--node-scale, 1));
+  font-weight: 680;
+  line-height: 1.18;
+  text-wrap: nowrap;
+}
+.workflow-node--dynamic-ui .workflow-node__meta {
+  margin-top: calc(1px * var(--node-scale, 1));
+}
+.workflow-node--dynamic-ui .workflow-node__tag {
+  display: none;
 }
 .workflow-node__inline-controls {
   display: grid;
-  gap: 4px;
-  margin: 5px auto 2px;
-  width: min(132px, 100%);
+  gap: calc(5px * var(--node-scale, 1));
+  min-width: 0;
+  margin: calc(5px * var(--node-scale, 1)) 0 calc(1px * var(--node-scale, 1));
+}
+.workflow-node__inline-controls--stack {
+  width: min(calc(178px * var(--node-scale, 1)), 100%);
+}
+.workflow-node__inline-controls--row {
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  width: min(calc(236px * var(--node-scale, 1)), 100%);
 }
 .workflow-node__inline-controls > label {
   display: grid;
-  grid-template-columns: minmax(34px, auto) minmax(0, 1fr);
+  grid-template-columns: minmax(calc(30px * var(--node-scale, 1)), auto) minmax(0, 1fr);
   align-items: center;
-  gap: 6px;
+  gap: calc(6px * var(--node-scale, 1));
   min-width: 0;
   color: var(--text-muted);
-  font-size: calc(9px * var(--node-scale, 1));
+  font-size: calc(9.5px * var(--node-scale, 1));
   font-weight: 650;
+  line-height: 1.15;
   text-align: left;
+}
+.workflow-node__inline-controls > label > span {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.workflow-node__inline-controls > .workflow-node__inline-control--label-hidden {
+  display: block;
 }
 .node-inline-control {
   box-sizing: border-box;
+  width: 100%;
   min-width: 0;
-  height: calc(22px * var(--node-scale, 1));
-  padding: 1px 5px;
-  border: 1px solid var(--border-strong);
-  border-radius: 4px;
+  height: calc(23px * var(--node-scale, 1));
+  padding: calc(1px * var(--node-scale, 1)) calc(7px * var(--node-scale, 1));
+  border: 1px solid color-mix(in srgb, var(--border-strong) 88%, transparent);
+  border-radius: calc(5px * var(--node-scale, 1));
   color: var(--text);
-  background: var(--surface-deep);
-  box-shadow: inset 0 1px 1px rgba(2, 6, 23, .08);
+  background: color-mix(in srgb, var(--surface-deep) 92%, var(--surface-raised));
+  box-shadow: inset 0 1px 1px rgba(2, 6, 23, .06);
   outline: none;
   font-family: inherit;
-  font-size: calc(9px * var(--node-scale, 1));
-  font-weight: 650;
+  font-size: calc(9.5px * var(--node-scale, 1));
+  font-weight: 620;
   line-height: 1.15;
   pointer-events: all;
 }
+select.node-inline-control {
+  padding-right: calc(22px * var(--node-scale, 1));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-inline-control:hover {
+  border-color: color-mix(in srgb, var(--accent-hover) 56%, var(--border-strong));
+}
 .node-inline-control:focus {
   border-color: var(--accent-hover);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-hover) 20%, transparent);
 }
 .node-inline-control--boolean {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding-inline: 5px;
+  justify-content: flex-start;
+  gap: calc(5px * var(--node-scale, 1));
+  padding-inline: calc(6px * var(--node-scale, 1));
   white-space: nowrap;
 }
 .node-inline-control--boolean input {
-  width: 11px;
-  height: 11px;
+  width: calc(11px * var(--node-scale, 1));
+  height: calc(11px * var(--node-scale, 1));
   margin: 0;
+  flex: 0 0 auto;
 }
 .input-port .node-inline-control span {
   position: static;
@@ -3917,28 +3974,111 @@ button.smb-file-row { cursor: pointer; }
   text-align: inherit;
   white-space: nowrap;
 }
-.input-port .node-inline-control--socket {
+.workflow-node--dynamic-ui.direction-horizontal .input-port {
+  width: var(--input-rail-width, 0px);
+}
+.workflow-node--dynamic-ui.direction-horizontal .output-port {
+  width: var(--output-rail-width, 0px);
+}
+.workflow-node--dynamic-ui .node-port-content {
   position: absolute;
   top: 50%;
-  left: calc(var(--port-label-width, 42px) + 16px);
-  width: 70px;
+  display: grid;
+  align-items: center;
+  min-width: 0;
   transform: translateY(-50%);
+  pointer-events: none;
+}
+.workflow-node--dynamic-ui.direction-horizontal .node-port-content--input {
+  left: calc(11px * var(--node-scale, 1));
+  grid-template-columns: minmax(0, var(--input-port-label-width, var(--port-label-width, 48px))) var(--socket-control-width, 0px);
+  gap: calc(7px * var(--node-scale, 1));
+}
+.workflow-node--dynamic-ui.direction-horizontal .node-port-content--output {
+  right: calc(11px * var(--node-scale, 1));
+  width: var(--output-port-label-width, var(--port-label-width, 48px));
+  justify-items: end;
+}
+.workflow-node--dynamic-ui .node-port-label {
+  position: static;
+  display: block;
+  width: auto;
+  min-width: 0;
+  transform: none;
+  overflow: visible;
+  color: var(--accent-soft);
+  font-size: calc(10.5px * var(--node-scale, 1));
+  font-weight: 650;
+  line-height: 1.15;
+  text-align: left;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.workflow-node--dynamic-ui .output-port .node-port-label {
+  color: #34d399;
+  text-align: right;
+}
+.workflow-node--dynamic-ui .node-port-label small {
+  display: none;
+}
+.workflow-node--dynamic-ui .node-inline-control--socket {
+  position: static;
+  width: var(--socket-control-width, 82px);
+  transform: none;
   pointer-events: all;
 }
-.workflow-node.direction-vertical.has-inline-input-defaults .workflow-node__body {
-  margin-left: 0;
-  padding-top: 26px;
+.workflow-node--dynamic-ui.direction-vertical.has-inputs .workflow-node__body,
+.workflow-node--dynamic-ui.direction-vertical.has-outputs .workflow-node__body {
+  margin-inline: 0;
 }
-.workflow-node.direction-vertical .input-port .node-inline-control--socket {
-  top: 28px;
-  left: 0;
-  width: 62px;
+.workflow-node--dynamic-ui.direction-vertical.has-inline-input-defaults .workflow-node__body {
+  padding-top: calc(42px * var(--node-scale, 1));
+}
+.workflow-node--dynamic-ui.direction-vertical .input-port,
+.workflow-node--dynamic-ui.direction-vertical .output-port {
+  width: var(--vertical-port-item-width, 88px);
+}
+.workflow-node--dynamic-ui.direction-vertical .node-port-content {
+  left: 50%;
+  width: var(--vertical-port-item-width, 88px);
   transform: translateX(-50%);
+  justify-items: center;
+}
+.workflow-node--dynamic-ui.direction-vertical .node-port-content--input {
+  top: calc(10px * var(--node-scale, 1));
+  gap: calc(4px * var(--node-scale, 1));
+}
+.workflow-node--dynamic-ui.direction-vertical .node-port-content--output {
+  top: auto;
+  bottom: calc(10px * var(--node-scale, 1));
+}
+.workflow-node--dynamic-ui.direction-vertical .input-port .node-port-label,
+.workflow-node--dynamic-ui.direction-vertical .output-port .node-port-label {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: 100%;
+  transform: none;
+  text-align: center;
+}
+.workflow-node--dynamic-ui.direction-vertical .input-port .node-inline-control span {
+  position: static;
+  top: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: auto;
+  transform: none;
+}
+.workflow-node--dynamic-ui.direction-vertical .node-inline-control--socket {
+  width: min(var(--socket-control-width, 82px), var(--vertical-port-item-width, 88px));
 }
 .app-shell[data-theme="light"] .node-inline-control {
   color: #172b45;
   background: #ffffff;
-  box-shadow: inset 0 1px 1px rgba(100, 116, 139, .08);
+  box-shadow: inset 0 1px 1px rgba(100, 116, 139, .06);
 }
 
 /* If Zone: one logical lazy-control structure rendered with Blender-style start/end boundaries. */
