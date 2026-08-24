@@ -1495,6 +1495,22 @@ if _items:
   if (type === "pandas.sample") return `${name} = ${input}.sample(n=int(${params}.get("n", 5)), replace=${params}.get("replace", False), random_state=int(${params}.get("randomState", 0)))`;
   if (type === "pandas.round") return `${name} = ${input}.round(int(${params}.get("decimals", 2)))`;
   if (type === "pandas.describe") return `${name} = ${input}.describe().reset_index(names="statistic")`;
+  if (type === "table.groupby_aggregate") return `_group_by = _column_names(${input}, ${params}.get("groupBy", ""))
+if not _group_by: raise ValueError("Groupby aggregate requires at least one grouping column")
+if ${params}.get("aggregateMode", "single") == "multi":
+    _raw_aggregations = ${params}.get("aggregations", {})
+    _aggregations = json.loads(_raw_aggregations) if isinstance(_raw_aggregations, str) else _raw_aggregations
+    if not isinstance(_aggregations, dict) or not _aggregations: raise ValueError("Groupby aggregations must be a non-empty object")
+    _named = {}
+    for _raw_column, _raw_methods in _aggregations.items():
+        _column_name = _column(${input}, _raw_column)
+        _methods = _raw_methods if isinstance(_raw_methods, list) else [_raw_methods]
+        for _method in _methods: _named[f"{_column_name}_{_method}"] = pd.NamedAgg(column=_column_name, aggfunc=_method)
+    ${name} = ${input}.groupby(_group_by, sort=True).agg(**_named).reset_index()
+else:
+    _method = ${params}.get("method", "mean")
+    _grouped = ${input}.groupby(_group_by, sort=True)
+    ${name} = (_grouped.size().reset_index(name="count") if _method == "count" else getattr(_grouped, _method)(numeric_only=True).reset_index())`;
   if (type === "table.split_condition") return `_matching = ${input}.query(${params}["condition"])
 ${name} = {"true": _matching.reset_index(drop=True), "false": ${input}.loc[~${input}.index.isin(_matching.index)].reset_index(drop=True)}`;
   if (type === "table.merge_rows" || type === "table.concat") return `${name} = pd.concat(list(${input}.values()), ignore_index=${params}.get("ignoreIndex", True))`;
@@ -1540,12 +1556,22 @@ for _index in range(max(0, int(np.ceil(_total / _interval)) - 1)):
 ${name} = pd.DataFrame(_rows, columns=["time_s", "port1_V", "port2_V", "port3_V"])`;
   if (type === "pulse.combine_channels") return `_waveforms = ${input}
 _time_column, _voltage_column = ${params}.get("timeColumn", "time_s"), ${params}.get("voltageColumn", "voltage_V")
-_channel_names = {"drain": "Vd_V", "source": "Vs_V", "gate": "Vg_V"}
-_parts = [pd.DataFrame({"time_s": pd.to_numeric(_frame[_column(_frame, _time_column)], errors="coerce"), _channel_names[_port]: pd.to_numeric(_frame[_column(_frame, _voltage_column)], errors="coerce")}).dropna(subset=["time_s"]).sort_values("time_s") for _port, _frame in _waveforms.items() if _port in _channel_names and _frame is not None]
+_custom = sorted([(int(_port[7:]), _frame) for _port, _frame in _waveforms.items() if re.fullmatch(r"channel\d+", str(_port))], key=lambda item: item[0])
+if _custom:
+    _raw_names = ${params}.get("channelNames", "")
+    _names = [str(item).strip() for item in _raw_names] if isinstance(_raw_names, list) else [item.strip() for item in str(_raw_names).split(",") if item.strip()]
+    while len(_names) < len(_custom): _names.append(f"Channel{len(_names) + 1}")
+    _channels = [(f"channel{_index}", _name if _name.endswith("_V") else f"{_name}_V", _frame) for (_index, _frame), _name in zip(_custom, _names)]
+else:
+    _channels = [("drain", "Vd_V", _waveforms.get("drain")), ("source", "Vs_V", _waveforms.get("source")), ("gate", "Vg_V", _waveforms.get("gate"))]
+_parts = []
+for _port, _output, _frame in _channels:
+    if _frame is None: continue
+    _parts.append(pd.DataFrame({"time_s": pd.to_numeric(_frame[_column(_frame, _time_column)], errors="coerce"), _output: pd.to_numeric(_frame[_column(_frame, _voltage_column)], errors="coerce")}).dropna(subset=["time_s"]).sort_values("time_s"))
 if not _parts: raise ValueError("At least one pulse channel is required")
 ${name} = pd.DataFrame({"time_s": sorted(set().union(*[set(_part["time_s"]) for _part in _parts]))})
 for _part in _parts: ${name} = pd.merge_asof(${name}, _part, on="time_s", direction="backward")
-${name} = ${name}.ffill().fillna(0)`;
+${name} = ${name}.ffill().bfill().fillna(0)`;
   if (type === "pulse.segment_measurement") return `_inputs = ${input}
 _measurement, _waveform = _inputs["measurement"], _inputs["waveform"]
 _mt, _current = _column(_measurement, ${params}.get("measurementTimeColumn", "time")), _column(_measurement, ${params}.get("currentColumn", "current"))
@@ -1558,7 +1584,19 @@ for _index, _event in _events.iterrows():
     _segment = _samples.iloc[_start:_end]["current"].iloc[_leading:None if _trailing == 0 else -_trailing]
     _rows.append({"sequence": int(_event.get("sequence", _index)), "phase": str(_event.get("phase", "pulse")), "waveform_time_s": _event["_time"], "voltage_V": _event["_voltage"], "sample_count": len(_segment), "mean_current_A": _segment.mean()})
 ${name} = pd.DataFrame(_rows)`;
-  if (type === "plot.line") return `_axis = ${input}.plot(x=_column(${input}, ${params}.get("xColumn")) if ${params}.get("xColumn") != "" else None, y=_column_names(${input}, ${params}.get("yColumns", "")) or None, linewidth=float(${params}.get("lineWidth", 1.5)), marker=${params}.get("marker") or None)
+  if (type === "plot.line") return `_series_raw = ${params}.get("seriesConfig", "")
+_series = json.loads(_series_raw) if isinstance(_series_raw, str) and _series_raw.strip() else (_series_raw or [])
+_x_column = _column(${input}, ${params}.get("xColumn")) if str(${params}.get("xColumn", "")).strip() else None
+if _series:
+    if not isinstance(_series, list): raise ValueError("Line plot seriesConfig must be a JSON array")
+    _figure, _axis = plt.subplots(figsize=(float(${params}.get("figureWidth", 8)), float(${params}.get("figureHeight", 4.5))))
+    _x_values = ${input}[_x_column] if _x_column is not None else ${input}.index
+    for _item in _series:
+        _y_column = _column(${input}, _item.get("y", _item.get("column")))
+        _axis.plot(_x_values, ${input}[_y_column], label=str(_item.get("label", _y_column)), linestyle=str(_item.get("lineStyle", ${params}.get("lineStyle", "-"))), marker=str(_item.get("marker", ${params}.get("marker", ""))) or None, linewidth=float(_item.get("lineWidth", ${params}.get("lineWidth", 1.5))))
+    if ${params}.get("legend", True): _axis.legend()
+else:
+    _axis = ${input}.plot(x=_x_column, y=_column_names(${input}, ${params}.get("yColumns", "")) or None, linewidth=float(${params}.get("lineWidth", 1.5)), marker=${params}.get("marker") or None)
 _axis.set(title=${params}.get("title", ""), xlabel=${params}.get("xLabel", ""), ylabel=${params}.get("yLabel", ""))
 ${name} = _axis.get_figure()`;
   if (["plot.scatter", "plot.bar", "plot.histogram", "plot.box", "plot.area"].includes(type)) return `_kind = ${JSON.stringify(type.split(".")[1] === "histogram" ? "hist" : type.split(".")[1])}

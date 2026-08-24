@@ -34,6 +34,17 @@ export type ParameterSpec = {
   rememberDefault?: boolean;
 };
 
+export type RepeatedInputPortSpec = {
+  countParameter: string;
+  idPrefix: string;
+  labelPrefix: string;
+  valueType: ValueType;
+  required?: boolean;
+  min?: number;
+  max?: number;
+  when?: Record<string, string | number | boolean | null>;
+};
+
 export type DynamicNodeVariant = {
   when: Record<string, string | number | boolean | null>;
   inputPorts?: PortSpec[];
@@ -72,6 +83,7 @@ export type NodeSpec = {
   functionRole?: NodeFunctionRole;
   ui?: NodeUiSpec;
   dynamicVariants?: DynamicNodeVariant[];
+  repeatedInputPorts?: RepeatedInputPortSpec[];
 };
 
 const TABLE_INPUT: PortSpec[] = [{ id: "input", label: "表格", valueType: "table", required: true }];
@@ -361,16 +373,18 @@ export const NODE_CATALOG: NodeSpec[] = [
   {
     nodeType: "table.concat_many", runtimeSupport: ["python", "javascript"],
     label: "批量横向合并",
-    description: "将表格列表一次按列合并；可按文件元数据为列名加前缀。索引对齐使用 pandas 原始索引；位置对齐会先重置各表行索引。",
-    tags: ["concat", "concat_many", "横向合并", "表格集合", "axis=1", "元数据"],
+    description: "横向合并表格列表或多路独立表格 Socket；可按文件元数据为列名加前缀。",
+    tags: ["concat", "concat_many", "横向合并", "表格集合", "多输入", "axis=1", "元数据"],
     category: "表格处理",
-    defaults: { alignment: "index", prefixMode: "metadata", sourceColumn: "source_file", prefixColumn: "Vg_V", prefixTemplate: "{value}", prefixSeparator: "_" },
+    defaults: { inputMode: "list", inputCount: 3, alignment: "index", prefixMode: "metadata", sourceColumn: "source_file", prefixColumn: "Vg_V", prefixTemplate: "{value}", prefixSeparator: "_" },
     inputPorts: [
       { id: "tables", label: "表格列表", valueType: "list", required: true },
       { id: "metadata", label: "文件元数据", valueType: "table" },
     ],
     outputPorts: TABLE_OUTPUT,
     parameters: [
+      { key: "inputMode", label: "输入方式", kind: "select", options: [{ label: "表格列表", value: "list" }, { label: "独立 Socket", value: "ports" }] },
+      { key: "inputCount", label: "输入数量", kind: "number", min: 2, max: 16, step: 1 },
       { key: "alignment", label: "行对齐", kind: "select", options: [{ label: "按原始索引对齐（pandas）", value: "index" }, { label: "按行位置对齐", value: "position" }] },
       { key: "prefixMode", label: "列名前缀", kind: "select", options: [{ label: "使用元数据字段", value: "metadata" }, { label: "使用 source_file", value: "source_file" }, { label: "不加前缀", value: "none" }] },
       { key: "sourceColumn", label: "来源文件字段", kind: "text", placeholder: "source_file", description: "仅“使用 source_file”时生效，应与批量读取节点一致。" },
@@ -378,6 +392,12 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "prefixTemplate", label: "前缀模板", kind: "text", placeholder: "{value}V", description: "{value} 表示选定字段；也可引用 {source_file} 等元数据列。" },
       { key: "prefixSeparator", label: "前缀分隔符", kind: "text", placeholder: "_" },
     ],
+    ui: { inlineParameters: ["inputMode", "inputCount"], inlineParameterLabels: { inputMode: null, inputCount: null }, inlineLayout: "row" },
+    dynamicVariants: [
+      { when: { inputMode: "list" }, inputPorts: [{ id: "tables", label: "表格列表", valueType: "list", required: true }, { id: "metadata", label: "文件元数据", valueType: "table" }], hiddenParameters: ["inputCount"] },
+      { when: { inputMode: "ports" }, inputPorts: [{ id: "metadata", label: "文件元数据", valueType: "table" }] },
+    ],
+    repeatedInputPorts: [{ countParameter: "inputCount", idPrefix: "table", labelPrefix: "Table", valueType: "table", required: true, min: 2, max: 16, when: { inputMode: "ports" } }],
   },
   {
     nodeType: "table.select_columns", runtimeSupport: ["python", "javascript"],
@@ -615,10 +635,10 @@ export const NODE_CATALOG: NodeSpec[] = [
   {
     nodeType: "table.groupby_aggregate", runtimeSupport: ["python", "javascript"],
     label: "按列分组聚合",
-    description: "按指定列的值分组，对每组数值列求聚合（等价 pandas groupby(...).mean() 等）。",
-    tags: ["pandas", "groupby", "分组", "聚合", "统计"],
+    description: "按指定列分组；既可对全部数值列使用一种聚合，也可为不同列声明多个聚合。",
+    tags: ["pandas", "groupby", "分组", "聚合", "多聚合", "统计"],
     category: "统计",
-    defaults: { groupBy: "", method: "mean" },
+    defaults: { groupBy: "", aggregateMode: "single", method: "mean", aggregations: "" },
     inputPorts: [
       { id: "input", label: "表格", valueType: "table", required: true },
       { id: "groupBy", label: "Group By", valueType: "any", defaultParameter: "groupBy" },
@@ -626,6 +646,7 @@ export const NODE_CATALOG: NodeSpec[] = [
     outputPorts: TABLE_OUTPUT,
     parameters: [
       { key: "groupBy", label: "分组列", kind: "text", required: true, placeholder: "Vg_V", description: "列名或列序号，多个用英文逗号分隔。" },
+      { key: "aggregateMode", label: "聚合模式", kind: "select", options: [{ label: "统一聚合", value: "single" }, { label: "按列多聚合", value: "multi" }] },
       {
         key: "method",
         label: "聚合方法",
@@ -640,8 +661,13 @@ export const NODE_CATALOG: NodeSpec[] = [
           { label: "计数", value: "count" },
         ],
       },
+      { key: "aggregations", label: "按列聚合", kind: "textarea", placeholder: '{"current":["mean","std"],"voltage":"max"}', description: "JSON 对象。键为列名或列序号，值为聚合方法或方法数组。" },
     ],
-    ui: { inlineParameters: ["method"], inlineParameterLabels: { method: null }, inlineLayout: "row" },
+    ui: { inlineParameters: ["aggregateMode", "method"], inlineParameterLabels: { aggregateMode: null, method: null }, inlineLayout: "row" },
+    dynamicVariants: [
+      { when: { aggregateMode: "single" }, hiddenParameters: ["aggregations"] },
+      { when: { aggregateMode: "multi" }, inputPorts: [{ id: "input", label: "表格", valueType: "table", required: true }, { id: "groupBy", label: "Group By", valueType: "any", defaultParameter: "groupBy" }, { id: "aggregations", label: "Aggregations", valueType: "any", defaultParameter: "aggregations" }], hiddenParameters: ["method"] },
+    ],
   },
   {
     nodeType: "pandas.dropna", runtimeSupport: ["python", "javascript"],
@@ -1086,13 +1112,25 @@ export const NODE_CATALOG: NodeSpec[] = [
   },
   {
     nodeType: "pulse.combine_channels", runtimeSupport: ["python", "javascript"],
-    label: "合并 Vd / Vs / Vg 波形",
-    description: "按时间并集对齐三个脉冲通道。较短通道结束后保持最后电平；如需继续周期变化，可在固定电平周期波形节点设置 totalTime。",
-    tags: ["pulse", "脉冲", "波形", "Vd", "Vs", "Vg", "合并"],
+    label: "合并多通道波形",
+    description: "按时间并集对齐 Vd/Vs/Vg 或任意数量的波形通道；较短通道结束后保持最后电平。",
+    tags: ["pulse", "脉冲", "波形", "Vd", "Vs", "Vg", "多通道", "合并"],
     category: "表格处理",
-    defaults: { timeColumn: "time_s", voltageColumn: "voltage_V" },
+    defaults: { inputMode: "vds", channelCount: 3, channelNames: "V1,V2,V3", timeColumn: "time_s", voltageColumn: "voltage_V" },
     inputPorts: [{ id: "drain", label: "Vd 波形", valueType: "table" }, { id: "source", label: "Vs 波形", valueType: "table" }, { id: "gate", label: "Vg 波形", valueType: "table" }], outputPorts: TABLE_OUTPUT,
-    parameters: [{ key: "timeColumn", label: "时间列", kind: "text", required: true }, { key: "voltageColumn", label: "电压列", kind: "text", required: true }],
+    parameters: [
+      { key: "inputMode", label: "通道模式", kind: "select", options: [{ label: "Vd / Vs / Vg", value: "vds" }, { label: "自定义多通道", value: "channels" }] },
+      { key: "channelCount", label: "通道数量", kind: "number", min: 1, max: 12, step: 1 },
+      { key: "channelNames", label: "通道名称", kind: "list", itemType: "text", placeholder: "Drain,Source,Gate" },
+      { key: "timeColumn", label: "时间列", kind: "text", required: true },
+      { key: "voltageColumn", label: "电压列", kind: "text", required: true },
+    ],
+    ui: { inlineParameters: ["inputMode", "channelCount"], inlineParameterLabels: { inputMode: null, channelCount: null }, inlineLayout: "row" },
+    dynamicVariants: [
+      { when: { inputMode: "vds" }, inputPorts: [{ id: "drain", label: "Vd 波形", valueType: "table" }, { id: "source", label: "Vs 波形", valueType: "table" }, { id: "gate", label: "Vg 波形", valueType: "table" }], hiddenParameters: ["channelCount", "channelNames"] },
+      { when: { inputMode: "channels" }, inputPorts: [] },
+    ],
+    repeatedInputPorts: [{ countParameter: "channelCount", idPrefix: "channel", labelPrefix: "Channel", valueType: "table", min: 1, max: 12, when: { inputMode: "channels" } }],
   },
   {
     nodeType: "pulse.segment_measurement", runtimeSupport: ["python", "javascript"],
@@ -1229,6 +1267,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       lineStyle: "-",
       marker: "",
       lineWidth: 1.5,
+      seriesConfig: "",
       figureWidth: 8,
       figureHeight: 4.5,
       dpi: 120,
@@ -1238,6 +1277,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { id: "xColumn", label: "X", valueType: "any", defaultParameter: "xColumn" },
       { id: "yColumns", label: "Y", valueType: "any", defaultParameter: "yColumns" },
       { id: "lineWidth", label: "Width", valueType: "number", defaultParameter: "lineWidth" },
+      { id: "seriesConfig", label: "Series", valueType: "any", defaultParameter: "seriesConfig" },
     ],
     outputPorts: [{ id: "output", label: "图像", valueType: "plot" }],
     parameters: [
@@ -1264,6 +1304,7 @@ export const NODE_CATALOG: NodeSpec[] = [
         ],
       },
       { key: "lineWidth", label: "线宽", kind: "number", min: 0.5, max: 5, step: 0.5, control: "slider", rememberDefault: true },
+      { key: "seriesConfig", label: "曲线配置", kind: "textarea", advanced: true, placeholder: '[{"y":"current","label":"Id","lineStyle":"-","marker":"o","lineWidth":2}]', description: "可选 JSON 数组；每项支持 y、label、lineStyle、marker、lineWidth。填写后覆盖 Y 列的统一样式。" },
       { key: "figureWidth", label: "图片宽度", kind: "number", min: 4, max: 16, step: 0.5, control: "slider", rememberDefault: true },
       { key: "figureHeight", label: "图片高度", kind: "number", min: 3, max: 12, step: 0.5, control: "slider", rememberDefault: true },
       { key: "dpi", label: "清晰度 DPI", kind: "number", min: 72, max: 240, step: 12, control: "slider", rememberDefault: true },

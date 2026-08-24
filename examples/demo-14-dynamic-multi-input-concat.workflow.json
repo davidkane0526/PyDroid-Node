@@ -1,0 +1,294 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 14 · 动态多输入 Concat",
+  "nodes": [
+    {
+      "id": "r1",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 60
+      },
+      "data": {
+        "label": "序列 A",
+        "nodeType": "logic.for_range",
+        "nodeVersion": 1,
+        "parameters": {
+          "start": 0,
+          "stop": 4,
+          "step": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "s1",
+      "type": "workflow",
+      "position": {
+        "x": 300,
+        "y": 60
+      },
+      "data": {
+        "label": "取值列 A",
+        "nodeType": "table.select_columns",
+        "nodeVersion": 1,
+        "parameters": {
+          "columns": "1"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "n1",
+      "type": "workflow",
+      "position": {
+        "x": 560,
+        "y": 60
+      },
+      "data": {
+        "label": "重命名 A",
+        "nodeType": "table.rename_columns",
+        "nodeVersion": 1,
+        "parameters": {
+          "names": "A"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "r2",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 300
+      },
+      "data": {
+        "label": "序列 B",
+        "nodeType": "logic.for_range",
+        "nodeVersion": 1,
+        "parameters": {
+          "start": 10,
+          "stop": 14,
+          "step": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "s2",
+      "type": "workflow",
+      "position": {
+        "x": 300,
+        "y": 300
+      },
+      "data": {
+        "label": "取值列 B",
+        "nodeType": "table.select_columns",
+        "nodeVersion": 1,
+        "parameters": {
+          "columns": "1"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "n2",
+      "type": "workflow",
+      "position": {
+        "x": 560,
+        "y": 300
+      },
+      "data": {
+        "label": "重命名 B",
+        "nodeType": "table.rename_columns",
+        "nodeVersion": 1,
+        "parameters": {
+          "names": "B"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "r3",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 540
+      },
+      "data": {
+        "label": "序列 C",
+        "nodeType": "logic.for_range",
+        "nodeVersion": 1,
+        "parameters": {
+          "start": 20,
+          "stop": 24,
+          "step": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "s3",
+      "type": "workflow",
+      "position": {
+        "x": 300,
+        "y": 540
+      },
+      "data": {
+        "label": "取值列 C",
+        "nodeType": "table.select_columns",
+        "nodeVersion": 1,
+        "parameters": {
+          "columns": "1"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "n3",
+      "type": "workflow",
+      "position": {
+        "x": 560,
+        "y": 540
+      },
+      "data": {
+        "label": "重命名 C",
+        "nodeType": "table.rename_columns",
+        "nodeVersion": 1,
+        "parameters": {
+          "names": "C"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "concat",
+      "type": "workflow",
+      "position": {
+        "x": 900,
+        "y": 260
+      },
+      "data": {
+        "label": "3 路动态横向合并",
+        "nodeType": "table.concat_many",
+        "nodeVersion": 1,
+        "parameters": {
+          "inputMode": "ports",
+          "inputCount": 3,
+          "alignment": "position",
+          "prefixMode": "none",
+          "sourceColumn": "source_file",
+          "prefixColumn": "Vg_V",
+          "prefixTemplate": "{value}",
+          "prefixSeparator": "_"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "print",
+      "type": "workflow",
+      "position": {
+        "x": 1240,
+        "y": 260
+      },
+      "data": {
+        "label": "查看合并结果",
+        "nodeType": "python.print",
+        "nodeVersion": 1,
+        "parameters": {
+          "prefix": "Concat",
+          "format": "pretty",
+          "includeType": true,
+          "maxRows": 20,
+          "maxChars": 4000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": "\n"
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "r1",
+      "sourceHandle": "output",
+      "target": "s1",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "s1",
+      "sourceHandle": "output",
+      "target": "n1",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e3",
+      "source": "r2",
+      "sourceHandle": "output",
+      "target": "s2",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e4",
+      "source": "s2",
+      "sourceHandle": "output",
+      "target": "n2",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e5",
+      "source": "r3",
+      "sourceHandle": "output",
+      "target": "s3",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e6",
+      "source": "s3",
+      "sourceHandle": "output",
+      "target": "n3",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e7",
+      "source": "n1",
+      "sourceHandle": "output",
+      "target": "concat",
+      "targetHandle": "table1"
+    },
+    {
+      "id": "e8",
+      "source": "n2",
+      "sourceHandle": "output",
+      "target": "concat",
+      "targetHandle": "table2"
+    },
+    {
+      "id": "e9",
+      "source": "n3",
+      "sourceHandle": "output",
+      "target": "concat",
+      "targetHandle": "table3"
+    },
+    {
+      "id": "e10",
+      "source": "concat",
+      "sourceHandle": "output",
+      "target": "print",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

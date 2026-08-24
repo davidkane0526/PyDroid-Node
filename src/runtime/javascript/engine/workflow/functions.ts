@@ -13,6 +13,7 @@ type FunctionExecutionContext = ExecutionContext & {
 
 const MULTI_INPUT_NODE_TYPES = new Set([
   "table.concat",
+  "table.concat_many",
   "table.merge_rows",
   "pulse.combine_channels",
   "pulse.segment_measurement",

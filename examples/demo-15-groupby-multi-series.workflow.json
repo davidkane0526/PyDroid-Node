@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 15 · GroupBy 多聚合与 Series",
+  "nodes": [
+    {
+      "id": "pulse",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 180
+      },
+      "data": {
+        "label": "生成脉冲数据",
+        "nodeType": "pulse.generate_waveform",
+        "nodeVersion": 1,
+        "parameters": {
+          "voltageMax": 2,
+          "voltageStep": 1,
+          "readVoltage": 0.1,
+          "pulseTime": 0.01,
+          "readTime": 0.01,
+          "timeShift": 0,
+          "cycles": 1,
+          "ratio": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "group",
+      "type": "workflow",
+      "position": {
+        "x": 430,
+        "y": 160
+      },
+      "data": {
+        "label": "多聚合 GroupBy",
+        "nodeType": "table.groupby_aggregate",
+        "nodeVersion": 1,
+        "parameters": {
+          "groupBy": "phase",
+          "aggregateMode": "multi",
+          "method": "mean",
+          "aggregations": "{\"time_s\":[\"mean\",\"std\"],\"voltage_V\":[\"min\",\"max\"]}"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 820,
+        "y": 120
+      },
+      "data": {
+        "label": "Series 曲线配置",
+        "nodeType": "plot.line",
+        "nodeVersion": 1,
+        "parameters": {
+          "xColumn": "",
+          "yColumns": "",
+          "title": "Multi aggregation series",
+          "xLabel": "Group index",
+          "yLabel": "Value",
+          "legend": true,
+          "grid": true,
+          "logX": false,
+          "logY": false,
+          "scientificNotation": true,
+          "lineStyle": "-",
+          "marker": "",
+          "lineWidth": 1.5,
+          "seriesConfig": "[{\"y\":\"time_s_mean\",\"label\":\"Mean time\",\"lineStyle\":\"-\",\"marker\":\"o\",\"lineWidth\":2},{\"y\":\"time_s_std\",\"label\":\"Std time\",\"lineStyle\":\"--\",\"marker\":\"s\",\"lineWidth\":1.5},{\"y\":\"voltage_V_max\",\"label\":\"Max voltage\",\"lineStyle\":\"-.\",\"marker\":\"^\",\"lineWidth\":2.5}]",
+          "figureWidth": 8,
+          "figureHeight": 4.5,
+          "dpi": 120
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "pulse",
+      "sourceHandle": "output",
+      "target": "group",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "group",
+      "sourceHandle": "output",
+      "target": "plot",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

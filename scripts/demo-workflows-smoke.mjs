@@ -17,6 +17,9 @@ const files = [
   "demo-11-dynamic-data-nodes.workflow.json",
   "demo-12-dynamic-table-parameters.workflow.json",
   "demo-13-dynamic-pulse-plot.workflow.json",
+  "demo-14-dynamic-multi-input-concat.workflow.json",
+  "demo-15-groupby-multi-series.workflow.json",
+  "demo-16-dynamic-pulse-channels.workflow.json",
 ];
 
 let failed = 0;

@@ -344,7 +344,7 @@ def _sync_notebook_outputs(params: dict[str, Any], outputs: dict[str, Any], name
             namespace[variable] = outputs[port]
 
 _FUNCTION_MULTI_INPUT_TYPES = {
-    "table.concat", "table.merge_rows", "pulse.combine_channels", "pulse.segment_measurement",
+    "table.concat", "table.concat_many", "table.merge_rows", "pulse.combine_channels", "pulse.segment_measurement",
     "custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value",
 }
 

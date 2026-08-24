@@ -9,8 +9,17 @@ export function executeTableCollectionsNode(nodeType: string, params: Record<str
     case "table.concat_many": {
       if (!upstream || typeof upstream !== "object" || upstream instanceof Table || Array.isArray(upstream)) throw new Error("Concat many requires named inputs");
       const inputs = upstream as Record<string, unknown>;
-      if (!Array.isArray(inputs.tables) || !inputs.tables.length) throw new Error("Concat many requires a non-empty table list");
-      const tables = inputs.tables.map((item, index) => requireTable(item, `Concat many table ${index + 1}`));
+      let tables: Table[];
+      if (Array.isArray(inputs.tables) && inputs.tables.length) {
+        tables = inputs.tables.map((item, index) => requireTable(item, `Concat many table ${index + 1}`));
+      } else {
+        const named = Object.entries(inputs)
+          .map(([port, value]) => ({ match: /^table(\d+)$/.exec(port), value }))
+          .filter((item): item is { match: RegExpExecArray; value: unknown } => Boolean(item.match))
+          .sort((left, right) => Number(left.match[1]) - Number(right.match[1]));
+        if (named.length < 2) throw new Error("Concat many requires a non-empty table list or at least two table Socket inputs");
+        tables = named.map((item) => requireTable(item.value, `Concat many table ${item.match[1]}`));
+      }
       const alignment = String(params.alignment ?? "index");
       if (alignment !== "position") throw new Error("JavaScript concat_many supports alignment=position only; use Python for pandas index alignment");
       const prefixMode = String(params.prefixMode ?? "metadata");

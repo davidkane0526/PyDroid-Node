@@ -1,3 +1,14 @@
+## 1.6.20 (160) — Dynamic repeated sockets, multi-aggregate GroupBy and plot series — 2026-08-24
+
+- Added a reusable `repeatedInputPorts` NodeSpec contract. Repeated sockets are derived deterministically from an ordinary numeric parameter and optional mode condition, so the editor, validation and runtimes share one resolved port contract instead of hard-coded UI-only ports.
+- Extended `table.concat_many` with a list/independent-Socket input mode. Independent mode dynamically exposes 2–16 `Table N` sockets and executes through the existing horizontal-concat runtime path; the list mode remains the default for batch-file workflows.
+- Extended `table.groupby_aggregate` in place rather than adding another node: unified aggregation keeps the existing method selector, while multi aggregation accepts a JSON/object mapping such as `{"current":["mean","std"],"voltage":"max"}` and emits deterministic `<column>_<method>` result columns in both runtimes.
+- Added optional `seriesConfig` to the Line Plot. A Series array can select Y columns and independently set label, line style, marker and line width; when absent, the existing Y-column/global-style behavior is unchanged.
+- Generalized `pulse.combine_channels` to support either the existing Vd/Vs/Vg sockets or 1–12 dynamically generated custom channel sockets with user-defined channel names. Channel alignment still uses the shared time-union/hold-last semantics.
+- Split Python multi-aggregation logic into `engine_parts/table_groupby.py` after the runtime architecture guard detected `table_pandas.py` growing beyond its domain-handler limit; the handler stays below the existing 260-line ownership threshold.
+- Added runnable Demo 14 for repeated Concat sockets, Demo 15 for GroupBy multi aggregation + Plot Series, and Demo 16 for four-channel Pulse composition. All three execute successfully in both Python and JavaScript parity tests.
+- Build revision: `1.6.20-dev-r112-dynamic-multi-input-series`.
+
 ## 1.6.19 (159) — Dynamic scientific parameters and column references — 2026-08-24
 
 - Extended the shared parameter-Socket contract to table column selection, value sorting, pivot/group aggregation, scientific plots and pulse generators without adding per-node runtime routing branches. Only parameters that are useful to drive from upstream computation are exposed; titles, labels, DPI and other presentation/configuration fields remain Inspector-owned.

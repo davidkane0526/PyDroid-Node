@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import re
 from typing import Any
 
 import numpy as np
@@ -140,19 +141,36 @@ def _oscillating_pulse_ramp(params: dict[str, Any]) -> pd.DataFrame:
 
 def _pulse_combine_channels(inputs: dict[str, Any], params: dict[str, Any]) -> pd.DataFrame:
     time_name, voltage_name = str(params.get("timeColumn", "time_s")), str(params.get("voltageColumn", "voltage_V"))
-    columns = {"drain": "Vd_V", "source": "Vs_V", "gate": "Vg_V"}
+    generic = sorted(
+        ((int(match.group(1)), value) for key, value in inputs.items() if (match := re.fullmatch(r"channel(\d+)", str(key)))),
+        key=lambda item: item[0],
+    )
+    if generic:
+        raw_names = params.get("channelNames", "")
+        if isinstance(raw_names, list):
+            names = [str(item).strip() for item in raw_names if str(item).strip()]
+        else:
+            names = [item.strip() for item in str(raw_names or "").split(",") if item.strip()]
+        if len(names) < len(generic):
+            names.extend(f"Channel{index}" for index in range(len(names) + 1, len(generic) + 1))
+        columns = [(f"channel{index}", name if name.endswith("_V") else f"{name}_V", value) for (index, value), name in zip(generic, names)]
+    else:
+        columns = [("drain", "Vd_V", inputs.get("drain")), ("source", "Vs_V", inputs.get("source")), ("gate", "Vg_V", inputs.get("gate"))]
+    output_names = [output for _, output, value in columns if value is not None]
+    if len(set(output_names)) != len(output_names):
+        raise ValueError("Pulse channel names must be unique")
     prepared: list[pd.DataFrame] = []
-    for port, output_column in columns.items():
-        table = inputs.get(port)
-        if table is None: continue
-        table = _require_table(table, f"Pulse {port} waveform")
+    for port, output_column, raw_table in columns:
+        if raw_table is None:
+            continue
+        table = _require_table(raw_table, f"Pulse {port} waveform")
         time_column, voltage_column = _resolve_column(table, time_name), _resolve_column(table, voltage_name)
         prepared.append(pd.DataFrame({"time_s": pd.to_numeric(table[time_column], errors="coerce"), output_column: pd.to_numeric(table[voltage_column], errors="coerce")}).dropna(subset=["time_s"]).sort_values("time_s"))
-    if not prepared: raise ValueError("Combine Vd / Vs / Vg requires at least one waveform")
+    if not prepared:
+        raise ValueError("Combine channels requires at least one waveform")
     merged = pd.DataFrame({"time_s": sorted(set().union(*(set(frame["time_s"]) for frame in prepared)))})
-    for frame in prepared: merged = pd.merge_asof(merged, frame, on="time_s", direction="backward")
-    # bfill() fills the leading samples (earlier than any waveform timestamp) with
-    # the first known value instead of silently forcing them to 0 via fillna(0).
+    for frame in prepared:
+        merged = pd.merge_asof(merged, frame, on="time_s", direction="backward")
     return merged.ffill().bfill().fillna(0).reset_index(drop=True)
 
 def _pulse_segment_measurement(inputs: dict[str, Any], params: dict[str, Any]) -> pd.DataFrame:

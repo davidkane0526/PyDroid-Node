@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import io
+import json
 from typing import Any
 
 import matplotlib
@@ -45,17 +46,53 @@ def execute(
             raise ValueError("Plot size or DPI is outside the supported range")
         figure, axis = plt.subplots(figsize=(figure_width, figure_height), dpi=dpi)
         try:
-            table.plot(
-                ax=axis,
-                x=x_column,
-                y=y_columns or None,
-                logx=_as_bool(params.get("logX", False)),
-                logy=_as_bool(params.get("logY", False)),
-                legend=_as_bool(params.get("legend", True)),
-                linestyle=str(params.get("lineStyle", "-")),
-                marker=str(params.get("marker", "")) or None,
-                linewidth=float(params.get("lineWidth", 1.5)),
-            )
+            raw_series = params.get("seriesConfig")
+            if isinstance(raw_series, list):
+                series_config = raw_series
+            else:
+                series_text = str(raw_series or "").strip()
+                if series_text:
+                    try:
+                        series_config = json.loads(series_text)
+                    except (TypeError, ValueError) as exception:
+                        raise ValueError("Line plot seriesConfig must be a JSON array") from exception
+                else:
+                    series_config = []
+            if series_config:
+                if not isinstance(series_config, list) or not all(isinstance(item, dict) for item in series_config):
+                    raise ValueError("Line plot seriesConfig must be an array of objects")
+                x_values = table[x_column] if x_column is not None else table.index
+                for item in series_config:
+                    y_raw = item.get("y", item.get("column"))
+                    if y_raw is None or str(y_raw).strip() == "":
+                        raise ValueError("Line plot series item requires y")
+                    y_column = _resolve_column(table, y_raw)
+                    width = float(item.get("lineWidth", params.get("lineWidth", 1.5)))
+                    if not 0 < width <= 20:
+                        raise ValueError("Line plot series lineWidth must be between 0 and 20")
+                    axis.plot(
+                        x_values, table[y_column],
+                        label=str(item.get("label", y_column)),
+                        linestyle=str(item.get("lineStyle", params.get("lineStyle", "-"))),
+                        marker=str(item.get("marker", params.get("marker", ""))) or None,
+                        linewidth=width,
+                    )
+                axis.set_xscale("log" if _as_bool(params.get("logX", False)) else "linear")
+                axis.set_yscale("log" if _as_bool(params.get("logY", False)) else "linear")
+                if _as_bool(params.get("legend", True)):
+                    axis.legend()
+            else:
+                table.plot(
+                    ax=axis,
+                    x=x_column,
+                    y=y_columns or None,
+                    logx=_as_bool(params.get("logX", False)),
+                    logy=_as_bool(params.get("logY", False)),
+                    legend=_as_bool(params.get("legend", True)),
+                    linestyle=str(params.get("lineStyle", "-")),
+                    marker=str(params.get("marker", "")) or None,
+                    linewidth=float(params.get("lineWidth", 1.5)),
+                )
             title = str(params.get("title", "")).strip()
             x_label = str(params.get("xLabel", "")).strip()
             y_label = str(params.get("yLabel", "")).strip()

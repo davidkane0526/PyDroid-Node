@@ -83,27 +83,49 @@ export function oscillatingPulseRamp(params: Record<string, unknown>): Table {
 export function pulseCombineChannels(upstream: Record<string, unknown>, params: Record<string, unknown>): Table {
   const timeName = String(params.timeColumn ?? "time_s");
   const voltageName = String(params.voltageColumn ?? "voltage_V");
-  const columns: Record<string, string> = { drain: "Vd_V", source: "Vs_V", gate: "Vg_V" };
+  const generic = Object.entries(upstream)
+    .map(([port, value]) => ({ match: /^channel(\d+)$/.exec(port), value }))
+    .filter((item): item is { match: RegExpExecArray; value: unknown } => Boolean(item.match))
+    .sort((left, right) => Number(left.match[1]) - Number(right.match[1]));
+  let channels: Array<{ port: string; output: string; value: unknown }>;
+  if (generic.length) {
+    const rawNames = params.channelNames;
+    const names = Array.isArray(rawNames)
+      ? rawNames.map(String).map((item) => item.trim()).filter(Boolean)
+      : String(rawNames ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+    while (names.length < generic.length) names.push(`Channel${names.length + 1}`);
+    channels = generic.map((item, index) => ({
+      port: `channel${item.match[1]}`,
+      output: names[index].endsWith("_V") ? names[index] : `${names[index]}_V`,
+      value: item.value,
+    }));
+  } else {
+    channels = [
+      { port: "drain", output: "Vd_V", value: upstream.drain },
+      { port: "source", output: "Vs_V", value: upstream.source },
+      { port: "gate", output: "Vg_V", value: upstream.gate },
+    ];
+  }
+  const outputNames = channels.filter((item) => item.value !== null && item.value !== undefined).map((item) => item.output);
+  if (new Set(outputNames).size !== outputNames.length) throw new Error("Pulse channel names must be unique");
   const prepared: Array<{ time: number[]; values: number[]; output: string }> = [];
-  for (const [port, outputColumn] of Object.entries(columns)) {
-    const table = upstream[port];
-    if (table === null || table === undefined) continue;
-    const frame = requireTable(table, `Pulse ${port} waveform`);
+  for (const channel of channels) {
+    if (channel.value === null || channel.value === undefined) continue;
+    const frame = requireTable(channel.value, `Pulse ${channel.port} waveform`);
     const timeColumn = resolveColumn(frame, timeName);
     const voltageColumn = resolveColumn(frame, voltageName);
     const rows = frame.rows().map((row) => ({
       time: toNumber(row[frame.columnIndex(timeColumn)]),
       value: toNumber(row[frame.columnIndex(voltageColumn)]),
     })).filter((item) => item.time !== null).sort((a, b) => (a.time as number) - (b.time as number));
-    prepared.push({ time: rows.map((item) => item.time as number), values: rows.map((item) => item.value ?? 0), output: outputColumn });
+    prepared.push({ time: rows.map((item) => item.time as number), values: rows.map((item) => item.value ?? 0), output: channel.output });
   }
-  if (!prepared.length) throw new Error("Combine Vd / Vs / Vg requires at least one waveform");
+  if (!prepared.length) throw new Error("Combine channels requires at least one waveform");
   const allTimes = [...new Set(prepared.flatMap((item) => item.time))].sort((a, b) => a - b);
   const rows = allTimes.map((time) => {
     const row: Array<number> = [time];
     for (const item of prepared) {
-      // merge_asof：最近一个 <= time 的值
-      let value = 0;
+      let value = item.values[0] ?? 0;
       for (let i = 0; i < item.time.length; i += 1) {
         if (item.time[i] <= time) value = item.values[i];
         else break;

@@ -58,6 +58,20 @@ function baseTitle(title: string, xLabel: string, yLabel: string): Record<string
   };
 }
 
+
+function lineSeriesConfig(raw: unknown): Array<Record<string, unknown>> {
+  if (raw === null || raw === undefined || String(raw).trim() === "") return [];
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    try { parsed = JSON.parse(raw); }
+    catch { throw new Error("Line plot seriesConfig must be a JSON array"); }
+  }
+  if (!Array.isArray(parsed) || !parsed.every((item) => item && typeof item === "object" && !Array.isArray(item))) {
+    throw new Error("Line plot seriesConfig must be an array of objects");
+  }
+  return parsed as Array<Record<string, unknown>>;
+}
+
 const LINE_STYLES: Record<string, string> = { "-": "solid", "--": "dashed", "-.": "dotted", ":": "dotted", "": "solid" };
 
 function axisScale(log: boolean, label: string): Record<string, unknown> {
@@ -70,7 +84,6 @@ function axisScale(log: boolean, label: string): Record<string, unknown> {
 export function linePlot(table: Table, params: Record<string, unknown>): PlotChart {
   const xColumn = resolveColumn(table, params.xColumn);
   const yColumns = resolveColumns(table, params.yColumns);
-  if (!yColumns.length) throw new Error("Line plot requires at least one Y column");
   const width = Number(params.figureWidth ?? 8);
   const height = Number(params.figureHeight ?? 4.5);
   const dpi = Number(params.dpi ?? 120);
@@ -78,16 +91,36 @@ export function linePlot(table: Table, params: Record<string, unknown>): PlotCha
     throw new Error("Plot size or DPI is outside the supported range");
   }
   const xValues = xColumn ? table.column(xColumn).map((value) => (isMissing(value) ? null : value)) : null;
-  const series = yColumns.map((column) => {
-    const yValues = table.column(column);
+  const configured = lineSeriesConfig(params.seriesConfig);
+  const effectiveSeries = configured.length
+    ? configured.map((item) => {
+        const rawY = item.y ?? item.column;
+        if (rawY === null || rawY === undefined || String(rawY).trim() === "") throw new Error("Line plot series item requires y");
+        const column = resolveColumn(table, rawY) as string;
+        const lineWidth = Number(item.lineWidth ?? params.lineWidth ?? 1.5);
+        if (!(lineWidth > 0 && lineWidth <= 20)) throw new Error("Line plot series lineWidth must be between 0 and 20");
+        return {
+          column,
+          label: String(item.label ?? column),
+          lineStyle: String(item.lineStyle ?? params.lineStyle ?? "-"),
+          marker: String(item.marker ?? params.marker ?? ""),
+          lineWidth,
+        };
+      })
+    : yColumns.map((column) => ({
+        column, label: column, lineStyle: String(params.lineStyle ?? "-"), marker: String(params.marker ?? ""), lineWidth: Number(params.lineWidth ?? 1.5),
+      }));
+  if (!effectiveSeries.length) throw new Error("Line plot requires at least one Y column");
+  const series = effectiveSeries.map((item) => {
+    const yValues = table.column(item.column);
     const data = yValues.map((value, r) => [xValues ? xValues[r] : r, isMissing(value) ? null : value]);
     return {
-      name: column,
+      name: item.label,
       type: "line",
       data,
-      showSymbol: Boolean(String(params.marker ?? "").trim()),
-      symbol: markerSymbol(String(params.marker ?? "")) ?? "circle",
-      lineStyle: { width: Number(params.lineWidth ?? 1.5), type: LINE_STYLES[String(params.lineStyle ?? "-")] ?? "solid" },
+      showSymbol: Boolean(item.marker.trim()),
+      symbol: markerSymbol(item.marker) ?? "circle",
+      lineStyle: { width: item.lineWidth, type: LINE_STYLES[item.lineStyle] ?? "solid" },
       connectNulls: false,
     };
   });

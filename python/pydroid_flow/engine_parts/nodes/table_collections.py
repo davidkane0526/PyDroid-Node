@@ -25,9 +25,16 @@ def execute(
         if not isinstance(upstream, dict):
             raise ValueError("Concat many requires named inputs")
         raw_tables = upstream.get("tables")
-        if not isinstance(raw_tables, list) or not raw_tables:
-            raise ValueError("Concat many requires a non-empty table list")
-        tables = [_require_table(item, f"Concat many table {index + 1}") for index, item in enumerate(raw_tables)]
+        if isinstance(raw_tables, list) and raw_tables:
+            tables = [_require_table(item, f"Concat many table {index + 1}") for index, item in enumerate(raw_tables)]
+        else:
+            named = sorted(
+                ((int(match.group(1)), value) for key, value in upstream.items() if (match := re.fullmatch(r"table(\d+)", str(key)))),
+                key=lambda item: item[0],
+            )
+            if len(named) < 2:
+                raise ValueError("Concat many requires a non-empty table list or at least two table Socket inputs")
+            tables = [_require_table(value, f"Concat many table {index}") for index, value in named]
         alignment = str(params.get("alignment", "index"))
         if alignment not in {"index", "position"}:
             raise ValueError(f"Unsupported concat_many alignment: {alignment}")

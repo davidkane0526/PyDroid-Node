@@ -11,6 +11,9 @@ import parameterSockets from "../examples/demo-10-parameter-sockets.workflow.jso
 import dynamicDataNodes from "../examples/demo-11-dynamic-data-nodes.workflow.json?raw";
 import dynamicTableParameters from "../examples/demo-12-dynamic-table-parameters.workflow.json?raw";
 import dynamicPulsePlot from "../examples/demo-13-dynamic-pulse-plot.workflow.json?raw";
+import dynamicMultiInputConcat from "../examples/demo-14-dynamic-multi-input-concat.workflow.json?raw";
+import groupbyMultiSeries from "../examples/demo-15-groupby-multi-series.workflow.json?raw";
+import dynamicPulseChannels from "../examples/demo-16-dynamic-pulse-channels.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -97,5 +100,23 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 13 · 动态 Pulse 与 Plot",
     description: "用 Math 动态驱动脉冲高电平、重复次数和绘图线宽。",
     document: dynamicPulsePlot,
+  },
+  {
+    id: "dynamic-multi-input-concat",
+    label: "Demo 14 · 动态多输入 Concat",
+    description: "Concat 切换为独立 Socket 模式后，根据输入数量动态生成 Table 端口。",
+    document: dynamicMultiInputConcat,
+  },
+  {
+    id: "groupby-multi-series",
+    label: "Demo 15 · GroupBy 多聚合与 Series",
+    description: "同一个 GroupBy 对不同列执行多种聚合，并用 Series 配置控制多条曲线。",
+    document: groupbyMultiSeries,
+  },
+  {
+    id: "dynamic-pulse-channels",
+    label: "Demo 16 · 动态 Pulse 多通道",
+    description: "合并节点按通道数量生成 Socket，并将四路独立波形对齐为一张多通道表。",
+    document: dynamicPulseChannels,
   },
 ] as const;

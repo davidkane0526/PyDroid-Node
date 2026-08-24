@@ -7,6 +7,7 @@ import pandas as pd
 
 from ..analysis_nodes import _filter_range, _group_aggregate
 from ..random_portable import _portable_sample_count, _portable_sample_indexes
+from ..table_groupby import groupby_aggregate
 from ..values import _as_bool, _optional_float, _parameter_list, _parse_columns, _rename_columns, _require_table, _resolve_columns, _scalar_value
 
 NODE_TYPES = {
@@ -225,18 +226,7 @@ def execute(
     elif node_type == "table.group_aggregate":
         value = _group_aggregate(_require_table(upstream, "Group aggregate"), params)
     elif node_type == "table.groupby_aggregate":
-        table = _require_table(upstream, "Groupby aggregate")
-        group_by = _resolve_columns(table, params.get("groupBy"))
-        if not group_by:
-            raise ValueError("Groupby aggregate requires at least one grouping column")
-        method = str(params.get("method", "mean"))
-        if method not in {"mean", "median", "sum", "min", "max", "std", "count"}:
-            raise ValueError(f"Unsupported groupby method: {method}")
-        grouped = table.groupby(group_by, sort=True)
-        if method == "count":
-            value = grouped.size().reset_index(name="count")
-        else:
-            value = getattr(grouped, method)(numeric_only=True).reset_index()
+        value = groupby_aggregate(_require_table(upstream, "Groupby aggregate"), params)
     else:
         raise ValueError(f"Unsupported table/pandas node type: {node_type}")
 

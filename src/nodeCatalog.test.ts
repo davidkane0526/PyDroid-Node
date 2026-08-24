@@ -101,20 +101,24 @@ describe("node function signatures", () => {
     ]));
     const concatMany = getNodeSpec("table.concat_many")!;
     expect(concatMany.inputPorts.map((port) => [port.id, port.valueType, port.required])).toEqual([["tables", "list", true], ["metadata", "table", undefined]]);
-    expect(concatMany.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining(["alignment", "prefixMode", "sourceColumn", "prefixColumn", "prefixTemplate"]));
+    expect(concatMany.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining(["inputMode", "inputCount", "alignment", "prefixMode", "sourceColumn", "prefixColumn", "prefixTemplate"]));
+    const concatPorts = resolveNodeSpec(concatMany, { inputMode: "ports", inputCount: 4 })!;
+    expect(concatPorts.inputPorts.map((port) => port.id)).toEqual(["metadata", "table1", "table2", "table3", "table4"]);
     expect(getNodeSpec("analysis.ter_matrix")!.parameters.map((parameter) => parameter.key)).toEqual(expect.arrayContaining([
       "vgColumn", "voltageColumn", "currentColumn", "vstep", "tolerance", "mode",
     ]));
-    expect(getNodeSpec("pulse.generate_waveform")!.inputPorts).toHaveLength(0);
+    expect(getNodeSpec("pulse.generate_waveform")!.inputPorts.map((port) => port.defaultParameter)).toEqual(["voltageMax", "voltageStep", "readVoltage", "ratio"]);
     const square = getNodeSpec("pulse.generate_square_waveform")!;
     expect(square.runtimeSupport).toEqual(["python", "javascript"]);
-    expect(square.inputPorts).toHaveLength(0);
+    expect(square.inputPorts.map((port) => port.defaultParameter)).toEqual(["highVoltage", "lowVoltage", "highTime", "lowTime", "repeatCount"]);
     expect(square.outputPorts.map((port) => [port.id, port.valueType])).toEqual([["output", "table"]]);
     expect(square.defaults).toMatchObject({ highVoltage: 5, lowVoltage: 0, repeatCount: 1, startLevel: "high", timeStart: 0, totalTime: 0 });
     expect(square.parameters.map((parameter) => parameter.key)).toEqual([
       "highVoltage", "lowVoltage", "highTime", "lowTime", "repeatCount", "startLevel", "timeStart", "totalTime",
     ]);
     expect(getNodeSpec("pulse.combine_channels")!.inputPorts.map((port) => port.id)).toEqual(["drain", "source", "gate"]);
+    const customChannels = resolveNodeSpec(getNodeSpec("pulse.combine_channels"), { inputMode: "channels", channelCount: 4 })!;
+    expect(customChannels.inputPorts.map((port) => port.id)).toEqual(["channel1", "channel2", "channel3", "channel4"]);
     expect(getNodeSpec("pulse.segment_measurement")!.inputPorts.map((port) => [port.id, port.required])).toEqual([["measurement", true], ["waveform", true]]);
   });
 
@@ -188,11 +192,15 @@ describe("node function signatures", () => {
     expect(getNodeSpec("table.groupby_aggregate")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
       ["input", undefined], ["groupBy", "groupBy"],
     ]);
+    const multiGroupBy = resolveNodeSpec(getNodeSpec("table.groupby_aggregate"), { aggregateMode: "multi" })!;
+    expect(multiGroupBy.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
+      ["input", undefined], ["groupBy", "groupBy"], ["aggregations", "aggregations"],
+    ]);
     expect(getNodeSpec("pulse.generate_square_waveform")!.inputPorts.map((port) => port.defaultParameter)).toEqual([
       "highVoltage", "lowVoltage", "highTime", "lowTime", "repeatCount",
     ]);
     expect(getNodeSpec("plot.line")!.inputPorts.map((port) => [port.id, port.defaultParameter])).toEqual([
-      ["input", undefined], ["xColumn", "xColumn"], ["yColumns", "yColumns"], ["lineWidth", "lineWidth"],
+      ["input", undefined], ["xColumn", "xColumn"], ["yColumns", "yColumns"], ["lineWidth", "lineWidth"], ["seriesConfig", "seriesConfig"],
     ]);
     expect(getNodeSpec("plot.histogram")!.inputPorts.map((port) => port.id)).toEqual(["input", "yColumns", "bins", "alpha"]);
     expect(getNodeSpec("plot.box")!.inputPorts.map((port) => port.id)).toEqual(["input", "yColumns"]);

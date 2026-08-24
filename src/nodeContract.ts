@@ -175,6 +175,13 @@ export function validateNodeContracts(): string[] {
         errors.push(`通用参数 Socket 的端口 id 必须与参数 key 一致：${spec.nodeType}.${port.id} -> ${port.defaultParameter}`);
       }
     }
+    for (const repeated of spec.repeatedInputPorts ?? []) {
+      const countParameter = spec.parameters.find((parameter) => parameter.key === repeated.countParameter);
+      if (!countParameter) errors.push(`重复 Socket 数量参数不存在：${spec.nodeType}.${repeated.countParameter}`);
+      else if (countParameter.kind !== "number") errors.push(`重复 Socket 数量参数必须为 number：${spec.nodeType}.${repeated.countParameter}`);
+      if (!repeated.idPrefix.trim() || !repeated.labelPrefix.trim()) errors.push(`重复 Socket 前缀不能为空：${spec.nodeType}`);
+      if ((repeated.min ?? 1) < 1 || (repeated.max ?? 32) < (repeated.min ?? 1)) errors.push(`重复 Socket 数量范围无效：${spec.nodeType}`);
+    }
     if (contract.runtimes.javascript && contract.parityClass === "C") errors.push(`JavaScript 节点不能声明 C 级 parity：${spec.nodeType}`);
     if (!contract.runtimes.javascript && contract.parityClass !== "C") errors.push(`Python-only 节点必须声明 C 级 parity：${spec.nodeType}`);
   }
