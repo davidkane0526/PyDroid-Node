@@ -29,6 +29,33 @@ describe("editor graph commands", () => {
     expect(updated.snapshot.nodes.find((node) => node.id === "c-copy")?.data.parameters.prefix).toBe("phase9");
   });
 
+  it("normalizes dependent select values when a dynamic variant changes", () => {
+    const dynamic: WorkflowSnapshot = {
+      nodes: [
+        { id: "compare", position: { x: 0, y: 0 }, data: { label: "compare", nodeType: "logic.compare", nodeVersion: 1, parameters: { valueType: "text", operation: "contains", a: "abc", b: "a" }, status: "idle" } },
+      ],
+      edges: [], functions: [], requirements: [],
+    };
+    const updated = applyEditorGraphCommand(dynamic, { type: "update-node-parameters", nodeId: "compare", patch: { valueType: "boolean" } });
+    expect(updated.snapshot.nodes[0].data.parameters.operation).toBe("equal");
+  });
+
+  it("drops incompatible incident edges when a dynamic port type changes", () => {
+    const dynamic: WorkflowSnapshot = {
+      nodes: [
+        { id: "source", position: { x: 0, y: 0 }, data: { label: "source", nodeType: "generate.random_table", nodeVersion: 1, parameters: { rows: 2, columns: 2, seed: 1 }, status: "idle" } },
+        { id: "switch", position: { x: 1, y: 0 }, data: { label: "switch", nodeType: "logic.switch", nodeVersion: 1, parameters: { valueType: "table", condition: false, falseValue: 0, trueValue: 1 }, status: "idle" } },
+      ],
+      edges: [{ id: "edge", source: "source", sourceHandle: "output", target: "switch", targetHandle: "true" }],
+      functions: [],
+      requirements: [],
+    };
+    const updated = applyEditorGraphCommand(dynamic, { type: "update-node-parameters", nodeId: "switch", patch: { valueType: "number" } });
+    expect(updated.changed).toBe(true);
+    expect(updated.snapshot.edges).toEqual([]);
+    expect(updated.meta?.removedEdgeCount).toBe(1);
+  });
+
   it("arranges a canvas without moving nodes on another canvas", () => {
     const nested: WorkflowSnapshot = {
       ...snapshot,

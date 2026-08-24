@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+import math
 
 import pandas as pd
 
@@ -10,6 +11,8 @@ from ..values import _as_bool, _require_table
 NODE_TYPES = {
     "table.split_condition",
     "table.merge_rows",
+    "logic.compare",
+    "logic.switch",
     "logic.for_range",
     "logic.while_number",
     "variable.set",
@@ -48,6 +51,63 @@ def execute(
         if not ignore_index and _as_bool(params.get("sortIndex", False)):
             value = value.sort_index()
         table_result = value
+    elif node_type == "logic.compare":
+        inputs = upstream if isinstance(upstream, dict) else {}
+        raw_a = inputs["a"] if "a" in inputs else params.get("a")
+        raw_b = inputs["b"] if "b" in inputs else params.get("b")
+        value_type = str(params.get("valueType", "number"))
+        operation = str(params.get("operation", "greater"))
+
+        def normalize(raw: Any) -> str | float | bool:
+            if value_type == "number":
+                value = float(raw)
+                if not math.isfinite(value):
+                    raise ValueError("Compare number inputs must be finite numbers")
+                return value
+            if value_type == "boolean":
+                return _as_bool(raw)
+            return str(raw if raw is not None else "")
+
+        a = normalize(raw_a)
+        b = normalize(raw_b)
+        if operation == "equal":
+            value = a == b
+        elif operation == "notEqual":
+            value = a != b
+        elif operation == "greater":
+            value = a > b
+        elif operation == "greaterEqual":
+            value = a >= b
+        elif operation == "less":
+            value = a < b
+        elif operation == "lessEqual":
+            value = a <= b
+        elif operation == "contains":
+            value = str(b) in str(a)
+        elif operation == "startsWith":
+            value = str(a).startswith(str(b))
+        elif operation == "endsWith":
+            value = str(a).endswith(str(b))
+        else:
+            raise ValueError(f"Unsupported compare operation: {operation}")
+        return {"output": bool(value)}, None, None, None
+    elif node_type == "logic.switch":
+        inputs = upstream if isinstance(upstream, dict) else {}
+        condition = inputs["condition"] if "condition" in inputs else params.get("condition", False)
+        false_value = inputs["false"] if "false" in inputs else params.get("falseValue")
+        true_value = inputs["true"] if "true" in inputs else params.get("trueValue")
+        value = true_value if _as_bool(condition) else false_value
+        value_type = str(params.get("valueType", "number"))
+        if value_type == "number":
+            value = float(value)
+            if not math.isfinite(value):
+                raise ValueError("Switch number value must be a finite number")
+        elif value_type == "text":
+            value = str(value if value is not None else "")
+        elif value_type == "boolean":
+            value = _as_bool(value)
+        table_result = value if isinstance(value, pd.DataFrame) else None
+        return {"output": value}, table_result, None, None
     elif node_type == "logic.for_range":
         start = int(params.get("start", 0))
         stop = int(params.get("stop", 10))

@@ -13,6 +13,7 @@ export type PortSpec = {
   label: string;
   valueType: ValueType;
   required?: boolean;
+  defaultParameter?: string;
 };
 
 export type ParameterSpec = {
@@ -31,6 +32,18 @@ export type ParameterSpec = {
   control?: "slider";
   advanced?: boolean;
   rememberDefault?: boolean;
+};
+
+export type DynamicNodeVariant = {
+  when: Record<string, string | number | boolean | null>;
+  inputPorts?: PortSpec[];
+  outputPorts?: PortSpec[];
+  parameterPatches?: Record<string, Partial<ParameterSpec>>;
+  hiddenParameters?: string[];
+};
+
+export type NodeUiSpec = {
+  inlineParameters?: string[];
 };
 
 export type NodeSpec = {
@@ -55,6 +68,8 @@ export type NodeSpec = {
   stateScope?: NodeStateScope;
   stateAccess?: NodeStateAccess;
   functionRole?: NodeFunctionRole;
+  ui?: NodeUiSpec;
+  dynamicVariants?: DynamicNodeVariant[];
 };
 
 const TABLE_INPUT: PortSpec[] = [{ id: "input", label: "表格", valueType: "table", required: true }];
@@ -728,12 +743,67 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
+    nodeType: "logic.compare", runtimeSupport: ["python", "javascript"],
+    label: "比较",
+    description: "比较两个值并输出布尔结果。输入端口未连接时使用节点内默认值。",
+    tags: ["logic", "compare", "比较", "条件", "boolean"],
+    category: "逻辑控制",
+    defaults: { valueType: "number", operation: "greater", a: 0, b: 0 },
+    inputPorts: [
+      { id: "a", label: "A", valueType: "number", defaultParameter: "a" },
+      { id: "b", label: "B", valueType: "number", defaultParameter: "b" },
+    ],
+    outputPorts: [{ id: "output", label: "布尔", valueType: "boolean" }],
+    parameters: [
+      { key: "valueType", label: "类型", kind: "select", options: [{ label: "数字", value: "number" }, { label: "文本", value: "text" }, { label: "布尔", value: "boolean" }] },
+      { key: "operation", label: "比较", kind: "select", options: [{ label: ">", value: "greater" }, { label: ">=", value: "greaterEqual" }, { label: "<", value: "less" }, { label: "<=", value: "lessEqual" }, { label: "=", value: "equal" }, { label: "!=", value: "notEqual" }] },
+      { key: "a", label: "A 默认值", kind: "number" },
+      { key: "b", label: "B 默认值", kind: "number" },
+    ],
+    ui: { inlineParameters: ["valueType", "operation"] },
+    dynamicVariants: [
+      { when: { valueType: "number" }, inputPorts: [{ id: "a", label: "A", valueType: "number", defaultParameter: "a" }, { id: "b", label: "B", valueType: "number", defaultParameter: "b" }], parameterPatches: { a: { kind: "number" }, b: { kind: "number" }, operation: { options: [{ label: ">", value: "greater" }, { label: ">=", value: "greaterEqual" }, { label: "<", value: "less" }, { label: "<=", value: "lessEqual" }, { label: "=", value: "equal" }, { label: "!=", value: "notEqual" }] } } },
+      { when: { valueType: "text" }, inputPorts: [{ id: "a", label: "A", valueType: "text", defaultParameter: "a" }, { id: "b", label: "B", valueType: "text", defaultParameter: "b" }], parameterPatches: { a: { kind: "text" }, b: { kind: "text" }, operation: { options: [{ label: "=", value: "equal" }, { label: "!=", value: "notEqual" }, { label: "包含", value: "contains" }, { label: "开头是", value: "startsWith" }, { label: "结尾是", value: "endsWith" }] } } },
+      { when: { valueType: "boolean" }, inputPorts: [{ id: "a", label: "A", valueType: "boolean", defaultParameter: "a" }, { id: "b", label: "B", valueType: "boolean", defaultParameter: "b" }], parameterPatches: { a: { kind: "boolean" }, b: { kind: "boolean" }, operation: { options: [{ label: "=", value: "equal" }, { label: "!=", value: "notEqual" }] } } },
+    ],
+  },
+  {
+    nodeType: "logic.switch", runtimeSupport: ["python", "javascript"],
+    label: "Switch",
+    description: "根据 Condition 在 False 与 True 两个值之间选择。用于数据选择，不替代惰性执行的 If 条件结构。",
+    tags: ["logic", "switch", "select", "选择", "条件", "blender"],
+    category: "逻辑控制",
+    defaults: { valueType: "number", condition: false, falseValue: 0, trueValue: 1 },
+    inputPorts: [
+      { id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" },
+      { id: "false", label: "False", valueType: "number", defaultParameter: "falseValue" },
+      { id: "true", label: "True", valueType: "number", defaultParameter: "trueValue" },
+    ],
+    outputPorts: [{ id: "output", label: "Result", valueType: "number" }],
+    parameters: [
+      { key: "valueType", label: "类型", kind: "select", options: [{ label: "任意", value: "any" }, { label: "数字", value: "number" }, { label: "文本", value: "text" }, { label: "布尔", value: "boolean" }, { label: "表格", value: "table" }, { label: "列表", value: "list" }, { label: "对象", value: "object" }] },
+      { key: "condition", label: "Condition 默认值", kind: "boolean" },
+      { key: "falseValue", label: "False 默认值", kind: "number" },
+      { key: "trueValue", label: "True 默认值", kind: "number" },
+    ],
+    ui: { inlineParameters: ["valueType"] },
+    dynamicVariants: [
+      { when: { valueType: "any" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "any", required: true }, { id: "true", label: "True", valueType: "any", required: true }], outputPorts: [{ id: "output", label: "Result", valueType: "any" }], hiddenParameters: ["falseValue", "trueValue"] },
+      { when: { valueType: "number" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "number", defaultParameter: "falseValue" }, { id: "true", label: "True", valueType: "number", defaultParameter: "trueValue" }], outputPorts: [{ id: "output", label: "Result", valueType: "number" }], parameterPatches: { falseValue: { kind: "number" }, trueValue: { kind: "number" } } },
+      { when: { valueType: "text" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "text", defaultParameter: "falseValue" }, { id: "true", label: "True", valueType: "text", defaultParameter: "trueValue" }], outputPorts: [{ id: "output", label: "Result", valueType: "text" }], parameterPatches: { falseValue: { kind: "text" }, trueValue: { kind: "text" } } },
+      { when: { valueType: "boolean" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "boolean", defaultParameter: "falseValue" }, { id: "true", label: "True", valueType: "boolean", defaultParameter: "trueValue" }], outputPorts: [{ id: "output", label: "Result", valueType: "boolean" }], parameterPatches: { falseValue: { kind: "boolean" }, trueValue: { kind: "boolean" } } },
+      { when: { valueType: "table" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "table", required: true }, { id: "true", label: "True", valueType: "table", required: true }], outputPorts: [{ id: "output", label: "Result", valueType: "table" }], hiddenParameters: ["falseValue", "trueValue"] },
+      { when: { valueType: "list" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "list", required: true }, { id: "true", label: "True", valueType: "list", required: true }], outputPorts: [{ id: "output", label: "Result", valueType: "list" }], hiddenParameters: ["falseValue", "trueValue"] },
+      { when: { valueType: "object" }, inputPorts: [{ id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition" }, { id: "false", label: "False", valueType: "object", required: true }, { id: "true", label: "True", valueType: "object", required: true }], outputPorts: [{ id: "output", label: "Result", valueType: "object" }], hiddenParameters: ["falseValue", "trueValue"] },
+    ],
+  },
+  {
     nodeType: "logic.if_value", runtimeSupport: ["python", "javascript"], executionModel: "control-flow",
-    label: "If 条件结构",
-    description: "通用条件结构。condition 决定只执行 True 或 False 分支；input 作为分支的数据上下文，可承载任意值。",
+    label: "If",
+    description: "惰性条件结构。Condition 只选择并执行 True 或 False 分支；Input 作为分支的数据上下文。",
     tags: ["logic", "if", "条件", "结构", "任意类型", "通用"],
     category: "逻辑控制",
-    defaults: { invert: false },
+    defaults: {},
     inputPorts: [
       { id: "condition", label: "条件", valueType: "any", required: true },
       { id: "input", label: "上下文", valueType: "any", required: false },
@@ -743,7 +813,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { id: "true", label: "True", valueType: "any" },
       { id: "false", label: "False", valueType: "any" },
     ],
-    parameters: [{ key: "invert", label: "条件取反", kind: "boolean" }],
+    parameters: [],
   },
   {
     nodeType: "logic.for_each_value", runtimeSupport: ["python", "javascript"], executionModel: "control-flow",
@@ -942,6 +1012,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "stop", label: "结束值 · stop（不包含）", kind: "number", step: 1 },
       { key: "step", label: "步长 · step", kind: "number", step: 1 },
     ],
+    ui: { inlineParameters: ["start", "stop", "step"] },
   },
   {
     nodeType: "logic.while_number", runtimeSupport: ["python", "javascript"],

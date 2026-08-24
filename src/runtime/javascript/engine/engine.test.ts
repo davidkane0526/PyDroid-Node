@@ -280,6 +280,29 @@ describe("分组扁平化", () => {
   });
 });
 
+describe("动态逻辑节点", () => {
+  it("Compare 使用未连线默认值并输出布尔结果", () => {
+    const result = run({ nodes: [node("compare", "logic.compare", { valueType: "number", operation: "greater", a: 4, b: 3 })], edges: [] }, "");
+    expect(result.status).toBe("success");
+    expect((result.nodeResults as Record<string, { value?: unknown }>).compare.value).toBe(true);
+  });
+
+  it("Switch 可以从已连接输入中选择一个值", () => {
+    const result = run({
+      nodes: [
+        node("false", "python.to_number", { integer: false }),
+        node("true", "python.to_number", { integer: false }),
+        node("switch", "logic.switch", { valueType: "number", condition: true, falseValue: 0, trueValue: 1 }),
+      ],
+      edges: [
+        edge("false", "switch", { targetHandle: "false" }),
+        edge("true", "switch", { targetHandle: "true" }),
+      ],
+    }, "");
+    expect(result.status).toBe("success");
+  });
+});
+
 describe("通用控制结构", () => {
   it("If 条件结构只执行选中的分支", () => {
     const condition = node("read", "io.read_csv", { header: "infer" });

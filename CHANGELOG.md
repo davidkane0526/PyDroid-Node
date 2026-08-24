@@ -1,3 +1,12 @@
+## 1.6.14 (154) — Dynamic node UI foundation — 2026-08-24
+
+- Generalized resolved NodeSpec handling so declarative dynamic variants can change ports and parameter presentation without teaching the runtime about UI state; the existing Python-function signature resolver now uses the same path.
+- Added Blender-style inline socket defaults: an unconnected input can edit its linked default directly on the node, while the control disappears once that socket is connected. Existing `For 数值循环` now uses node-local inline controls as the first migrated built-in node.
+- Added Python/JavaScript-parity `Compare` and `Switch` nodes. `Compare` changes operations and socket types by value type; `Switch` performs lightweight typed value selection without replacing the lazy semantics of the structural If node.
+- Simplified newly created `If` nodes by removing the redundant invert setting while preserving one-branch-only execution. Dynamic type changes now drop incident edges that are no longer contract-compatible instead of leaving stale connections on the canvas.
+- Extended workflow validation and editor commands to resolve the current dynamic NodeSpec before validating ports; runtime parity covers the two new JavaScript-capable nodes.
+- Build revision: `1.6.14-dev-r106-dynamic-node-ui`.
+
 ## 1.6.0 (140) — MCP Core Bridge — 2026-08-23
 
 - Added a shared MCP Core adapter for Workflow, NodeContract, execution, runtime, data and editor-model state without routing through the UI/DOM or Remote Web.

@@ -1,5 +1,6 @@
 import { getNodeContract } from "../nodeContract";
 import { areValueTypesCompatible, getNodeSpec, type PortSpec, type ValueType } from "../nodeCatalog";
+import { resolveNodeSpec } from "../nodeSpec";
 import type { WorkflowDocument } from "../workflow";
 
 type RawPort = { id?: unknown; label?: unknown; valueType?: unknown; required?: unknown };
@@ -73,7 +74,7 @@ function declaredPort(node: RawWorkflowNode, direction: "input" | "output", hand
   }
   // custom.python_function ports are generated from the function signature at runtime.
   if (node.data.nodeType === "custom.python_function") return undefined;
-  const spec = getNodeSpec(node.data.nodeType);
+  const spec = resolveNodeSpec(getNodeSpec(node.data.nodeType), node.data.parameters ?? {});
   if (!spec) return undefined;
   const ports = direction === "input" ? spec.inputPorts : spec.outputPorts;
   if (typeof handle === "string" && handle) return ports.find((port) => port.id === handle);

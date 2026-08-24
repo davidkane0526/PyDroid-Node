@@ -1,4 +1,4 @@
-import type { NodeSpec, ParameterSpec, PortSpec, ValueType } from "./nodeCatalog";
+import type { ParameterSpec, PortSpec, ValueType } from "./nodeCatalog";
 
 export type ParsedFunctionSignature = {
   functionName: string;
@@ -394,15 +394,4 @@ export function parsePythonFunctionSignature(code: string): ParsedFunctionSignat
     ? output.tupleOutputs
     : [{ id: "output", label: "结果", valueType: output.valueType! }];
   return { functionName, inputPorts, outputPorts, outputType: outputPorts[0].valueType, parameters };
-}
-
-export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<string, unknown>): NodeSpec | undefined {
-  if (!base || base.nodeType !== "custom.python_function") return base;
-  const signature = parsePythonFunctionSignature(String(parameters.code ?? ""));
-  return {
-    ...base,
-    inputPorts: signature.error ? base.inputPorts : signature.inputPorts,
-    outputPorts: signature.error ? base.outputPorts : signature.outputPorts,
-    parameters: signature.error ? base.parameters : [...base.parameters, ...signature.parameters],
-  };
 }

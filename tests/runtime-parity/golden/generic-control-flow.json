@@ -134,6 +134,54 @@
           "totalColumns": 2
         }
       }
+    },
+    {
+      "id": "dynamic_compare_defaults",
+      "description": "Compare uses unconnected numeric socket fallbacks identically in Python and JavaScript",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "dynamic compare",
+        "nodes": [
+          {
+            "id": "compare",
+            "position": { "x": 0, "y": 0 },
+            "data": { "label": "Compare", "nodeType": "logic.compare", "nodeVersion": 1, "parameters": { "valueType": "number", "operation": "greater", "a": 4, "b": 3 }, "status": "idle" }
+          }
+        ],
+        "edges": [],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["compare"],
+        "semanticValueResults": { "compare": true }
+      }
+    },
+    {
+      "id": "dynamic_switch_defaults",
+      "description": "Switch coerces the selected socket fallback to its declared text type identically in Python and JavaScript",
+      "csvText": "",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "dynamic switch",
+        "nodes": [
+          {
+            "id": "switch",
+            "position": { "x": 0, "y": 0 },
+            "data": { "label": "Switch", "nodeType": "logic.switch", "nodeVersion": 1, "parameters": { "valueType": "text", "condition": true, "falseValue": 11, "trueValue": 12 }, "status": "idle" }
+          }
+        ],
+        "edges": [],
+        "functions": [],
+        "requirements": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["switch"],
+        "semanticValueResults": { "switch": "12" }
+      }
     }
   ]
 }

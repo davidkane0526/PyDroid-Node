@@ -2,7 +2,7 @@ import { addEdge, reconnectEdge, type Connection } from "@xyflow/react";
 import { deleteNodesFromGraph, disconnectEdgesFromGraph, disconnectNodesFromGraph } from "../workflow-core/commands";
 import { cloneWorkflowSnapshot, type WorkflowSnapshot } from "../workflow-core/model";
 import { getNodeSpec } from "../nodeCatalog";
-import { resolveNodeSpec } from "../customNode";
+import { resolveNodeSpec } from "../nodeSpec";
 import type { WorkflowFunctionDefinition, WorkflowNode } from "../workflow";
 import {
   createFunctionCallNode,
@@ -131,16 +131,27 @@ function updateNodeParameters(snapshot: WorkflowSnapshot, command: Extract<Edito
   const source = snapshot.nodes.find((node) => node.id === command.nodeId);
   if (!source) return unchanged(snapshot, "待更新节点不存在");
   const nextParameters = { ...source.data.parameters, ...command.patch };
-  const changed = Object.entries(command.patch).some(([key, value]) => source.data.parameters[key] !== value);
+  const resolvedSpec = resolveNodeSpec(getNodeSpec(source.data.nodeType), nextParameters);
+  for (const parameter of resolvedSpec?.parameters ?? []) {
+    if (parameter.kind !== "select" || !parameter.options?.length || !(parameter.key in nextParameters)) continue;
+    const currentValue = nextParameters[parameter.key];
+    if (!parameter.options.some((option) => option.value === currentValue)) nextParameters[parameter.key] = parameter.options[0].value;
+  }
+  const changed = Object.keys(nextParameters).some((key) => source.data.parameters[key] !== nextParameters[key]);
   if (!changed) return unchanged(snapshot);
   const nodes = snapshot.nodes.map((node) => node.id === command.nodeId
     ? { ...node, data: { ...node.data, status: "idle" as const, parameters: nextParameters } }
     : node);
+  const edges = snapshot.edges.filter((edge) => {
+    if (edge.source !== command.nodeId && edge.target !== command.nodeId) return true;
+    return validateEditorConnection(nodes, snapshot.edges, edge, { excludeEdgeId: edge.id }).valid;
+  });
+  const removedEdgeCount = snapshot.edges.length - edges.length;
   return {
-    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes },
+    snapshot: { ...cloneWorkflowSnapshot(snapshot), nodes, edges },
     changed: true,
-    affectedCount: 1,
-    meta: { primaryNodeId: command.nodeId },
+    affectedCount: 1 + removedEdgeCount,
+    meta: { primaryNodeId: command.nodeId, removedEdgeCount },
   };
 }
 

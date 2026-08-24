@@ -1,5 +1,6 @@
 import { NODE_CATALOG, areValueTypesCompatible, getNodeSpec, type NodeSpec } from "./nodeCatalog";
-import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
+import { parsePythonFunctionSignature } from "./customNode";
+import { resolveNodeSpec } from "./nodeSpec";
 import { getNodeContract, supportsNodeRuntime } from "./nodeContract";
 
 export type AgentPermission = "createNodes" | "groupNodes" | "updateParameters" | "connectNodes" | "disconnectNodes" | "deleteNodes" | "arrangeLayout" | "runWorkflow";

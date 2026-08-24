@@ -2,7 +2,8 @@ import type { Edge } from "@xyflow/react";
 import { parseWorkflow, type WorkflowDocument, type WorkflowEnvironment, type WorkflowFunctionDefinition, type WorkflowNode, type WorkflowParameterDefinition } from "./workflow";
 import { getNodeSpec, type ValueType } from "./nodeCatalog";
 import { getNodeContract } from "./nodeContract";
-import { parsePythonFunctionSignature, resolveNodeSpec } from "./customNode";
+import { parsePythonFunctionSignature } from "./customNode";
+import { resolveNodeSpec } from "./nodeSpec";
 import { isIfStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 
 const NODE_CELL = /^# %% \[node\] ([^\r\n]+)$/gm;

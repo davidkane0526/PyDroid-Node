@@ -977,6 +977,20 @@ def test_custom_function_namespace_exposes_numpy_and_math():
     assert result["preview"]["rows"] == [[3.0, 5.0], [7.0, 9.0]]
 
 
+def test_dynamic_compare_and_switch_nodes_use_socket_fallbacks():
+    compared = execute([node("compare", "logic.compare", {"valueType": "number", "operation": "greater", "a": 4, "b": 3})], [], "")
+    assert compared["status"] == "success"
+    assert compared["nodeResults"]["compare"]["value"] is True
+
+    switched = execute([node("switch", "logic.switch", {"valueType": "text", "condition": True, "falseValue": "A", "trueValue": "B"})], [], "")
+    assert switched["status"] == "success"
+    assert switched["nodeResults"]["switch"]["value"] == "B"
+
+    coerced = execute([node("switch", "logic.switch", {"valueType": "text", "condition": False, "falseValue": 12, "trueValue": 1})], [], "")
+    assert coerced["status"] == "success"
+    assert coerced["nodeResults"]["switch"]["value"] == "12"
+
+
 def test_structure_branch_rejects_multiple_sinks():
     structure = node("if", "logic.if_value")
     child_a = node("a", "table.absolute")

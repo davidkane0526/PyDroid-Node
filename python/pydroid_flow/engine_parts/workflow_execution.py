@@ -245,7 +245,7 @@ def _node_upstream(node_id: str, node_type: str, workflow: dict[str, Any], value
         return _upstream_tables(node_id, workflow, values)
     if node_type in {"table.concat_many", "pulse.combine_channels", "pulse.segment_measurement"}:
         return _upstream_inputs(node_id, workflow, values)
-    if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value"}:
+    if node_type in {"custom.python_function", "ui.alert", "function.call", "function.map", "logic.if_value", "logic.compare", "logic.switch"}:
         return _upstream_inputs(node_id, workflow, values)
     return _upstream_value(node_id, workflow, values)
 

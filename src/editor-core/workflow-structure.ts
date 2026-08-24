@@ -1,5 +1,5 @@
 import type { Edge } from "@xyflow/react";
-import { resolveNodeSpec } from "../customNode";
+import { resolveNodeSpec } from "../nodeSpec";
 import { getNodeSpec, type NodeSpec } from "../nodeCatalog";
 import type { WorkflowGroupPort, WorkflowNode } from "../workflow";
 

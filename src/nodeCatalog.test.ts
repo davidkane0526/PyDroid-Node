@@ -7,7 +7,8 @@ import {
   NODE_CATALOG,
   searchNodeCatalog,
 } from "./nodeCatalog";
-import { parseCustomNodeTemplate, parsePythonFunctionSignature, resolveNodeSpec, serializeCustomNodeTemplate } from "./customNode";
+import { parseCustomNodeTemplate, parsePythonFunctionSignature, serializeCustomNodeTemplate } from "./customNode";
+import { resolveNodeSpec } from "./nodeSpec";
 
 describe("node function signatures", () => {
   it("declares input and output signatures for every built-in node", () => {
@@ -46,6 +47,7 @@ describe("node function signatures", () => {
     ]);
     expect(getNodeSpec("table.merge_rows")!.inputPorts.map((port) => port.id)).toEqual(["left", "right"]);
     expect(getNodeSpec("logic.for_range")!.inputPorts).toHaveLength(0);
+    expect(getNodeSpec("logic.for_range")!.ui?.inlineParameters).toEqual(["start", "stop", "step"]);
     expect(getNodeSpec("logic.while_number")!.parameters.map((parameter) => parameter.key)).toContain("maxIterations");
     expect(getNodeSpec("logic.while_number")!.outputPorts.map((port) => port.id)).toEqual(["output", "last", "iterations"]);
     expect(getNodeSpec("logic.if_subflow")).toBeUndefined();
@@ -53,6 +55,9 @@ describe("node function signatures", () => {
     expect(getNodeSpec("logic.while_subflow")).toBeUndefined();
     expect(getNodeSpec("logic.if_value")!.inputPorts.map((port) => port.id)).toEqual(["condition", "input"]);
     expect(getNodeSpec("logic.if_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "true", "false"]);
+    expect(getNodeSpec("logic.if_value")!.parameters).toEqual([]);
+    expect(getNodeSpec("logic.compare")?.runtimeSupport).toEqual(["python", "javascript"]);
+    expect(getNodeSpec("logic.switch")?.runtimeSupport).toEqual(["python", "javascript"]);
     expect(getNodeSpec("logic.for_each_value")!.outputPorts.map((port) => port.id)).toEqual(["done", "last", "lastItem"]);
     expect(getNodeSpec("logic.while_state")!.parameters.map((parameter) => parameter.key)).toEqual(["conditionMode", "condition", "maxIterations"]);
     expect(getNodeSpec("sequence.accumulate")!.outputPorts.map((port) => port.id)).toEqual(["output", "last"]);
@@ -126,6 +131,25 @@ describe("node function signatures", () => {
     const resolved = resolveNodeSpec(getNodeSpec("custom.python_function"), { code })!;
     expect(resolved.inputPorts).toHaveLength(2);
     expect(resolved.parameters.map((parameter) => parameter.key)).toEqual(["code", "factor"]);
+  });
+
+  it("resolves declarative dynamic ports for Compare and Switch", () => {
+    const compareText = resolveNodeSpec(getNodeSpec("logic.compare"), { valueType: "text", operation: "contains", a: "abc", b: "b" })!;
+    expect(compareText.inputPorts.map((port) => [port.id, port.valueType, port.defaultParameter])).toEqual([
+      ["a", "text", "a"],
+      ["b", "text", "b"],
+    ]);
+    expect(compareText.parameters.find((parameter) => parameter.key === "a")?.kind).toBe("text");
+    expect(compareText.parameters.find((parameter) => parameter.key === "operation")?.options?.map((option) => option.value)).toContain("contains");
+
+    const switchTable = resolveNodeSpec(getNodeSpec("logic.switch"), { valueType: "table" })!;
+    expect(switchTable.inputPorts.map((port) => [port.id, port.valueType, port.required, port.defaultParameter])).toEqual([
+      ["condition", "boolean", undefined, "condition"],
+      ["false", "table", true, undefined],
+      ["true", "table", true, undefined],
+    ]);
+    expect(switchTable.outputPorts).toEqual([{ id: "output", label: "Result", valueType: "table" }]);
+    expect(switchTable.parameters.map((parameter) => parameter.key)).toEqual(["valueType", "condition"]);
   });
 
   it("reports unsupported or missing Python annotations", () => {

@@ -33,10 +33,10 @@ import {
   CUSTOM_NODE_TEMPLATES,
   parseCustomNodeTemplate,
   parsePythonFunctionSignature,
-  resolveNodeSpec,
   serializeCustomNodeTemplate,
   type CustomNodeTemplate,
 } from "./customNode";
+import { resolveNodeSpec } from "./nodeSpec";
 import {
   compactNodeLayout,
   flattenWorkflowGroups,
@@ -220,6 +220,8 @@ const NodeLayoutContext = createContext<"horizontal" | "vertical">("horizontal")
 const NodeAppearanceContext = createContext<{ nodeScale: number; endpointScale: number }>({ nodeScale: 1, endpointScale: 1 });
 const NodeSelectionContext = createContext<{ active: boolean; toggle: (nodeId: string) => void; remove: (nodeId: string) => void }>({ active: false, toggle: () => undefined, remove: () => undefined });
 const NodeRunContext = createContext<{ run: (nodeId: string) => void; busy: boolean }>({ run: () => undefined, busy: false });
+const NodeParameterContext = createContext<{ update: (nodeId: string, key: string, value: string | number | boolean | null) => void }>({ update: () => undefined });
+const NodeConnectionsContext = createContext<{ isInputConnected: (nodeId: string, handleId: string) => boolean }>({ isInputConnected: () => false });
 const BUNDLED_PACKAGES = [
   { name: "pandas", version: "2.1.3", purpose: "表格处理与 CSV" },
   { name: "matplotlib", version: "3.8.2", purpose: "绘图与热图" },
@@ -411,8 +413,32 @@ function loadPersonalTemplates(): CustomNodeTemplate[] {
   }
 }
 
+function InlineNodeControl({
+  spec,
+  value,
+  className = "",
+  onChange,
+}: {
+  spec: ParameterSpec;
+  value: unknown;
+  className?: string;
+  onChange: (value: string | number | boolean | null) => void;
+}) {
+  const stop = (event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>) => event.stopPropagation();
+  if (spec.kind === "boolean") {
+    return <label className={`node-inline-control node-inline-control--boolean nodrag nopan ${className}`} title={spec.label} onPointerDown={stop}><input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} /><span>{Boolean(value) ? "True" : "False"}</span></label>;
+  }
+  if (spec.kind === "select") {
+    return <select className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} value={String(value ?? "")} onPointerDown={stop} onClick={stop} onChange={(event) => { const option = spec.options?.find((item) => String(item.value) === event.target.value); onChange(option?.value ?? event.target.value); }}>{spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>;
+  }
+  if (spec.kind === "number") {
+    return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="number" value={value === null || value === undefined ? "" : String(value)} min={spec.min} max={spec.max} step={spec.step ?? "any"} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} />;
+  }
+  return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
+}
+
 function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
-  const spec = data.nodeType === "workflow.group"
+  const spec: NodeSpec | undefined = data.nodeType === "workflow.group"
     ? { nodeType: "workflow.group", label: data.label, category: "逻辑控制" as const, defaults: {}, parameters: [], inputPorts: data.groupInputs ?? [], outputPorts: data.groupOutputs ?? [] }
     : data.nodeType === "function.call" || data.nodeType === "function.map"
       ? { nodeType: data.nodeType, label: data.label, category: "自定义" as const, defaults: {}, parameters: [], inputPorts: data.functionInputs ?? [], outputPorts: data.functionOutputs ?? [] }
@@ -423,9 +449,17 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const { nodeScale, endpointScale } = useContext(NodeAppearanceContext);
   const selection = useContext(NodeSelectionContext);
   const nodeRun = useContext(NodeRunContext);
+  const nodeParameters = useContext(NodeParameterContext);
+  const nodeConnections = useContext(NodeConnectionsContext);
   const updateNodeInternals = useUpdateNodeInternals();
   const inputPorts = spec?.inputPorts ?? [];
   const outputPorts = spec?.outputPorts ?? [];
+  const inlineParameterKeys = spec?.ui?.inlineParameters ?? [];
+  const inlineParameters = inlineParameterKeys.map((key) => spec?.parameters.find((parameter) => parameter.key === key)).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
+  const parameterByKey = new Map((spec?.parameters ?? []).map((parameter) => [parameter.key, parameter]));
+  const inlineOwnedParameterKeys = new Set([...inlineParameterKeys, ...inputPorts.flatMap((port) => port.defaultParameter ? [port.defaultParameter] : [])]);
+  const inspectorParameterCount = (spec?.parameters ?? []).filter((parameter) => !inlineOwnedParameterKeys.has(parameter.key)).length;
+  const hasInlineSocketDefaults = inputPorts.some((port) => Boolean(port.defaultParameter));
   const labelLength = Array.from(data.label).length;
   const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
   const longestPortLabel = Math.max(0, ...[...inputPorts, ...outputPorts].map((port) => Array.from(port.label ?? "").length));
@@ -436,11 +470,11 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     : Math.min(300, Math.max(168, 112 + labelLength * 16));
   const portDrivenWidth = direction === "vertical"
     ? Math.max(contentWidth, maxPortCount ? 28 + maxPortCount * (verticalPortLabelWidth + 12) : contentWidth)
-    : Math.max(contentWidth, 96 + horizontalPortLabelWidth * 2);
+    : Math.max(contentWidth, 96 + horizontalPortLabelWidth * 2 + (hasInlineSocketDefaults ? 88 : 0));
   const nodeWidth = Math.min(direction === "vertical" ? 720 : 420, Math.max(data.nodeType === "workflow.group" ? 230 : 0, portDrivenWidth)) * nodeScale;
   const nodeMinHeight = (direction === "horizontal" && maxPortCount
-    ? Math.max(58, 24 + maxPortCount * 34)
-    : direction === "vertical" ? 92 : 58) * nodeScale;
+    ? Math.max(58 + inlineParameters.length * 24, 24 + maxPortCount * 34)
+    : direction === "vertical" ? 92 + inlineParameters.length * 24 : 58 + inlineParameters.length * 24) * nodeScale;
   const isStructure = isVisualStructureNodeType(data.nodeType);
   const isFunctionNode = data.nodeType === "function.call" || data.nodeType === "function.map" || Boolean(data.functionSourceId);
   const isGroupNode = data.nodeType === "workflow.group";
@@ -455,23 +489,31 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     return () => observer.disconnect();
   }, [direction, endpointScale, horizontalPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfStructureNodeType(data.nodeType) ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? 220 : nodeMinHeight}px`, "--port-label-width": `${horizontalPortLabelWidth}px`, "--vertical-port-label-width": `${verticalPortLabelWidth}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfStructureNodeType(data.nodeType) ? "workflow-structure--if" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
       {isStructure && <NodeResizer minWidth={360} minHeight={220} isVisible={selected} />}
       <Handle className="notebook-order-handle" id="__notebook_order_in" type="target" position={direction === "horizontal" ? Position.Left : Position.Top} isConnectable={false} />
       <Handle className="notebook-order-handle" id="__notebook_order_out" type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} isConnectable={false} />
-      {inputPorts.map((port, index) => (
-        <div className="input-port" style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
-          <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
-          {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
-        </div>
-      ))}
+      {inputPorts.map((port, index) => {
+        const defaultSpec = port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined;
+        const connected = nodeConnections.isInputConnected(id, port.id);
+        return (
+          <div className={`input-port ${defaultSpec && !connected ? "input-port--with-default" : ""}`} style={Object.assign(direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` }, { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
+            <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
+            {port.label && <span title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
+            {defaultSpec && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
+          </div>
+        );
+      })}
       <div className="workflow-node__body">
         <div className="workflow-node__type" title={data.nodeType}>{data.nodeType}</div>
         <div className="workflow-node__label" title={data.label}>{data.label}</div>
+        {inlineParameters.length > 0 && <div className="workflow-node__inline-controls">{inlineParameters.map((parameter) => <label key={parameter.key}><span>{parameter.label}</span><InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>)}</div>}
         <div className="workflow-node__meta">
-          <span className="workflow-node__meta-count">{data.nodeType === "workflow.group" ? `${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作` : `${spec?.parameters.length ?? 0} 参数`}</span>
+          {data.nodeType === "workflow.group"
+            ? <span className="workflow-node__meta-count">{`${data.groupInputs?.length ?? 0} 输入 · ${data.groupOutputs?.length ?? 0} 输出 · 双击操作`}</span>
+            : inspectorParameterCount > 0 && <span className="workflow-node__meta-count">{`${inspectorParameterCount} 参数`}</span>}
           {data.nodeType !== "workflow.group" && data.tags?.map((tag) => <span className="workflow-node__tag" key={tag}>{tag}</span>)}
         </div>
       </div>
@@ -2210,19 +2252,24 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     setMessage(`已断开 ${connectionCount} 条连线`);
   };
 
-  const updateParameter = (key: string, value: string | number | boolean | null) => {
-    if (!selectedId) return;
+  const updateNodeParameter = (nodeId: string, key: string, value: string | number | boolean | null) => {
     const updated = session.applyGraphCommand(
-      { type: "update-node-parameters", nodeId: selectedId, patch: { [key]: value } },
-      { historyGroup: `parameter:${selectedId}:${key}`, historyWindowMs: 800 },
+      { type: "update-node-parameters", nodeId, patch: { [key]: value } },
+      { historyGroup: `parameter:${nodeId}:${key}`, historyWindowMs: 800 },
     );
     if (!updated.changed) return;
+    refreshVisibleNodeGeometry();
     if (livePreview && (csvText || csvBytes)) {
       if (livePreviewTimer.current !== null) window.clearTimeout(livePreviewTimer.current);
       livePreviewTimer.current = window.setTimeout(() => void runPrototype(updated.snapshot.nodes), 450);
     }
     clearExecutionResult();
     setMessage("参数已修改，等待运行");
+  };
+
+  const updateParameter = (key: string, value: string | number | boolean | null) => {
+    if (!selectedId) return;
+    updateNodeParameter(selectedId, key, value);
   };
 
   const applyNodeLayout = (direction: "horizontal" | "vertical", announce = true) => {
@@ -3440,8 +3487,12 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       onExpand={parameter.key === "code" ? () => setCodeEditorOpen(true) : undefined}
     />
   ));
-  const basicParameters = selectedSpec?.parameters.filter((parameter) => !parameter.advanced) ?? [];
-  const advancedParameters = selectedSpec?.parameters.filter((parameter) => parameter.advanced) ?? [];
+  const selectedInlineParameterKeys = new Set([
+    ...(selectedSpec?.ui?.inlineParameters ?? []),
+    ...(selectedSpec?.inputPorts.flatMap((port) => port.defaultParameter ? [port.defaultParameter] : []) ?? []),
+  ]);
+  const basicParameters = selectedSpec?.parameters.filter((parameter) => !parameter.advanced && !selectedInlineParameterKeys.has(parameter.key)) ?? [];
+  const advancedParameters = selectedSpec?.parameters.filter((parameter) => parameter.advanced && !selectedInlineParameterKeys.has(parameter.key)) ?? [];
   const rememberedParameterCount = selectedSpec?.parameters.filter((parameter) => parameter.rememberDefault).length ?? 0;
   const resultExportItems = result
     ? (result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : [])
@@ -3588,7 +3639,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           onDrop={onCanvasDrop}
         >
           {touchMarquee && <div className="touch-marquee" aria-hidden="true" style={{ left: Math.min(touchMarquee.startX, touchMarquee.currentX), top: Math.min(touchMarquee.startY, touchMarquee.currentY), width: Math.abs(touchMarquee.currentX - touchMarquee.startX), height: Math.abs(touchMarquee.currentY - touchMarquee.startY) }} />}
-          {viewMode === "nodes" ? <NodeLayoutContext.Provider value={resolvedLayoutDirection}><NodeAppearanceContext.Provider value={{ nodeScale, endpointScale }}><NodeSelectionContext.Provider value={{ active: selectionMode, toggle: toggleNodeSelection, remove: (nodeId) => deleteNodes([nodeId]) }}><NodeRunContext.Provider value={{ run: (nodeId) => { void runNodeWithContext(nodeId); }, busy: isRunning }}><NodeInsightContext.Provider value={{ visible: showNodeInsights, results: result?.nodeResults ?? {} }}><EdgeActionsContext.Provider value={{ disconnect: (ids) => disconnectEdges(ids) }}><ReactFlow
+          {viewMode === "nodes" ? <NodeLayoutContext.Provider value={resolvedLayoutDirection}><NodeAppearanceContext.Provider value={{ nodeScale, endpointScale }}><NodeSelectionContext.Provider value={{ active: selectionMode, toggle: toggleNodeSelection, remove: (nodeId) => deleteNodes([nodeId]) }}><NodeRunContext.Provider value={{ run: (nodeId) => { void runNodeWithContext(nodeId); }, busy: isRunning }}><NodeParameterContext.Provider value={{ update: updateNodeParameter }}><NodeConnectionsContext.Provider value={{ isInputConnected: (nodeId, handleId) => edges.some((edge) => edge.target === nodeId && (edge.targetHandle ?? "input") === handleId) }}><NodeInsightContext.Provider value={{ visible: showNodeInsights, results: result?.nodeResults ?? {} }}><EdgeActionsContext.Provider value={{ disconnect: (ids) => disconnectEdges(ids) }}><ReactFlow
             nodes={visibleNodes}
             edges={visibleEdges}
             nodeTypes={nodeTypes}
@@ -3651,7 +3702,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             <Background variant={BackgroundVariant.Dots} gap={20} size={1.25} />
             {showMiniMap && <MiniMap pannable zoomable />}
             <Controls />
-          </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
+          </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeConnectionsContext.Provider></NodeParameterContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
             <header>
               <div className="notebook-view__title"><strong>Python Notebook</strong></div>
               <div>
@@ -3843,7 +3894,6 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
                 <label className="field" key={key}><span>{key}</span><input value={String(value ?? "")} onChange={(event) => updateParameter(key, event.target.value)} /></label>
               ))}
               {authoritativeSignatureError && <p className="validation-error">签名错误：{authoritativeSignatureError}</p>}
-              {selectedSpec?.parameters.length === 0 && <p className="muted">此节点没有可配置参数。</p>}
             </>
           ) : <p className="muted">从左侧添加节点，或选择画布中的节点编辑参数。</p>}
           {resultDock === "right" && resultPanel}

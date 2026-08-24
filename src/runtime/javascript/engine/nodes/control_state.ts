@@ -35,6 +35,60 @@ export function executeControlStateNode(nodeType: string, params: Record<string,
       const value = left.concat(right, 0, ignoreIndex);
       return { outputs: { output: value }, tableResult: value, plotResult, exportResult };
     }
+    case "logic.compare": {
+      const inputs = upstream && typeof upstream === "object" && !(upstream instanceof Table) && !Array.isArray(upstream)
+        ? upstream as Record<string, unknown>
+        : {};
+      const rawA = Object.prototype.hasOwnProperty.call(inputs, "a") ? inputs.a : params.a;
+      const rawB = Object.prototype.hasOwnProperty.call(inputs, "b") ? inputs.b : params.b;
+      const valueType = String(params.valueType ?? "number");
+      const operation = String(params.operation ?? "greater");
+      const normalized = (raw: unknown): string | number | boolean => {
+        if (valueType === "number") {
+          const value = Number(raw);
+          if (!Number.isFinite(value)) throw new Error("Compare number inputs must be finite numbers");
+          return value;
+        }
+        if (valueType === "boolean") return asBool(raw);
+        return String(raw ?? "");
+      };
+      const a = normalized(rawA);
+      const b = normalized(rawB);
+      const comparableA = typeof a === "boolean" ? Number(a) : a;
+      const comparableB = typeof b === "boolean" ? Number(b) : b;
+      let value: boolean;
+      switch (operation) {
+        case "equal": value = a === b; break;
+        case "notEqual": value = a !== b; break;
+        case "greater": value = comparableA > comparableB; break;
+        case "greaterEqual": value = comparableA >= comparableB; break;
+        case "less": value = comparableA < comparableB; break;
+        case "lessEqual": value = comparableA <= comparableB; break;
+        case "contains": value = String(a).includes(String(b)); break;
+        case "startsWith": value = String(a).startsWith(String(b)); break;
+        case "endsWith": value = String(a).endsWith(String(b)); break;
+        default: throw new Error(`Unsupported compare operation: ${operation}`);
+      }
+      return { outputs: { output: value }, tableResult, plotResult, exportResult };
+    }
+    case "logic.switch": {
+      const inputs = upstream && typeof upstream === "object" && !(upstream instanceof Table) && !Array.isArray(upstream)
+        ? upstream as Record<string, unknown>
+        : {};
+      const condition = Object.prototype.hasOwnProperty.call(inputs, "condition") ? inputs.condition : params.condition;
+      const falseValue = Object.prototype.hasOwnProperty.call(inputs, "false") ? inputs.false : params.falseValue;
+      const trueValue = Object.prototype.hasOwnProperty.call(inputs, "true") ? inputs.true : params.trueValue;
+      const selectedValue = asBool(condition) ? trueValue : falseValue;
+      const valueType = String(params.valueType ?? "number");
+      let value = selectedValue;
+      if (valueType === "number") {
+        const numeric = Number(selectedValue);
+        if (!Number.isFinite(numeric)) throw new Error("Switch number value must be a finite number");
+        value = numeric;
+      } else if (valueType === "text") value = String(selectedValue ?? "");
+      else if (valueType === "boolean") value = asBool(selectedValue);
+      return { outputs: { output: value }, tableResult: value instanceof Table ? value : null, plotResult, exportResult };
+    }
     case "logic.for_range": {
       const start = Number(params.start ?? 0);
       const stop = Number(params.stop ?? 10);
