@@ -1,3 +1,13 @@
+## 1.6.35 (175) — Release validation UI convergence — 2026-08-25
+
+- Rebuilt Node Plugin Manager from the previous narrow single-column list into a responsive compact dashboard. Desktop layouts auto-flow plugin cards across multiple columns, while narrow screens fall back to one column.
+- Added live plugin statistics for total packages, enabled/disabled packages, node count, and Python/JavaScript runtime coverage. Added package/node/ID search plus status and runtime filters without changing plugin lifecycle semantics.
+- Tightened plugin cards: package identity, version, status, node names, nodeType, runtime tags and enable/disable/uninstall controls now use one compact hierarchy rather than oversized stacked rows.
+- Added UI-only Chinese display names for the official Demo plugin packages/nodes. Persisted plugin IDs, nodeType values, manifests and Runtime Provider contracts remain unchanged; English UI keeps the original labels. Newly inserted official Demo nodes use the localized label in Chinese UI.
+- Package management and Node Plugin Manager remain Settings-only entry points; no main-toolbar buttons were restored.
+- Revalidated Node Plugin Manager/UI regression, plugin package/archive/declarative UI, demos **38/38**, Runtime parity **134/134** with JS-capable NodeContract coverage **96/96**, NodeContract architecture, version sync, and Python **188 passed / 1 skipped**.
+- Build revision: `1.6.35-dev-r129-plugin-manager-ui`.
+
 ## 1.6.34 (174) — Final freeze audit — 2026-08-25
 
 - Froze the feature surface for release convergence. This milestone removes only demonstrably unused/obsolete internal paths and does not add node, runtime, plugin or UI capability.

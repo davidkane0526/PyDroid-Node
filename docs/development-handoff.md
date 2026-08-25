@@ -3,7 +3,7 @@
 Branch: `feature/release-validation`
 Version: **1.6.35**
 Android versionCode: **175**
-Build revision: `1.6.35-dev-r128-settings-extension-ui`
+Build revision: `1.6.35-dev-r129-plugin-manager-ui`
 
 ## Current phase
 
@@ -33,6 +33,8 @@ PyDroid Node is in release validation. Do not start another architecture/SDK exp
 
 ## 1.6.35 release-validation changes
 
+- Rebuilt Node Plugin Manager into a compact responsive multi-column dashboard. It now shows package/node/runtime statistics, search, enabled/disabled filtering and Python/JS filtering while keeping the same install/enable/disable/uninstall lifecycle.
+- Official Demo package/node names receive Chinese UI display names without changing package IDs, nodeType values, manifests or Runtime Provider contracts.
 - Removed Python package management and Node Plugin Manager from the desktop top toolbar and mobile overflow menu.
 - Settings → Extensions owns both managers as a normal compact settings card. It sits after the existing configuration cards and uses the same button metrics as the surrounding settings panels instead of full-width secondary actions. The existing managers remain the single implementation; Settings only owns navigation.
 - Refactored Node Plugin Manager into one controlled panel mounted by App instead of a self-owned toolbar button.

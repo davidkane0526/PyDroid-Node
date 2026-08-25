@@ -5,7 +5,7 @@ Date: 2026-08-25
 ## Current release state
 
 - Product version: **1.6.35**, Android versionCode **175**.
-- Build revision: `1.6.35-dev-r128-settings-extension-ui`.
+- Build revision: `1.6.35-dev-r129-plugin-manager-ui`.
 - Phase: release convergence; feature expansion is frozen.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
@@ -24,6 +24,8 @@ Date: 2026-08-25
 
 ## 1.6.35 release-validation work
 
+- Node Plugin Manager redesigned as a compact responsive multi-column dashboard with live plugin/runtime statistics, search, status filtering and runtime filtering.
+- Official Demo plugin/node labels are localized to Chinese at the UI presentation layer while IDs/nodeType/runtime contracts remain unchanged.
 - Main-toolbar and mobile-overflow Python package/plugin entries removed.
 - Settings → Extensions owns both management entry points as one normal two-column-grid card; its actions now use the same compact metrics as the other settings-card buttons instead of full-width secondary controls.
 - Current plugin demos remain SDK/regression examples rather than built-in product plugins, avoiding duplicate user-facing node semantics.

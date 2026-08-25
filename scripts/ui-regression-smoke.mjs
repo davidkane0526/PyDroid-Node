@@ -11,6 +11,9 @@ const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts
 const workflowFunctions = readFileSync(path.join(root, "src/workflow-functions.ts"), "utf8");
 const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
 const canvasThemes = readFileSync(path.join(root, "src/canvas-themes.css"), "utf8");
+
+const pluginManagerCss = readFileSync(path.join(root, "src/node-plugin-manager.css"), "utf8");
+const pluginManager = readFileSync(path.join(root, "src/NodePluginManager.tsx"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
 assert.match(app, /4500/, "failed\/timeout tab badge should auto-dismiss after a short diagnostic window");
 assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "failed tab badge visibility should be decoupled from persistent execution status");
@@ -25,6 +28,12 @@ assert.doesNotMatch(css, /\.settings-layout \.settings-extension-section\s*\{[^}
 assert.match(css, /\.settings-extension-actions\s*\{[^}]*display:\s*flex;[^}]*flex-wrap:\s*wrap;[^}]*gap:\s*7px;/, "package and plugin actions should use the same compact wrapping rhythm as other settings-card actions");
 assert.match(css, /\.settings-dialog__body section > button, \.settings-profile-section button, \.settings-extension-actions button\s*\{[^}]*padding:\s*7px 9px;[^}]*border-radius:\s*6px;[^}]*font-size:\s*12px;/, "extension actions should inherit the standard settings-card button metrics");
 assert.doesNotMatch(dialogs, /settings-extension-actions[\s\S]{0,360}className="button secondary"/, "extension actions should not use the oversized generic secondary-button treatment");
+assert.match(pluginManagerCss, /\.node-plugin-manager\s*\{[\s\S]*width:\s*min\(1180px,[\s\S]*grid-template-rows:/, "plugin manager should use a wider compact dashboard shell rather than the old narrow single-column modal");
+assert.match(pluginManagerCss, /\.node-plugin-manager__list\s*\{[\s\S]*grid-template-columns:\s*repeat\(auto-fit, minmax\(320px, 1fr\)\)/, "plugin cards should auto-flow into multiple columns on desktop");
+assert.match(pluginManagerCss, /\.node-plugin-manager__stats\s*\{[\s\S]*grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\)/, "plugin statistics should use a compact six-metric strip");
+assert.match(pluginManager, /搜索插件、节点或 ID[\s\S]*statusFilter[\s\S]*runtimeFilter/, "plugin manager should expose search plus status/runtime filters");
+assert.match(pluginManager, /插件[\s\S]*已启用[\s\S]*已停用[\s\S]*节点[\s\S]*Python[\s\S]*JS/, "plugin manager should show plugin and runtime statistics");
+assert.match(app, /nodeDisplayName\(spec\.nodeType, spec\.label, language\)/, "official demo nodes should render localized Chinese names in the node palette");
 assert.match(gestures, /resource:[\s\S]*longPressMs:\s*710[\s\S]*dragThresholdPx:\s*8/, "touch resource menu should keep its deliberate ~0.7s hold and movement threshold in Gesture Policy");
 assert.match(app, /distance > policy\.dragThresholdPx[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold through Gesture Policy");
 assert.doesNotMatch(app, /paletteDragTimer\.current = window\.setTimeout[\s\S]{0,600}280/, "touch palette drag must be movement-driven rather than a competing hold timer");

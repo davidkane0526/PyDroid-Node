@@ -11,11 +11,16 @@ try {
   for (const token of ["installNodePluginPackage", "installNodePluginArchive", "activateInstalledNodePluginPackage", "unloadNodePluginPackage", "uninstallNodePluginPackage", "安装插件", "启用", "停用", "卸载"]) {
     if (!source.includes(token)) throw new Error(`plugin manager is missing ${token}`);
   }
-  if (!source.includes("export function NodePluginManager({ open, onClose }")) throw new Error("plugin manager is not a controlled panel");
+  if (!source.includes("export function NodePluginManager({ open, language, onClose }")) throw new Error("plugin manager is not a controlled localized panel");
+  for (const token of ["node-plugin-manager__stats", "node-plugin-manager__filters", "node-plugin-manager__search", "statusFilter", "runtimeFilter", "pluginDisplayName", "nodeDisplayName"]) {
+    if (!source.includes(token)) throw new Error(`plugin manager compact dashboard is missing ${token}`);
+  }
 
   const app = readFileSync(path.join(root, "src", "App.tsx"), "utf8");
   if (app.includes("NodePluginManagerButton")) throw new Error("plugin manager still exposes a main-toolbar/menu button");
   if ((app.match(/<NodePluginManager open=/g) ?? []).length !== 1) throw new Error("controlled plugin manager panel is not mounted once by App");
+  if (!app.includes("<NodePluginManager open={pluginManagerOpen} language={language}")) throw new Error("plugin manager must receive the app UI language");
+  if (!app.includes("nodeDisplayName(spec.nodeType, spec.label, language)")) throw new Error("official demo node names are not localized in the palette");
   const topbar = app.slice(app.indexOf('<header className="topbar">'), app.indexOf('</header>', app.indexOf('<header className="topbar">')));
   if (topbar.includes("Python 包管理") || topbar.includes("节点插件")) throw new Error("package/plugin management must not be present in the main toolbar");
 
@@ -32,7 +37,7 @@ try {
     "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src"),
   ], { cwd: root, encoding: "utf8" });
   if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message);
-  console.log("Node Plugin Manager smoke: PASS (settings-only entry, controlled panel, manifest/archive install/enable/disable/uninstall, TSX transpile)");
+  console.log("Node Plugin Manager smoke: PASS (settings-only entry, localized compact dashboard, stats/search/status/runtime filters, manifest/archive lifecycle, TSX transpile)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
