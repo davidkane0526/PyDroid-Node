@@ -1,11 +1,14 @@
-# Current progress — 1.6.44 Android Single-JVM Build
+# Current progress — 1.6.45 Node Form Density Balance
 
 Date: 2026-08-26
 
+- 1.6.45 node UI: horizontal dynamic cards share a single form-control width and append inline parameters after input rows, eliminating the cramped-header / oversized-lower-control imbalance.
+- Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
+
 ## Current release state
 
-- Product version: **1.6.44**, Android versionCode **184**.
-- Build revision: `1.6.44-dev-r139-android-single-jvm-build`.
+- Product version: **1.6.45**, Android versionCode **185**.
+- Build revision: `1.6.45-dev-r140-node-form-density-balance`.
 
 - 1.6.44 keeps the 1.6.43 node/UI/runtime surface unchanged and fixes only the Android build process: one wrapper JVM, `--no-daemon`, wrapper-owned 1536 MB heap, no `org.gradle.jvmargs` daemon fork. Windows 1.6.43 formal packaging already passed locally; Android 1.6.44 still requires the same pinned-machine packaging rerun.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.

@@ -1,3 +1,12 @@
+## 1.6.45 (185) — Node Form Density Balance — 2026-08-26
+
+- Complex horizontal dynamic nodes now use one shared control-column width for socket defaults and inline parameters; compact text/number fields and select controls no longer form two unrelated density systems.
+- Inline parameters such as `聚合` / `配色` are placed after the actual input-port rows instead of competing with the first data-port row under the header.
+- Dynamic form row spacing is normalized to a compact 30 px base row while endpoint scaling can still increase it when required.
+- Node geometry remains rail-driven and all controls stay inside the node card; Classic/Soft visual materials are unchanged.
+- Build revision: `1.6.45-dev-r140-node-form-density-balance`.
+- Android release validation note: the 1.6.44 `--no-daemon` path still forks a Gradle single-use daemon on the user's pinned Windows environment and fails with `CreateProcess error=5`; this UI-only release does not claim to fix that separate build issue.
+
 ## 1.6.44 (184) — Android Single-JVM Build — 2026-08-26
 
 - 1.6.43 Windows Desktop formal packaging completed successfully, including packaged UI/IPC/Python and live Remote Web HTTP smoke; Android reached Gradle after Web/Capacitor sync but Windows denied creation of the Gradle daemon child `java.exe` with `CreateProcess error=5`.

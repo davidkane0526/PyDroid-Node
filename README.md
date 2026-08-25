@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.44 (184) · Android Single-JVM Build**。1.6.43 的节点布局与默认视觉保持不变；Android 正式打包固定使用单 JVM `--no-daemon`，Gradle wrapper 自身获得构建堆内存，项目不再通过 `org.gradle.jvmargs` 派生 daemon/single-use daemon。构建缓存继续保留，不增加失败重试或模式切换；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.45 (185) · Node Form Density Balance**。本版只收敛横向复杂动态节点的内部表单密度：Socket 默认值与内联参数共用同一控件列宽，内联参数排在输入端口行之后，避免首行拥挤与上下密度失衡；1.6.44 的构建路径保持不变。Android 正式打包仍需继续解决用户实机日志中 `--no-daemon` 触发 single-use daemon 的 Windows CreateProcess error=5。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

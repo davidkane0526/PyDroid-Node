@@ -4127,14 +4127,14 @@ select.node-inline-control {
 .workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--side-form {
   position: absolute;
   z-index: 6;
-  top: calc(40px * var(--node-scale, 1));
+  top: var(--side-form-top, calc(40px * var(--node-scale, 1)));
   left: calc(11px * var(--node-scale, 1));
   display: grid;
   width: calc(var(--input-port-label-width, 48px) + var(--socket-control-width, 82px) + 7px * var(--node-scale, 1));
   margin: 0;
   grid-auto-flow: row;
   grid-auto-columns: auto;
-  gap: calc(5px * var(--node-scale, 1));
+  gap: calc(7px * var(--node-scale, 1));
 }
 .workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--side-form > label {
   display: grid;

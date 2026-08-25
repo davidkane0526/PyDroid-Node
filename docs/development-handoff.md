@@ -1,9 +1,12 @@
-# Current development handoff — 1.6.44 Android Single-JVM Build
+# Current development handoff — 1.6.45 Node Form Density Balance
 
 Branch: `feature/android-single-jvm-build`
-Version: **1.6.44**
+Version: **1.6.45**
 Android versionCode: **184**
-Build revision: `1.6.44-dev-r139-android-single-jvm-build`
+Build revision: `1.6.45-dev-r140-node-form-density-balance`
+
+- 1.6.45 node UI: horizontal dynamic cards share a single form-control width and append inline parameters after input rows, eliminating the cramped-header / oversized-lower-control imbalance.
+- Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
 
 ## Current phase
 

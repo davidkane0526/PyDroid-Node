@@ -54,6 +54,9 @@ try {
   const heatmapSocketColumn = heatmapLayout.inputRailWidth + heatmapLayout.sideFormControlOffset;
   const expectedHeatmapSocketColumn = 11 + heatmapLayout.inputPortLabelWidth + 7;
   if (Math.abs(heatmapSocketColumn - expectedHeatmapSocketColumn) > 0.001) throw new Error("horizontal heatmap inline control does not share the socket control column");
+  if (heatmapLayout.sideFormTop + 0.001 < heatmapInputTops.at(-1) + heatmapLayout.portRowHeight / 2) throw new Error("horizontal heatmap inline form still crowds the final input-port row");
+  const heatmapInlinePreferred = layout.inlineControlPreferredWidth({ key: "colorMap", label: "配色", kind: "select", defaultValue: "viridis", options: [{ value: "viridis", label: "Viridis" }] });
+  if (heatmapLayout.socketControlWidth < heatmapInlinePreferred || heatmapLayout.socketControlWidth < 96) throw new Error("horizontal heatmap controls do not share a balanced control width");
 
   const compactExport = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "导出 TER 矩阵", inputPorts: [{ id: "input", label: "表格", valueType: "table" }], outputPorts: [{ id: "output", label: "CSV", valueType: "table" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (compactExport.dynamic || compactExport.nodeWidth > 250 || compactExport.nodeWidth < 210) throw new Error("simple horizontal node did not use compact content-fit width");
@@ -103,6 +106,8 @@ try {
   if (!cssSource.includes('min-height: max(calc(62px * var(--node-scale, 1)), var(--node-min-height')) throw new Error("wide-screen CSS can still override measured node height");
   if (!appSource.includes('workflow-node--side-rail')) throw new Error("WorkflowNodeCard does not expose horizontal side-rail layout class");
   if (!appSource.includes('workflow-node__inline-controls--side-form')) throw new Error("horizontal inline parameters are not rendered through the shared side-form grid");
+  if (!appSource.includes('"--side-form-top"')) throw new Error("horizontal inline form does not consume measured form-row placement");
+  if (!cssSource.includes('top: var(--side-form-top')) throw new Error("horizontal inline form still uses a hard-coded top offset");
   if (!cssSource.includes('.workflow-node--side-rail.direction-horizontal {\n  min-height: var(--node-min-height')) throw new Error("horizontal side-rail card does not directly preserve measured height");
   if (!cssSource.includes('grid-template-columns: minmax(0, var(--input-port-label-width')) throw new Error("horizontal side-form rows do not share the socket label/control columns");
   if (!cssSource.includes('left: calc(30px * var(--node-scale, 1));') || !cssSource.includes('transform: none;')) throw new Error("horizontal dynamic header is not centered against the full card");

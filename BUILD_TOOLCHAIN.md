@@ -1,6 +1,6 @@
 # PyDroid Node build toolchain
 
-Current build revision: **1.6.44-dev-r139-android-single-jvm-build** (2026-08-26). Tool discovery remains deterministic/read-only; Android packaging now uses one Gradle wrapper JVM with `--no-daemon`, while Remote/LAN production behavior remains unchanged.
+Current build revision: **1.6.45-dev-r140-node-form-density-balance** (2026-08-26). Tool discovery remains deterministic/read-only; 1.6.45 changes only node UI geometry. Android packaging remains on the 1.6.44 `--no-daemon` path and the observed single-use daemon CreateProcess error=5 is still an open release-validation issue.
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 提供路径发现、版本验证、网络和清理辅助函数。
 
