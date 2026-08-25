@@ -1,6 +1,14 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.34 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
+PyDroid Node 1.6.35 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
+
+## Distribution boundary
+
+The current demo packages under `examples/plugins/` are SDK executable specifications and regression fixtures. They are deliberately not auto-installed or promoted to built-in product nodes: their Scale/Table/resource/declarative-UI behaviors either duplicate existing Core nodes or exist only to verify host contracts.
+
+A future first-party built-in plugin must provide independent user value and must use the same NodeSpec, Runtime Provider, resource, install/activate/uninstall contracts as a third-party package. It must not gain a private Core execution path.
+
+Package management and Node Plugin Manager are product settings, exposed from **Settings → Extensions**, not from the primary workflow toolbar.
 
 ## Package formats
 

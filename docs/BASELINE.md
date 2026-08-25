@@ -4,7 +4,7 @@ Date: 2026-08-21
 Branch: `baseline/1.4.92-consolidated`
 Android versionCode: `115`
 
-This document is the authoritative **Remote Web / Host / build-path architectural baseline**, not the current product version. Current release state is tracked in `docs/development-handoff.md`. If an older Remote/Host roadmap, phase note, or Git commit conflicts with this file, this file describes the retained production constraints.
+This document is the **authoritative baseline** for Remote Web / Host / build-path architecture, not the current product version. Current release state is tracked in `docs/development-handoff.md`. If an older Remote/Host roadmap, phase note, or Git commit conflicts with this file, this file describes the retained production constraints.
 
 ## 1. Evidence hierarchy
 

@@ -1,6 +1,6 @@
 # Architecture and reliability roadmap
 
-Current release state: **1.6.34 Final Freeze Audit**
+Current release state: **1.6.35 Release Validation Candidate**
 Remote/Host architectural baseline: **1.4.92 Baseline Consolidation**
 Authoritative current handoff: `docs/development-handoff.md`
 

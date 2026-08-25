@@ -1,13 +1,13 @@
-# Current development handoff — 1.6.34 Final Freeze Audit
+# Current development handoff — 1.6.35 Release Validation Candidate
 
-Branch: `feature/final-freeze-audit`
-Version: **1.6.34**
-Android versionCode: **174**
-Build revision: `1.6.34-dev-r126-final-freeze-audit`
+Branch: `feature/release-validation`
+Version: **1.6.35**
+Android versionCode: **175**
+Build revision: `1.6.35-dev-r127-release-validation`
 
 ## Current phase
 
-PyDroid Node has entered release convergence. Do not start another architecture/SDK expansion phase before the release-validation exit criteria below are met. 1.6.34 is intentionally a freeze/audit release: remove only code that is demonstrably unreachable or obsolete, fix version/document drift, and keep production behavior unchanged.
+PyDroid Node is in release validation. Do not start another architecture/SDK expansion phase before the exit criteria below are met. 1.6.35 keeps the 1.6.34 freeze: only release-validation changes and reproduced defect fixes are allowed.
 
 ## Non-negotiable continuation rules
 
@@ -30,6 +30,22 @@ PyDroid Node has entered release convergence. Do not start another architecture/
 - Python suite revalidated in 1.6.34: **188 passed, 1 skipped**.
 - Built-in Demo smoke revalidated in 1.6.34: **38/38**.
 
+
+## 1.6.35 release-validation changes
+
+- Removed Python package management and Node Plugin Manager from the desktop top toolbar and mobile overflow menu.
+- Added one aligned Settings → Extensions section with equal-width Python package and Node plugin actions. The existing managers remain the single implementation; Settings only owns navigation.
+- Refactored Node Plugin Manager into one controlled panel mounted by App instead of a self-owned toolbar button.
+- Classified current plugin demos (25–38) as SDK executable specifications/regression fixtures. They are not promoted to built-in product nodes because they duplicate existing Core semantics or exist only to validate Plugin/Provider/UI contracts.
+- Added UI regression gates that prevent package/plugin actions from returning to the main toolbar and protect the Settings alignment contract.
+- Corrected the Remote/Host baseline heading sentence so the existing baseline-consolidation gate recognizes `docs/BASELINE.md` as the authoritative baseline; no Remote/Host behavior changed.
+
+### 1.6.35 source revalidation
+
+Passed after these changes: version sync; Settings/UI regression; Node Plugin Manager; NodeSpec/Runtime Provider; Manifest/ZIP/Declarative UI; demos **38/38**; Runtime parity **134/134** with JS-capable NodeContract coverage **96/96**; Python **188 passed / 1 skipped**; build-tool/platform/execution/Host architecture; MCP Core/runtime/HTTP/Desktop/Android E2E; Remote Web/Remote Host Desktop+Android; LAN boundary/selection; Workflow Compatibility/Migration; Workflow Core/Editor Core/Runtime Engine/NodeContract; Notebook/portable functions; canvas theme and plot presentation. Changed TSX files also pass standalone TypeScript syntax transpilation.
+
+Full project TypeScript/Vitest and Windows/Android packaging still require the pinned dependency-installed Node 24 / pnpm 11.21 release host.
+
 ## 1.6.34 audit changes
 
 - Removed the unused renderer `normalizeMcpRuntime` helper.
@@ -48,7 +64,7 @@ This ZIP intentionally has no `node_modules`, and the current cloud shell is not
 
 ## Release-validation next step
 
-After 1.6.34 source validation, move to **1.6.35 Release Validation**. Do not add features there. Run the full pinned Node 24 / pnpm 11.21 build matrix:
+For **1.6.35 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
 
 1. `pnpm check` including TypeScript/Vitest, Python, Runtime parity, NodeContract, Workflow compatibility, Plugin/SDK, MCP, Remote/LAN and architecture gates.
 2. Windows Desktop package build.

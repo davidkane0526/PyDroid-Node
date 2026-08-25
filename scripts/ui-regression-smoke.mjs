@@ -17,6 +17,11 @@ assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "fai
 assert.match(css, /\.smb-file-manager:has\(\.smb-connection-form input:focus\) \.smb-manager-footer[\s\S]*display:\s*none\s*!important/, "Android SMB footer should hide while editing credentials to avoid keyboard overlap");
 assert.match(css, /\.settings-layout\s*\{[\s\S]*align-items:\s*stretch/, "settings grid rows should stretch paired cards to equal height");
 assert.match(css, /\.settings-layout \.settings-section\s*\{[\s\S]*height:\s*100%/, "settings cards should fill their grid row height");
+assert.doesNotMatch(app.slice(app.indexOf('<header className="topbar">'), app.indexOf('</header>', app.indexOf('<header className="topbar">'))), /Python 包管理|节点插件/, "package and plugin management must not return to the main toolbar");
+assert.match(dialogs, /settings-extension-section[\s\S]*Python 包管理[\s\S]*节点插件/, "package and plugin management should live together in Settings → Extensions");
+assert.match(css, /\.settings-layout \.settings-section--canvas,[\s\S]*\.settings-layout \.settings-extension-section\s*\{\s*grid-column:\s*1 \/ -1;/, "Settings → Extensions should span the full settings grid for stable alignment");
+assert.match(css, /\.settings-extension-actions\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/, "package and plugin settings actions should use equal-width columns");
+assert.match(css, /\.settings-dialog__body \.settings-extension-actions > button\s*\{[^}]*width:\s*100%;[^}]*min-height:\s*34px;[^}]*justify-content:\s*center;/, "package and plugin settings actions should share width, height and centered alignment");
 assert.match(gestures, /resource:[\s\S]*longPressMs:\s*710[\s\S]*dragThresholdPx:\s*8/, "touch resource menu should keep its deliberate ~0.7s hold and movement threshold in Gesture Policy");
 assert.match(app, /distance > policy\.dragThresholdPx[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold through Gesture Policy");
 assert.doesNotMatch(app, /paletteDragTimer\.current = window\.setTimeout[\s\S]{0,600}280/, "touch palette drag must be movement-driven rather than a competing hold timer");

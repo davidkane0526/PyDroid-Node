@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.34 (174) · Final Freeze Audit**。本版本进入发布收敛阶段：不再扩展节点/插件架构，只清理可证明的死代码、过期兼容分支、重复契约和文档/版本漂移。Remote Web/LAN 的实机验收锚点仍是 1.4.91，1.4.92 文档继续定义该子系统的生产约束；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.35 (175) · Release Validation Candidate**。功能面已冻结，当前只允许发布验证和真实缺陷修复。Python 包管理与节点插件入口已从主工具栏收敛到设置 → 扩展；现有插件 Demo 保留为 SDK/回归夹具，不作为正式内置节点。Remote Web/LAN 的实机验收锚点仍是 1.4.91，1.4.92 文档继续定义该子系统的生产约束；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,8 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.34 Final Freeze Audit（当前分支）**：冻结功能面，只允许删除明确无调用的内部代码、退役运行时兼容桥、重复契约和过期开发状态；公共 NodeSpec/Plugin SDK、Workflow Migration、Remote/LAN 既有生产路径不因“内部零引用”被误删。
+- **1.6.35 Release Validation（当前分支）**：功能面冻结；包管理与节点插件只从设置 → 扩展进入，当前 Demo 插件仅作为 SDK/回归夹具；本版本只做完整构建、发布验证和真实缺陷修复。
+- **1.6.34 Final Freeze Audit**：冻结功能面，只允许删除明确无调用的内部代码、退役运行时兼容桥、重复契约和过期开发状态；公共 NodeSpec/Plugin SDK、Workflow Migration、Remote/LAN 既有生产路径不因“内部零引用”被误删。
 - **动态节点与插件体系**：NodeSpec SDK v7 支持动态端口、参数 Socket、重复输入、节点 Variant、Series/Legend、列处理 Pipeline、声明式 Inspector、校验和多输出状态；第三方 `.plugin.zip` 统一走 Manifest + Runtime Provider + resources 生命周期。
 - **MCP / AI Core 接口**：Desktop/Android 提供标准 Streamable HTTP MCP，Core 适配层复用 Editor/Runtime 现有所有权，不建立第二套工作流状态。
 - **Workflow Compatibility & Migration**：Workflow schema v3、资源 schema v2 future-version 保护和迁移后双运行时验证继续作为持久数据正确性能力。
@@ -80,7 +81,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 安装包构建 | ARM64 debug APK 本机构建通过，待真机复验 | 自包含 Windows x64 便携包已生成并验证 |
 | 物理设备/人工交互验收 | Remote Web 作为访问端已通过安卓平板实机验证 | Windows Remote Web Host 已由安卓平板跨设备访问通过；其余完整交互继续按功能验收 |
 
-当前阶段为 **1.6.x 发布收敛/候选稳定版**。平台功能应保持对等；若某平台暂不支持某项能力，必须在上表和 `docs/progress.md` 中明确记录，不得静默产生平台分叉。1.6.34 起冻结功能扩展，1.6.35 只做完整发布验证和真实缺陷修复。
+当前阶段为 **1.6.x 发布收敛/候选稳定版**。平台功能应保持对等；若某平台暂不支持某项能力，必须在上表和 `docs/progress.md` 中明确记录，不得静默产生平台分叉。1.6.34 起冻结功能扩展；1.6.35 为发布验证候选，只做完整发布验证和真实缺陷修复。
 
 ### 局域网网页遥控
 

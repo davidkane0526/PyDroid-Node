@@ -1,11 +1,11 @@
-# Current progress — 1.6.34 Final Freeze Audit
+# Current progress — 1.6.35 Release Validation Candidate
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.34**, Android versionCode **174**.
-- Build revision: `1.6.34-dev-r126-final-freeze-audit`.
+- Product version: **1.6.35**, Android versionCode **175**.
+- Build revision: `1.6.35-dev-r127-release-validation`.
 - Phase: release convergence; feature expansion is frozen.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
@@ -21,6 +21,14 @@ Date: 2026-08-25
 - Built-in workflow demos through Demo 38.
 
 1.6.34 source revalidation: Runtime parity **134/134** with JavaScript-capable NodeContract coverage **96/96**, Python **188 passed / 1 skipped**, demos **38/38**. MCP HTTP/Desktop E2E, Remote Host E2E, LAN, Workflow Migration, Plugin/SDK and ownership/architecture smokes also pass. Full pinned `pnpm check` plus Windows/Android packaging remain 1.6.35 release gates because this source ZIP does not include `node_modules` and the current shell is not the pinned Windows Node 24 build environment.
+
+## 1.6.35 release-validation work
+
+- Main-toolbar and mobile-overflow Python package/plugin entries removed.
+- Settings → Extensions now owns both management entry points with equal-width aligned controls.
+- Current plugin demos remain SDK/regression examples rather than built-in product plugins, avoiding duplicate user-facing node semantics.
+- Source revalidation remains green: demos **38/38**, Runtime parity **134/134**, JS-capable coverage **96/96**, Python **188 passed / 1 skipped**, plus Plugin/SDK, MCP, Remote/LAN, Workflow Migration and architecture gates.
+- Full project TypeScript/Vitest and Windows Desktop/Android packaging remain the release gates on the pinned Node 24 / pnpm 11.21 environment.
 
 ## 1.6.34 work
 

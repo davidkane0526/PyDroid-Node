@@ -3055,7 +3055,10 @@ button, input, select, textarea { font: inherit; }
   border-radius: 12px;
   background: color-mix(in srgb, var(--surface-deep) 90%, var(--surface) 10%);
 }
-.settings-layout .settings-section--canvas { grid-column: 1 / -1; }
+.settings-layout .settings-section--canvas,
+.settings-layout .settings-extension-section { grid-column: 1 / -1; }
+.settings-extension-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.settings-dialog__body .settings-extension-actions > button { width: 100%; min-height: 34px; justify-self: stretch; justify-content: center; margin: 0; padding: 7px 10px; }
 .settings-section__heading { display: grid; gap: 2px; padding-bottom: 3px; }
 .settings-dialog .settings-section__heading h3 {
   color: var(--text-highlight);

@@ -1,7 +1,7 @@
 # Automated Diagnostics
 
 Version introduced: 1.4.57
-Current release context: 1.6.34 Final Freeze Audit
+Current release context: 1.6.35 Release Validation Candidate
 
 This module is the built-in application/editor/runtime diagnostic runner. It remains observational and does not control or certify Remote Web/LAN production state.
 
