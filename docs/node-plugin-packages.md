@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.35 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
+PyDroid Node 1.6.36 exposes one deterministic plugin path: NodeSpec + Runtime Providers + packaged resources + token-only UI themes. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest. A package may contain nodes, themes, or both.
 
 ## Distribution boundary
 
@@ -8,7 +8,7 @@ The current demo packages under `examples/plugins/` are SDK executable specifica
 
 A future first-party built-in plugin must provide independent user value and must use the same NodeSpec, Runtime Provider, resource, install/activate/uninstall contracts as a third-party package. It must not gain a private Core execution path.
 
-Package management and Node Plugin Manager are product settings, exposed from **Settings → Extensions**, not from the primary workflow toolbar.
+Python package management and Plugin Manager are product settings, exposed from **Settings → Extensions**, not from the primary workflow toolbar.
 
 ## Package formats
 
@@ -81,6 +81,45 @@ import {
 - `restoreNodePluginPackages()` activates persisted packages during application startup.
 - `uninstallNodePluginPackage(id)` removes both live registrations and the persisted package.
 
+## UI Theme Plugin SDK v1
+
+Plugin SDK v2 adds a token-only UI theme contract. A theme plugin cannot inject CSS, HTML, React components, layout callbacks or arbitrary DOM styles. It can only replace the semantic appearance tokens whitelisted by `UI_THEME_TOKEN_NAMES`. Core keeps component size, spacing, typography metrics, responsive breakpoints and node geometry.
+
+A theme-only package is valid:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "example.midnight-theme",
+  "name": "Midnight Theme",
+  "version": "1.0.0",
+  "themes": [
+    {
+      "id": "example.midnight",
+      "labelZh": "午夜蓝",
+      "labelEn": "Midnight Blue",
+      "tokens": {
+        "dark": {
+          "bg": "#070b13",
+          "surface": "#0d1624",
+          "text": "#dbe8f5",
+          "accent": "#2877d4",
+          "canvas-bg": "#08111d",
+          "canvas-node-face": "#122033",
+          "canvas-node-border": "#36516c"
+        }
+      }
+    }
+  ]
+}
+```
+
+The public authoring surface exports `UI_THEME_SDK_VERSION`, `UI_THEME_TOKEN_NAMES`, `defineUiTheme()`, `registerUiTheme()`, `listUiThemes()` and the normal package install lifecycle. Installed themes appear under **Settings → Appearance → UI theme**. If an active theme package is disabled or uninstalled, the UI deterministically falls back to `core.default`.
+
+Theme tokens cover semantic application surfaces, text/borders/accent/material and canvas appearance. Geometry tokens such as node width, control height, radius, spacing, font size, node scale and endpoint scale are not part of the theme SDK. See `docs/UI_THEME_AND_NODE_LAYOUT_CONTRACT.md`.
+
+A real theme-only JSON example lives at `examples/plugins/demo-midnight-theme.plugin.json`; the same package is also provided as `examples/plugin-archives/demo-midnight-theme.plugin.zip`.
+
 ## JavaScript Runtime API v2
 
 JavaScript Providers use `execute(params, upstream, context, api)`.
@@ -139,7 +178,7 @@ The icon path must also appear in the package `resources` list. Active plugin no
 
 ## User-facing manager
 
-Open **节点插件** from the desktop toolbar or mobile **更多工具**. The manager intentionally keeps four operations:
+Open **设置 → 扩展 → 插件管理**. The manager uses the same installed-package lifecycle for node plugins and theme plugins, and intentionally keeps four package operations:
 
 - **安装插件**
 - **启用**

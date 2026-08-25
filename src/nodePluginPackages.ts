@@ -9,6 +9,7 @@ import {
 import { Table } from "./runtime/javascript/engine/table";
 import type { NodeOutput } from "./runtime/javascript/engine/nodes/support/types";
 import { createNodePluginResourceApi, type NodePluginResource, type NodePluginResourceApi } from "./nodePluginResources";
+import { registerUiTheme, validateUiThemeDefinition, type UiThemeDefinition, type UiThemeRegistration } from "./themePluginSdk";
 
 export const NODE_PLUGIN_PACKAGE_SCHEMA_VERSION = 1 as const;
 export const NODE_PLUGIN_RUNTIME_API_VERSION = 2 as const;
@@ -40,7 +41,8 @@ export type NodePluginPackageManifest = {
   name: string;
   version: string;
   description?: string;
-  nodes: NodePluginPackageNode[];
+  nodes?: NodePluginPackageNode[];
+  themes?: UiThemeDefinition[];
   resources?: NodePluginResource[];
 };
 
@@ -49,12 +51,14 @@ export type NodePluginPackageSummary = {
   name: string;
   version: string;
   nodeTypes: string[];
+  themeIds: string[];
 };
 
 export type NodePluginPackageDetail = NodePluginPackageSummary & {
   description?: string;
   active: boolean;
   nodes: Array<{ nodeType: string; label: string; runtimes: Array<"python" | "javascript">; iconDataUrl?: string }>;
+  themes: Array<{ id: string; labelZh: string; labelEn: string }>;
 };
 
 export type NodePluginPackageStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -67,6 +71,7 @@ export type NodePluginPackageRegistration = NodePluginPackageSummary & {
 type ActivePackage = {
   manifest: NodePluginPackageManifest;
   registrations: NodePluginRegistration[];
+  themeRegistrations: UiThemeRegistration[];
 };
 
 const activePackages = new Map<string, ActivePackage>();
@@ -116,14 +121,16 @@ export function validateNodePluginPackageManifest(manifest: NodePluginPackageMan
   validateIdentifier(manifest.id, "插件 id", errors);
   validateIdentifier(manifest.name, "插件 name", errors);
   validateIdentifier(manifest.version, "插件 version", errors);
-  if (!Array.isArray(manifest.nodes) || !manifest.nodes.length) errors.push(`${manifest.id || "<plugin>"}: nodes 至少包含一个节点`);
+  const nodes = manifest.nodes ?? [];
+  const themes = manifest.themes ?? [];
+  if (!nodes.length && !themes.length) errors.push(`${manifest.id || "<plugin>"}: 至少包含一个节点或主题`);
   const resourcePaths = new Set((manifest.resources ?? []).map((resource) => resource.path));
   for (const resource of manifest.resources ?? []) {
     if (!resource.path.trim()) errors.push(`${manifest.id || "<plugin>"}: resource path 不能为空`);
     if (!resource.base64.trim()) errors.push(`${manifest.id || "<plugin>"}: resource 内容为空：${resource.path}`);
   }
   const nodeTypes = new Set<string>();
-  for (const [index, node] of (manifest.nodes ?? []).entries()) {
+  for (const [index, node] of nodes.entries()) {
     const specErrors: string[] = [];
     try { defineNodeSpec(node.spec); } catch (error) { specErrors.push(error instanceof Error ? error.message : String(error)); }
     errors.push(...specErrors.map((message) => `${manifest.id || "<plugin>"}.nodes[${index}]: ${message}`));
@@ -137,6 +144,12 @@ export function validateNodePluginPackageManifest(manifest: NodePluginPackageMan
     if (runtimes.includes("python") && !node.providers?.python) errors.push(`${node.spec.nodeType}: Manifest 缺少 Python Provider`);
     if (node.providers?.javascript && !runtimes.includes("javascript")) errors.push(`${node.spec.nodeType}: 提供了 JavaScript Provider，但 NodeSpec 未声明 javascript Runtime`);
     if (node.providers?.python && !runtimes.includes("python")) errors.push(`${node.spec.nodeType}: 提供了 Python Provider，但 NodeSpec 未声明 python Runtime`);
+  }
+  const themeIds = new Set<string>();
+  for (const [index, theme] of themes.entries()) {
+    for (const message of validateUiThemeDefinition(theme)) errors.push(`${manifest.id || "<plugin>"}.themes[${index}]: ${message}`);
+    if (themeIds.has(theme.id)) errors.push(`${manifest.id || "<plugin>"}: theme id 重复：${theme.id}`);
+    themeIds.add(theme.id);
   }
   return errors;
 }
@@ -190,28 +203,33 @@ export function activateNodePluginPackage(input: NodePluginPackageManifest | str
   if (activePackages.has(manifest.id)) throw new Error(`插件已激活：${manifest.id}`);
 
   const resources = (manifest.resources ?? []).map((resource) => ({ ...resource }));
-  const compiled = manifest.nodes.map((node) => ({
+  const nodes = manifest.nodes ?? [];
+  const themes = manifest.themes ?? [];
+  const compiled = nodes.map((node) => ({
     spec: defineNodeSpec(node.spec),
     javascript: node.providers.javascript ? compileJavascriptProvider(node.providers.javascript, node.spec.nodeType, resources) : undefined,
     python: node.providers.python ? { ...node.providers.python, resources } : undefined,
   }));
   const registrations: NodePluginRegistration[] = [];
+  const themeRegistrations: UiThemeRegistration[] = [];
   try {
-    for (const node of compiled) {
-      registrations.push(registerNodePlugin({ spec: node.spec, javascript: node.javascript, python: node.python }));
-    }
+    for (const node of compiled) registrations.push(registerNodePlugin({ spec: node.spec, javascript: node.javascript, python: node.python }));
+    for (const theme of themes) themeRegistrations.push(registerUiTheme(theme));
   } catch (error) {
+    for (const registration of themeRegistrations.reverse()) registration.unregister();
     for (const registration of registrations.reverse()) registration.unregister();
     throw error;
   }
-  activePackages.set(manifest.id, { manifest: cloneManifest(manifest), registrations });
-  const nodeTypes = manifest.nodes.map((node) => node.spec.nodeType);
+  activePackages.set(manifest.id, { manifest: cloneManifest(manifest), registrations, themeRegistrations });
+  const nodeTypes = nodes.map((node) => node.spec.nodeType);
+  const themeIds = themes.map((theme) => theme.id);
   let active = true;
   const unload = () => {
     if (!active) return false;
     active = false;
     const current = activePackages.get(manifest.id);
     if (!current) return false;
+    for (const registration of [...current.themeRegistrations].reverse()) registration.unregister();
     for (const registration of [...current.registrations].reverse()) registration.unregister();
     activePackages.delete(manifest.id);
     return true;
@@ -221,6 +239,7 @@ export function activateNodePluginPackage(input: NodePluginPackageManifest | str
     name: manifest.name,
     version: manifest.version,
     nodeTypes,
+    themeIds,
     unload,
     uninstall: () => {
       const unloaded = unload();
@@ -270,19 +289,22 @@ export function listInstalledNodePluginPackageDetails(
     version: manifest.version,
     description: manifest.description,
     active: activePackages.has(manifest.id),
-    nodeTypes: manifest.nodes.map((node) => node.spec.nodeType),
-    nodes: manifest.nodes.map((node) => ({
+    nodeTypes: (manifest.nodes ?? []).map((node) => node.spec.nodeType),
+    themeIds: (manifest.themes ?? []).map((theme) => theme.id),
+    nodes: (manifest.nodes ?? []).map((node) => ({
       nodeType: node.spec.nodeType,
       label: node.spec.label,
       runtimes: [...(node.spec.runtimeSupport ?? [])],
       iconDataUrl: node.icon ? createNodePluginResourceApi(manifest.resources ?? []).dataUrl(node.icon) : undefined,
     })),
+    themes: (manifest.themes ?? []).map((theme) => ({ id: theme.id, labelZh: theme.labelZh, labelEn: theme.labelEn })),
   }));
 }
 
 export function unloadNodePluginPackage(id: string): boolean {
   const active = activePackages.get(id);
   if (!active) return false;
+  for (const registration of [...active.themeRegistrations].reverse()) registration.unregister();
   for (const registration of [...active.registrations].reverse()) registration.unregister();
   activePackages.delete(id);
   return true;
@@ -296,14 +318,14 @@ export function uninstallNodePluginPackage(id: string, storage: NodePluginPackag
 
 export function getNodePluginResourceText(nodeType: string, path: string): string | null {
   for (const { manifest } of activePackages.values()) {
-    if (manifest.nodes.some((node) => node.spec.nodeType === nodeType)) return createNodePluginResourceApi(manifest.resources ?? []).text(path);
+    if ((manifest.nodes ?? []).some((node) => node.spec.nodeType === nodeType)) return createNodePluginResourceApi(manifest.resources ?? []).text(path);
   }
   return null;
 }
 
 export function getNodePluginIconDataUrl(nodeType: string): string | null {
   for (const { manifest } of activePackages.values()) {
-    const node = manifest.nodes.find((item) => item.spec.nodeType === nodeType);
+    const node = (manifest.nodes ?? []).find((item) => item.spec.nodeType === nodeType);
     if (node?.icon) return createNodePluginResourceApi(manifest.resources ?? []).dataUrl(node.icon);
   }
   return null;
@@ -314,7 +336,8 @@ export function listActiveNodePluginPackages(): NodePluginPackageSummary[] {
     id: manifest.id,
     name: manifest.name,
     version: manifest.version,
-    nodeTypes: manifest.nodes.map((node) => node.spec.nodeType),
+    nodeTypes: (manifest.nodes ?? []).map((node) => node.spec.nodeType),
+    themeIds: (manifest.themes ?? []).map((theme) => theme.id),
   }));
 }
 

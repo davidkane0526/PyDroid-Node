@@ -5,6 +5,7 @@ import "./styles.css";
 import "./ui-fixes.css";
 import "./canvas-themes.css";
 import "./node-plugin-manager.css";
+import "./ui-theme-contract.css";
 import { App } from "./App";
 import { restoreNodePluginPackages } from "./nodePluginPackages";
 

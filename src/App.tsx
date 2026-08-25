@@ -39,6 +39,7 @@ import {
   type CustomNodeTemplate,
 } from "./customNode";
 import { resolveNodeSpec } from "./nodeSpec";
+import { resolveNodeCardLayout } from "./nodeLayout";
 import {
   compactNodeLayout,
   flattenWorkflowGroups,
@@ -66,6 +67,7 @@ import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagn
 import { APP_VERSION } from "./app-version";
 import { isBoundaryStructureNodeType, isIfStructureNodeType, isLoopStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "./canvas-theme";
+import { DEFAULT_UI_THEME_ID, listUiThemes, resolveUiTheme, subscribeUiThemes, uiThemeCssVariables, uiThemeRegistrySnapshot } from "./themePluginSdk";
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
 import { NodeDeclarativeInspector } from "./NodeDeclarativeInspector";
@@ -106,7 +108,7 @@ function NotebookEditor({ value, rows, onChange }: { value: string; rows: number
   return <div className="notebook-editor"><div ref={gutter} className="notebook-editor__lines" aria-hidden="true">{Array.from({ length: lineCount }, (_, index) => <span key={index}>{index + 1}</span>)}</div><textarea value={value} rows={rows} spellCheck={false} onScroll={(event) => { if (gutter.current) gutter.current.scrollTop = event.currentTarget.scrollTop; }} onChange={(event) => onChange(event.target.value)} /></div>;
 }
 type SmbSettings = Omit<SmbConnection, "password"> & { rememberPassword: boolean; guest: boolean };
-type AppSettings = { mcpEnabled: boolean; mcpToken: string; themeMode: ThemeMode; canvasTheme: CanvasThemeId; runtimePreference: RuntimePreference; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; automatedDiagnosticsEnabled: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
+type AppSettings = { mcpEnabled: boolean; mcpToken: string; themeMode: ThemeMode; uiThemeId: string; canvasTheme: CanvasThemeId; runtimePreference: RuntimePreference; paletteWidth: number; inspectorWidth: number; inspectorHeight: number; resultHeight: number; nodeScale: number; endpointScale: number; edgeWidth: number; showNodeInsights: boolean; debugMode: boolean; automatedDiagnosticsEnabled: boolean; miniMapMode: "auto" | "show" | "hide"; layoutMode: "auto" | "horizontal" | "vertical"; smb: SmbSettings; agent: AgentSettings };
 function parseWorkflowParameterExpression(expression: string, previousValue: unknown): { value: unknown; valueType: ValueType } {
   const text = expression.trim();
   const typeOf = (value: unknown): ValueType => {
@@ -189,13 +191,14 @@ function loadAgentSettings(value: unknown): AgentSettings {
 }
 
 function loadAppSettings(): AppSettings {
-  const defaults: AppSettings = { mcpEnabled: false, mcpToken: "", themeMode: "system", canvasTheme: DEFAULT_CANVAS_THEME, runtimePreference: "auto", paletteWidth: PALETTE_MIN_WIDTH, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, automatedDiagnosticsEnabled: true, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
+  const defaults: AppSettings = { mcpEnabled: false, mcpToken: "", themeMode: "system", uiThemeId: DEFAULT_UI_THEME_ID, canvasTheme: DEFAULT_CANVAS_THEME, runtimePreference: "auto", paletteWidth: PALETTE_MIN_WIDTH, inspectorWidth: 320, inspectorHeight: 220, resultHeight: 280, nodeScale: 1, endpointScale: 1, edgeWidth: 2, showNodeInsights: true, debugMode: false, automatedDiagnosticsEnabled: true, miniMapMode: "hide", layoutMode: "vertical", smb: { server: "", share: "", domain: "", username: "", rememberPassword: true, guest: false }, agent: DEFAULT_AGENT_SETTINGS };
   try {
     const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? "{}") as Partial<AppSettings>;
     return {
       mcpEnabled: typeof saved.mcpEnabled === "boolean" ? saved.mcpEnabled : defaults.mcpEnabled,
       mcpToken: typeof saved.mcpToken === "string" ? saved.mcpToken.trim().slice(0, 256) : defaults.mcpToken,
       themeMode: saved.themeMode === "dark" || saved.themeMode === "light" ? saved.themeMode : "system",
+      uiThemeId: typeof saved.uiThemeId === "string" && saved.uiThemeId.trim() ? saved.uiThemeId : defaults.uiThemeId,
       canvasTheme: normalizeCanvasTheme(saved.canvasTheme, defaults.canvasTheme),
       runtimePreference: saved.runtimePreference === "python" || saved.runtimePreference === "javascript" ? saved.runtimePreference : "auto",
       paletteWidth: Number.isFinite(saved.paletteWidth) ? Math.min(360, Math.max(PALETTE_MIN_WIDTH, Number(saved.paletteWidth))) : defaults.paletteWidth,
@@ -439,20 +442,6 @@ function InlineNodeControl({
   return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
 }
 
-function inlineControlPreferredWidth(spec: ParameterSpec): number {
-  if (spec.kind === "boolean") return 74;
-  if (spec.kind === "number") return 82;
-  if (spec.kind === "select") {
-    const longest = Math.max(0, ...(spec.options ?? []).map((option) => Array.from(String(option.label)).reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? 2 : 1), 0)));
-    return Math.min(132, Math.max(78, 34 + longest * 6));
-  }
-  return 112;
-}
-
-function visualTextUnits(value: string): number {
-  return Array.from(value).reduce((sum, char) => sum + (/[^\x00-\xff]/.test(char) ? 1.65 : 1), 0);
-}
-
 function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const spec: NodeSpec | undefined = data.nodeType === "workflow.group"
     ? { nodeType: "workflow.group", label: data.label, category: "逻辑控制" as const, defaults: {}, parameters: [], inputPorts: data.groupInputs ?? [], outputPorts: data.groupOutputs ?? [] }
@@ -484,35 +473,24 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const inspectorParameterCount = (spec?.parameters ?? []).filter((parameter) => !inlineOwnedParameterKeys.has(parameter.key)).length;
   const inputDefaultSpecs = inputPorts.map((port) => port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
   const hasInlineSocketDefaults = inputDefaultSpecs.length > 0;
-  const hasDynamicUi = Boolean(hasInlineSocketDefaults || inlineParameters.length || (spec?.variants?.length || spec?.inputPortGroups?.length));
-  const labelUnits = visualTextUnits(data.label);
-  const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
-  const longestInputPortUnits = Math.max(0, ...inputPorts.map((port) => visualTextUnits(port.label ?? "")));
-  const longestOutputPortUnits = Math.max(0, ...outputPorts.map((port) => visualTextUnits(port.label ?? "")));
-  const inputPortLabelWidth = Math.min(148, Math.max(44, 18 + longestInputPortUnits * 6.1));
-  const outputPortLabelWidth = Math.min(148, Math.max(44, 18 + longestOutputPortUnits * 6.1));
-  const verticalPortLabelWidth = Math.min(132, Math.max(66, 22 + Math.max(longestInputPortUnits, longestOutputPortUnits) * 6));
-  const socketControlWidth = Math.max(0, ...inputDefaultSpecs.map(inlineControlPreferredWidth));
-  const inputRailWidth = inputPorts.length ? 14 + inputPortLabelWidth + (hasInlineSocketDefaults ? 8 + socketControlWidth : 0) : 0;
-  const outputRailWidth = outputPorts.length ? 14 + outputPortLabelWidth : 0;
-  const inlineToolbarWidth = inlineParameters.length
-    ? inlineLayout === "row"
-      ? Math.min(248, inlineParameters.reduce((sum, parameter) => sum + inlineControlPreferredWidth(parameter), 0) + Math.max(0, inlineParameters.length - 1) * 6)
-      : Math.min(188, Math.max(...inlineParameters.map((parameter) => inlineControlPreferredWidth(parameter) + 54)))
-    : 0;
-  const contentWidth = direction === "vertical"
-    ? Math.min(300, Math.max(156, 94 + labelUnits * 10, inlineToolbarWidth + 20))
-    : Math.min(320, Math.max(142, 88 + labelUnits * 9.5, inlineToolbarWidth + 20));
-  const verticalPortItemWidth = Math.max(verticalPortLabelWidth, socketControlWidth || 0, 82);
-  const portDrivenWidth = direction === "vertical"
-    ? Math.max(contentWidth, maxPortCount ? 26 + maxPortCount * (verticalPortItemWidth + 12) : contentWidth)
-    : Math.max(contentWidth + inputRailWidth + outputRailWidth + 18, 188);
-  const nodeWidth = Math.min(direction === "vertical" ? 760 : 560, Math.max(data.nodeType === "workflow.group" ? 230 : 0, portDrivenWidth)) * nodeScale;
-  const inlineRows = inlineParameters.length ? (inlineLayout === "row" ? 1 : inlineParameters.length) : 0;
-  const horizontalPortHeight = hasDynamicUi ? 38 : 34;
-  const nodeMinHeight = (direction === "horizontal" && maxPortCount
-    ? Math.max(62 + inlineRows * 27, 28 + maxPortCount * horizontalPortHeight)
-    : direction === "vertical" ? (hasInlineSocketDefaults ? 126 : 94) + inlineRows * 27 : 62 + inlineRows * 27) * nodeScale;
+  const nodeLayout = resolveNodeCardLayout({
+    requestedDirection: direction,
+    label: data.label,
+    inputPorts,
+    outputPorts,
+    inputDefaultSpecs,
+    inlineParameters,
+    inlineLayout,
+    hasVariants: Boolean(spec?.variants?.length),
+    hasInputPortGroups: Boolean(spec?.inputPortGroups?.length),
+    hasDynamicPorts: data.nodeType === "custom.python_function" || data.nodeType === "function.call" || data.nodeType === "function.map" || data.nodeType === "workflow.group",
+    isGroup: data.nodeType === "workflow.group",
+    nodeScale,
+    endpointScale,
+  });
+  const effectiveDirection = nodeLayout.direction;
+  const hasDynamicUi = nodeLayout.dynamic;
+  const { inputPortLabelWidth, outputPortLabelWidth, verticalPortLabelWidth, socketControlWidth, inputRailWidth, outputRailWidth, verticalPortItemWidth, nodeWidth, nodeMinHeight } = nodeLayout;
   const isStructure = isVisualStructureNodeType(data.nodeType);
   const isIfZone = isIfStructureNodeType(data.nodeType);
   const isLoopZone = isLoopStructureNodeType(data.nodeType);
@@ -522,7 +500,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const isFunctionNode = data.nodeType === "function.call" || data.nodeType === "function.map" || Boolean(data.functionSourceId);
   const isGroupNode = data.nodeType === "workflow.group";
   const nodeKindClasses = `${isFunctionNode ? "node-kind-function" : ""} ${isGroupNode ? "node-kind-group" : ""} ${isStructure ? "node-kind-flow" : "node-kind-node"}`;
-  const visibleTypeLabel = hasDynamicUi ? (spec?.label && spec.label !== data.label ? spec.label : null) : data.nodeType;
+  const visibleTypeLabel = hasDynamicUi ? null : data.nodeType;
   const pluginIconUrl = getNodePluginIconDataUrl(data.nodeType);
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
@@ -532,30 +510,32 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     const observer = new ResizeObserver(refresh);
     observer.observe(element);
     return () => observer.disconnect();
-  }, [direction, endpointScale, inputPortLabelWidth, outputPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
+  }, [effectiveDirection, endpointScale, inputPortLabelWidth, outputPortLabelWidth, id, nodeMinHeight, nodeScale, nodeWidth, updateNodeInternals, verticalPortLabelWidth]);
   const inputPortStyle = (index: number): CSSProperties => {
-    if (isBoundaryZone && direction === "horizontal") return { top: `${28 + index * 26}px` };
-    if (isBoundaryZone && direction === "vertical") return { left: `${70 + index * 78}px` };
-    return direction === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` };
+    if (isBoundaryZone && effectiveDirection === "horizontal") return { top: `${28 + index * 26}px` };
+    if (isBoundaryZone && effectiveDirection === "vertical") return { left: `${70 + index * 78}px` };
+    if (nodeLayout.sideRailLayout) return { top: `${nodeLayout.portTop(index) * nodeScale}px` };
+    return effectiveDirection === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` };
   };
   const outputPortStyle = (index: number): CSSProperties => {
-    if (isBoundaryZone && direction === "horizontal") return { top: `calc(100% - ${56 - index * 19}px)` };
-    if (isBoundaryZone && direction === "vertical") return { left: `calc(100% - ${190 - index * 62}px)` };
-    return direction === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
+    if (isBoundaryZone && effectiveDirection === "horizontal") return { top: `calc(100% - ${56 - index * 19}px)` };
+    if (isBoundaryZone && effectiveDirection === "vertical") return { left: `calc(100% - ${190 - index * 62}px)` };
+    if (nodeLayout.sideRailLayout) return { top: `${nodeLayout.portTop(index) * nodeScale}px` };
+    return effectiveDirection === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
   };
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${direction} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
       {isStructure && <NodeResizer minWidth={isBoundaryZone ? 440 : 360} minHeight={isBoundaryZone ? 250 : 220} isVisible={selected} />}
-      <Handle className="notebook-order-handle" id="__notebook_order_in" type="target" position={direction === "horizontal" ? Position.Left : Position.Top} isConnectable={false} />
-      <Handle className="notebook-order-handle" id="__notebook_order_out" type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} isConnectable={false} />
+      <Handle className="notebook-order-handle" id="__notebook_order_in" type="target" position={effectiveDirection === "horizontal" ? Position.Left : Position.Top} isConnectable={false} />
+      <Handle className="notebook-order-handle" id="__notebook_order_out" type="source" position={effectiveDirection === "horizontal" ? Position.Right : Position.Bottom} isConnectable={false} />
       {inputPorts.map((port, index) => {
         const defaultSpec = port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined;
         const connected = nodeConnections.isInputConnected(id, port.id);
         return (
           <div className={`input-port ${defaultSpec && !connected ? "input-port--with-default" : ""}`} style={Object.assign(inputPortStyle(index), { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
-            <Handle id={port.id} type="target" position={direction === "horizontal" ? Position.Left : Position.Top} />
+            <Handle id={port.id} type="target" position={effectiveDirection === "horizontal" ? Position.Left : Position.Top} />
             <div className="node-port-content node-port-content--input">
               {port.label && <span className="node-port-label" title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
               {defaultSpec && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
@@ -586,7 +566,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
       {outputPorts.map((port, index) => (
         <div className="output-port" style={Object.assign(outputPortStyle(index), { "--port-color": VALUE_TYPE_COLORS[port.valueType] }) as CSSProperties} key={port.id}>
           <div className="node-port-content node-port-content--output">{port.label && <span className="node-port-label" title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}</div>
-          <Handle id={port.id} type="source" position={direction === "horizontal" ? Position.Right : Position.Bottom} />
+          <Handle id={port.id} type="source" position={effectiveDirection === "horizontal" ? Position.Right : Position.Bottom} />
         </div>
       ))}
       {insight.visible && nodeResult && <div className={`node-insight node-insight--${nodeResult.kind} ${data.nodeType === "python.print" ? "node-insight--print" : ""}`}>
@@ -611,7 +591,7 @@ function agentPermissionFor(operation: AgentOperation): AgentPermission {
   }
 }
 
-function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 1", onAddTab, themeMode, resolvedTheme, onThemeModeChange, mcpEnabled, mcpToken, mcpInfo, mcpAvailable, onMcpEnabledChange, onMcpTokenChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; resourceLibrary: EditorResourceLibraryService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void; mcpEnabled: boolean; mcpToken: string; mcpInfo: McpServerInfo | null; mcpAvailable: boolean; onMcpEnabledChange: (enabled: boolean) => void; onMcpTokenChange: (token: string) => void }) {
+function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 1", onAddTab, themeMode, uiThemeId, resolvedTheme, onThemeModeChange, onUiThemeChange, mcpEnabled, mcpToken, mcpInfo, mcpAvailable, onMcpEnabledChange, onMcpTokenChange }: { session: EditorWorkspaceSession; lifecycle: EditorWorkspaceLifecycleService; resourceLibrary: EditorResourceLibraryService; tabName?: string; onAddTab: () => void; themeMode: ThemeMode; uiThemeId: string; resolvedTheme: "dark" | "light"; onThemeModeChange: (mode: ThemeMode) => void; onUiThemeChange: (id: string) => void; mcpEnabled: boolean; mcpToken: string; mcpInfo: McpServerInfo | null; mcpAvailable: boolean; onMcpEnabledChange: (enabled: boolean) => void; onMcpTokenChange: (token: string) => void }) {
   const tabId = session.id;
   const workspaceIdentity = session.identity;
   const executionClientId = workspaceIdentity.clientId;
@@ -1065,7 +1045,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   }, [runtimePreference]);
 
   useEffect(() => {
-    const settings = { mcpEnabled, mcpToken, themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    const settings = { mcpEnabled, mcpToken, themeMode, uiThemeId, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
     if (remoteBrowser && agentSecretReady) {
       if (applyingRemoteConfiguration.current) applyingRemoteConfiguration.current = false;
@@ -1073,7 +1053,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     }
     void saveUserProfileFile("settings/app-settings.json", JSON.stringify(settings, null, 2));
     void saveUserProfileFile("settings/agent.json", JSON.stringify(agentSettings, null, 2));
-  }, [mcpEnabled, mcpToken, themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
+  }, [mcpEnabled, mcpToken, themeMode, uiThemeId, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smbConnection.server, smbConnection.share, smbConnection.domain, smbConnection.username, smbRememberPassword, smbGuest, agentSettings, agentSecretReady, remoteBrowser]);
 
   useEffect(() => {
     if (remoteBrowser) return;
@@ -1201,6 +1181,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       const remote = configuration.settings as Partial<AppSettings>;
       applyingRemoteConfiguration.current = true;
       if (remote.themeMode === "system" || remote.themeMode === "dark" || remote.themeMode === "light") setThemeMode(remote.themeMode);
+      if (typeof remote.uiThemeId === "string" && remote.uiThemeId.trim()) onUiThemeChange(remote.uiThemeId);
       if (remote.canvasTheme === "classic" || remote.canvasTheme === "soft") setCanvasTheme(remote.canvasTheme);
       if (remote.runtimePreference === "auto" || remote.runtimePreference === "python" || remote.runtimePreference === "javascript") setRuntimePreference(remote.runtimePreference);
       if (Number.isFinite(remote.paletteWidth)) setPaletteWidth(Math.min(360, Math.max(PALETTE_MIN_WIDTH, Number(remote.paletteWidth))));
@@ -2426,7 +2407,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
   };
 
   const exportSettings = () => {
-    const settings = { mcpEnabled, mcpToken, themeMode, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
+    const settings = { mcpEnabled, mcpToken, themeMode, uiThemeId, canvasTheme, runtimePreference, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, nodeScale, endpointScale, edgeWidth, showNodeInsights, debugMode, automatedDiagnosticsEnabled, miniMapMode, layoutMode, smb: { server: smbConnection.server, share: smbConnection.share, domain: smbConnection.domain, username: smbConnection.username, rememberPassword: smbRememberPassword, guest: smbGuest }, agent: agentSettings } satisfies AppSettings;
     void downloadText(JSON.stringify({ kind: "pydroid-flow.settings", schemaVersion: 1, settings }, null, 2), "pydroid-flow.settings.json", "application/json");
     setMessage("设置已导出；为安全起见不包含 AI API Key");
   };
@@ -2442,6 +2423,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       onMcpTokenChange(imported.mcpToken);
       onMcpEnabledChange(imported.mcpEnabled && Boolean(imported.mcpToken));
       setThemeMode(imported.themeMode);
+      onUiThemeChange(imported.uiThemeId);
       setCanvasTheme(imported.canvasTheme);
       setRuntimePreference(imported.runtimePreference);
       setPaletteWidth(Math.min(360, Math.max(PALETTE_MIN_WIDTH, imported.paletteWidth)));
@@ -3467,7 +3449,9 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       </div>
     </section>
   ) : null;
+  const themeVariables = uiThemeCssVariables(uiThemeId, resolvedTheme) as CSSProperties;
   const workspaceStyle = {
+    ...themeVariables,
     "--inspector-width": `${inspectorWidth}px`,
     "--inspector-height": `${inspectorHeight}px`,
     "--palette-width": `${paletteWidth}px`,
@@ -3477,7 +3461,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
 
 
   return (
-    <div className={`app-shell ${isNativePlatform() ? "native-platform" : ""} ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme} data-canvas-theme={canvasTheme}
+    <div className={`app-shell ${isNativePlatform() ? "native-platform" : ""} ${showNodeInsights ? "show-node-insights" : ""}`} data-theme={resolvedTheme} data-ui-theme={resolveUiTheme(uiThemeId).id} data-canvas-theme={canvasTheme} style={workspaceStyle}
       onDragOver={(event) => {
         if (event.dataTransfer.types.includes("application/pydroid-resource")) updatePaletteDragPreviewAt(event.clientX, event.clientY);
         if (event.dataTransfer.types.includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; }
@@ -3640,7 +3624,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
             fitView
             minZoom={0.25}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1.25} />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1.25} color="var(--canvas-grid-dot)" />
             {showMiniMap && <MiniMap pannable zoomable />}
             <Controls />
           </ReactFlow></EdgeActionsContext.Provider></NodeInsightContext.Provider></NodeConnectionsContext.Provider></NodeParameterContext.Provider></NodeRunContext.Provider></NodeSelectionContext.Provider></NodeAppearanceContext.Provider></NodeLayoutContext.Provider> : <div className="notebook-view">
@@ -3882,7 +3866,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
       {renameFlow && <RenameFlowDialog name={renameFlow.name} value={renameFlowValue} onValueChange={setRenameFlowValue} onClose={() => setRenameFlow(null)} onConfirm={() => void confirmRenameFlow()} />}
       {agentPanelOpen && <AgentDialog open={agentPanelOpen} settings={agentSettings} apiKey={agentApiKey} keyStorageHint={isNativePlatform() && !remoteBrowser ? "keystore" : "session"} apiKeyManagedByHost={remoteBrowser && remoteAgentProxyAvailable} testing={agentTesting} connectionStatus={agentConnectionStatus} language={language} instruction={agentInstruction} requesting={agentRequesting} planText={agentPlanText} plan={agentPlan} planError={agentPlanError} audit={agentAudit} mcpEnabled={mcpEnabled} mcpToken={mcpToken} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onClose={() => setAgentPanelOpen(false)} onPresetSelect={(id) => selectAgentPreset(id)} onSettingsChange={(patch) => setAgentSettings((current) => ({ ...current, ...patch }))} onApiKeyChange={setAgentApiKey} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onTestConnection={() => void testCurrentAgentConnection()} onInstructionChange={setAgentInstruction} onRequestPlan={() => void requestPlanFromAgent()} onPlanTextChange={(value) => { setAgentPlanText(value); setAgentPlan(null); setAgentPlanError(null); }} onReviewPlan={reviewAgentPlan} onApplyPlan={() => void applyAgentPlan()} onMcpEnabledChange={onMcpEnabledChange} onMcpTokenChange={onMcpTokenChange} />}
       <AutomatedDiagnosticsDialog open={automatedDiagnosticsOpen} running={automatedDiagnosticsRunning} report={automatedDiagnosticsReport} onClose={() => setAutomatedDiagnosticsOpen(false)} onRun={() => void runInAppAutomatedDiagnostics()} onCopy={() => void copyAutomatedDiagnostics()} onExport={() => void exportAutomatedDiagnostics()} exportStatus={automatedDiagnosticsExportStatus} />
-      {settingsOpen && <SettingsDialog open={settingsOpen} mcpEnabled={mcpEnabled} mcpToken={mcpToken} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onMcpEnabledChange={onMcpEnabledChange} onMcpTokenChange={onMcpTokenChange} themeMode={themeMode} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ theme: canvasTheme, nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.theme !== undefined) setCanvasTheme(normalizeCanvasTheme(patch.theme)); if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onOpenPackageManager={() => { setSettingsOpen(false); void openPackageManager(); }} onOpenPluginManager={() => { setSettingsOpen(false); setPluginManagerOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
+      {settingsOpen && <SettingsDialog open={settingsOpen} mcpEnabled={mcpEnabled} mcpToken={mcpToken} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onMcpEnabledChange={onMcpEnabledChange} onMcpTokenChange={onMcpTokenChange} themeMode={themeMode} uiThemeId={uiThemeId} uiThemes={listUiThemes()} language={language} resolvedTheme={resolvedTheme} runtimePreference={runtimePreference} canvas={{ theme: canvasTheme, nodeScale, endpointScale, edgeWidth, paletteWidth, inspectorWidth, inspectorHeight, resultHeight, miniMapMode, showNodeInsights }} smbServer={smbConnection.server} smbShare={smbConnection.share} smbGuest={smbGuest} smbUsername={smbConnection.username} smbDisabled={remoteBrowser} debugMode={debugMode} automatedDiagnosticsEnabled={automatedDiagnosticsEnabled} profilePath={userProfile?.path ?? null} workspaceUri={userProfile?.workspaceUri ?? null} onClose={() => setSettingsOpen(false)} onThemeModeChange={setThemeMode} onUiThemeChange={onUiThemeChange} onLanguageChange={(next) => { setLanguage(next); setAgentSettings((current) => ({ ...current, language: next })); }} onRuntimePreferenceChange={setRuntimePreference} onCanvasChange={(patch) => { if (patch.theme !== undefined) setCanvasTheme(normalizeCanvasTheme(patch.theme)); if (patch.nodeScale !== undefined) setNodeScale(patch.nodeScale); if (patch.endpointScale !== undefined) setEndpointScale(patch.endpointScale); if (patch.edgeWidth !== undefined) setEdgeWidth(patch.edgeWidth); if (patch.paletteWidth !== undefined) setPaletteWidth(patch.paletteWidth); if (patch.inspectorWidth !== undefined) setInspectorWidth(patch.inspectorWidth); if (patch.inspectorHeight !== undefined) setInspectorHeight(patch.inspectorHeight); if (patch.resultHeight !== undefined) setResultHeight(patch.resultHeight); if (patch.miniMapMode !== undefined) setMiniMapMode(patch.miniMapMode); if (patch.showNodeInsights !== undefined) setShowNodeInsights(patch.showNodeInsights); }} onOpenSmb={() => { setSettingsOpen(false); setSmbOpen(true); setSmbError(null); }} onOpenAgent={() => { setSettingsOpen(false); setAgentPanelOpen(true); }} onOpenPackageManager={() => { setSettingsOpen(false); void openPackageManager(); }} onOpenPluginManager={() => { setSettingsOpen(false); setPluginManagerOpen(true); }} onDebugModeChange={setDebugMode} onAutomatedDiagnosticsEnabledChange={setAutomatedDiagnosticsEnabled} onOpenDiagnostics={() => { setSettingsOpen(false); void runInAppAutomatedDiagnostics(); }} onConfigureFolder={() => void configureWorkflowFolder()} onExportSettings={exportSettings} onImportSettings={() => settingsInput.current?.click()} />}
       {packageManagerOpen && <PackageManager open={packageManagerOpen} loading={environmentLoading} environment={pythonEnvironment} requirements={requirements} requirementInput={packageRequirement} onClose={() => setPackageManagerOpen(false)} onRequirementInputChange={setPackageRequirement} onAddRequirement={addPackageRequirement} onRemoveRequirement={removePackageRequirement} onCopyPipCommand={() => void copyPipCommand()} onExportRequirements={() => { void downloadText(`${requirements.join("\n")}${requirements.length ? "\n" : ""}`, "requirements.txt", "text/plain;charset=utf-8"); }} />}
       {pluginManagerOpen && <NodePluginManager open={pluginManagerOpen} language={language} onClose={() => setPluginManagerOpen(false)} />}
       {codeEditorOpen && selectedNode?.data.nodeType === "custom.python_function" && <CodeEditorModal open={codeEditorOpen} code={String(selectedNode.data.parameters.code ?? "")} summary={signatureSummary} error={authoritativeSignatureError} onClose={() => setCodeEditorOpen(false)} onCodeChange={(code) => updateParameter("code", code)} />}
@@ -3899,6 +3883,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
 
 export function App() {
   useSyncExternalStore(subscribeNodeCatalog, nodeCatalogSnapshot, nodeCatalogSnapshot);
+  useSyncExternalStore(subscribeUiThemes, uiThemeRegistrySnapshot, uiThemeRegistrySnapshot);
   return <AppErrorBoundary><MultiTabWorkspace /></AppErrorBoundary>;
 }
 
@@ -4172,8 +4157,13 @@ function MultiTabWorkspace() {
   const workspaceExecutionClientId = getExecutionClientId();
   const workspaceSessionSource = isRemoteRuntime() ? "remote" as const : "local" as const;
   const [themeMode, setThemeMode] = useState<ThemeMode>(() => loadAppSettings().themeMode);
+  const [uiThemeId, setUiThemeId] = useState(() => loadAppSettings().uiThemeId);
   const [systemDark, setSystemDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
   const resolvedTheme: "dark" | "light" = themeMode === "system" ? (systemDark ? "dark" : "light") : themeMode;
+  const uiThemeRegistryRevision = uiThemeRegistrySnapshot();
+  const uiThemeVariables = uiThemeCssVariables(uiThemeId, resolvedTheme);
+  const uiThemeStyle = uiThemeVariables as CSSProperties;
+  const uiThemeBackground = uiThemeVariables["--bg"] ?? (resolvedTheme === "dark" ? "#0b1020" : "#f4f7fb");
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const update = () => setSystemDark(media.matches);
@@ -4182,11 +4172,14 @@ function MultiTabWorkspace() {
     return () => media.removeEventListener("change", update);
   }, []);
   useEffect(() => {
+    if (!listUiThemes().some((theme) => theme.id === uiThemeId)) setUiThemeId(DEFAULT_UI_THEME_ID);
+  }, [uiThemeId, uiThemeRegistryRevision]);
+  useEffect(() => {
     document.documentElement.dataset.theme = resolvedTheme;
     document.documentElement.style.colorScheme = resolvedTheme;
-    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", resolvedTheme === "dark" ? "#0b1020" : "#f4f7fb");
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", uiThemeBackground);
     if (isNativePlatform()) void setSystemTheme(resolvedTheme === "dark").catch(() => undefined);
-  }, [resolvedTheme]);
+  }, [resolvedTheme, uiThemeBackground, uiThemeRegistryRevision]);
   // A new app session always starts from one predictable, empty workspace.
   const emptySnapshot = emptyWorkflowSnapshot();
   const [tabs, setTabs] = useState<WorkspaceTab[]>([{ id: "default", name: "工作流 1" }]);
@@ -4378,9 +4371,9 @@ function MultiTabWorkspace() {
 
   return (
     <TabsContext.Provider value={api}>
-      <div className="workspace-shell" data-theme={resolvedTheme}>
+      <div className="workspace-shell" data-theme={resolvedTheme} data-ui-theme={resolveUiTheme(uiThemeId).id} style={uiThemeStyle}>
         <TitleBar />
-        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} resourceLibrary={resourceLibraryRef.current!} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} mcpEnabled={mcpEnabled} mcpToken={mcpToken} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onMcpEnabledChange={setMcpEnabled} onMcpTokenChange={setMcpToken} /></ReactFlowProvider>
+        <ReactFlowProvider key={activeTab.id}><FlowEditor session={sessionStoreRef.current.ensure(activeTab.id, emptyWorkflowSnapshot())} lifecycle={lifecycleRef.current} resourceLibrary={resourceLibraryRef.current!} tabName={activeTab.name} onAddTab={addTab} themeMode={themeMode} uiThemeId={uiThemeId} resolvedTheme={resolvedTheme} onThemeModeChange={setThemeMode} onUiThemeChange={setUiThemeId} mcpEnabled={mcpEnabled} mcpToken={mcpToken} mcpInfo={mcpInfo} mcpAvailable={mcpAvailable} onMcpEnabledChange={setMcpEnabled} onMcpTokenChange={setMcpToken} /></ReactFlowProvider>
         <UnsavedChangesDialog open={Boolean(pendingCloseTabId)} title="是否保存后关闭标签页？" message={`“${tabs.find((tab) => tab.id === pendingCloseTabId)?.name ?? "当前标签页"}”包含尚未保存的修改。`} onSave={savePendingTabAndClose} onDiscard={discardPendingTabAndClose} onCancel={() => setPendingCloseTabId(null)} />
       </div>
     </TabsContext.Provider>

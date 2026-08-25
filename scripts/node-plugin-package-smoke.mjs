@@ -60,6 +60,10 @@ try {
 
   const packagesModule = await import(pathToFileURL(path.join(temp, "nodePluginPackages.js")).href);
   const packages = packagesModule.default ?? packagesModule;
+  const pluginSdkModule = await import(pathToFileURL(path.join(temp, "nodePluginSdk.js")).href);
+  const pluginSdk = pluginSdkModule.default ?? pluginSdkModule;
+  const themeModule = await import(pathToFileURL(path.join(temp, "themePluginSdk.js")).href);
+  const themes = themeModule.default ?? themeModule;
   const contractModule = await import(pathToFileURL(path.join(temp, "nodeContract.js")).href);
   const contract = contractModule.default ?? contractModule;
   const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
@@ -67,7 +71,7 @@ try {
   const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
-  if (packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin package API version");
+  if (pluginSdk.PLUGIN_SDK_VERSION !== 2 || pluginSdk.UI_THEME_SDK_VERSION !== 1 || packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin SDK/package API version");
   const manifest = JSON.parse(readFileSync(path.join(root, "examples", "plugins", "demo-manifest-scale.plugin.json"), "utf8"));
   const storage = new MemoryStorage();
   const registration = packages.installNodePluginPackage(manifest, { storage });
@@ -103,6 +107,16 @@ try {
   if (py28.status !== "success" || py28.nodeResults?.offset?.kind !== "table" || py28.nodeResults?.plot?.kind !== "plot") throw new Error(`multi-node Python package failed: ${JSON.stringify(py28)}`);
   if (!multiRegistration.unload()) throw new Error("multi-node package unload failed");
 
+  const themeManifest = JSON.parse(readFileSync(path.join(root, "examples", "plugins", "demo-midnight-theme.plugin.json"), "utf8"));
+  const themeStorage = new MemoryStorage();
+  const themeRegistration = packages.installNodePluginPackage(themeManifest, { storage: themeStorage });
+  if (!themeRegistration.themeIds.includes("demo.midnight") || themes.resolveUiTheme("demo.midnight").id !== "demo.midnight") throw new Error("theme-only package did not register its UI theme");
+  const themeDetail = packages.listInstalledNodePluginPackageDetails(themeStorage)[0];
+  if (themeDetail.nodes.length !== 0 || themeDetail.themes[0]?.id !== "demo.midnight" || !themeDetail.active) throw new Error("plugin details did not expose a theme-only package");
+  if (!themeRegistration.unload() || themes.resolveUiTheme("demo.midnight").id !== "core.default") throw new Error("theme-only package did not unload cleanly");
+  if (packages.restoreNodePluginPackages(themeStorage).length || themes.resolveUiTheme("demo.midnight").id !== "demo.midnight") throw new Error("theme-only package restore failed");
+  if (!packages.uninstallNodePluginPackage(themeManifest.id, themeStorage) || themeStorage.values.size !== 0) throw new Error("theme-only package uninstall failed");
+
   const broken = JSON.parse(JSON.stringify(multi));
   broken.id = "demo.atomic-rollback";
   broken.nodes[0].spec.nodeType = "demo.atomic_first";
@@ -112,7 +126,7 @@ try {
   if (!rejected) throw new Error("atomic plugin package accepted a built-in node collision");
   if (contract.supportsNodeRuntime("demo.atomic_first", "javascript") || contract.supportsNodeRuntime("demo.atomic_first", "python")) throw new Error("failed package left partial registration behind");
 
-  console.log("Node Plugin Package smoke: PASS (install/restore/uninstall, dual runtime, multi-node atomic rollback)");
+  console.log("Node Plugin Package smoke: PASS (node/theme install lifecycle, dual runtime, multi-node atomic rollback)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

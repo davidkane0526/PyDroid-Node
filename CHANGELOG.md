@@ -1,3 +1,15 @@
+## 1.6.36 (176) — Theme plugin and deterministic node-layout contract — 2026-08-25
+
+- Added Plugin SDK v2 with UI Theme SDK v1. JSON Manifest and `.plugin.zip` packages may now contain nodes, token-only UI themes, or both, with atomic registration and the existing deterministic install/disable/enable/uninstall/restore lifecycle.
+- Added a strict semantic theme-token whitelist for application surfaces, text, borders, accents, overlay/shadow/focus material and canvas/node appearance. Theme plugins cannot inject CSS/HTML/React, cannot register arbitrary variables and cannot alter geometry.
+- Added `ui-theme-contract.css` as the final appearance-only layer over the existing UI so shared toolbars, panels, settings, dialogs, fields, data grids and canvas/node materials resolve from the same theme tokens. Settings → Appearance now selects installed themes independently from light/dark mode.
+- Added `nodeLayout.ts` as the single node-card measurement contract. Dynamic nodes with data ports use horizontal side rails with deterministic port rows; label widths, socket controls, rail widths and minimum height are measured together instead of competing through percentage positioning. Dynamic cards also hide the redundant raw nodeType line.
+- Added a theme-only `Midnight` JSON/ZIP plugin example plus dedicated Theme SDK, UI Theme Contract and Node Layout regression gates.
+- Kept NodeSpec SDK v7, package schema v1 and JavaScript Runtime API v2 unchanged. No new runtime, fallback, recovery or compatibility bridge was added.
+- Build revision: `1.6.36-dev-r131-theme-node-layout-contract`.
+- Dynamic-port classification now also covers signature-derived Python/function/group nodes; these nodes always use the deterministic side-rail contract when data ports are present.
+- Dynamic port-row spacing now accounts for endpoint scale versus node scale, and long dynamic labels are ellipsized with full-text tooltips instead of overflowing into controls.
+
 ## 1.6.35 (175) — Release validation UI convergence — 2026-08-25
 
 - Rebuilt Node Plugin Manager from the previous narrow single-column list into a responsive compact dashboard. Desktop layouts auto-flow plugin cards across multiple columns, while narrow screens fall back to one column.

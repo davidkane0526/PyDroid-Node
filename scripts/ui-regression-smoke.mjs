@@ -11,6 +11,8 @@ const gestures = readFileSync(path.join(root, "src/editor-core/gesture-policy.ts
 const workflowFunctions = readFileSync(path.join(root, "src/workflow-functions.ts"), "utf8");
 const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
 const canvasThemes = readFileSync(path.join(root, "src/canvas-themes.css"), "utf8");
+const nodeLayout = readFileSync(path.join(root, "src/nodeLayout.ts"), "utf8");
+const themeContract = readFileSync(path.join(root, "src/ui-theme-contract.css"), "utf8");
 
 const pluginManagerCss = readFileSync(path.join(root, "src/node-plugin-manager.css"), "utf8");
 const pluginManager = readFileSync(path.join(root, "src/NodePluginManager.tsx"), "utf8");
@@ -20,8 +22,8 @@ assert.match(app, /executionErrorVisible[\s\S]*errorIndicators\[tab\.id\]/, "fai
 assert.match(css, /\.smb-file-manager:has\(\.smb-connection-form input:focus\) \.smb-manager-footer[\s\S]*display:\s*none\s*!important/, "Android SMB footer should hide while editing credentials to avoid keyboard overlap");
 assert.match(css, /\.settings-layout\s*\{[\s\S]*align-items:\s*stretch/, "settings grid rows should stretch paired cards to equal height");
 assert.match(css, /\.settings-layout \.settings-section\s*\{[\s\S]*height:\s*100%/, "settings cards should fill their grid row height");
-assert.doesNotMatch(app.slice(app.indexOf('<header className="topbar">'), app.indexOf('</header>', app.indexOf('<header className="topbar">'))), /Python 包管理|节点插件/, "package and plugin management must not return to the main toolbar");
-assert.match(dialogs, /settings-extension-section[\s\S]*Python 包管理[\s\S]*节点插件/, "package and plugin management should live together in Settings → Extensions");
+assert.doesNotMatch(app.slice(app.indexOf('<header className="topbar">'), app.indexOf('</header>', app.indexOf('<header className="topbar">'))), /Python 包管理|节点插件|插件管理/, "package and plugin management must not return to the main toolbar");
+assert.match(dialogs, /settings-extension-section[\s\S]*Python 包管理[\s\S]*插件管理/, "package and plugin management should live together in Settings → Extensions");
 assert.ok(dialogs.indexOf("settings-profile-section") < dialogs.indexOf("settings-extension-section"), "Settings → Extensions should sit at the end of the compact settings-card grid instead of interrupting the upper layout");
 assert.match(css, /\.settings-layout \.settings-section--canvas\s*\{\s*grid-column:\s*1 \/ -1;/, "Canvas should remain the only full-width settings card");
 assert.doesNotMatch(css, /\.settings-layout \.settings-extension-section\s*\{[^}]*grid-column:\s*1 \/ -1;/, "Settings → Extensions should be a normal half-width settings card on the two-column layout");
@@ -32,7 +34,7 @@ assert.match(pluginManagerCss, /\.node-plugin-manager\s*\{[\s\S]*width:\s*min\(1
 assert.match(pluginManagerCss, /\.node-plugin-manager__list\s*\{[\s\S]*grid-template-columns:\s*repeat\(auto-fit, minmax\(320px, 1fr\)\)/, "plugin cards should auto-flow into multiple columns on desktop");
 assert.match(pluginManagerCss, /\.node-plugin-manager__stats\s*\{[\s\S]*grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\)/, "plugin statistics should use a compact six-metric strip");
 assert.match(pluginManager, /搜索插件、节点或 ID[\s\S]*statusFilter[\s\S]*runtimeFilter/, "plugin manager should expose search plus status/runtime filters");
-assert.match(pluginManager, /插件[\s\S]*已启用[\s\S]*已停用[\s\S]*节点[\s\S]*Python[\s\S]*JS/, "plugin manager should show plugin and runtime statistics");
+assert.match(pluginManager, /插件[\s\S]*已启用[\s\S]*节点[\s\S]*主题[\s\S]*Python[\s\S]*JS/, "plugin manager should show plugin and runtime statistics");
 assert.match(app, /nodeDisplayName\(spec\.nodeType, spec\.label, language\)/, "official demo nodes should render localized Chinese names in the node palette");
 assert.match(gestures, /resource:[\s\S]*longPressMs:\s*710[\s\S]*dragThresholdPx:\s*8/, "touch resource menu should keep its deliberate ~0.7s hold and movement threshold in Gesture Policy");
 assert.match(app, /distance > policy\.dragThresholdPx[\s\S]*clearPaletteResourceMenuHold/, "moving a palette resource should cancel its touch menu hold through Gesture Policy");
@@ -106,7 +108,9 @@ assert.match(css, /\.workflow-node:hover > \.node-run-action[^}]*opacity:\s*1;[^
 assert.match(css, /app-shell\.native-platform \.workflow-node\.selected > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "native touch UI should reveal the run action only for the selected node");
 assert.match(css, /app-shell\[data-theme="light"\] \.node-run-action \{[^}]*border-color:\s*#c9dcf4;[^}]*color:\s*#0877f9;[^}]*background:\s*rgba\(255,255,255,\.84\);/, "light mode should use the shared Soft run-control material in every canvas theme");
 assert.match(app, /nodeExecutionSubgraph\(nodes, edges, nodeId\)/, "node-scoped execution must derive its upstream context from the graph instead of running the whole workspace");
-assert.match(app, /maxPortCount[\s\S]*inputPortLabelWidth[\s\S]*outputPortLabelWidth[\s\S]*inputRailWidth[\s\S]*outputRailWidth[\s\S]*nodeMinHeight/, "node geometry should adapt independently to input/output labels, socket controls and endpoint count");
+assert.match(nodeLayout, /maxPortCount[\s\S]*inputPortLabelWidth[\s\S]*outputPortLabelWidth[\s\S]*inputRailWidth[\s\S]*outputRailWidth[\s\S]*nodeMinHeight/, "node geometry should be centralized and adapt independently to input/output labels, socket controls and endpoint count");
+assert.match(app, /resolveNodeCardLayout[\s\S]*sideRailLayout[\s\S]*portTop/, "WorkflowNodeCard should consume the shared deterministic node-layout contract");
+assert.doesNotMatch(themeContract, /(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|font-size|line-height)\s*:/, "theme plugin contract must not own layout geometry");
 assert.match(css, /workflow-node--dynamic-ui[\s\S]*node-port-content--input[\s\S]*input-port-label-width[\s\S]*socket-control-width/, "dynamic socket UI should use a structured label/control row instead of overlapping absolute controls");
 assert.doesNotMatch(css, /node-inline-control--socket\s*\{[^}]*width:\s*70px/, "dynamic socket controls must not regress to the fixed 70px width that clipped values");
 assert.match(app, /inlineParameterLabels[\s\S]*inlineLayout[\s\S]*workflow-node__inline-control--label-hidden/, "dynamic node UI should support declarative compact labels and row/stack layouts");

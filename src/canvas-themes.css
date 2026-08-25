@@ -19,7 +19,7 @@
   --canvas-selection: #78adf2;
   --canvas-edge: #8fa6bf;
   --canvas-edge-selected: #3698e6;
-  --canvas-handle-ring: #ffffff;
+  --canvas-handle-border: #ffffff;
   --canvas-function: #8059e8;
   --canvas-group: #12965e;
 }
@@ -33,7 +33,7 @@
   --canvas-selection: #63b1fb;
   --canvas-edge: #657c95;
   --canvas-edge-selected: #67baf4;
-  --canvas-handle-ring: #22364c;
+  --canvas-handle-border: #22364c;
   --canvas-function: #b39cff;
   --canvas-group: #39d48c;
 }
@@ -94,7 +94,7 @@
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .input-port,
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .output-port { color: var(--canvas-node-meta); }
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure) .react-flow__handle {
-  border-color: var(--canvas-handle-ring);
+  border-color: var(--canvas-handle-border);
   background: var(--port-color, var(--canvas-selection));
   box-shadow: 0 2px 7px rgba(63,87,120,.16);
 }
@@ -165,7 +165,7 @@
   border-color: var(--canvas-node-border);
   background:
     linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 34%, rgba(255,255,255,0) 74%),
-    linear-gradient(180deg, #1a293b 0%, #182738 100%);
+    color-mix(in srgb, var(--canvas-node-face) 96%, #000 4%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.070),
     inset 0 -1px 0 rgba(0,0,0,.28),
@@ -176,7 +176,7 @@
   border-color: #496682;
   background:
     linear-gradient(180deg, rgba(255,255,255,.026) 0, rgba(255,255,255,.008) 34%, rgba(255,255,255,0) 74%),
-    linear-gradient(180deg, #1c2c3f 0%, #19293b 100%);
+    color-mix(in srgb, var(--canvas-node-face) 94%, var(--canvas-selection) 6%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.082),
     inset 0 -1px 0 rgba(0,0,0,.30),
@@ -197,7 +197,7 @@
   border-color: var(--canvas-node-border) !important;
   background:
     linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 34%, rgba(255,255,255,0) 74%),
-    linear-gradient(180deg, #1a293b 0%, #182738 100%) !important;
+    color-mix(in srgb, var(--canvas-node-face) 96%, #000 4%) !important;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__type { color: var(--canvas-node-type); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-function .workflow-node__type,

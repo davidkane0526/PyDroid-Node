@@ -1,13 +1,13 @@
-# Current development handoff — 1.6.35 Release Validation Candidate
+# Current development handoff — 1.6.36 Theme / Node Layout Contract
 
-Branch: `feature/release-validation`
-Version: **1.6.35**
-Android versionCode: **175**
-Build revision: `1.6.35-dev-r129-plugin-manager-ui`
+Branch: `feature/theme-node-layout-contract`
+Version: **1.6.36**
+Android versionCode: **176**
+Build revision: `1.6.36-dev-r131-theme-node-layout-contract`
 
 ## Current phase
 
-PyDroid Node is in release validation. Do not start another architecture/SDK expansion phase before the exit criteria below are met. 1.6.35 keeps the 1.6.34 freeze: only release-validation changes and reproduced defect fixes are allowed.
+PyDroid Node remains in release convergence. The requested **Theme Plugin SDK + unified UI visual tokens + deterministic node layout** source contract is now implemented and source-validated. The remaining release work is pinned-toolchain Windows/Android packaging plus final physical acceptance; do not add a new runtime, recovery path or unrelated product feature.
 
 ## Non-negotiable continuation rules
 
@@ -22,14 +22,28 @@ PyDroid Node is in release validation. Do not start another architecture/SDK exp
 ## Current architecture checkpoint
 
 - Dynamic NodeSpec/Node Contract: parameter sockets, repeated inputs, variants, loop/if zones, series/legend metadata and scientific column pipelines.
-- NodeSpec SDK: **v7**.
-- Plugin path: JSON Manifest or `.plugin.zip` -> NodeSpec + JavaScript/Python Runtime Providers + persisted read-only resources -> enable/disable/uninstall/restore.
+- NodeSpec SDK: **v7**; combined Plugin SDK: **v2**; UI Theme SDK: **v1**.
+- Plugin path: JSON Manifest or `.plugin.zip` -> NodeSpec + JavaScript/Python Runtime Providers + persisted read-only resources and/or token-only UI themes -> enable/disable/uninstall/restore.
+- Theme boundary: semantic appearance tokens only. Core owns spacing, dimensions, typography metrics, responsive geometry and all node layout.
+- Node layout: `src/nodeLayout.ts` is the single measurement contract; complex dynamic nodes use deterministic horizontal side rails and fixed port rows instead of percentage placement.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.34: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.34: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.34: **38/38**.
+- Runtime parity revalidated in 1.6.36: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.36: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.36: **38/38**.
 
+
+
+## 1.6.36 theme / node-layout contract
+
+- Added Plugin SDK v2 and UI Theme SDK v1. Plugin packages may now contain nodes, UI themes, or both; theme-only JSON and `.plugin.zip` packages use the same atomic install/enable/disable/uninstall/restore lifecycle.
+- Theme plugins are token-only. `UI_THEME_TOKEN_NAMES` whitelists semantic app/canvas appearance; arbitrary CSS, render callbacks and geometry variables are rejected.
+- Added `ui-theme-contract.css` as the final appearance-only visual contract so Settings, dialogs, toolbars, fields, data grids and canvas/node surfaces consume the same semantic token layer.
+- Settings → Appearance now selects installed UI themes independently from light/dark mode. If the active plugin theme disappears, the app returns directly to `core.default`.
+- Added `src/nodeLayout.ts` as the single node measurement contract. Dynamic nodes with data ports use horizontal side rails with deterministic row spacing; this includes signature-derived Python/function/group nodes. Label/control/rail widths, endpoint-scale-aware row spacing and minimum height are measured together.
+- Dynamic cards suppress the redundant raw nodeType line, keep long labels inside measured rails with ellipsis/tooltips, and reserve endpoint-scale-aware rows so enlarged handles cannot overlap.
+- Added a theme-only executable SDK example in JSON and `.plugin.zip`, plus theme/layout/UI-contract smoke gates.
+- Full Windows/Android packaging remains the next release gate after source validation.
 
 ## 1.6.35 release-validation changes
 
@@ -66,7 +80,7 @@ This ZIP intentionally has no `node_modules`, and the current cloud shell is not
 
 ## Release-validation next step
 
-For **1.6.35 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
+For **1.6.36 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
 
 1. `pnpm check` including TypeScript/Vitest, Python, Runtime parity, NodeContract, Workflow compatibility, Plugin/SDK, MCP, Remote/LAN and architecture gates.
 2. Windows Desktop package build.

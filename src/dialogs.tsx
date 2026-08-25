@@ -8,6 +8,7 @@ import { APP_VERSION } from "./app-version";
 import type { AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { CANVAS_THEMES, type CanvasThemeId } from "./canvas-theme";
 import type { McpServerInfo } from "./platform";
+import type { UiThemeDefinition } from "./themePluginSdk";
 
 export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };
@@ -716,13 +717,15 @@ function McpConnectionSection({ enabled, token, info, available, language, onEna
   </>;
 }
 
-export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailable, themeMode, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, automatedDiagnosticsEnabled, profilePath, workspaceUri, onClose, onMcpEnabledChange, onMcpTokenChange, onThemeModeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onOpenPackageManager, onOpenPluginManager, onDebugModeChange, onAutomatedDiagnosticsEnabledChange, onOpenDiagnostics, onConfigureFolder, onExportSettings, onImportSettings }: {
+export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailable, themeMode, uiThemeId, uiThemes, language, resolvedTheme, runtimePreference, canvas, smbServer, smbShare, smbGuest, smbUsername, smbDisabled, debugMode, automatedDiagnosticsEnabled, profilePath, workspaceUri, onClose, onMcpEnabledChange, onMcpTokenChange, onThemeModeChange, onUiThemeChange, onLanguageChange, onRuntimePreferenceChange, onCanvasChange, onOpenSmb, onOpenAgent, onOpenPackageManager, onOpenPluginManager, onDebugModeChange, onAutomatedDiagnosticsEnabledChange, onOpenDiagnostics, onConfigureFolder, onExportSettings, onImportSettings }: {
   open: boolean;
   mcpEnabled: boolean;
   mcpToken: string;
   mcpInfo: McpServerInfo | null;
   mcpAvailable: boolean;
   themeMode: ThemeMode;
+  uiThemeId: string;
+  uiThemes: UiThemeDefinition[];
   language: string;
   resolvedTheme: "dark" | "light";
   runtimePreference: RuntimePreference;
@@ -740,6 +743,7 @@ export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailab
   onMcpEnabledChange: (enabled: boolean) => void;
   onMcpTokenChange: (token: string) => void;
   onThemeModeChange: (value: ThemeMode) => void;
+  onUiThemeChange: (id: string) => void;
   onLanguageChange: (value: "zh-CN" | "en") => void;
   onRuntimePreferenceChange: (value: RuntimePreference) => void;
   onCanvasChange: (patch: Partial<CanvasSettings>) => void;
@@ -762,7 +766,7 @@ export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailab
     <section className="settings-dialog settings-dialog--adaptive">
       <header><div className="settings-title-line"><strong>{L("设置", "Settings")}</strong><span className="settings-version-inline" aria-label={L(`软件版本 ${APP_VERSION}`, `Software version ${APP_VERSION}`)}><i aria-hidden="true">|</i> v{APP_VERSION}</span></div><button className="dialog-close-button" aria-label={L("关闭设置", "Close settings")} onClick={onClose}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 5 10 10M15 5 5 15"/></svg></button></header>
       <div className="settings-dialog__body settings-layout">
-        <section className="settings-section settings-section--appearance">{sectionHeading(L("外观", "Appearance"), L("主题与界面语言", "Theme and interface language"))}<div className="settings-control-grid"><label><span>{L("主题", "Theme")}</span><ThemedSelect ariaLabel={L("主题", "Theme")} value={themeMode} options={[{ value: "system", label: L("跟随系统", "System") }, { value: "dark", label: L("暗色模式", "Dark") }, { value: "light", label: L("亮色模式", "Light") }]} onChange={(value) => onThemeModeChange(value as ThemeMode)} /></label><label><span>{L("语言", "Language")}</span><ThemedSelect ariaLabel={L("语言", "Language")} value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label></div><small className="settings-section__note">{L("当前生效", "Active")}: {resolvedTheme === "dark" ? L("暗色", "Dark") : L("亮色", "Light")}</small></section>
+        <section className="settings-section settings-section--appearance">{sectionHeading(L("外观", "Appearance"), L("主题与界面语言", "Theme and interface language"))}<div className="settings-control-grid settings-control-grid--appearance"><label><span>{L("界面主题", "UI theme")}</span><ThemedSelect ariaLabel={L("界面主题", "UI theme")} value={uiThemeId} options={uiThemes.map((theme) => ({ value: theme.id, label: L(theme.labelZh, theme.labelEn) }))} onChange={onUiThemeChange} /></label><label><span>{L("明暗模式", "Color mode")}</span><ThemedSelect ariaLabel={L("明暗模式", "Color mode")} value={themeMode} options={[{ value: "system", label: L("跟随系统", "System") }, { value: "dark", label: L("暗色模式", "Dark") }, { value: "light", label: L("亮色模式", "Light") }]} onChange={(value) => onThemeModeChange(value as ThemeMode)} /></label><label><span>{L("语言", "Language")}</span><ThemedSelect ariaLabel={L("语言", "Language")} value={language} options={[{ value: "zh-CN", label: "中文" }, { value: "en", label: "English" }]} onChange={(value) => onLanguageChange(value as "zh-CN" | "en")} /></label></div><small className="settings-section__note">{L("当前生效", "Active")}: {resolvedTheme === "dark" ? L("暗色", "Dark") : L("亮色", "Light")}</small></section>
 
         <section className="settings-section settings-runtime-section">{sectionHeading(L("执行引擎", "Execution engine"), L("选择工作流默认运行环境", "Choose the default workflow runtime"))}<label className="settings-primary-control"><span>{L("工作流运行时", "Workflow runtime")}</span><ThemedSelect ariaLabel={L("工作流运行时", "Workflow runtime")} value={runtimePreference} options={[{ value: "auto", label: L("自动选择（推荐）", "Auto (recommended)") }, { value: "python", label: L("Python · 完整兼容", "Python · full compatibility") }, { value: "javascript", label: L("JavaScript · 实验", "JavaScript · experimental") }]} onChange={(value) => onRuntimePreferenceChange(value as RuntimePreference)} /></label><p>{runtimePreference === "auto" ? L("Auto 会在执行前检查节点兼容性：全部支持时选择 JavaScript，否则选择 Python。", "Auto checks node compatibility before execution: JavaScript when fully supported, otherwise Python.") : runtimePreference === "javascript" ? L("纯前端执行并支持交互式图表；不兼容节点会明确提示。", "Runs fully in the frontend with interactive charts; incompatible nodes are reported explicitly.") : L("始终使用 Python，兼容 Notebook、自定义函数与完整节点目录。", "Always use Python for Notebook, custom functions, and the full node catalog.")}</p></section>
 
@@ -777,7 +781,7 @@ export function SettingsDialog({ open, mcpEnabled, mcpToken, mcpInfo, mcpAvailab
 
         <section className="settings-section settings-profile-section">{sectionHeading(L("配置文件", "Profile"), L("本机设置、流程与用户模板", "Local settings, workflows and templates"))}<dl><dt>应用配置目录</dt><dd>{profilePath ?? "正在读取…"}</dd><dt>用户流程文件夹</dt><dd>{workspaceUri ?? "使用应用默认流程库"}</dd></dl><div><button onClick={onConfigureFolder}>选择 / 跳转文件夹</button><button onClick={onExportSettings}>{L("导出设置", "Export settings")}</button><button onClick={onImportSettings}>{L("导入设置", "Import settings")}</button></div><small>导出文件不包含 AI API Key；密钥继续使用当前设备的加密存储。</small></section>
 
-        <section className="settings-section settings-extension-section">{sectionHeading(L("扩展", "Extensions"), L("Python 包与节点插件", "Python packages and node plugins"))}<div className="settings-extension-actions"><button type="button" onClick={onOpenPackageManager}>{L("Python 包管理", "Python packages")}</button><button type="button" onClick={onOpenPluginManager}>{L("节点插件", "Node plugins")}</button></div></section>
+        <section className="settings-section settings-extension-section">{sectionHeading(L("扩展", "Extensions"), L("Python 包与插件", "Python packages and plugins"))}<div className="settings-extension-actions"><button type="button" onClick={onOpenPackageManager}>{L("Python 包管理", "Python packages")}</button><button type="button" onClick={onOpenPluginManager}>{L("插件管理", "Plugins")}</button></div></section>
       </div>
     </section>
   </div>;

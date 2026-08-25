@@ -6,6 +6,7 @@ import {
   type NodePluginPackageStorage,
 } from "./nodePluginPackages";
 import type { NodeSpec, PythonNodeProviderDescriptor } from "./nodeSpecSdk";
+import type { UiThemeDefinition } from "./themePluginSdk";
 import { bytesToBase64, resourceMimeType } from "./nodePluginResources";
 
 export const NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION = 1 as const;
@@ -31,7 +32,8 @@ export type NodePluginArchiveManifest = {
   name: string;
   version: string;
   description?: string;
-  nodes: NodePluginArchiveNode[];
+  nodes?: NodePluginArchiveNode[];
+  themes?: UiThemeDefinition[];
   resources?: string[];
 };
 
@@ -112,8 +114,10 @@ function parseArchiveManifest(text: string): NodePluginArchiveManifest {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("插件包 manifest.json 必须是 JSON 对象");
   if (parsed.schemaVersion !== NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION) throw new Error(`不支持的插件包 schemaVersion：${parsed.schemaVersion}`);
   if (!parsed.id?.trim() || !parsed.name?.trim() || !parsed.version?.trim()) throw new Error("插件包 manifest.json 缺少 id、name 或 version");
-  if (!Array.isArray(parsed.nodes) || !parsed.nodes.length) throw new Error("插件包 manifest.json 至少包含一个节点");
-  for (const node of parsed.nodes) {
+  const nodes = parsed.nodes ?? [];
+  const themes = parsed.themes ?? [];
+  if (!nodes.length && !themes.length) throw new Error("插件包 manifest.json 至少包含一个节点或主题");
+  for (const node of nodes) {
     if (node.icon && !validPluginPath(node.icon)) throw new Error(`插件包图标路径无效：${node.icon}`);
     for (const descriptor of [node.providers?.javascript, node.providers?.python]) {
       if (descriptor && !validPluginPath(descriptor.file)) throw new Error(`插件包 Provider 路径无效：${descriptor.file}`);
@@ -137,13 +141,13 @@ export async function readNodePluginArchive(buffer: ArrayBuffer): Promise<NodePl
   };
   const resourcePaths = archive.resources ?? [];
   for (const resource of resourcePaths) if (!byName.has(resource)) throw new Error(`插件包缺少资源：${resource}`);
-  for (const node of archive.nodes) if (node.icon && !resourcePaths.includes(node.icon)) throw new Error(`插件节点图标未声明为资源：${node.icon}`);
+  for (const node of archive.nodes ?? []) if (node.icon && !resourcePaths.includes(node.icon)) throw new Error(`插件节点图标未声明为资源：${node.icon}`);
   const resources = await Promise.all(resourcePaths.map(async (path) => {
     const entry = byName.get(path)!;
     return { path, base64: bytesToBase64(await readZipEntry(buffer, entry)), mimeType: resourceMimeType(path) };
   }));
 
-  const nodes = await Promise.all(archive.nodes.map(async (node) => {
+  const nodes = await Promise.all((archive.nodes ?? []).map(async (node) => {
     const javascript: JavascriptNodeProviderDescriptor | undefined = node.providers.javascript ? {
       source: await readText(node.providers.javascript.file),
       entrypoint: node.providers.javascript.entrypoint,
@@ -162,6 +166,7 @@ export async function readNodePluginArchive(buffer: ArrayBuffer): Promise<NodePl
     version: archive.version,
     description: archive.description,
     nodes,
+    themes: archive.themes ?? [],
     resources,
   };
 }

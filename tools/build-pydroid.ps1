@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.35-dev-r129-plugin-manager-ui"
+$script:BuildScriptRevision = "1.6.36-dev-r131-theme-node-layout-contract"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

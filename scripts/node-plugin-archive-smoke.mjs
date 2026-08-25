@@ -48,6 +48,7 @@ try {
     "src/nodePluginArchive.ts",
     "src/nodePluginResources.ts",
     "src/nodePluginPackages.ts",
+    "src/themePluginSdk.ts",
     "src/nodeSpecSdk.ts",
     "src/nodeCatalog.ts",
     "src/customNode.ts",
@@ -118,6 +119,13 @@ try {
   if (!packages.getNodePluginIconDataUrl("demo.resource_scale")) throw new Error("restored resource package lost icon resource");
   packages.uninstallNodePluginPackage("demo.resource-scale", storage);
 
+  const themeZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-midnight-theme.plugin.zip"));
+  const themeManifest = await archives.readNodePluginArchive(arrayBuffer(themeZip));
+  if (themeManifest.nodes.length !== 0 || themeManifest.themes?.[0]?.id !== "demo.midnight") throw new Error("theme-only archive was not resolved");
+  const themeRegistration = await archives.installNodePluginArchive(arrayBuffer(themeZip), { persist: false });
+  if (!packages.listActiveNodePluginPackages().some((plugin) => plugin.id === "demo.midnight-theme" && plugin.themeIds.includes("demo.midnight"))) throw new Error("theme-only archive did not register its UI theme");
+  themeRegistration.unload();
+
   const resourceTableZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-resource-table.plugin.zip"));
   const resourceTableRegistration = await archives.installNodePluginArchive(arrayBuffer(resourceTableZip), { persist: false });
   const workflow30 = JSON.parse(readFileSync(path.join(root, "examples", "demo-30-plugin-resource-table.workflow.json"), "utf8"));
@@ -127,7 +135,7 @@ try {
   if (py30.status !== "success" || py30.nodeResults?.resource?.kind !== "table" || py30.nodeResults?.plot?.kind !== "plot") throw new Error(`resource CSV Python execution failed: ${JSON.stringify(py30)}`);
   resourceTableRegistration.unload();
 
-  console.log("Node Plugin Archive smoke: PASS (.plugin.zip read/install, resources/icons, dual runtime, table→plot)");
+  console.log("Node Plugin Archive smoke: PASS (.plugin.zip node/theme install, resources/icons, dual runtime, table→plot)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }
