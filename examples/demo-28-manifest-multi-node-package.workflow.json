@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 28 · Manifest Multi-Node Package",
+  "nodes": [
+    {
+      "id": "count",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 100
+      },
+      "data": {
+        "nodeType": "math.operation",
+        "label": "Count · 3 + 3",
+        "parameters": {
+          "operation": "add",
+          "a": 3,
+          "b": 3
+        }
+      }
+    },
+    {
+      "id": "amount",
+      "type": "workflow",
+      "position": {
+        "x": 60,
+        "y": 340
+      },
+      "data": {
+        "nodeType": "math.operation",
+        "label": "Offset · 4 + 6",
+        "parameters": {
+          "operation": "add",
+          "a": 4,
+          "b": 6
+        }
+      }
+    },
+    {
+      "id": "source",
+      "type": "workflow",
+      "position": {
+        "x": 360,
+        "y": 120
+      },
+      "data": {
+        "nodeType": "demo.manifest_table",
+        "label": "Manifest Table",
+        "parameters": {
+          "start": 1,
+          "step": 2,
+          "count": 4
+        }
+      }
+    },
+    {
+      "id": "offset",
+      "type": "workflow",
+      "position": {
+        "x": 650,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "demo.manifest_table_offset",
+        "label": "Manifest Table Offset",
+        "parameters": {
+          "amount": 0
+        }
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 960,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "plot.line",
+        "label": "Manifest Table Plot",
+        "parameters": {
+          "xColumn": "index",
+          "yColumns": "value",
+          "title": "Manifest Package Table",
+          "xLabel": "index",
+          "yLabel": "value",
+          "lineWidth": 2,
+          "alpha": 1,
+          "lineStyle": "solid",
+          "marker": "none",
+          "seriesConfig": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "count",
+      "sourceHandle": "output",
+      "target": "source",
+      "targetHandle": "count"
+    },
+    {
+      "id": "e2",
+      "source": "source",
+      "sourceHandle": "output",
+      "target": "offset",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e3",
+      "source": "amount",
+      "sourceHandle": "output",
+      "target": "offset",
+      "targetHandle": "amount"
+    },
+    {
+      "id": "e4",
+      "source": "offset",
+      "sourceHandle": "output",
+      "target": "plot",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "parameters": [],
+  "environment": {
+    "pythonImports": [],
+    "pythonDefinitions": []
+  }
+}

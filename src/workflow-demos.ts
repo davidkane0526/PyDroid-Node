@@ -24,7 +24,10 @@ import conditionalColumnPipeline from "../examples/demo-23-conditional-column-pi
 import legendStateDemo from "../examples/demo-24-legend-state.workflow.json?raw";
 import runtimeProviderScale from "../examples/demo-25-runtime-provider-scale.workflow.json?raw";
 import pythonProviderTable from "../examples/demo-26-python-provider-table.workflow.json?raw";
+import manifestPluginPackage from "../examples/demo-27-manifest-plugin-package.workflow.json?raw";
+import manifestMultiNodePackage from "../examples/demo-28-manifest-multi-node-package.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
+import { activateManifestScalePackageDemo, activateManifestTablePackageDemo } from "./plugin-package-demos";
 
 export type WorkflowDemo = {
   id: string;
@@ -192,5 +195,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     description: "可序列化 Python Provider 在 backend 中生成 DataFrame，再直接连接原生 Plot 节点。",
     document: pythonProviderTable,
     activate: activatePythonTableProviderDemo,
+  },
+  {
+    id: "manifest-plugin-package",
+    label: "Demo 27 · Manifest Plugin Package",
+    description: "单个可序列化 Manifest 自动注册 NodeSpec 与 Python/JavaScript Provider。",
+    document: manifestPluginPackage,
+    activate: activateManifestScalePackageDemo,
+  },
+  {
+    id: "manifest-multi-node-package",
+    label: "Demo 28 · Manifest 多节点插件包",
+    description: "同一个 Manifest 原子装载两个双 Runtime 表格节点，并直接连接原生 Plot。",
+    document: manifestMultiNodePackage,
+    activate: activateManifestTablePackageDemo,
   },
 ] as const;

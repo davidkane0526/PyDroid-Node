@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.manifest-scale",
+  "name": "Manifest Scale Demo",
+  "version": "1.0.0",
+  "description": "Serializable NodeSpec + JavaScript/Python providers loaded through the plugin package manifest layer.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.manifest_scale",
+        "label": "Manifest Scale",
+        "description": "Dual-runtime node loaded from a serialized plugin manifest.",
+        "tags": [
+          "plugin",
+          "manifest",
+          "provider",
+          "scale"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "factor": 2
+        },
+        "parameters": [
+          {
+            "key": "factor",
+            "label": "Factor",
+            "kind": "number"
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          },
+          {
+            "id": "factor",
+            "label": "Factor",
+            "valueType": "number",
+            "defaultParameter": "factor"
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Scaled",
+            "valueType": "number"
+          }
+        ]
+      },
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream, context, api) { return { output: Number(upstream ?? 0) * Number(params.factor ?? 1) }; }"
+        },
+        "python": {
+          "source": "def execute(params, upstream, context):\n    return {'output': float(upstream or 0) * float(params.get('factor', 1))}\n"
+        }
+      }
+    }
+  ]
+}

@@ -14,6 +14,11 @@
 - `demo-18-series-registry.workflow.json`：展示结构化 `Series → Registry → Plot`。
 - `demo-19-series-groups.workflow.json`：展示 Series `group/visible` 与 Registry include/exclude 筛选。
 - `demo-20-scientific-column-transforms.workflow.json`：展示 `Clip → Sqrt → Min-Max Normalize` 科学列变换。
+- `demo-21-legend-group-solo.workflow.json` ～ `demo-24-legend-state.workflow.json`：展示 Legend Group/Solo、声明式 Column Pipeline、条件 Transform 与 Legend State。
+- `demo-25-runtime-provider-scale.workflow.json` ～ `demo-26-python-provider-table.workflow.json`：展示底层 Runtime Provider SDK。
+- `demo-27-manifest-plugin-package.workflow.json`：展示单节点双 Runtime Manifest 插件包。
+- `demo-28-manifest-multi-node-package.workflow.json`：展示一个 Manifest 原子装载多个节点并连接原生 Plot。
+- `plugins/*.plugin.json`：Demo 27/28 实际使用的可序列化插件 Manifest。
 - `logic-control-demo.workflow.json`、`periodic-oscillating-pulse.workflow.json`、`ter-matrix.workflow.json`：保留的专项示例。
 
 建议验收时在 **Soft + Light**、**Soft + Dark**、**Classic + Light/Dark** 之间切换，重点观察节点厚度、文字层级、端口、运行按钮、函数/组合/控制流区分以及 hover 是否稳定。

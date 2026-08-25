@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 27 · Manifest Plugin Package",
+  "nodes": [
+    {
+      "id": "value",
+      "type": "workflow",
+      "position": {
+        "x": 80,
+        "y": 140
+      },
+      "data": {
+        "nodeType": "math.operation",
+        "label": "Value · 4 + 6",
+        "parameters": {
+          "operation": "add",
+          "a": 4,
+          "b": 6
+        }
+      }
+    },
+    {
+      "id": "factor",
+      "type": "workflow",
+      "position": {
+        "x": 80,
+        "y": 340
+      },
+      "data": {
+        "nodeType": "math.operation",
+        "label": "Factor · 2 + 3",
+        "parameters": {
+          "operation": "add",
+          "a": 2,
+          "b": 3
+        }
+      }
+    },
+    {
+      "id": "scale",
+      "type": "workflow",
+      "position": {
+        "x": 400,
+        "y": 220
+      },
+      "data": {
+        "nodeType": "demo.manifest_scale",
+        "label": "Manifest Scale",
+        "parameters": {
+          "factor": 2
+        }
+      }
+    },
+    {
+      "id": "print",
+      "type": "workflow",
+      "position": {
+        "x": 720,
+        "y": 220
+      },
+      "data": {
+        "nodeType": "python.print",
+        "label": "打印 Manifest 结果",
+        "parameters": {
+          "prefix": "",
+          "format": "pretty",
+          "includeType": true,
+          "maxRows": 20,
+          "maxChars": 8000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "value",
+      "sourceHandle": "output",
+      "target": "scale",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "factor",
+      "sourceHandle": "output",
+      "target": "scale",
+      "targetHandle": "factor"
+    },
+    {
+      "id": "e3",
+      "source": "scale",
+      "sourceHandle": "output",
+      "target": "print",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "parameters": [],
+  "environment": {
+    "pythonImports": [],
+    "pythonDefinitions": []
+  }
+}

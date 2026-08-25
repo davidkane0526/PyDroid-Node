@@ -30,6 +30,8 @@ const files = [
   "demo-24-legend-state.workflow.json",
   "demo-25-runtime-provider-scale.workflow.json",
   "demo-26-python-provider-table.workflow.json",
+  "demo-27-manifest-plugin-package.workflow.json",
+  "demo-28-manifest-multi-node-package.workflow.json",
 ];
 
 let failed = 0;

@@ -1,3 +1,13 @@
+## 1.6.26 (166) — Manifest Plugin Packages — 2026-08-25
+
+- Added the first serializable Node Plugin Package manifest (`schemaVersion: 1`). One JSON package can declare one or more validated NodeSpecs plus matching JavaScript/Python Runtime Provider source; runtime declarations and providers must agree before activation.
+- Added atomic package activation, unload, uninstall and renderer persistence. Multi-node packages compile their serializable providers before registration and roll back every node already registered by that package if a later node collides or fails. Persisted manifests are restored before the React editor mounts, while unload removes live NodeSpecs/Providers without deleting the installed record.
+- Added a serializable JavaScript Provider compiler with Runtime API v1. Manifest providers receive `execute(params, upstream, context, api)` and can use `api.Table` to produce the same native JavaScript Table consumed by first-party table/plot nodes; scalar/output-map/full-NodeOutput returns remain supported. Python descriptors continue to travel with each Python workflow request and execute through the existing desktop/Android/Remote provider path.
+- Added `src/nodePluginSdk.ts` as the combined NodeSpec + package authoring surface, plus active/installed package listing for a future plugin-management UI. This phase intentionally does not add a user-facing installer, dependency resolver, signature system or ZIP container.
+- Added Demo 27 for one dual-runtime Manifest node and Demo 28 for one Manifest atomically installing two dual-runtime table nodes. Demo 28 is executed in both JavaScript and Python and feeds the generated/modified table into the normal first-party Line Plot. Example manifests live under `examples/plugins/`.
+- Added a dedicated package lifecycle smoke covering install → persist → unload → restore → uninstall, dual-runtime execution, multi-node packages and atomic rollback on a built-in node collision. Built-in Demo structure coverage is now 28/28.
+- Build revision: `1.6.26-dev-r118-manifest-plugin-packages`.
+
 ## 1.6.25 (165) — Executable Runtime Provider SDK — 2026-08-25
 
 - Promoted the NodeSpec SDK to v3 with executable external Runtime Providers. `registerNodePlugin()` now atomically registers one external NodeSpec plus every runtime implementation declared by `runtimeSupport`; missing providers fail immediately, duplicate provider registration fails explicitly, and one deterministic unregister removes both providers and the catalog declaration.
