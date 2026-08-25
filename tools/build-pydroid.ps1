@@ -44,10 +44,6 @@
     android\build 和 capacitor-cordova-android-plugins\build。
     默认不删除这些目录，以复用 Gradle 增量构建缓存。
 
-.PARAMETER DisableGradleDaemon
-    禁用 Gradle daemon。默认启用并复用 daemon；仅当安全软件或系统策略明确阻止
-    Gradle daemon 启动时才建议使用此开关。
-
 
 .PARAMETER NodeExecutable
     可选 Node.js 可执行文件。显式填写时严格使用该路径；留空时从专用环境变量、ToolRoot、系统安装位置/PATH 中只读发现满足版本要求的 Node。
@@ -126,7 +122,6 @@ param(
     [switch]$SkipDesktop,
     [switch]$KeepHistory,
     [switch]$CleanBuild,
-    [switch]$DisableGradleDaemon,
     [string]$NodeVersion,
     [int]$AndroidApiLevel = 0,
     [int]$JdkMajor = 21,
@@ -148,7 +143,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.43-dev-r138-node-layout-balance"
+$script:BuildScriptRevision = "1.6.44-dev-r139-android-single-jvm-build"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -434,8 +429,8 @@ function Remove-BuildDirectory {
 function Sync-Source {
     Write-BuildStage -Percent 15 -Message "清理临时工作区旧构建缓存"
     Write-Step "清理临时工作区旧构建缓存（静默）..."
-    # 默认保留 Android 的 .gradle/app/build 等目录，让 Gradle daemon、build cache
-    # 和增量编译在连续构建之间真正生效。只有 -CleanBuild 才清理这些目录。
+    # 默认保留 Android 的 .gradle/app/build 等目录，让 Gradle build cache
+    # 和增量编译在连续构建之间继续复用。只有 -CleanBuild 才清理这些目录。
     $transientDirs = @(
         "release", "dist", "dist-desktop", "temp", ".vite", ".pytest_cache"
     )
@@ -533,7 +528,7 @@ function Build-Desktop {
 }
 
 function Configure-GradleNetwork {
-    $gradleArgs = @('-Xms64m', '-Xmx1536m')
+    $gradleArgs = @()
     if (-not [string]::IsNullOrWhiteSpace([string]$script:ResolvedProxyUrl)) {
         $proxyUri = [Uri]$script:ResolvedProxyUrl
         if ($proxyUri.Scheme -notin @('http', 'https')) { throw "Gradle 仅接受 HTTP/HTTPS 代理：$script:ResolvedProxyUrl" }
@@ -602,15 +597,10 @@ function Build-Android {
     Write-Host "Python：$env:PYDROID_PYTHON_EXECUTABLE"
     Write-Host "GRADLE_USER_HOME：$env:GRADLE_USER_HOME"
 
-    # Android 打包脚本只执行用户选定的 daemon 模式，不做自动恢复或降级。
-    $env:PYDROID_DISABLE_GRADLE_DAEMON = if ($DisableGradleDaemon) { "1" } else { "0" }
-
+    # Android 打包固定使用单 JVM / --no-daemon。构建缓存仍由独立 GRADLE_USER_HOME 复用，
+    # 但不会再为一次性 APK 打包额外启动后台 Java daemon。
     Write-BuildStage -Percent 78 -Message "准备 Android Gradle 构建"
-    if ($DisableGradleDaemon) {
-        Write-Step "Gradle daemon 已禁用；本次构建使用独立 JVM。"
-    } else {
-        Write-Step "Gradle daemon 已启用；失败时直接报告 Gradle 原始错误。"
-    }
+    Write-Step "Gradle 单 JVM 模式：--no-daemon；保留 build cache，不启动后台 Java daemon。"
 
     Write-BuildStage -Percent 80 -Message "同步 Web 资源与 Capacitor Android 工程"
     # GUI 构建在这里完成一次 Android Web/Capacitor 同步，随后直接进入 Gradle。

@@ -18,6 +18,9 @@ const setupDesktop = read("scripts/setup-desktop-development.ps1");
 const startDesktop = read("scripts/start-desktop.ps1");
 const desktopPackage = read("scripts/desktop-package.mjs");
 const packageJson = JSON.parse(read("package.json"));
+const gradleProperties = read("android/gradle.properties");
+const gradleWrapperBat = read("android/gradlew.bat");
+const gradleWrapper = read("android/gradlew");
 
 assert.match(build, new RegExp(`BuildScriptRevision = "${packageJson.version.replaceAll(".", "\\.")}-`));
 assert.match(build, /return "D:\\PyDroidTemp"/);
@@ -75,8 +78,14 @@ assert.equal(existsSync(path.join(root, "scripts/desktop-package-invocation.mjs"
 assert.equal(existsSync(path.join(root, "scripts/local-storage.ps1")), false, "junction-based local-storage shim must be removed");
 assert.equal(existsSync(path.join(root, "scripts/fix-capacitor-paths.ps1")), false, "junction path rewrite shim must be removed");
 assert.equal(packageJson.scripts["android:sync"], "pnpm build && cap sync android");
+assert.match(gradleProperties, /org\.gradle\.daemon=false/);
+assert.doesNotMatch(gradleProperties, /org\.gradle\.jvmargs/);
+assert.match(gradleWrapperBat, /DEFAULT_JVM_OPTS="-Xms64m" "-Xmx1536m"/);
+assert.match(gradleWrapper, /DEFAULT_JVM_OPTS='"-Xms64m" "-Xmx1536m"'/);
+assert.doesNotMatch(build, /DisableGradleDaemon|PYDROID_DISABLE_GRADLE_DAEMON/);
 assert.match(androidPackage, /& "\.\\gradlew\.bat" @gradleArgs/);
-assert.match(androidPackage, /if \(\$disableGradleDaemon\) \{ \$gradleArgs \+= "--no-daemon" \} else \{ \$gradleArgs \+= "--daemon" \}/);
+assert.match(androidPackage, /\$gradleArgs = @\("assembleDebug", "--stacktrace", "--no-daemon", "--console=plain"\)/);
+assert.doesNotMatch(androidPackage, /--daemon|PYDROID_DISABLE_GRADLE_DAEMON|disableGradleDaemon/);
 assert.match(androidPackage, /Resolve-PyDroidJavaHome/);
 assert.match(androidPackage, /Resolve-PyDroidAndroidSdk/);
 assert.match(androidPackage, /Resolve-PyDroidPythonExecutable/);

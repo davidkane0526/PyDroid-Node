@@ -1,6 +1,6 @@
 # PyDroid Node build toolchain
 
-Current build revision: **1.4.95 / Notebook compiler foundation** (2026-08-21). Build-tool behavior remains the **1.4.94 local tool discovery correction**; architecture baseline remains **1.4.92 / Baseline Consolidation** and Remote/LAN physical-device acceptance remains anchored at **1.4.91**.
+Current build revision: **1.6.44-dev-r139-android-single-jvm-build** (2026-08-26). Tool discovery remains deterministic/read-only; Android packaging now uses one Gradle wrapper JVM with `--no-daemon`, while Remote/LAN production behavior remains unchanged.
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 提供路径发现、版本验证、网络和清理辅助函数。
 
@@ -148,7 +148,7 @@ JDK、Android SDK、Python 3.13 等工具字段：
 - 自动代理/PAC 探测。
 - `pnpm install`、Electron packaging、Gradle build 的自动重试或降级。
 - 关闭签名后重打、plain EXE 替代品。
-- Gradle daemon 失败后自动清状态再切 `--no-daemon`。
+- Gradle 构建失败后自动重试、清状态或切换另一种进程模式。
 - 用“APK 文件已经出现”覆盖 Gradle 真实退出码。
 - 后台 deferred cleanup。
 
@@ -184,7 +184,7 @@ Android: android:sync → gradlew assembleDebug      [各一次]
 100% / 进程结束
 ```
 
-Android daemon/no-daemon 是运行前的用户选择，不在失败后自动切换。
+Android 固定使用 `--no-daemon` 单 JVM 构建。wrapper 自身使用 1536 MB heap，`gradle.properties` 不声明 `org.gradle.jvmargs`，避免 Gradle 为 JVM 参数再派生 single-use daemon。失败直接返回 Gradle 原始退出码。
 
 ## 清理
 

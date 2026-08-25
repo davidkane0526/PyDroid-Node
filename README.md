@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.43 (183) · Node Layout Balance**。默认 `core.default` 视觉基线保持不变；横向复杂节点改为 Rail 驱动宽度、整卡居中标题/描述和统一侧边表单栅格，`聚合/配色` 等内联参数成为明确表单行，简单节点继续按内容收窄，运行按钮同步轻量化。纵向表单、Plugin/Theme/Design SDK 与 Remote Web/LAN 生产路径不变；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.44 (184) · Android Single-JVM Build**。1.6.43 的节点布局与默认视觉保持不变；Android 正式打包固定使用单 JVM `--no-daemon`，Gradle wrapper 自身获得构建堆内存，项目不再通过 `org.gradle.jvmargs` 派生 daemon/single-use daemon。构建缓存继续保留，不增加失败重试或模式切换；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,8 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.43 Node Layout Balance（当前分支）**：复杂横向节点以左右 Rail + 必要中央间隙决定宽度，不再为标题重复预留整块中央区域；标题/描述跨整卡居中；内联参数与 Socket 默认值共用标签/控件栅格；`table.pivot` 与 `plot.heatmap` 显式显示“聚合/配色”；运行按钮进一步轻量化。
+- **1.6.44 Android Single-JVM Build（当前分支）**：Android `assembleDebug` 固定单 JVM `--no-daemon`；Gradle wrapper heap 固定为 1536 MB，`gradle.properties` 禁止 daemon 且不再声明 `org.gradle.jvmargs`，避免 Windows 在构建阶段额外创建第二个 `java.exe`。Gradle build cache 与增量输出仍保留。
+- **1.6.43 Node Layout Balance**：复杂横向节点以左右 Rail + 必要中央间隙决定宽度，不再为标题重复预留整块中央区域；标题/描述跨整卡居中；内联参数与 Socket 默认值共用标签/控件栅格；`table.pivot` 与 `plot.heatmap` 显式显示“聚合/配色”；运行按钮进一步轻量化。
 - **1.6.41 Horizontal Rail Containment**：修复宽屏断点把动态节点 `min-height` 强制压回 62 px 的旧 CSS 冲突；横向动态节点的输入/输出 Rail 分别按端口数量居中，单输出位于右侧中线，所有 Socket 控件保持在节点卡片边界内。
 - **1.6.40 Vertical Dynamic Node Form Layout**：纵向工作流中的动态节点不再被强制改成横向左右 Rail；输入端口保持顶部、输出端口保持底部，Socket 默认值与内联控件按统一标签列/控件列纵向排列，节点以增加高度换取更紧凑的宽度。横向布局仍保留固定端口行 Rail；`core.default` 视觉基线不变。
 - **1.6.39 Visual Compatibility Restore**：Plugin SDK v4 / UI Theme SDK v2 / Design SDK v1 保持不变；`core.default` 保留原有按钮、弹窗、节点、Soft/Classic 画布材质与动画，第三方主题以显式 opt-in 覆盖这些外观 Token，且仍不能改变布局或动态节点几何。

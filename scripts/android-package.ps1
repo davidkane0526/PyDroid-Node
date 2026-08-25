@@ -26,7 +26,6 @@ $env:JAVA_HOME = $jdkRoot
 $env:ANDROID_HOME = $sdkRoot
 $env:ANDROID_SDK_ROOT = $sdkRoot
 $env:PYDROID_PYTHON_EXECUTABLE = $python
-$disableGradleDaemon = ([string]$env:PYDROID_DISABLE_GRADLE_DAEMON) -eq "1"
 
 Push-Location $projectRoot
 try {
@@ -39,8 +38,7 @@ try {
     Write-Host "@@PYDROID_STAGE@@|84|启动 Android Gradle / Chaquopy 构建"
     Push-Location "android"
     try {
-        $gradleArgs = @("assembleDebug", "--stacktrace")
-        if ($disableGradleDaemon) { $gradleArgs += "--no-daemon" } else { $gradleArgs += "--daemon" }
+        $gradleArgs = @("assembleDebug", "--stacktrace", "--no-daemon", "--console=plain")
         & ".\gradlew.bat" @gradleArgs
         if ($LASTEXITCODE -ne 0) { throw "Android debug APK build failed with exit code $LASTEXITCODE." }
     }

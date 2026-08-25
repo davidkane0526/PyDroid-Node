@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.43 Node Layout Balance
+# Current development handoff — 1.6.44 Android Single-JVM Build
 
-Branch: `feature/node-layout-balance`
-Version: **1.6.43**
-Android versionCode: **183**
-Build revision: `1.6.43-dev-r138-node-layout-balance`
+Branch: `feature/android-single-jvm-build`
+Version: **1.6.44**
+Android versionCode: **184**
+Build revision: `1.6.44-dev-r139-android-single-jvm-build`
 
 ## Current phase
 
@@ -28,10 +28,19 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.43: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.43: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.43: **38/38**.
+- Runtime parity revalidated in 1.6.44: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.44: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.44: **38/38**.
 
+
+
+## 1.6.44 Android single-JVM build
+
+- Local 1.6.43 packaging proved the Windows Desktop path end-to-end, including packaged UI/IPC/Python and live Remote Web HTTP smoke.
+- Android reached Gradle after successful Web/Capacitor sync, then Windows rejected the daemon child `java.exe` with `CreateProcess error=5`.
+- Android packaging now has one deterministic path: wrapper JVM + `--no-daemon`. `android/gradle.properties` sets `org.gradle.daemon=false` and no longer supplies `org.gradle.jvmargs`; wrapper scripts carry the 1536 MB heap directly so Gradle does not need a daemon/single-use daemon for JVM settings.
+- Gradle user-home/build caches remain reusable. There is no retry, daemon cleanup, fallback or post-failure mode switch.
+- The node/UI/Plugin/Theme/Design behavior from 1.6.43 is unchanged.
 
 
 

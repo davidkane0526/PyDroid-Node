@@ -1,3 +1,11 @@
+## 1.6.44 (184) — Android Single-JVM Build — 2026-08-26
+
+- 1.6.43 Windows Desktop formal packaging completed successfully, including packaged UI/IPC/Python and live Remote Web HTTP smoke; Android reached Gradle after Web/Capacitor sync but Windows denied creation of the Gradle daemon child `java.exe` with `CreateProcess error=5`.
+- Android packaging now has one deterministic process model: `assembleDebug --no-daemon`. The previous daemon/no-daemon switch and `PYDROID_DISABLE_GRADLE_DAEMON` branch are removed.
+- `android/gradlew` and `gradlew.bat` now give the wrapper JVM `-Xms64m -Xmx1536m` directly. `android/gradle.properties` sets `org.gradle.daemon=false` and removes `org.gradle.jvmargs`, preventing Gradle from forking a daemon or single-use daemon merely to satisfy heap settings.
+- Gradle caches/incremental build outputs remain reusable; no retry, daemon cleanup, fallback or post-failure mode switch is introduced. Node layout, UI, Plugin/Theme/Design SDK, MCP and Remote/LAN behavior are unchanged.
+- Build revision: `1.6.44-dev-r139-android-single-jvm-build`.
+
 ## 1.6.43 (183) — Node Layout Balance — 2026-08-26
 
 - Reworked horizontal complex-node width measurement to be Rail-driven: input Rail + compact center gap + output Rail, with the centered header only acting as a minimum-width floor. This removes the large unused right-side area seen in `table.pivot`/heatmap-style nodes.

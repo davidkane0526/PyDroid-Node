@@ -73,6 +73,6 @@ pnpm android:sync
 pnpm android:package
 ```
 
-`android:package` 复用与主构建器相同的 JDK/Android SDK/Python 发现模块。工具选定后只执行用户选择的 Gradle daemon/no-daemon 路径一次，Gradle 退出码是唯一构建结果。
+`android:package` 复用与主构建器相同的 JDK/Android SDK/Python 发现模块。工具选定后固定执行单 JVM `--no-daemon` 路径一次，Gradle 退出码是唯一构建结果。
 
 完整构建约定见 `BUILD_TOOLCHAIN.md`。

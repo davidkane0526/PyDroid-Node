@@ -23,7 +23,7 @@
 - Android buildPython：WorkRoot/ToolRoot/LocalAppData、`py.exe -3.13`、PATH；必须是完整 64 位 Python 3.13 且含 `venv/ensurepip`。
 - Desktop Python：默认 `WorkRoot\tools\pydroid-flow\Python\runtime-3.13`，可显式覆盖。
 
-缺失或版本不符时明确失败。核心构建器不会自动安装工具、调用 Corepack、运行 `sdkmanager` 补包、创建 SDK overlay、读取 Windows PAC、重试安装/打包、改变 Electron 签名模式、清 Gradle 状态后重试、切换 daemon 模式或启动后台清理任务。
+缺失或版本不符时明确失败。核心构建器不会自动安装工具、调用 Corepack、运行 `sdkmanager` 补包、创建 SDK overlay、读取 Windows PAC、重试安装/打包、改变 Electron 签名模式、清 Gradle 状态后重试、切换构建模式或启动后台清理任务。
 
 ## 网络模式
 
@@ -40,7 +40,7 @@
 4. `robocopy /MIR /R:0 /W:0` 同步源码到工作区。
 5. 执行一次 `pnpm install --frozen-lockfile --prefer-offline`。
 6. Desktop：执行一次 `pnpm desktop:package`。
-7. Android：执行一次 `pnpm android:sync`，然后一次 Gradle `assembleDebug`；daemon/no-daemon 由用户在开始前选择。
+7. Android：执行一次 `pnpm android:sync`，然后一次 Gradle `assembleDebug --no-daemon`；单 JVM 路径固定，不做 daemon 模式切换。
 8. Desktop 镜像到稳定的 `<product>-Desktop` 路径，Android APK 使用版本化文件名，然后结束。
 
 不会在成功后继续做隐藏清理，也不会把“已经发现某个中间文件”当成构建成功替代真实进程退出码。

@@ -1,16 +1,23 @@
-# Current progress — 1.6.43 Node Layout Balance
+# Current progress — 1.6.44 Android Single-JVM Build
 
 Date: 2026-08-26
 
 ## Current release state
 
-- Product version: **1.6.43**, Android versionCode **183**.
-- Build revision: `1.6.43-dev-r138-node-layout-balance`.
+- Product version: **1.6.44**, Android versionCode **184**.
+- Build revision: `1.6.44-dev-r139-android-single-jvm-build`.
 
-- 1.6.43 source validation: Node Layout, Core Default Visual Baseline, UI regression, Canvas Theme, Theme/Design SDK, plugin manager/package/archive/declarative UI, SDK layout and build-tool architecture gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
+- 1.6.44 keeps the 1.6.43 node/UI/runtime surface unchanged and fixes only the Android build process: one wrapper JVM, `--no-daemon`, wrapper-owned 1536 MB heap, no `org.gradle.jvmargs` daemon fork. Windows 1.6.43 formal packaging already passed locally; Android 1.6.44 still requires the same pinned-machine packaging rerun.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
+
+
+## 1.6.44 Android single-JVM build
+
+- Replaces the default daemon child-process path with one deterministic `--no-daemon` wrapper JVM.
+- Wrapper JVM owns the build heap; `org.gradle.jvmargs` is removed so no single-use daemon is required.
+- Gradle build cache remains reusable; no automatic retry/fallback/recovery path is introduced.
 
 
 ## 1.6.43 node-layout balance

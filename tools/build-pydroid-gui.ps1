@@ -875,7 +875,7 @@ $form.Add_FormClosing({
 
     if ($activeBuild) {
         $answer = [System.Windows.Forms.MessageBox]::Show(
-            "构建仍在进行。关闭窗口会终止本次 PowerShell/pnpm/Gradle/Java 进程树，并停止 PyDroid Gradle daemon。是否继续？",
+            "构建仍在进行。关闭窗口会终止本次 PowerShell/pnpm/Gradle/Java 进程树。是否继续？",
             "PyDroid Build",
             "YesNo",
             "Warning"
@@ -886,8 +886,7 @@ $form.Add_FormClosing({
         }
     }
 
-    # 关闭 GUI 时始终清理本工具启动的后台构建状态。即使当前 buildProcess 已经
-    # 结束，前一次成功/失败构建留下的 Gradle daemon 也会在这里停止。
+    # 关闭 GUI 时清理本工具启动的构建进程状态。Android 构建不再启动后台 Gradle daemon。
     try { $timer.Stop() } catch {}
     try { Stop-CurrentBuildSession -Quiet } catch {}
 })
