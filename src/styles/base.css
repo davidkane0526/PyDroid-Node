@@ -769,7 +769,7 @@ button, input, select, textarea { font: inherit; }
 .app-shell[data-theme="light"] .input-port span { color: #1d4ed8; }.app-shell[data-theme="light"] .output-port span { color: #047857; }.app-shell[data-theme="light"] .workflow-node.status-error, .app-shell[data-theme="light"] .workflow-node.status-error.selected, .app-shell[data-theme="light"] .workflow-structure.status-error { border-color: #dc2626 !important; box-shadow: 0 0 0 4px #fecaca, 0 7px 20px #991b1b44 !important; }
 
 @media (min-width: 1200px) {
-  .workflow-node { min-height: calc(62px * var(--node-scale, 1)); }
+  .workflow-node { min-height: max(calc(62px * var(--node-scale, 1)), var(--node-min-height, calc(58px * var(--node-scale, 1)))); }
   .workflow-node__type { font-size: calc(12px * var(--node-scale, 1)); }
   .workflow-node__label { font-size: calc(16px * var(--node-scale, 1)); }
   .workflow-node__meta { font-size: calc(9px * var(--node-scale, 1)); }
@@ -4008,6 +4008,15 @@ select.node-inline-control {
   line-height: inherit;
   text-align: inherit;
   white-space: nowrap;
+}
+/* Horizontal dynamic-node contract: side rails and every socket control remain inside the card.
+   Wide-screen typography may raise the simple-node minimum, but it must never replace --node-min-height. */
+.workflow-node--side-rail.direction-horizontal {
+  min-height: var(--node-min-height, calc(58px * var(--node-scale, 1)));
+}
+.workflow-node--side-rail.direction-horizontal .workflow-node__body {
+  min-height: calc(48px * var(--node-scale, 1));
+  align-content: center;
 }
 .workflow-node--dynamic-ui.direction-horizontal .input-port {
   width: var(--input-rail-width, 0px);

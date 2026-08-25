@@ -1,3 +1,12 @@
+## 1.6.41 (181) — Horizontal Rail Containment — 2026-08-25
+
+- Fixed a wide-screen CSS regression that overrode `--node-min-height` with a fixed 62 px minimum, which allowed dynamic input/socket rows to render outside the node card.
+- Horizontal dynamic nodes now keep left input Rail, central body and right output Rail fully contained in the measured card height.
+- Input/output rails are vertically centered independently by port count; single outputs no longer sit on the first input row.
+- Added `plot.heatmap`-shaped regression coverage and a direct CSS contract preventing future breakpoint overrides of measured node height.
+- Default Classic/Soft appearance, vertical form layout, Theme/Design SDK and runtime semantics are unchanged.
+- Build revision: `1.6.41-dev-r136-horizontal-rail-containment`.
+
 ## 1.6.40 (180) — Vertical Dynamic Node Form Layout — 2026-08-25
 
 - Fixed vertical canvas layout so dynamic nodes no longer switch to horizontal left/right rails while surrounding nodes use top/bottom flow.

@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.40 Vertical Dynamic Node Form Layout
+# Current development handoff — 1.6.41 Horizontal Rail Containment
 
-Branch: `feature/vertical-node-form-layout`
-Version: **1.6.40**
-Android versionCode: **180**
-Build revision: `1.6.40-dev-r135-vertical-node-form-layout`
+Branch: `feature/horizontal-rail-containment`
+Version: **1.6.41**
+Android versionCode: **181**
+Build revision: `1.6.41-dev-r136-horizontal-rail-containment`
 
 ## Current phase
 
@@ -28,14 +28,23 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.38: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.38: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.38: **38/38**.
+- Runtime parity revalidated in 1.6.41: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.41: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.41: **38/38**.
 
 
 
 
 
+
+
+## 1.6.41 horizontal dynamic-node correction
+
+- Fixed the wide-screen `@media (min-width: 1200px)` rule that replaced measured dynamic-node height with a fixed 62 px minimum and caused Rows/Min/Max socket rows to render below the card border.
+- Horizontal dynamic nodes now expose an explicit side-rail layout class and directly preserve `--node-min-height`.
+- Input and output rails are centered independently by their own port counts; a single output is vertically centered even when the node has many inputs.
+- Added a real `plot.heatmap`-shaped layout regression asserting that all horizontal socket rows remain inside the card.
+- Vertical form layout and the protected `core.default` visual baseline are unchanged.
 
 ## 1.6.40 vertical dynamic-node correction
 

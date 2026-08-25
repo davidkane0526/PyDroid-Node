@@ -28,9 +28,29 @@ try {
 
   const horizontalDynamic = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "Dynamic Inputs", inputPorts: ports, outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: true, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (!horizontalDynamic.sideRailLayout || horizontalDynamic.verticalFormLayout || horizontalDynamic.direction !== "horizontal") throw new Error("horizontal dynamic node lost deterministic side rails");
-  const tops = ports.map((_, index) => horizontalDynamic.portTop(index));
+  const tops = ports.map((_, index) => horizontalDynamic.portTop(index, ports.length));
   if (!tops.every((value, index) => index === 0 || value - tops[index - 1] === horizontalDynamic.portRowHeight)) throw new Error("horizontal dynamic ports do not use deterministic rows");
   if (tops.at(-1) >= horizontalDynamic.nodeMinHeight) throw new Error("last horizontal dynamic port exceeds node bounds");
+  const singleOutputTop = horizontalDynamic.portTop(0, 1);
+  if (Math.abs(singleOutputTop - horizontalDynamic.nodeMinHeight / 2) > horizontalDynamic.portRowHeight / 2) throw new Error("single horizontal output is not centered in its rail");
+
+
+  const heatmapDefaults = [
+    { key: "rowLabelColumn", label: "行标签列", kind: "text", defaultValue: "Vg_V" },
+    { key: "colorMin", label: "颜色下限", kind: "number", defaultValue: null },
+    { key: "colorMax", label: "颜色上限", kind: "number", defaultValue: null },
+  ];
+  const heatmapInputs = [
+    { id: "input", label: "表格", valueType: "table" },
+    { id: "rowLabelColumn", label: "Rows", valueType: "any", defaultParameter: "rowLabelColumn" },
+    { id: "colorMin", label: "Min", valueType: "number", defaultParameter: "colorMin" },
+    { id: "colorMax", label: "Max", valueType: "number", defaultParameter: "colorMax" },
+  ];
+  const heatmapLayout = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "绘制 TER 热图", inputPorts: heatmapInputs, outputPorts: [{ id: "output", label: "图像", valueType: "plot" }], inputDefaultSpecs: heatmapDefaults, inlineParameters: [{ key: "colorMap", label: "配色", kind: "select", defaultValue: "viridis", options: [{ value: "viridis", label: "Viridis" }] }], inlineLayout: "row", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
+  const heatmapInputTops = heatmapInputs.map((_, index) => heatmapLayout.portTop(index, heatmapInputs.length));
+  if (!heatmapLayout.sideRailLayout || heatmapLayout.nodeMinHeight < 160) throw new Error("horizontal heatmap did not reserve a full side-rail card");
+  if (heatmapInputTops.at(-1) + heatmapLayout.portRowHeight / 2 >= heatmapLayout.nodeMinHeight) throw new Error("horizontal heatmap socket row escapes the card boundary");
+  if (Math.abs(heatmapLayout.portTop(0, 1) - heatmapLayout.nodeMinHeight / 2) > 1) throw new Error("horizontal heatmap output is not vertically centered");
 
   const staticVertical = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "Static", inputPorts: [{ id: "input", label: "Input", valueType: "any" }], outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (staticVertical.dynamic || staticVertical.direction !== "vertical" || staticVertical.verticalFormLayout) throw new Error("static node layout was unnecessarily overridden");
@@ -73,6 +93,9 @@ try {
   if (!appSource.includes('position={effectiveDirection === "horizontal" ? Position.Right : Position.Bottom}')) throw new Error("vertical output handles are not bottom-facing");
   if (!cssSource.includes('.workflow-node--dynamic-ui.workflow-node--vertical-form.direction-vertical')) throw new Error("vertical dynamic form CSS contract is missing");
   if (!cssSource.includes('grid-template-columns: minmax(0, var(--vertical-form-label-width')) throw new Error("vertical form rows do not share aligned label/control columns");
+  if (!cssSource.includes('min-height: max(calc(62px * var(--node-scale, 1)), var(--node-min-height')) throw new Error("wide-screen CSS can still override measured node height");
+  if (!appSource.includes('workflow-node--side-rail')) throw new Error("WorkflowNodeCard does not expose horizontal side-rail layout class");
+  if (!cssSource.includes('.workflow-node--side-rail.direction-horizontal {\n  min-height: var(--node-min-height')) throw new Error("horizontal side-rail card does not directly preserve measured height");
 
   console.log("Node Layout Contract smoke: PASS (vertical dynamic form cards, aligned body rows, top/bottom sockets, horizontal side rails, endpoint-scale spacing)");
 } finally {

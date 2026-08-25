@@ -1,15 +1,22 @@
-# Current progress — 1.6.40 Vertical Dynamic Node Form Layout
+# Current progress — 1.6.41 Horizontal Rail Containment
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.40**, Android versionCode **180**.
-- Build revision: `1.6.40-dev-r135-vertical-node-form-layout`.
+- Product version: **1.6.41**, Android versionCode **181**.
+- Build revision: `1.6.41-dev-r136-horizontal-rail-containment`.
 
-- 1.6.38 source validation: SDK layout, Unified Design/Theme, node layout, plugin package/archive/manager/declarative UI and UI regression gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
+- 1.6.41 source validation: Node Layout, Core Default Visual Baseline, UI regression, Canvas Theme, Theme/Design SDK, plugin manager/declarative UI and SDK layout gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
+
+
+## 1.6.41 horizontal dynamic-node layout
+
+- Wide-screen CSS now respects the Core-measured node minimum height instead of flattening dynamic nodes to 62 px.
+- Horizontal dynamic nodes use contained left/right rails, with each rail vertically centered independently.
+- Heatmap-shaped regression coverage guarantees Rows/Min/Max and their controls stay inside the card.
 
 ## 1.6.40 vertical dynamic-node layout
 

@@ -35,7 +35,7 @@ export type NodeCardLayout = {
   nodeMinHeight: number;
   inlineToolbarWidth: number;
   portRowHeight: number;
-  portTop: (index: number) => number;
+  portTop: (index: number, count?: number) => number;
   verticalPortLeft: (index: number, count: number) => number;
 };
 
@@ -110,7 +110,12 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     ? 104 + verticalFormRows * 29
     : (inputDefaultSpecs.length ? 122 : 92) + inlineRows * 27;
   const baseHeight = direction === "horizontal" ? Math.max(contentHeight, railHeight) : verticalHeight;
-  const portTop = (index: number) => 26 + portRowHeight * (index + 0.5);
+  const portTop = (index: number, count = maxPortCount) => {
+    const safeCount = Math.max(1, count);
+    const occupiedHeight = safeCount * portRowHeight;
+    const topInset = Math.max(17, (baseHeight - occupiedHeight) / 2);
+    return topInset + portRowHeight * (index + 0.5);
+  };
   const verticalPortLeft = (index: number, count: number) => count > 0 ? ((index + 1) * 100) / (count + 1) : 50;
 
   return {
