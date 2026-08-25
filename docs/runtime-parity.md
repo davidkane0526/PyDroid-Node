@@ -40,9 +40,9 @@ The comparator checks success/error status, execution order, table columns/rows,
 
 Plot transport is intentionally B-class: Python produces a raster artifact while JavaScript produces an interactive ECharts object. Golden plot cases compare the surrounding workflow/spec semantics rather than PNG pixels.
 
-## 1.5.10 checkpoint
+## 1.6.34 release-freeze checkpoint
 
-Current strict corpus: **102/102 golden workflows**. Every JavaScript-capable NodeContract is represented: **82/82**.
+Latest accepted strict corpus before the freeze audit: **134/134 golden workflows**. JavaScript-capable NodeContract coverage remains enforced by the parity harness; the complete matrix must be rerun under the pinned Node 24 toolchain during 1.6.35 Release Validation.
 
 The semantic-boundary corpus includes, among other cases:
 

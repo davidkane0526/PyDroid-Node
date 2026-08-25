@@ -16,7 +16,6 @@ const android = read("android/app/src/main/java/com/dk/pydroidflow/McpServer.jav
 
 assert.match(protocol, /MCP_PROTOCOL_VERSION\s*=\s*"2025-06-18"/);
 assert.match(protocol, /MCP_PROTOCOL_VERSIONS\s*=\s*\["2025-06-18", "2025-11-25"\]/);
-assert.match(protocol, /MCP_PORT\s*=\s*8766/);
 for (const tool of ["core_describe", "core_read", "core_command", "core_patch", "core_run", "core_snapshot", "workflow_run", "workflow_stop", "node_contract", "data_preview"]) assert.match(protocol, new RegExp(`name:\\s*"${tool}"`), `missing MCP tool ${tool}`);
 assert.match(core, /session\.applyGraphCommand\(/, "MCP mutations must use EditorSession Core commands");
 assert.match(core, /request\.method === "initialize"/, "MCP must implement the standard initialize handshake");

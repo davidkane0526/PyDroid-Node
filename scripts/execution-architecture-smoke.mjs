@@ -5,6 +5,7 @@ const read = (path) => fs.readFileSync(path, "utf8");
 const controller = read("src/execution-controller.ts");
 const runtimeTypes = read("src/runtime/types.ts");
 const execution = read("src/execution.ts");
+const executionHost = read("src/execution-host.ts");
 const desktopExecution = read("desktop/renderer/execution.ts");
 const desktopMain = read("desktop/main.cjs");
 const desktopPythonService = read("desktop/services/python-service.cjs");
@@ -29,6 +30,7 @@ assert.match(controller, /ExecutionCancelledError/, "ExecutionController must di
 assert.match(runtimeTypes, /control\?: ExecutionControl/, "Runtime requests must carry execution control");
 assert.match(execution, /executionManager\.execute/, "Shared execution facade must route work through the workspace-aware ExecutionManager");
 assert.match(execution, /enforceTimeout: runtime\.descriptor\.id !== "python"/, "Python host scheduler must own timeout so queued time is not charged by the renderer");
+assert.doesNotMatch(executionHost, /clientId:\s*"legacy"|!executions\.length && record\.active/, "Host execution normalization must consume canonical executions[] instead of reconstructing the retired single-execution payload");
 assert.match(desktopExecution, /cancelWorkflow\(executionId\)/, "Desktop renderer must terminate host Python on abort");
 assert.match(desktopPreload, /pydroid:cancel-workflow/, "Electron preload must expose cancelWorkflow");
 assert.match(desktopPythonService, /PythonProcessController/, "Desktop Python service must own Python process lifecycle");

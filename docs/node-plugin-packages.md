@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.33 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
+PyDroid Node 1.6.34 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
 
 ## Package formats
 

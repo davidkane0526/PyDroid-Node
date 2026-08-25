@@ -1,3 +1,14 @@
+## 1.6.34 (174) — Final freeze audit — 2026-08-25
+
+- Froze the feature surface for release convergence. This milestone removes only demonstrably unused/obsolete internal paths and does not add node, runtime, plugin or UI capability.
+- Removed the unused renderer-side `normalizeMcpRuntime` helper and duplicate renderer `MCP_PORT` / `MCP_PATH` declarations; the Desktop/Android MCP hosts remain the owners of transport address details.
+- Removed the retired single-execution Host-status reconstruction path. Current Desktop and Android hosts both publish the canonical `executions[]` status contract, so renderer normalization no longer synthesizes `clientId: "legacy"` entries.
+- Removed two undocumented zero-caller plugin-package helpers (`getNodePluginResourceDataUrl`, `listInstalledNodePluginPackages`) whose behavior is already covered by the active node-oriented resource API and package-detail listing.
+- Corrected the build-script revision, which had remained at the 1.6.13 MCP baseline while product versions advanced, and synchronized README/progress/handoff/runtime-parity documentation with the current release state.
+- Kept public NodeSpec/Plugin SDK entry points, persistent workflow/resource migrations, Remote/LAN production paths and the JavaScript engine façade because they have deliberate external/data-safety/active ownership despite some having few first-party callers.
+- Next milestone is 1.6.35 Release Validation only: full pinned-toolchain checks, Windows Desktop package, Android package and final physical acceptance. No feature expansion is planned before freeze.
+- Build revision: `1.6.34-dev-r126-final-freeze-audit`.
+
 ## 1.6.33 (173) — Output-port status and declarative validation — 2026-08-25
 
 - Promoted the NodeSpec authoring SDK to v7. Declarative status items can now target one explicit output port plus one bounded field (`kind`, `value`, `text`, `rows`, `columns`), while existing node-level `result` and parameter status remain unchanged. Runtime node results attach per-port previews only for real multi-output nodes, preserving the existing single-output result shape.

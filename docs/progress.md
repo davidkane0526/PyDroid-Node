@@ -1,37 +1,34 @@
-# Current progress — 1.5.1 Notebook loop lowering + JS parity
+# Current progress — 1.6.34 Final Freeze Audit
 
-Date: 2026-08-22
+Date: 2026-08-25
 
-## Accepted baseline
+## Current release state
 
-- Product version: **1.5.1**, Android versionCode **124**.
-- Build revision: `1.5.1-dev-r79-notebook-loop-lowering`.
-- Remote Web/LAN production paths were not changed in this milestone.
-- Retired DataFrame control nodes remain deleted with no compatibility bridge.
+- Product version: **1.6.34**, Android versionCode **174**.
+- Build revision: `1.6.34-dev-r126-final-freeze-audit`.
+- Phase: release convergence; feature expansion is frozen.
+- Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
-## Completed in this milestone
+## Completed before this audit
 
-- Strict Python loop classification to native Map / Reduce / Accumulator.
-- Conservative static literal context across Notebook cells.
-- Statically proven finite single-state numeric While → `logic.while_number`.
-- `logic.while_number`: trace + final state + iteration count outputs.
-- `sequence.accumulate`: running list + final state output, including empty sum/product identities.
-- Deterministic JavaScript guarded-expression parser with Python-compatible `//`, `%`, `**` and short-circuit boolean evaluation.
-- Python exporter correctly routes side ports for native nodes with `output` plus additional outputs.
-- Notebook audit reports control scopes, native lowerings and retained control carriers.
+- Dynamic NodeSpec and Blender-style conditional/loop structures.
+- Generic parameter sockets, repeated inputs and multi-series workflows.
+- Node variants, Series/Legend registry and scientific column pipelines.
+- NodeSpec SDK v7 and dual-runtime Runtime Provider SDK.
+- JSON Manifest and `.plugin.zip` plugin lifecycle with persisted read-only resources.
+- Host-rendered declarative plugin Inspector, conditions, edit constraints, validation and output-port status.
+- MCP Core bridge on Desktop and Android.
+- Built-in workflow demos through Demo 38.
 
-## Validation
+1.6.34 source revalidation: Runtime parity **134/134** with JavaScript-capable NodeContract coverage **96/96**, Python **188 passed / 1 skipped**, demos **38/38**. MCP HTTP/Desktop E2E, Remote Host E2E, LAN, Workflow Migration, Plugin/SDK and ownership/architecture smokes also pass. Full pinned `pnpm check` plus Windows/Android packaging remain 1.6.35 release gates because this source ZIP does not include `node_modules` and the current shell is not the pinned Windows Node 24 build environment.
 
-- Python: **149 passed, 1 skipped**.
-- Runtime parity: **81/81**.
-- JS-capable NodeContract coverage: **84/84**.
-- Runtime Engine / NodeContract / Workflow Core / strict workflow-compatibility architecture gates: pass.
-- Version sync: pass.
+## 1.6.34 work
 
-## External corpus
-
-The prior 186-Notebook corpus is not bundled in this source ZIP, so no new corpus conversion percentage is claimed. Run the enhanced audit when that corpus is available.
+- Remove only demonstrably unreachable post-1.5.16 code and obsolete runtime compatibility branches.
+- Keep public plugin SDK entry points even when first-party code does not call them.
+- Synchronize product version, Android version, build-script revision and active documentation.
+- Do not add fallback, recovery, retries, new UI features or new runtime semantics.
 
 ## Next
 
-Use the corpus to identify remaining real control-flow carriers, then promote reusable Python function bodies only when their complete internal graph is portable. Do not add compatibility layers or generic graph cycles merely to increase visual conversion coverage.
+**1.6.35 Release Validation**: full `pnpm check`, Windows Desktop package, Android package, then one final physical acceptance pass. If no structural defect is found, freeze and stop the current development cycle.

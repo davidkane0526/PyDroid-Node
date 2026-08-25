@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.13-dev-r113-agent-mcp-hard-baseline"
+$script:BuildScriptRevision = "1.6.34-dev-r126-final-freeze-audit"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

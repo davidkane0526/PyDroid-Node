@@ -1,9 +1,9 @@
-# Temporary Automated Diagnostics
+# Automated Diagnostics
 
 Version introduced: 1.4.57
-Current behavior: 1.4.92
+Current release context: 1.6.34 Final Freeze Audit
 
-This module exists only to shorten the developer/user feedback loop while Phase 8 and later host/runtime work is being stabilized.
+This module is the built-in application/editor/runtime diagnostic runner. It remains observational and does not control or certify Remote Web/LAN production state.
 
 ## Entry point
 

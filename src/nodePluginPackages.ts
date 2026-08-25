@@ -294,12 +294,6 @@ export function uninstallNodePluginPackage(id: string, storage: NodePluginPackag
   return unloaded || removed;
 }
 
-export function getNodePluginResourceDataUrl(pluginId: string, path: string): string | null {
-  const active = activePackages.get(pluginId);
-  if (!active) return null;
-  return createNodePluginResourceApi(active.manifest.resources ?? []).dataUrl(path);
-}
-
 export function getNodePluginResourceText(nodeType: string, path: string): string | null {
   for (const { manifest } of activePackages.values()) {
     if (manifest.nodes.some((node) => node.spec.nodeType === nodeType)) return createNodePluginResourceApi(manifest.resources ?? []).text(path);
@@ -317,15 +311,6 @@ export function getNodePluginIconDataUrl(nodeType: string): string | null {
 
 export function listActiveNodePluginPackages(): NodePluginPackageSummary[] {
   return [...activePackages.values()].map(({ manifest }) => ({
-    id: manifest.id,
-    name: manifest.name,
-    version: manifest.version,
-    nodeTypes: manifest.nodes.map((node) => node.spec.nodeType),
-  }));
-}
-
-export function listInstalledNodePluginPackages(storage: NodePluginPackageStorage | undefined = browserStorage()): NodePluginPackageSummary[] {
-  return readPersistedManifests(storage).map((manifest) => ({
     id: manifest.id,
     name: manifest.name,
     version: manifest.version,

@@ -1,6 +1,5 @@
 import type { EditorSessionStore } from "../editor-core/session";
 import type { PlatformAdapter } from "../platform/types";
-import type { RuntimePreference } from "../runtime";
 import { bindMcpCore, handleMcpCoreRequest, type McpExecutionBridge } from "./core-adapter";
 import { jsonRpcError, type JsonRpcId } from "./protocol";
 
@@ -44,8 +43,4 @@ export function attachMcpCoreHost(options: McpCoreHostOptions): () => void {
     })();
   });
   return () => { unsubscribe(); unbind(); };
-}
-
-export function normalizeMcpRuntime(value: unknown, fallback: RuntimePreference): RuntimePreference {
-  return value === "python" || value === "javascript" || value === "auto" ? value : fallback;
 }

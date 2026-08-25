@@ -1,7 +1,8 @@
 # Architecture and reliability roadmap
 
-Current baseline: **1.4.92 Baseline Consolidation**
-Authoritative contract: `docs/BASELINE.md`
+Current release state: **1.6.34 Final Freeze Audit**
+Remote/Host architectural baseline: **1.4.92 Baseline Consolidation**
+Authoritative current handoff: `docs/development-handoff.md`
 
 ## Design principle
 

@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.4.94 (117) · Local Tool Discovery Correction**。1.4.92 Baseline Consolidation 继续作为架构基线；1.4.94 纠正此前“固定工具路径”的过度收缩，恢复本机已安装 Node/pnpm/JDK/Android SDK/Python 的只读自动发现，同时继续禁止自动下载、自动安装、SDK 修复、构建失败后切换工具等 fallback。Remote Web 不改动。权威基线见 [docs/BASELINE.md](docs/BASELINE.md)。
+> **当前开发版本：1.6.34 (174) · Final Freeze Audit**。本版本进入发布收敛阶段：不再扩展节点/插件架构，只清理可证明的死代码、过期兼容分支、重复契约和文档/版本漂移。Remote Web/LAN 的实机验收锚点仍是 1.4.91，1.4.92 文档继续定义该子系统的生产约束；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,11 +20,12 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.4.94 Local Tool Discovery Correction（当前分支）**：保持 1.4.92 Baseline Consolidation 与 1.4.91 Remote/LAN 实机基线不变。GUI 工具路径留空时自动发现本机现有 Node/pnpm/JDK/Android SDK/Python；用户显式填写时严格使用指定路径。发现器只读验证，不下载安装、不补 SDK、不在构建失败后切换工具。
-- **1.4.92 Baseline Consolidation**：以 1.4.91 安卓平板真实访问 Windows Remote Web 的结果作为 LAN 验收锚点；恢复 Desktop Remote API 的 405 method 契约并与 Android 对齐；将 LAN `defaultRoute` 误称改为 `preferred`，不增加路由探测；统一基线、交接、进度和路线文档。
-- **Phase 11 Workflow Compatibility & Migration 已保留**：Workflow schema v3、资源 schema v2 future-version 保护、历史 Git corpus 和迁移后双运行时验证继续作为用户数据正确性能力。
-- **Remote Web 已冻结为基础设施**：Windows/Android 直接监听固定 8765；SSDP/UPnP/mDNS 只负责发现，不能改变 HTTP Host 成败；不使用运行时 PowerShell/UAC/防火墙管理/readiness/recovery。
-- **构建链当前基线**：Windows 当前成品固定输出 `PyDroid-Flow-Desktop`，版本目录仅归档；重复构建用一次镜像覆盖，工作区递归清理使用单一长路径安全 .NET 实现。
+- **1.6.34 Final Freeze Audit（当前分支）**：冻结功能面，只允许删除明确无调用的内部代码、退役运行时兼容桥、重复契约和过期开发状态；公共 NodeSpec/Plugin SDK、Workflow Migration、Remote/LAN 既有生产路径不因“内部零引用”被误删。
+- **动态节点与插件体系**：NodeSpec SDK v7 支持动态端口、参数 Socket、重复输入、节点 Variant、Series/Legend、列处理 Pipeline、声明式 Inspector、校验和多输出状态；第三方 `.plugin.zip` 统一走 Manifest + Runtime Provider + resources 生命周期。
+- **MCP / AI Core 接口**：Desktop/Android 提供标准 Streamable HTTP MCP，Core 适配层复用 Editor/Runtime 现有所有权，不建立第二套工作流状态。
+- **Workflow Compatibility & Migration**：Workflow schema v3、资源 schema v2 future-version 保护和迁移后双运行时验证继续作为持久数据正确性能力。
+- **Remote Web/LAN 已冻结为基础设施**：Windows/Android 直接监听固定 8765；发现服务不能改变 HTTP Host 成败；不使用运行时 PowerShell/UAC/防火墙管理/readiness/recovery。
+- **构建链当前基线**：留空时只读发现本机已安装工具，显式路径严格覆盖；Windows 当前成品固定输出 `PyDroid-Flow-Desktop`，构建失败直接失败，不切换工具或重试。
 
 ### 历史功能演进
 
@@ -79,8 +80,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 | 安装包构建 | ARM64 debug APK 本机构建通过，待真机复验 | 自包含 Windows x64 便携包已生成并验证 |
 | 物理设备/人工交互验收 | Remote Web 作为访问端已通过安卓平板实机验证 | Windows Remote Web Host 已由安卓平板跨设备访问通过；其余完整交互继续按功能验收 |
 
-当前阶段为功能原型/MVP。平台功能应保持对等；若某平台暂不支持某项能力，必须在上表
-和 `docs/progress.md` 中明确记录，不得静默产生平台分叉。
+当前阶段为 **1.6.x 发布收敛/候选稳定版**。平台功能应保持对等；若某平台暂不支持某项能力，必须在上表和 `docs/progress.md` 中明确记录，不得静默产生平台分叉。1.6.34 起冻结功能扩展，1.6.35 只做完整发布验证和真实缺陷修复。
 
 ### 局域网网页遥控
 
@@ -256,7 +256,7 @@ pnpm install
 pnpm env:windows
 ```
 
-Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。1.4.94 构建器将“本机工具发现”和“自动安装/fallback”明确分开：JDK、Android SDK、Python 等路径框留空时会自动查找本机已有安装并验证版本/完整性；显式填写时严格使用该路径。构建器可以读取环境变量、标准用户安装目录、JDK 注册表、`py.exe` 和 PATH 中已有工具，但不会自动下载/安装工具、不会调用 Corepack、不会补 SDK 组件、不会探测系统代理，也不会在构建失败后切换工具或重试。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
+Windows 上可以直接双击仓库根目录的 `Build PyDroid GUI.cmd`。当前构建器将“本机工具发现”和“自动安装/fallback”明确分开：JDK、Android SDK、Python 等路径框留空时会自动查找本机已有安装并验证版本/完整性；显式填写时严格使用该路径。构建器可以读取环境变量、标准用户安装目录、JDK 注册表、`py.exe` 和 PATH 中已有工具，但不会自动下载/安装工具、不会调用 Corepack、不会补 SDK 组件、不会探测系统代理，也不会在构建失败后切换工具或重试。网络只有 Direct 和显式 Manual proxy。详见 `BUILD_TOOLCHAIN.md`。
 
 运行全部便携检查：
 

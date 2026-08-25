@@ -42,17 +42,6 @@ export function normalizeHostExecutionStatus(value: unknown, fallbackCapacity = 
           && (entry.source === "local" || entry.source === "remote") && ["queued", "running", "cancelling"].includes(entry.phase),
       ))
     : [];
-  if (!executions.length && record.active && typeof record.executionId === "string" && record.executionId) {
-    executions.push({
-      executionId: record.executionId,
-      workspaceId: "default",
-      workspaceLabel: "工作流",
-      clientId: "legacy",
-      source: record.source === "remote" ? "remote" : "local",
-      phase: "running",
-      startedAt: null,
-    });
-  }
   const first = executions[0] ?? null;
   return {
     active: executions.length > 0,
