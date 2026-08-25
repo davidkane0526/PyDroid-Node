@@ -1,4 +1,4 @@
-import { UI_DESIGN_TOKEN_NAMES, type UiMotionTokens, type UiThemeMaterial } from "./designSystemSdk";
+import { UI_DESIGN_TOKEN_NAMES, type UiMotionTokens, type UiThemeMaterial } from "./design";
 
 export const UI_THEME_SDK_VERSION = 2 as const;
 

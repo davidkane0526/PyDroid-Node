@@ -10,15 +10,15 @@ const read = (file) => readFileSync(path.join(root, file), "utf8");
 const main = read("src/main.tsx");
 const app = read("src/App.tsx");
 const dialogs = read("src/dialogs.tsx");
-const sdk = read("src/themePluginSdk.ts");
-const designSdk = read("src/designSystemSdk.ts");
-const contract = read("src/ui-theme-contract.css");
-const styles = read("src/styles.css");
-const canvas = read("src/canvas-themes.css");
-const pluginManagerCss = read("src/node-plugin-manager.css");
+const sdk = read("sdk/theme.ts");
+const designSdk = read("sdk/design.ts");
+const contract = read("src/styles/theme-contract.css");
+const styles = read("src/styles/base.css");
+const canvas = read("src/styles/canvas.css");
+const pluginManagerCss = read("src/plugins/plugin-manager.css");
 const manifest = JSON.parse(read("examples/plugins/demo-midnight-theme.plugin.json"));
 
-assert.ok(main.indexOf('import "./ui-theme-contract.css";') > main.indexOf('import "./node-plugin-manager.css";'), "theme contract stylesheet must load last");
+assert.ok(main.indexOf('import "./styles/theme-contract.css";') > main.indexOf('import "./plugins/plugin-manager.css";'), "theme contract stylesheet must load last");
 assert.match(dialogs, /界面主题[\s\S]*uiThemes\.map/, "Settings must expose the installed UI theme registry");
 assert.match(app, /data-ui-theme=\{resolveUiTheme\(uiThemeId\)\.id\}/, "workspace must expose the resolved theme id");
 assert.match(app, /uiThemeCssVariables\(uiThemeId, resolvedTheme\)/, "theme selection must resolve to semantic CSS variables");
@@ -52,7 +52,7 @@ const require = createRequire(import.meta.url);
 let tsc;
 try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
 catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
-const syntaxFiles = ["src/App.tsx", "src/dialogs.tsx", "src/NodePluginManager.tsx", "src/themePluginSdk.ts", "src/designSystemSdk.ts", "src/nodeLayout.ts", "src/nodePluginPackages.ts", "src/nodePluginArchive.ts"].map((file) => path.join(root, file));
+const syntaxFiles = ["src/App.tsx", "src/dialogs.tsx", "src/plugins/PluginManager.tsx", "sdk/theme.ts", "sdk/design.ts", "src/nodes/layout.ts", "src/plugins/packages.ts", "src/plugins/archive.ts"].map((file) => path.join(root, file));
 const transpile = spawnSync(tsc.command, [...tsc.args, ...syntaxFiles, "--jsx", "react-jsx", "--target", "ES2022", "--module", "ESNext", "--moduleResolution", "bundler", "--skipLibCheck", "--noCheck", "--noEmit"], { cwd: root, encoding: "utf8" });
 if (transpile.error || transpile.status !== 0) throw new Error(transpile.stderr || transpile.stdout || transpile.error?.message);
 

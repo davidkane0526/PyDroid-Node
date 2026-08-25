@@ -47,7 +47,7 @@ try {
   writeFileSync(configPath, JSON.stringify({
     compilerOptions: {
       target: "ES2022", module: "CommonJS", moduleResolution: "Node", skipLibCheck: true,
-      esModuleInterop: true, outDir: out, rootDir: resolve(root, "src"), baseUrl: root,
+      esModuleInterop: true, outDir: out, rootDir: root, baseUrl: root,
       paths: { "@xyflow/react": [xyflowStub] },
     },
     files: [xyflowStub, resolve(root, "src/workflowNotebook.ts")],
@@ -72,7 +72,7 @@ try {
   }
   if (!analyzed) throw new Error("Python runtime was not found for portable-function lowering smoke");
 
-  const workflowNotebookUrl = pathToFileURL(join(out, "workflowNotebook.js"));
+  const workflowNotebookUrl = pathToFileURL(join(out, "src", "workflowNotebook.js"));
   const workflowNotebookModule = await import(workflowNotebookUrl.href);
   const { analyzedNotebookToWorkflow } = workflowNotebookModule.default ?? workflowNotebookModule;
 

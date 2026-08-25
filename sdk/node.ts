@@ -1,7 +1,7 @@
-import { resolveNodeSpec } from "./nodeSpec";
-import { getNodeSpec, isExternalNodeType, registerCatalogNodeSpec, unregisterCatalogNodeSpec } from "./nodeCatalog";
-import { hasJavascriptNodeProvider, registerJavascriptNodeProvider, unregisterJavascriptNodeProvider, type JavascriptNodeProvider } from "./runtime/javascript/engine/providers";
-import { hasPythonNodeProvider, registerPythonNodeProvider, unregisterPythonNodeProvider, type PythonNodeProviderDescriptor } from "./runtime/pythonProviders";
+import { resolveNodeSpec } from "../src/nodeSpec";
+import { getNodeSpec, isExternalNodeType, registerCatalogNodeSpec, unregisterCatalogNodeSpec } from "../src/nodeCatalog";
+import { hasJavascriptNodeProvider, registerJavascriptNodeProvider, unregisterJavascriptNodeProvider, type JavascriptNodeProvider } from "../src/runtime/javascript/engine/providers";
+import { hasPythonNodeProvider, registerPythonNodeProvider, unregisterPythonNodeProvider, type PythonNodeProviderDescriptor } from "../src/runtime/pythonProviders";
 
 import type {
   InputPortGroupSpec,
@@ -20,7 +20,7 @@ import type {
   PortSpec,
   SocketGroupSpec,
   ValueType,
-} from "./nodeCatalog";
+} from "../src/nodeCatalog";
 
 export const NODE_SPEC_SDK_VERSION = 7 as const;
 

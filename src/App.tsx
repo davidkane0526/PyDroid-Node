@@ -39,7 +39,7 @@ import {
   type CustomNodeTemplate,
 } from "./customNode";
 import { resolveNodeSpec } from "./nodeSpec";
-import { resolveNodeCardLayout } from "./nodeLayout";
+import { resolveNodeCardLayout } from "./nodes/layout";
 import {
   compactNodeLayout,
   flattenWorkflowGroups,
@@ -67,13 +67,13 @@ import { runAutomatedDiagnostics, type AutomatedDiagnosticReport } from "./diagn
 import { APP_VERSION } from "./app-version";
 import { isBoundaryStructureNodeType, isIfStructureNodeType, isLoopStructureNodeType, isVisualStructureNodeType } from "./workflow-structure-types";
 import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "./canvas-theme";
-import { DEFAULT_UI_THEME_ID, listUiThemes, resolveUiTheme, subscribeUiThemes, uiThemeCssVariables, uiThemeRegistrySnapshot } from "./themePluginSdk";
+import { DEFAULT_UI_THEME_ID, listUiThemes, resolveUiTheme, subscribeUiThemes, uiThemeCssVariables, uiThemeRegistrySnapshot } from "../sdk/theme";
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
-import { NodeDeclarativeInspector } from "./NodeDeclarativeInspector";
-import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
-import { NodePluginManager, getNodePluginIconDataUrl } from "./NodePluginManager";
-import { nodeDisplayName } from "./pluginDisplayNames";
+import { NodeDeclarativeInspector } from "./nodes/DeclarativeInspector";
+import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodes/declarativeUi";
+import { NodePluginManager, getNodePluginIconDataUrl } from "./plugins/PluginManager";
+import { nodeDisplayName } from "./plugins/displayNames";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";

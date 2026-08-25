@@ -13,11 +13,11 @@ try {
   let tsc;
   try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
-  const files = ["src/nodeCatalog.ts", "src/customNode.ts", "src/nodeSpec.ts", "src/nodeSpecSdk.ts"].map((file) => path.join(root, file));
-  const result = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const files = ["src/nodeCatalog.ts", "src/customNode.ts", "src/nodeSpec.ts", "sdk/node.ts"].map((file) => path.join(root, file));
+  const result = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
-  const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
+  const sdkModule = await import(pathToFileURL(path.join(temp, "sdk", "node.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
   if (sdk.NODE_SPEC_SDK_VERSION !== 7) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({

@@ -1,7 +1,7 @@
 # Automated Diagnostics
 
 Version introduced: 1.4.57
-Current release context: 1.6.37 Unified Design SDK
+Current release context: 1.6.38 SDK & Repository Cleanup
 
 This module is the built-in application/editor/runtime diagnostic runner. It remains observational and does not control or certify Remote Web/LAN production state.
 

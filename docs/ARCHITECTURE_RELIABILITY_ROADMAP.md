@@ -1,6 +1,6 @@
 # Architecture and reliability roadmap
 
-Current release state: **1.6.37 Unified Design SDK**
+Current release state: **1.6.38 SDK & Repository Cleanup**
 Remote/Host architectural baseline: **1.4.92 Baseline Consolidation**
 Authoritative current handoff: `docs/development-handoff.md`
 

@@ -37,7 +37,7 @@ import resultDrivenStatus from "../examples/demo-36-result-driven-status.workflo
 import multiOutputStatus from "../examples/demo-37-multi-output-status.workflow.json?raw";
 import declarativeValidation from "../examples/demo-38-declarative-validation.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
-import { activateConditionalUiPackageDemo, activateConstraintUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo, activateResultStatusTablePackageDemo, activateMultiOutputStatusPackageDemo, activateValidationUiPackageDemo } from "./plugin-package-demos";
+import { activateConditionalUiPackageDemo, activateConstraintUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo, activateResultStatusTablePackageDemo, activateMultiOutputStatusPackageDemo, activateValidationUiPackageDemo } from "./plugins/demos";
 
 export type WorkflowDemo = {
   id: string;

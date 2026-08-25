@@ -41,10 +41,10 @@ try {
   try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
   const files = [
-    "src/nodePluginPackages.ts",
-    "src/nodePluginResources.ts",
-    "src/nodePluginSdk.ts",
-    "src/nodeSpecSdk.ts",
+    "src/plugins/packages.ts",
+    "sdk/resources.ts",
+    "sdk/index.ts",
+    "sdk/node.ts",
     "src/nodeCatalog.ts",
     "src/customNode.ts",
     "src/nodeSpec.ts",
@@ -54,24 +54,24 @@ try {
     "src/runtime/javascript/engine/nodes.ts",
     "src/runtime/javascript/engine/table.ts",
   ].map((file) => path.join(root, file));
-  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (compiled.error || compiled.status !== 0) throw new Error(compiled.stderr || compiled.stdout || compiled.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
 
-  const packagesModule = await import(pathToFileURL(path.join(temp, "nodePluginPackages.js")).href);
+  const packagesModule = await import(pathToFileURL(path.join(temp, "src", "plugins", "packages.js")).href);
   const packages = packagesModule.default ?? packagesModule;
-  const pluginSdkModule = await import(pathToFileURL(path.join(temp, "nodePluginSdk.js")).href);
+  const pluginSdkModule = await import(pathToFileURL(path.join(temp, "sdk", "index.js")).href);
   const pluginSdk = pluginSdkModule.default ?? pluginSdkModule;
-  const themeModule = await import(pathToFileURL(path.join(temp, "themePluginSdk.js")).href);
+  const themeModule = await import(pathToFileURL(path.join(temp, "sdk", "theme.js")).href);
   const themes = themeModule.default ?? themeModule;
-  const contractModule = await import(pathToFileURL(path.join(temp, "nodeContract.js")).href);
+  const contractModule = await import(pathToFileURL(path.join(temp, "src", "nodeContract.js")).href);
   const contract = contractModule.default ?? contractModule;
-  const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
+  const engineModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "javascript", "engine", "engine.js")).href);
   const engine = engineModule.default ?? engineModule;
-  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
+  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
-  if (pluginSdk.PLUGIN_SDK_VERSION !== 3 || pluginSdk.UI_THEME_SDK_VERSION !== 2 || pluginSdk.UI_DESIGN_SDK_VERSION !== 1 || packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin SDK/package API version");
+  if (pluginSdk.PLUGIN_SDK_VERSION !== 4 || pluginSdk.UI_THEME_SDK_VERSION !== 2 || pluginSdk.UI_DESIGN_SDK_VERSION !== 1 || pluginSdk.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || pluginSdk.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin SDK/package API version");
   const manifest = JSON.parse(readFileSync(path.join(root, "examples", "plugins", "demo-manifest-scale.plugin.json"), "utf8"));
   const storage = new MemoryStorage();
   const registration = packages.installNodePluginPackage(manifest, { storage });

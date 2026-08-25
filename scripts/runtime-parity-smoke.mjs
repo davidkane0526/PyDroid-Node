@@ -112,6 +112,7 @@ function compileNodeContract() {
     "--skipLibCheck",
     "--noCheck",
     "--outDir", compiledContractRoot,
+    "--rootDir", root,
   ]);
   if (result.error || result.status !== 0) fail(`NodeContract compile failed:
 ${result.stderr || result.stdout || result.error?.message}`);
@@ -119,7 +120,7 @@ ${result.stderr || result.stdout || result.error?.message}`);
 }
 
 async function loadNodeContract() {
-  const moduleUrl = pathToFileURL(path.join(compiledContractRoot, "nodeContract.js"));
+  const moduleUrl = pathToFileURL(path.join(compiledContractRoot, "src", "nodeContract.js"));
   const module = await import(moduleUrl.href);
   return module.default ?? module;
 }

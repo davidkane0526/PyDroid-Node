@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.37-dev-r132-unified-design-sdk"
+$script:BuildScriptRevision = "1.6.38-dev-r133-sdk-repository-cleanup"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

@@ -2,11 +2,11 @@
 
 ## Scope
 
-PyDroid Node 1.6.37 separates **appearance** from **geometry**. Plugin SDK v3 may extend NodeSpec/Runtime/resources/declarative UI and may register UI themes, but a theme is never allowed to redefine component layout. Core remains the single owner of layout metrics and node geometry.
+PyDroid Node 1.6.38 separates **appearance** from **geometry**. Plugin SDK v4 may extend NodeSpec/Runtime/resources/declarative UI and may register UI themes, but a theme is never allowed to redefine component layout. Core remains the single owner of layout metrics and node geometry.
 
 ## Plugin SDK surface
 
-`src/nodePluginSdk.ts` is the public authoring surface.
+`sdk/index.ts` is the public authoring surface.
 
 - `PLUGIN_SDK_VERSION = 3`
 - `NODE_SPEC_SDK_VERSION = 7`
@@ -25,7 +25,7 @@ A package may be **node-only**, **theme-only**, or contain both. First-party and
 
 ## Theme plugin boundary
 
-A UI theme declares semantic color `tokens`, mode-specific `material`, and shared `motion`. Color tokens are defined by `UI_THEME_TOKEN_NAMES`; material/motion tokens are defined by `UI_MATERIAL_TOKEN_NAMES` and `UI_MOTION_TOKEN_NAMES` in `src/designSystemSdk.ts`.
+A UI theme declares semantic color `tokens`, mode-specific `material`, and shared `motion`. Color tokens are defined by `UI_THEME_TOKEN_NAMES`; material/motion tokens are defined by `UI_MATERIAL_TOKEN_NAMES` and `UI_MOTION_TOKEN_NAMES` in `sdk/design.ts`.
 
 The theme layer covers:
 
@@ -51,7 +51,7 @@ A theme plugin **cannot** provide:
 - endpoint size
 - port row spacing or socket-control geometry
 
-`src/ui-theme-contract.css` is loaded last and is appearance-only. It maps semantic color, material and motion tokens onto the product's shared UI surfaces. Legacy component styles may still contain default material values, but the final visual contract overrides their appearance through the semantic token layer.
+`src/styles/theme-contract.css` is loaded last and is appearance-only. It maps semantic color, material and motion tokens onto the product's shared UI surfaces. Legacy component styles may still contain default material values, but the final visual contract overrides their appearance through the semantic token layer.
 
 ## Theme lifecycle
 
@@ -69,7 +69,7 @@ If the selected theme disappears, Settings automatically falls back to `core.def
 
 ## Core-owned UI geometry
 
-Shared control geometry stays in Core (`src/styles.css`) and is not exported by the theme SDK. Examples include:
+Shared control geometry stays in Core (`src/styles/base.css`) and is not exported by the theme SDK. Examples include:
 
 - `--ui-control-height`
 - `--ui-radius-sm/md/lg`
@@ -83,7 +83,7 @@ This rule guarantees that changing a theme does not move nodes, change their dim
 
 ## Node layout contract
 
-`src/nodeLayout.ts` is the single measurement contract used by `WorkflowNodeCard`.
+`src/nodes/layout.ts` is the single measurement contract used by `WorkflowNodeCard`.
 
 The layout resolver owns:
 

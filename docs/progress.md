@@ -1,14 +1,14 @@
-# Current progress — 1.6.37 Unified Design SDK
+# Current progress — 1.6.38 SDK & Repository Cleanup
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.37**, Android versionCode **177**.
-- Build revision: `1.6.37-dev-r132-unified-design-sdk`.
+- Product version: **1.6.38**, Android versionCode **178**.
+- Build revision: `1.6.38-dev-r133-sdk-repository-cleanup`.
 
-- 1.6.37 source validation: Unified Design SDK, Theme SDK, UI contract, node layout, plugin package/archive/manager/declarative UI, Canvas Theme and UI regression gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
-- Phase: release convergence; the visual contract is now unified as Plugin SDK v3 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
+- 1.6.38 source validation: SDK layout, Unified Design/Theme, node layout, plugin package/archive/manager/declarative UI and UI regression gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
+- Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 ## Completed before this audit
@@ -25,9 +25,19 @@ Date: 2026-08-25
 1.6.34 source revalidation: Runtime parity **134/134** with JavaScript-capable NodeContract coverage **96/96**, Python **188 passed / 1 skipped**, demos **38/38**. MCP HTTP/Desktop E2E, Remote Host E2E, LAN, Workflow Migration, Plugin/SDK and ownership/architecture smokes also pass. Full pinned `pnpm check` plus Windows/Android packaging remain 1.6.35 release gates because this source ZIP does not include `node_modules` and the current shell is not the pinned Windows Node 24 build environment.
 
 
+
+## 1.6.38 SDK / repository cleanup
+
+- Root `sdk/` is now the only public plugin-development surface; `sdk/index.ts` is Plugin SDK v4.
+- Plugin host implementation is grouped under `src/plugins/`, dynamic-node layout/declarative UI under `src/nodes/`, and shared visual layers under `src/styles/`.
+- Public manifest/archive/resource/theme/design contracts are separated from install/persistence/ZIP/UI host code.
+- Added an SDK layout gate so future changes cannot silently scatter public SDK files back through `src/`.
+- Git cleanup removes already-merged local feature refs and repacks reachable objects without rewriting history.
+- Revalidated: Demo **38/38**, Runtime parity **134/134**, JS NodeContract **96/96**, Python **188 passed / 1 skipped**, plus SDK/Plugin/Theme/Design/Node Layout/UI gates.
+
 ## 1.6.37 unified design contract
 
-- Plugin SDK v3 exports UI Theme SDK v2 and Unified Design SDK v1 from the same public authoring surface.
+- Plugin SDK v3 introduced the unified Theme/Design export surface; 1.6.38 relocates and formalizes that surface as root `sdk/` Plugin SDK v4.
 - Theme definitions now have separate `tokens`, `material` and `motion` sections. Theme packages remain token-only and cannot inject CSS or layout logic.
 - Core material tokens unify panel/card/control/popup/node elevation, overlay/glass blur and surface highlights.
 - Core motion tokens unify control/menu/dialog/card/node state timing and easing, with restrained hover/press/enter amplitudes.
@@ -39,9 +49,9 @@ Date: 2026-08-25
 
 - Plugin SDK v2 now exports UI Theme SDK v1; packages can be node-only, theme-only or combined.
 - UI theme plugins can only override a semantic appearance whitelist. Layout, typography metrics and node geometry remain Core-owned.
-- `ui-theme-contract.css` unifies the final appearance layer for shared UI surfaces and canvas styling.
+- `src/styles/theme-contract.css` unifies the final appearance layer for shared UI surfaces and canvas styling.
 - Settings → Appearance lists installed themes; removing the active theme deterministically returns to `core.default`.
-- `nodeLayout.ts` centralizes node measurement and moves complex dynamic nodes to deterministic side rails/fixed rows, preventing port/default-control overlap.
+- `src/nodes/layout.ts` centralizes node measurement and moves complex dynamic nodes to deterministic side rails/fixed rows, preventing port/default-control overlap.
 - Added theme-only JSON/ZIP examples and dedicated SDK/UI-layout regression gates.
 
 ## 1.6.35 release-validation work
@@ -63,4 +73,4 @@ Date: 2026-08-25
 
 ## Next
 
-**1.6.37 Release Validation**: full `pnpm check`, Windows Desktop package, Android package, then one final physical acceptance pass. If no structural defect is found, freeze and stop the current development cycle.
+**1.6.38 Release Validation**: full `pnpm check`, Windows Desktop package, Android package, then one final physical acceptance pass. If no structural defect is found, freeze and stop the current development cycle.

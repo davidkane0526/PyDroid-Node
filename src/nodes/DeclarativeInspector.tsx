@@ -1,9 +1,9 @@
-import type { NodeSpec, ParameterSpec } from "./nodeCatalog";
-import type { NodeExecutionPreview } from "./runtime/types";
-import { ParameterField } from "./ParameterField";
-import { declarativeStatusValue, declarativeUiValues, declarativeUiVisible, declarativeValidationIssues, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
-import { getNodePluginResourceText } from "./nodePluginPackages";
-import "./node-declarative-inspector.css";
+import type { NodeSpec, ParameterSpec } from "../nodeCatalog";
+import type { NodeExecutionPreview } from "../runtime/types";
+import { ParameterField } from "../ParameterField";
+import { declarativeStatusValue, declarativeUiValues, declarativeUiVisible, declarativeValidationIssues, resolveDeclarativeParameter } from "./declarativeUi";
+import { getNodePluginResourceText } from "../plugins/packages";
+import "./declarative-inspector.css";
 
 type ParameterValue = string | number | boolean | null | undefined;
 

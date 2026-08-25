@@ -7,9 +7,11 @@ These rules apply to every developer and coding agent.
 1. `docs/BASELINE.md` — authoritative current baseline and accepted evidence.
 2. `docs/development-handoff.md` — current branch/version and immediate continuation state.
 3. `docs/ARCHITECTURE_RELIABILITY_ROADMAP.md` — architecture direction.
-4. `docs/host-contract.md`, `docs/node-contract.md`, `docs/runtime-parity.md` — contracts before changing host, node or dual-runtime behavior.
-5. `BUILD_TOOLCHAIN.md` — build/packaging rules before touching build scripts.
-6. `CHANGELOG.md` — historical behavior, not an architecture source of truth.
+4. `docs/PROJECT_STRUCTURE.md` — source ownership and public SDK layout.
+5. `sdk/README.md` — plugin/theme/design SDK entry before changing plugin contracts.
+6. `docs/host-contract.md`, `docs/node-contract.md`, `docs/runtime-parity.md` — contracts before changing host, node or dual-runtime behavior.
+7. `BUILD_TOOLCHAIN.md` — build/packaging rules before touching build scripts.
+8. `CHANGELOG.md` — historical behavior, not an architecture source of truth.
 
 If an older phase document conflicts with `docs/BASELINE.md`, the baseline wins. Files under `docs/history/` are historical evidence only.
 
@@ -17,7 +19,8 @@ If an older phase document conflicts with `docs/BASELINE.md`, the baseline wins.
 
 - One repository and one shared source tree. Do not create parallel `dev`, `js`, `dev-node`, Android-only or Desktop-only project copies.
 - Long-lived branches are `main` and `dev`; feature/fix/baseline branches are temporary integration work.
-- Preserve `.git` and full history in deliveries.
+- Preserve `.git` and full history in deliveries, but keep repository metadata compact with ordinary Git GC; do not retain merged feature refs indefinitely.
+- Public plugin-development contracts live under root `sdk/`; application plugin host implementation lives under `src/plugins/`. Do not scatter new SDK barrels through `src/`.
 - Deliver one clean project directory and keep `git status` clean.
 - Do not merge a candidate into `main` without the user's local compile/runtime acceptance.
 
@@ -70,4 +73,4 @@ For workflow/runtime changes also run migration, NodeContract, parity and Python
 
 ## Current phase state
 
-Phases 1–9 foundations remain retained. Phase 11 Workflow Compatibility & Migration remains retained. Phase 10 reliability/security experiments are historical except for ordinary API correctness contracts. Continue post-Phase-11 development from **1.4.92 Baseline Consolidation** plus subsequent narrow build fixes; current build-tool behavior is documented by 1.4.94. Do not start another broad Remote Web refactor without a new reproducible defect.
+Phases 1–9 foundations remain retained. Phase 11 Workflow Compatibility & Migration remains retained. Phase 10 reliability/security experiments are historical except for ordinary API correctness contracts. Current product convergence state is **1.6.38 SDK & Repository Cleanup**, while the accepted Remote/LAN production path remains anchored to the 1.4.92 baseline. Do not start another broad Remote Web refactor without a new reproducible defect. The public plugin surface is Plugin SDK v4 under `sdk/`; final release work is pinned-toolchain packaging plus physical acceptance.

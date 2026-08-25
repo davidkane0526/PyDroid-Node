@@ -13,10 +13,10 @@ try {
   let tsc;
   try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
-  const result = spawnSync(tsc.command, [...tsc.args, path.join(root, "src", "nodeLayout.ts"), path.join(root, "src", "nodeCatalog.ts"), "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const result = spawnSync(tsc.command, [...tsc.args, path.join(root, "src", "nodes", "layout.ts"), path.join(root, "src", "nodeCatalog.ts"), "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
   if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
-  const module = await import(pathToFileURL(path.join(temp, "nodeLayout.js")).href);
+  const module = await import(pathToFileURL(path.join(temp, "nodes", "layout.js")).href);
   const layout = module.default ?? module;
   const ports = Array.from({ length: 12 }, (_, index) => ({ id: `item${index + 1}`, label: `Input ${index + 1}`, valueType: "any" }));
   const dynamic = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "Dynamic Inputs", inputPorts: ports, outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: true, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });

@@ -1,13 +1,13 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@xyflow/react/dist/style.css";
-import "./styles.css";
-import "./ui-fixes.css";
-import "./canvas-themes.css";
-import "./node-plugin-manager.css";
-import "./ui-theme-contract.css";
+import "./styles/base.css";
+import "./styles/fixes.css";
+import "./styles/canvas.css";
+import "./plugins/plugin-manager.css";
+import "./styles/theme-contract.css";
 import { App } from "./App";
-import { restoreNodePluginPackages } from "./nodePluginPackages";
+import { restoreNodePluginPackages } from "./plugins/packages";
 
 const pluginRestoreFailures = restoreNodePluginPackages();
 for (const failure of pluginRestoreFailures) console.error(`Plugin restore failed: ${failure.id}: ${failure.error}`);

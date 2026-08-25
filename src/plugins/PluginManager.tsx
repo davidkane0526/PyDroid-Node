@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { installNodePluginArchive } from "./nodePluginArchive";
+import { installNodePluginArchive } from "./archive";
 import {
   activateInstalledNodePluginPackage,
   getNodePluginIconDataUrl,
@@ -8,8 +8,8 @@ import {
   unloadNodePluginPackage,
   uninstallNodePluginPackage,
   type NodePluginPackageDetail,
-} from "./nodePluginPackages";
-import { nodeDisplayName, pluginDisplayName, type UiLanguage } from "./pluginDisplayNames";
+} from "./packages";
+import { nodeDisplayName, pluginDisplayName, type UiLanguage } from "./displayNames";
 
 type NodePluginManagerProps = {
   open: boolean;

@@ -15,7 +15,7 @@ Audit the post-1.5.16 additions for dead code, duplicate ownership, temporary br
 
 ## Retained intentionally
 
-- `src/nodePluginSdk.ts`: public third-party authoring barrel despite no first-party static import.
+- `sdk/index.ts`: public third-party authoring barrel despite no first-party static import.
 - NodeSpec `unregisterNodeSpec()` / `hasRegisteredRuntimeProvider()`: public lifecycle/introspection SDK operations.
 - Workflow and resource migrations/future-version rejection: persistent-data correctness.
 - JavaScript engine façade: still imported by the active runtime adapter and smoke harnesses.

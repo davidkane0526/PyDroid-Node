@@ -1,41 +1,10 @@
-import {
-  installNodePluginPackage,
-  type JavascriptNodeProviderDescriptor,
-  type NodePluginPackageManifest,
-  type NodePluginPackageRegistration,
-  type NodePluginPackageStorage,
-} from "./nodePluginPackages";
-import type { NodeSpec, PythonNodeProviderDescriptor } from "./nodeSpecSdk";
-import type { UiThemeDefinition } from "./themePluginSdk";
-import { bytesToBase64, resourceMimeType } from "./nodePluginResources";
+import { installNodePluginPackage, type NodePluginPackageRegistration, type NodePluginPackageStorage } from "./packages";
+import { type JavascriptNodeProviderDescriptor, type NodePluginPackageManifest } from "../../sdk/plugin";
+import type { PythonNodeProviderDescriptor } from "../../sdk/node";
+import type { UiThemeDefinition } from "../../sdk/theme";
+import { bytesToBase64, resourceMimeType } from "../../sdk/resources";
 
-export const NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION = 1 as const;
-export const NODE_PLUGIN_ARCHIVE_MANIFEST = "manifest.json" as const;
-
-export type NodePluginArchiveProviderFile = {
-  file: string;
-  entrypoint?: string;
-};
-
-export type NodePluginArchiveNode = {
-  spec: NodeSpec;
-  icon?: string;
-  providers: {
-    javascript?: NodePluginArchiveProviderFile;
-    python?: NodePluginArchiveProviderFile;
-  };
-};
-
-export type NodePluginArchiveManifest = {
-  schemaVersion: typeof NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION;
-  id: string;
-  name: string;
-  version: string;
-  description?: string;
-  nodes?: NodePluginArchiveNode[];
-  themes?: UiThemeDefinition[];
-  resources?: string[];
-};
+import { NODE_PLUGIN_ARCHIVE_MANIFEST, NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION, type NodePluginArchiveManifest } from "../../sdk/archive";
 
 type ZipEntry = {
   name: string;

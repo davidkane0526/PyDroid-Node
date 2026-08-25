@@ -8,7 +8,7 @@ import { APP_VERSION } from "./app-version";
 import type { AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { CANVAS_THEMES, type CanvasThemeId } from "./canvas-theme";
 import type { McpServerInfo } from "./platform";
-import type { UiThemeDefinition } from "./themePluginSdk";
+import type { UiThemeDefinition } from "../sdk/theme";
 
 export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };

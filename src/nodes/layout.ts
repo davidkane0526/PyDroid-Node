@@ -1,4 +1,4 @@
-import type { ParameterSpec, PortSpec } from "./nodeCatalog";
+import type { ParameterSpec, PortSpec } from "../nodeCatalog";
 
 export type NodeLayoutDirection = "horizontal" | "vertical";
 

@@ -1,4 +1,4 @@
-import { defineNodeSpec, registerNodePlugin, type NodePluginRegistration } from "./nodeSpecSdk";
+import { defineNodeSpec, registerNodePlugin, type NodePluginRegistration } from "../sdk/node";
 
 let scaleRegistration: NodePluginRegistration | undefined;
 let pythonTableRegistration: NodePluginRegistration | undefined;

@@ -33,7 +33,7 @@ function runPython(workflow) {
 }
 
 try {
-  const inspectorSource = readFileSync(path.join(root, "src", "NodeDeclarativeInspector.tsx"), "utf8");
+  const inspectorSource = readFileSync(path.join(root, "src", "nodes", "DeclarativeInspector.tsx"), "utf8");
   for (const token of ["parameterGroups", "status", "help", "visibleWhen", "resolveDeclarativeParameter", "declarativeStatusValue", "ParameterField", "getNodePluginResourceText"]) {
     if (!inspectorSource.includes(token)) throw new Error(`declarative inspector is missing ${token}`);
   }
@@ -46,33 +46,33 @@ try {
   try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
   const files = [
-    "src/nodePluginArchive.ts",
-    "src/nodePluginResources.ts",
-    "src/nodePluginPackages.ts",
-    "src/nodeSpecSdk.ts",
+    "src/plugins/archive.ts",
+    "sdk/resources.ts",
+    "src/plugins/packages.ts",
+    "sdk/node.ts",
     "src/nodeCatalog.ts",
     "src/customNode.ts",
     "src/nodeSpec.ts",
-    "src/nodeDeclarativeUi.ts",
+    "src/nodes/declarativeUi.ts",
     "src/nodeContract.ts",
     "src/runtime/pythonProviders.ts",
     "src/runtime/javascript/engine/engine.ts",
     "src/runtime/javascript/engine/nodes.ts",
     "src/runtime/javascript/engine/table.ts",
   ].map((file) => path.join(root, file));
-  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (compiled.error || compiled.status !== 0) throw new Error(compiled.stderr || compiled.stdout || compiled.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
 
-  const archiveModule = await import(pathToFileURL(path.join(temp, "nodePluginArchive.js")).href);
+  const archiveModule = await import(pathToFileURL(path.join(temp, "src", "plugins", "archive.js")).href);
   const archives = archiveModule.default ?? archiveModule;
-  const packagesModule = await import(pathToFileURL(path.join(temp, "nodePluginPackages.js")).href);
+  const packagesModule = await import(pathToFileURL(path.join(temp, "src", "plugins", "packages.js")).href);
   const packages = packagesModule.default ?? packagesModule;
-  const declarativeModule = await import(pathToFileURL(path.join(temp, "nodeDeclarativeUi.js")).href);
+  const declarativeModule = await import(pathToFileURL(path.join(temp, "src", "nodes", "declarativeUi.js")).href);
   const declarativeUi = declarativeModule.default ?? declarativeModule;
-  const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
+  const engineModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "javascript", "engine", "engine.js")).href);
   const engine = engineModule.default ?? engineModule;
-  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
+  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
   const scaleZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-declarative-scale.plugin.zip"));
@@ -212,10 +212,10 @@ try {
   if (!errors.some((item) => item.includes("help 资源不存在"))) throw new Error("missing declarative help resource was not rejected");
 
   const uiTranspile = spawnSync(tsc.command, [...tsc.args,
-    path.join(root, "src", "NodeDeclarativeInspector.tsx"),
+    path.join(root, "src", "nodes", "DeclarativeInspector.tsx"),
     path.join(root, "src", "ParameterField.tsx"),
     "--target", "ES2022", "--module", "ESNext", "--moduleResolution", "bundler", "--jsx", "react-jsx",
-    "--skipLibCheck", "--noCheck", "--outDir", path.join(temp, "ui"), "--rootDir", path.join(root, "src"),
+    "--skipLibCheck", "--noCheck", "--outDir", path.join(temp, "ui"), "--rootDir", root,
   ], { cwd: root, encoding: "utf8" });
   if (uiTranspile.error || uiTranspile.status !== 0) throw new Error(uiTranspile.stderr || uiTranspile.stdout || uiTranspile.error?.message);
 

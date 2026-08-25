@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.37 Unified Design SDK
+# Current development handoff — 1.6.38 SDK & Repository Cleanup
 
-Branch: `feature/unified-design-sdk`
-Version: **1.6.37**
-Android versionCode: **177**
-Build revision: `1.6.37-dev-r132-unified-design-sdk`
+Branch: `feature/sdk-repository-cleanup`
+Version: **1.6.38**
+Android versionCode: **178**
+Build revision: `1.6.38-dev-r133-sdk-repository-cleanup`
 
 ## Current phase
 
@@ -16,41 +16,51 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 3. Do not reintroduce removed Notebook/runtime bridges, DataFrame-specific control structures, edge-order port guessing, readiness/recovery state machines, firewall/UAC automation, build retries, or post-failure tool switching.
 4. Keep persistent workflow/resource migrations and future-version rejection. Those protect user data and are not optional defensive code.
 5. Keep the accepted Remote Web/LAN production path unchanged unless a reproduced defect directly requires a fix.
-6. Public SDK surfaces are not dead code merely because the first-party application has no internal caller. `src/nodePluginSdk.ts`, NodeSpec registration and Runtime Provider authoring APIs are third-party entry points.
+6. Public SDK surfaces are not dead code merely because the first-party application has no internal caller. `sdk/index.ts`, NodeSpec registration and Runtime Provider authoring APIs are third-party entry points.
 7. Do not add user-facing explanatory UI copy without explicit approval.
 
 ## Current architecture checkpoint
 
 - Dynamic NodeSpec/Node Contract: parameter sockets, repeated inputs, variants, loop/if zones, series/legend metadata and scientific column pipelines.
-- NodeSpec SDK: **v7**; combined Plugin SDK: **v3**; UI Theme SDK: **v2**; Unified Design SDK: **v1**.
+- NodeSpec SDK: **v7**; combined Plugin SDK: **v4**; UI Theme SDK: **v2**; Unified Design SDK: **v1**.
 - Plugin path: JSON Manifest or `.plugin.zip` -> NodeSpec + JavaScript/Python Runtime Providers + persisted read-only resources and/or token-only UI themes -> enable/disable/uninstall/restore.
 - Theme/design boundary: semantic color + material + motion tokens only. Core owns selectors, component rendering, spacing, dimensions, typography metrics, responsive geometry and all node layout.
-- Node layout: `src/nodeLayout.ts` is the single measurement contract; complex dynamic nodes use deterministic horizontal side rails and fixed port rows instead of percentage placement.
+- Node layout: `src/nodes/layout.ts` is the single measurement contract; complex dynamic nodes use deterministic horizontal side rails and fixed port rows instead of percentage placement.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.37: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.37: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.37: **38/38**.
+- Runtime parity revalidated in 1.6.38: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.38: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.38: **38/38**.
 
 
 
+
+
+## 1.6.38 SDK and repository cleanup
+
+- Moved the public plugin-development surface out of the application implementation tree into root `sdk/`. `sdk/index.ts` is now the single public entry and Plugin SDK version is v4.
+- Split public declarations from host implementation: package/archive/resource/theme/design authoring contracts are in `sdk/`; install/activate/persist/ZIP parsing and manager UI are owned by `src/plugins/`.
+- Grouped dynamic-node layout/declarative UI under `src/nodes/` and global visual layers under `src/styles/`; no runtime semantics or node geometry rules changed.
+- Added `scripts/sdk-layout-smoke.mjs` to prevent SDK files from drifting back into `src/` or host implementation from leaking into the public SDK barrel.
+- Repository cleanup is non-destructive: merged local feature refs are removed and normal Git GC is used; commit history is not rewritten.
+- 1.6.38 source revalidation: Demo **38/38**, Runtime parity **134/134**, JavaScript-capable NodeContract **96/96**, Python **188 passed / 1 skipped**, plus NodeSpec/Runtime Provider/Plugin package/archive/manager/declarative UI/Theme/Design/SDK-layout/node-layout/UI contract gates.
 
 ## 1.6.37 unified design contract
 
-- Added `src/designSystemSdk.ts`; `src/nodePluginSdk.ts` now exposes NodeSpec, Runtime/package/resource, Theme and Design contracts through one public SDK surface.
+- Added `sdk/design.ts`; `sdk/index.ts` now exposes NodeSpec, Runtime/package/resource, Theme and Design contracts through one public SDK surface.
 - Theme SDK v2 accepts `tokens`, `material` and `motion`. Material covers semantic elevation/blur; motion covers duration/easing and restrained visual transforms.
-- `ui-theme-contract.css` is the final Core-owned mapping for dialogs, menus, controls, settings, package/plugin managers, cards, canvas controls and node visual states.
+- `src/styles/theme-contract.css` is the final Core-owned mapping for dialogs, menus, controls, settings, package/plugin managers, cards, canvas controls and node visual states.
 - Legacy component CSS may keep structural declarations, but visual elevation/motion is overridden by the final semantic contract.
 - Reduced-motion preference neutralizes shared animation centrally.
-- Dynamic node geometry remains exclusively in `nodeLayout.ts`; theme/design plugins cannot modify node metrics or port placement.
+- Dynamic node geometry remains exclusively in `src/nodes/layout.ts`; theme/design plugins cannot modify node metrics or port placement.
 
 ## 1.6.36 theme / node-layout contract
 
 - Added Plugin SDK v2 and UI Theme SDK v1. Plugin packages may now contain nodes, UI themes, or both; theme-only JSON and `.plugin.zip` packages use the same atomic install/enable/disable/uninstall/restore lifecycle.
 - Theme plugins are token-only. `UI_THEME_TOKEN_NAMES` whitelists semantic app/canvas appearance; arbitrary CSS, render callbacks and geometry variables are rejected.
-- Added `ui-theme-contract.css` as the final appearance-only visual contract so Settings, dialogs, toolbars, fields, data grids and canvas/node surfaces consume the same semantic token layer.
+- Added `src/styles/theme-contract.css` as the final appearance-only visual contract so Settings, dialogs, toolbars, fields, data grids and canvas/node surfaces consume the same semantic token layer.
 - Settings → Appearance now selects installed UI themes independently from light/dark mode. If the active plugin theme disappears, the app returns directly to `core.default`.
-- Added `src/nodeLayout.ts` as the single node measurement contract. Dynamic nodes with data ports use horizontal side rails with deterministic row spacing; this includes signature-derived Python/function/group nodes. Label/control/rail widths, endpoint-scale-aware row spacing and minimum height are measured together.
+- Added `src/nodes/layout.ts` as the single node measurement contract. Dynamic nodes with data ports use horizontal side rails with deterministic row spacing; this includes signature-derived Python/function/group nodes. Label/control/rail widths, endpoint-scale-aware row spacing and minimum height are measured together.
 - Dynamic cards suppress the redundant raw nodeType line, keep long labels inside measured rails with ellipsis/tooltips, and reserve endpoint-scale-aware rows so enlarged handles cannot overlap.
 - Added a theme-only executable SDK example in JSON and `.plugin.zip`, plus theme/layout/UI-contract smoke gates.
 - Full Windows/Android packaging remains the next release gate after source validation.
@@ -90,7 +100,7 @@ This ZIP intentionally has no `node_modules`, and the current cloud shell is not
 
 ## Release-validation next step
 
-For **1.6.37 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
+For **1.6.38 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
 
 1. `pnpm check` including TypeScript/Vitest, Python, Runtime parity, NodeContract, Workflow compatibility, Plugin/SDK, MCP, Remote/LAN and architecture gates.
 2. Windows Desktop package build.

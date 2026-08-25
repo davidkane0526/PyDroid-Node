@@ -1,7 +1,15 @@
 {
   "extends": "../tsconfig.json",
   "compilerOptions": {
-    "types": ["vite/client", "node"]
+    "types": [
+      "vite/client",
+      "node"
+    ]
   },
-  "include": ["../src", "./renderer", "./vite.config.ts"]
+  "include": [
+    "../src",
+    "../sdk",
+    "./renderer",
+    "./vite.config.ts"
+  ]
 }

@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.37 exposes one deterministic plugin path: NodeSpec + Runtime Providers + packaged resources + token-only UI themes. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest. A package may contain nodes, themes, or both.
+PyDroid Node 1.6.38 exposes one deterministic plugin path: NodeSpec + Runtime Providers + packaged resources + token-only UI themes. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest. A package may contain nodes, themes, or both.
 
 ## Distribution boundary
 
@@ -61,7 +61,7 @@ Only files listed in `resources` become Runtime resources. Provider files are lo
 
 ## Lifecycle
 
-`src/nodePluginSdk.ts` is the combined authoring surface.
+`sdk/index.ts` is the combined authoring surface.
 
 ```ts
 import {
@@ -83,7 +83,7 @@ import {
 
 ## UI Theme Plugin SDK v2 + Unified Design SDK v1
 
-Plugin SDK v3 exposes UI Theme SDK v2 and Unified Design SDK v1 through the same `nodePluginSdk.ts` authoring surface. A theme plugin cannot inject CSS, HTML, React components, layout callbacks or arbitrary DOM styles. It can only replace the semantic appearance tokens whitelisted by `UI_THEME_TOKEN_NAMES`. Core keeps component size, spacing, typography metrics, responsive breakpoints and node geometry.
+Plugin SDK v4 exposes NodeSpec, package/archive/resource, UI Theme SDK v2 and Unified Design SDK v1 through the single root `sdk/index.ts` authoring surface. A theme plugin cannot inject CSS, HTML, React components, layout callbacks or arbitrary DOM styles. It can only replace the semantic appearance tokens whitelisted by `UI_THEME_TOKEN_NAMES`. Core keeps component size, spacing, typography metrics, responsive breakpoints and node geometry.
 
 A theme-only package is valid:
 

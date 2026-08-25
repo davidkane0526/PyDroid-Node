@@ -45,11 +45,13 @@ try {
   try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
   const files = [
-    "src/nodePluginArchive.ts",
-    "src/nodePluginResources.ts",
-    "src/nodePluginPackages.ts",
-    "src/themePluginSdk.ts",
-    "src/nodeSpecSdk.ts",
+    "src/plugins/archive.ts",
+    "sdk/resources.ts",
+    "sdk/archive.ts",
+    "sdk/plugin.ts",
+    "src/plugins/packages.ts",
+    "sdk/theme.ts",
+    "sdk/node.ts",
     "src/nodeCatalog.ts",
     "src/customNode.ts",
     "src/nodeSpec.ts",
@@ -59,20 +61,22 @@ try {
     "src/runtime/javascript/engine/nodes.ts",
     "src/runtime/javascript/engine/table.ts",
   ].map((file) => path.join(root, file));
-  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (compiled.error || compiled.status !== 0) throw new Error(compiled.stderr || compiled.stdout || compiled.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
 
-  const archiveModule = await import(pathToFileURL(path.join(temp, "nodePluginArchive.js")).href);
+  const archiveModule = await import(pathToFileURL(path.join(temp, "src", "plugins", "archive.js")).href);
   const archives = archiveModule.default ?? archiveModule;
-  const packagesModule = await import(pathToFileURL(path.join(temp, "nodePluginPackages.js")).href);
+  const archiveContractModule = await import(pathToFileURL(path.join(temp, "sdk", "archive.js")).href);
+  const archiveContract = archiveContractModule.default ?? archiveContractModule;
+  const packagesModule = await import(pathToFileURL(path.join(temp, "src", "plugins", "packages.js")).href);
   const packages = packagesModule.default ?? packagesModule;
-  const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
+  const engineModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "javascript", "engine", "engine.js")).href);
   const engine = engineModule.default ?? engineModule;
-  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
+  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
-  if (archives.NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION !== 1 || archives.NODE_PLUGIN_ARCHIVE_MANIFEST !== "manifest.json") throw new Error("unexpected plugin archive API version");
+  if (archiveContract.NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION !== 1 || archiveContract.NODE_PLUGIN_ARCHIVE_MANIFEST !== "manifest.json") throw new Error("unexpected plugin archive API version");
   const storage = new MemoryStorage();
   const scaleZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-scale.plugin.zip"));
   const resolved = await archives.readNodePluginArchive(arrayBuffer(scaleZip));

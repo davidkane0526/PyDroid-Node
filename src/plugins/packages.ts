@@ -5,53 +5,19 @@ import {
   type NodePluginRegistration,
   type NodeSpec,
   type PythonNodeProviderDescriptor,
-} from "./nodeSpecSdk";
-import { Table } from "./runtime/javascript/engine/table";
-import type { NodeOutput } from "./runtime/javascript/engine/nodes/support/types";
-import { createNodePluginResourceApi, type NodePluginResource, type NodePluginResourceApi } from "./nodePluginResources";
-import { registerUiTheme, validateUiThemeDefinition, type UiThemeDefinition, type UiThemeRegistration } from "./themePluginSdk";
+} from "../../sdk/node";
+import { Table } from "../runtime/javascript/engine/table";
+import type { NodeOutput } from "../runtime/javascript/engine/nodes/support/types";
+import { createNodePluginResourceApi, type NodePluginResource, type NodePluginResourceApi } from "../../sdk/resources";
+import { registerUiTheme, validateUiThemeDefinition, type UiThemeRegistration } from "../../sdk/theme";
+import { NODE_PLUGIN_PACKAGE_SCHEMA_VERSION, NODE_PLUGIN_RUNTIME_API_VERSION, type JavascriptNodeProviderDescriptor, type NodePluginPackageManifest, type NodePluginPackageSummary } from "../../sdk/plugin";
 
-export const NODE_PLUGIN_PACKAGE_SCHEMA_VERSION = 1 as const;
-export const NODE_PLUGIN_RUNTIME_API_VERSION = 2 as const;
 const STORAGE_KEY = "pydroid-node.plugin-packages.v1";
 
-export type JavascriptNodeProviderDescriptor = {
-  source: string;
-  entrypoint?: string;
-};
-
-export type JavascriptPluginRuntimeApi = {
+type JavascriptPluginRuntimeApi = {
   version: typeof NODE_PLUGIN_RUNTIME_API_VERSION;
   Table: typeof Table;
   resources: NodePluginResourceApi;
-};
-
-export type NodePluginPackageNode = {
-  spec: NodeSpec;
-  icon?: string;
-  providers: {
-    javascript?: JavascriptNodeProviderDescriptor;
-    python?: Omit<PythonNodeProviderDescriptor, "nodeType">;
-  };
-};
-
-export type NodePluginPackageManifest = {
-  schemaVersion: typeof NODE_PLUGIN_PACKAGE_SCHEMA_VERSION;
-  id: string;
-  name: string;
-  version: string;
-  description?: string;
-  nodes?: NodePluginPackageNode[];
-  themes?: UiThemeDefinition[];
-  resources?: NodePluginResource[];
-};
-
-export type NodePluginPackageSummary = {
-  id: string;
-  name: string;
-  version: string;
-  nodeTypes: string[];
-  themeIds: string[];
 };
 
 export type NodePluginPackageDetail = NodePluginPackageSummary & {

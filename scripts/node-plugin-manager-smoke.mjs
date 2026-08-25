@@ -7,7 +7,7 @@ import process from "node:process";
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(os.tmpdir(), "pydroid-node-plugin-manager-"));
 try {
-  const source = readFileSync(path.join(root, "src", "NodePluginManager.tsx"), "utf8");
+  const source = readFileSync(path.join(root, "src", "plugins", "PluginManager.tsx"), "utf8");
   for (const token of ["installNodePluginPackage", "installNodePluginArchive", "activateInstalledNodePluginPackage", "unloadNodePluginPackage", "uninstallNodePluginPackage", "安装插件", "插件管理", "启用", "停用", "卸载"]) {
     if (!source.includes(token)) throw new Error(`plugin manager is missing ${token}`);
   }
@@ -30,11 +30,11 @@ try {
   }
 
   const result = spawnSync(process.platform === "win32" ? "tsc.cmd" : "tsc", [
-    path.join(root, "src", "NodePluginManager.tsx"),
-    path.join(root, "src", "nodePluginPackages.ts"),
-    path.join(root, "src", "nodePluginArchive.ts"),
+    path.join(root, "src", "plugins", "PluginManager.tsx"),
+    path.join(root, "src", "plugins", "packages.ts"),
+    path.join(root, "src", "plugins", "archive.ts"),
     "--target", "ES2022", "--module", "ESNext", "--moduleResolution", "bundler", "--jsx", "react-jsx",
-    "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src"),
+    "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root,
   ], { cwd: root, encoding: "utf8" });
   if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message);
   console.log("Node Plugin Manager smoke: PASS (settings-only entry, localized compact dashboard, node/theme cards, stats/search/status/runtime filters, manifest/archive lifecycle, TSX transpile)");

@@ -1,3 +1,12 @@
+## 1.6.38 (178) — SDK & Repository Cleanup — 2026-08-25
+
+- Promoted `sdk/` to the single public plugin-development surface (Plugin SDK v4): NodeSpec, package/archive/resource, Theme and Design contracts now have explicit ownership outside application implementation.
+- Grouped plugin host code under `src/plugins/`, dynamic node layout/declarative UI under `src/nodes/`, and shared visual layers under `src/styles/`; runtime behavior and node geometry semantics are unchanged.
+- Added an SDK layout regression gate that rejects legacy scattered SDK files and host implementation leakage into the public SDK barrel.
+- Repository maintenance removes merged local feature refs and uses normal Git GC only; no history rewriting.
+- Source revalidation: Demo 38/38, Runtime parity 134/134, JS-capable NodeContract 96/96, Python 188 passed / 1 skipped, plus NodeSpec/Runtime Provider/Plugin/Theme/Design/Node Layout/UI gates.
+- Build revision: `1.6.38-dev-r133-sdk-repository-cleanup`.
+
 ## 1.6.37 (177) — Unified Design SDK: material + motion — 2026-08-25
 
 - Promoted the combined public authoring surface to Plugin SDK v3, UI Theme SDK v2 and Unified Design SDK v1 while keeping NodeSpec SDK v7, plugin package schema v1 and Runtime API v2 unchanged.

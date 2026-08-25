@@ -1,6 +1,6 @@
-import type { NodeSpec, NodeUiStatusItemSpec, NodeUiStatusResultField, ParameterSpec } from "./nodeCatalog";
-import { matchesNodeCondition } from "./nodeSpec";
-import type { NodeExecutionPreview, NodeOutputExecutionPreview } from "./runtime/types";
+import type { NodeSpec, NodeUiStatusItemSpec, NodeUiStatusResultField, ParameterSpec } from "../nodeCatalog";
+import { matchesNodeCondition } from "../nodeSpec";
+import type { NodeExecutionPreview, NodeOutputExecutionPreview } from "../runtime/types";
 
 export type DeclarativeValidationIssue = {
   message: string;
@@ -13,7 +13,7 @@ export function declarativeUiValues(spec: NodeSpec, values: Record<string, unkno
 }
 
 export function declarativeUiVisible(
-  when: Record<string, import("./nodeCatalog").NodeConditionValue> | undefined,
+  when: Record<string, import("../nodeCatalog").NodeConditionValue> | undefined,
   values: Record<string, unknown>,
 ): boolean {
   return !when || matchesNodeCondition(when, values);

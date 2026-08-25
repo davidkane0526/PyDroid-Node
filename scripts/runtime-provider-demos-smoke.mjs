@@ -35,22 +35,22 @@ try {
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
   const files = [
     "src/runtime-provider-demos.ts",
-    "src/nodeSpecSdk.ts",
+    "sdk/node.ts",
     "src/nodeCatalog.ts",
     "src/nodeSpec.ts",
     "src/customNode.ts",
     "src/runtime/pythonProviders.ts",
     "src/runtime/javascript/engine/engine.ts",
   ].map((file) => path.join(root, file));
-  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const compiled = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (compiled.error || compiled.status !== 0) throw new Error(compiled.stderr || compiled.stdout || compiled.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
 
-  const demosModule = await import(pathToFileURL(path.join(temp, "runtime-provider-demos.js")).href);
+  const demosModule = await import(pathToFileURL(path.join(temp, "src", "runtime-provider-demos.js")).href);
   const demos = demosModule.default ?? demosModule;
-  const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
+  const engineModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "javascript", "engine", "engine.js")).href);
   const engine = engineModule.default ?? engineModule;
-  const pythonProviderModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
+  const pythonProviderModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProviderModule.default ?? pythonProviderModule;
 
   demos.activateRuntimeProviderScaleDemo();

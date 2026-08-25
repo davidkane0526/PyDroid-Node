@@ -26,23 +26,23 @@ try {
     "src/nodeCatalog.ts",
     "src/customNode.ts",
     "src/nodeSpec.ts",
-    "src/nodeSpecSdk.ts",
+    "sdk/node.ts",
     "src/nodeContract.ts",
     "src/runtime/pythonProviders.ts",
     "src/runtime/javascript/engine/engine.ts",
     "src/runtime/javascript/engine/nodes.ts",
   ].map((file) => path.join(root, file));
-  const result = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const result = spawnSync(tsc.command, [...tsc.args, ...files, "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--noCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
 
-  const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
+  const sdkModule = await import(pathToFileURL(path.join(temp, "sdk", "node.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
-  const contractModule = await import(pathToFileURL(path.join(temp, "nodeContract.js")).href);
+  const contractModule = await import(pathToFileURL(path.join(temp, "src", "nodeContract.js")).href);
   const contract = contractModule.default ?? contractModule;
-  const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
+  const engineModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "javascript", "engine", "engine.js")).href);
   const engine = engineModule.default ?? engineModule;
-  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
+  const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "src", "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
   if (sdk.NODE_SPEC_SDK_VERSION !== 7) throw new Error("unexpected SDK version");

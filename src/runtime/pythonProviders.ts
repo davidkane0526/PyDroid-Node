@@ -1,4 +1,4 @@
-import type { NodePluginResource } from "../nodePluginResources";
+import type { NodePluginResource } from "../../sdk/resources";
 
 export type PythonNodeProviderDescriptor = {
   nodeType: string;

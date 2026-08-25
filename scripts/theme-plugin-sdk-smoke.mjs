@@ -13,10 +13,10 @@ try {
   let tsc;
   try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
-  const result = spawnSync(tsc.command, [...tsc.args, path.join(root, "src", "themePluginSdk.ts"), "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", temp, "--rootDir", path.join(root, "src")], { cwd: root, encoding: "utf8" });
+  const result = spawnSync(tsc.command, [...tsc.args, path.join(root, "sdk", "theme.ts"), "--target", "ES2022", "--module", "commonjs", "--moduleResolution", "node", "--skipLibCheck", "--outDir", temp, "--rootDir", root], { cwd: root, encoding: "utf8" });
   if (result.error || result.status !== 0) throw new Error(result.stderr || result.stdout || result.error?.message);
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
-  const module = await import(pathToFileURL(path.join(temp, "themePluginSdk.js")).href);
+  const module = await import(pathToFileURL(path.join(temp, "sdk", "theme.js")).href);
   const sdk = module.default ?? module;
   if (sdk.DEFAULT_UI_THEME_ID !== "core.default") throw new Error("unexpected default theme id");
   if (!sdk.listUiThemes().some((theme) => theme.id === "core.default")) throw new Error("core default theme missing");

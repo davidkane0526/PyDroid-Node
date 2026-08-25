@@ -11,7 +11,7 @@ PyDroid Node 1.6.37 uses one host-owned visual contract for Core UI, installable
 - plugin package schema remains v1
 - JavaScript Runtime API remains v2
 
-`src/nodePluginSdk.ts` is the single public authoring surface and re-exports NodeSpec, package/archive/resource, theme and design contracts.
+`sdk/index.ts` is the single public authoring surface and re-exports NodeSpec, package/archive/resource, theme and design contracts.
 
 ## Three visual layers
 

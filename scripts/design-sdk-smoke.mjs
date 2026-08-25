@@ -5,11 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFileSync(path.join(root, file), "utf8");
-const sdk = read("src/designSystemSdk.ts");
-const theme = read("src/themePluginSdk.ts");
-const contract = read("src/ui-theme-contract.css");
-const styles = read("src/styles.css");
-const publicSdk = read("src/nodePluginSdk.ts");
+const sdk = read("sdk/design.ts");
+const theme = read("sdk/theme.ts");
+const contract = read("src/styles/theme-contract.css");
+const styles = read("src/styles/base.css");
+const publicSdk = read("sdk/index.ts");
 
 assert.match(sdk, /UI_DESIGN_SDK_VERSION\s*=\s*1/, "Unified Design SDK version missing");
 for (const token of ["material-panel-shadow", "material-card-shadow", "material-control-shadow", "material-popup-shadow", "material-node-shadow", "material-overlay-blur", "motion-duration-fast", "motion-duration-normal", "motion-ease-standard", "motion-hover-lift", "motion-press-scale", "motion-enter-distance"]) {
@@ -20,7 +20,7 @@ assert.match(theme, /material\?: UiThemeMaterial/, "Theme contract must accept s
 assert.match(theme, /motion\?: UiMotionTokens/, "Theme contract must accept semantic motion tokens");
 assert.match(theme, /Object\.entries\(material\)/, "Theme CSS variable resolver must include material");
 assert.match(theme, /Object\.entries\(motion\)/, "Theme CSS variable resolver must include motion");
-assert.match(publicSdk, /export \* from "\.\/designSystemSdk"/, "Plugin SDK must export the unified Design SDK");
+assert.match(publicSdk, /export \* from "\.\/design"/, "Plugin SDK must export the unified Design SDK");
 assert.match(contract, /var\(--material-popup-shadow\)/, "Dialogs/popups must consume shared material elevation");
 assert.match(contract, /var\(--material-node-shadow\)/, "Nodes must consume shared material elevation");
 assert.match(contract, /var\(--motion-duration-normal\)/, "Core controls must consume shared motion timing");
