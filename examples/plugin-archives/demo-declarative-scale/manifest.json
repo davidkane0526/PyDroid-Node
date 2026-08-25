@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.declarative-scale",
+  "name": "Declarative Scale Demo",
+  "version": "1.0.0",
+  "description": "Host-rendered declarative node UI demo.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.declarative_scale",
+        "label": "Declarative Scale",
+        "description": "Host-rendered declarative parameter UI.",
+        "tags": [
+          "plugin",
+          "ui",
+          "declarative"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "factor": 3,
+          "offset": 2,
+          "enabled": true
+        },
+        "parameters": [
+          {
+            "key": "factor",
+            "label": "Factor",
+            "kind": "number",
+            "defaultValue": 3,
+            "step": 0.1
+          },
+          {
+            "key": "offset",
+            "label": "Offset",
+            "kind": "number",
+            "defaultValue": 2,
+            "step": 0.1
+          },
+          {
+            "key": "enabled",
+            "label": "Enabled",
+            "kind": "boolean",
+            "defaultValue": true
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Result",
+            "valueType": "number"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "calculation",
+              "label": "Calculation",
+              "parameters": [
+                "factor",
+                "offset"
+              ],
+              "description": "Linear transform parameters."
+            },
+            {
+              "id": "behavior",
+              "label": "Behavior",
+              "parameters": [
+                "enabled"
+              ]
+            }
+          ],
+          "status": [
+            {
+              "label": "Factor",
+              "parameter": "factor"
+            },
+            {
+              "label": "Offset",
+              "parameter": "offset"
+            },
+            {
+              "label": "Enabled",
+              "parameter": "enabled"
+            }
+          ],
+          "help": {
+            "title": "Declarative UI",
+            "text": "Parameters, status and help are rendered by the PyDroid Node host.",
+            "resource": "resources/help.md"
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "file": "js/provider.js"
+        },
+        "python": {
+          "file": "python/provider.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/help.md",
+    "resources/icon.svg"
+  ]
+}

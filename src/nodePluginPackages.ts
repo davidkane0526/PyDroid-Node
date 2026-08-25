@@ -130,6 +130,8 @@ export function validateNodePluginPackageManifest(manifest: NodePluginPackageMan
     if (nodeTypes.has(node.spec.nodeType)) errors.push(`${manifest.id || "<plugin>"}: nodeType 重复：${node.spec.nodeType}`);
     nodeTypes.add(node.spec.nodeType);
     if (node.icon && !resourcePaths.has(node.icon)) errors.push(`${node.spec.nodeType}: icon 资源不存在：${node.icon}`);
+    const helpResource = node.spec.ui?.help?.resource;
+    if (helpResource && !resourcePaths.has(helpResource)) errors.push(`${node.spec.nodeType}: help 资源不存在：${helpResource}`);
     const runtimes = node.spec.runtimeSupport ?? [];
     if (runtimes.includes("javascript") && !node.providers?.javascript) errors.push(`${node.spec.nodeType}: Manifest 缺少 JavaScript Provider`);
     if (runtimes.includes("python") && !node.providers?.python) errors.push(`${node.spec.nodeType}: Manifest 缺少 Python Provider`);
@@ -296,6 +298,13 @@ export function getNodePluginResourceDataUrl(pluginId: string, path: string): st
   const active = activePackages.get(pluginId);
   if (!active) return null;
   return createNodePluginResourceApi(active.manifest.resources ?? []).dataUrl(path);
+}
+
+export function getNodePluginResourceText(nodeType: string, path: string): string | null {
+  for (const { manifest } of activePackages.values()) {
+    if (manifest.nodes.some((node) => node.spec.nodeType === nodeType)) return createNodePluginResourceApi(manifest.resources ?? []).text(path);
+  }
+  return null;
 }
 
 export function getNodePluginIconDataUrl(nodeType: string): string | null {

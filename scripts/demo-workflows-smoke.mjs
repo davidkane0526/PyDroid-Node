@@ -34,6 +34,8 @@ const files = [
   "demo-28-manifest-multi-node-package.workflow.json",
   "demo-29-plugin-resource-json.workflow.json",
   "demo-30-plugin-resource-table.workflow.json",
+  "demo-31-declarative-plugin-ui.workflow.json",
+  "demo-32-declarative-plugin-table.workflow.json",
 ];
 
 let failed = 0;

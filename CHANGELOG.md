@@ -1,3 +1,13 @@
+## 1.6.30 (170) — Declarative plugin UI — 2026-08-25
+
+- Extended the NodeSpec authoring SDK to v4 with host-rendered declarative Inspector metadata: `ui.parameterGroups`, `ui.status` and `ui.help`. Parameter groups reuse the normal `ParameterField` controls, status items are read-only views of current parameters, and help can combine short manifest text with one declared package text resource. No plugin React component, DOM injection or render callback was added.
+- Added `NodeDeclarativeInspector.tsx` as the single host renderer for ordinary, grouped, advanced and plugin-declared Inspector controls. `App.tsx` delegates parameter rendering to this component and drops to 4385 lines, keeping the existing editor ownership threshold intact.
+- Added deterministic declaration validation: grouped/status parameter references must exist, one parameter cannot appear in multiple groups, and inline node parameters cannot also be declared as Inspector group parameters. Package validation also requires any `ui.help.resource` to exist in the package resource set.
+- Added `getNodePluginResourceText()` so host UI can render declared help resources from the same persisted package bytes already used by Runtime resources and plugin icons. The host renders the text as text; plugin UI metadata cannot execute HTML, JavaScript or React.
+- Added Demo 31 for a dual-runtime declarative Scale node with grouped parameters, status cards and packaged help, plus Demo 32 for a declarative native Table generator feeding the first-party Line Plot. Both have installable `.plugin.zip` examples and both execute successfully in JavaScript and Python. Built-in Demo smoke coverage is now 32/32.
+- Added a dedicated declarative-UI smoke covering archive metadata preservation, packaged help access, host-only UI source guards, missing-help-resource rejection, TSX transpilation and dual-runtime execution. Existing first-party parity remains 134/134 and the complete Python suite remains 188 passed / 1 skipped.
+- Build revision: `1.6.30-dev-r122-declarative-plugin-ui`.
+
 ## 1.6.29 (169) — Plugin resource runtime API — 2026-08-25
 
 - Promoted `.plugin.zip` `resources/` from presence-only files into the installed Manifest contract. Archive resources are read once, persisted as base64-backed package resources and restored with the package, so providers and node icons never depend on the original ZIP path after installation.

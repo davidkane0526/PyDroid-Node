@@ -28,8 +28,10 @@ import manifestPluginPackage from "../examples/demo-27-manifest-plugin-package.w
 import manifestMultiNodePackage from "../examples/demo-28-manifest-multi-node-package.workflow.json?raw";
 import pluginResourceJson from "../examples/demo-29-plugin-resource-json.workflow.json?raw";
 import pluginResourceTable from "../examples/demo-30-plugin-resource-table.workflow.json?raw";
+import declarativePluginUi from "../examples/demo-31-declarative-plugin-ui.workflow.json?raw";
+import declarativePluginTable from "../examples/demo-32-declarative-plugin-table.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
-import { activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo } from "./plugin-package-demos";
+import { activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo } from "./plugin-package-demos";
 
 export type WorkflowDemo = {
   id: string;
@@ -225,5 +227,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     description: "Provider 从 resources/data.csv 读取静态数据并生成原生 Table，再连接第一方 Plot。",
     document: pluginResourceTable,
     activate: activateResourceTablePackageDemo,
+  },
+  {
+    id: "declarative-plugin-ui",
+    label: "Demo 31 · 插件声明式 UI",
+    description: "宿主统一渲染参数分组、只读状态和包内帮助资源；插件不注入 React/DOM。",
+    document: declarativePluginUi,
+    activate: activateDeclarativeScalePackageDemo,
+  },
+  {
+    id: "declarative-plugin-table",
+    label: "Demo 32 · 声明式 UI 表格插件",
+    description: "声明式参数面板驱动双 Runtime 原生 Table，再直接连接第一方 Plot。",
+    document: declarativePluginTable,
+    activate: activateDeclarativeTablePackageDemo,
   },
 ] as const;

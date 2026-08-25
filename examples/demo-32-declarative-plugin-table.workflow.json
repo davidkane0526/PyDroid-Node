@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 32 · Declarative Plugin Table",
+  "nodes": [
+    {
+      "id": "table",
+      "type": "workflow",
+      "position": {
+        "x": 150,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "demo.declarative_table",
+        "label": "Declarative Table",
+        "parameters": {
+          "rows": 6,
+          "scale": 2,
+          "includeSquared": true
+        }
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 520,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "plot.line",
+        "label": "Declarative Table Plot",
+        "parameters": {
+          "xColumn": "index",
+          "yColumns": "value,squared",
+          "title": "Declarative Plugin Table",
+          "xLabel": "index",
+          "yLabel": "value",
+          "lineWidth": 2,
+          "alpha": 1,
+          "lineStyle": "solid",
+          "marker": "none",
+          "seriesConfig": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "table",
+      "sourceHandle": "output",
+      "target": "plot",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "parameters": [],
+  "environment": {
+    "pythonImports": [],
+    "pythonDefinitions": []
+  }
+}

@@ -68,7 +68,7 @@ import { isBoundaryStructureNodeType, isIfStructureNodeType, isLoopStructureNode
 import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "./canvas-theme";
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
-import { ParameterField } from "./ParameterField";
+import { NodeDeclarativeInspector } from "./NodeDeclarativeInspector";
 import { NodePluginManagerButton, getNodePluginIconDataUrl } from "./NodePluginManager";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
@@ -3425,21 +3425,10 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     }
   };
 
-  const renderParameterFields = (parameters: ParameterSpec[]) => parameters.map((parameter) => (
-    <ParameterField
-      key={parameter.key}
-      spec={parameter}
-      value={selectedNode?.data.parameters[parameter.key] ?? selectedSpec?.defaults[parameter.key]}
-      onChange={(value) => updateParameter(parameter.key, value)}
-      onExpand={parameter.key === "code" ? () => setCodeEditorOpen(true) : undefined}
-    />
-  ));
   const selectedInlineParameterKeys = new Set([
     ...(selectedSpec?.ui?.inlineParameters ?? []),
     ...(selectedSpec?.inputPorts.flatMap((port) => port.defaultParameter ? [port.defaultParameter] : []) ?? []),
   ]);
-  const basicParameters = selectedSpec?.parameters.filter((parameter) => !parameter.advanced && !selectedInlineParameterKeys.has(parameter.key)) ?? [];
-  const advancedParameters = selectedSpec?.parameters.filter((parameter) => parameter.advanced && !selectedInlineParameterKeys.has(parameter.key)) ?? [];
   const rememberedParameterCount = selectedSpec?.parameters.filter((parameter) => parameter.rememberDefault).length ?? 0;
   const resultExportItems = result
     ? (result.exports?.length ? result.exports : result.exportCsv ? [{ nodeId: "legacy", fileName: "result.csv", content: result.exportCsv }] : [])
@@ -3836,10 +3825,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
                   <span>{selectedSignature.inputPorts.length} 输入 · {selectedSignature.parameters.length} 参数 · {selectedSignature.outputPorts.length} 输出</span>
                 </p>
               )}
-              {selectedSpec ? <>
-                {renderParameterFields(basicParameters)}
-                {advancedParameters.length > 0 && <details className="advanced-parameters"><summary>高级参数 <span>{advancedParameters.length}</span></summary><div className="advanced-parameters__grid">{renderParameterFields(advancedParameters)}</div></details>}
-              </> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
+              {selectedSpec ? <NodeDeclarativeInspector spec={selectedSpec} values={selectedNode.data.parameters} excludedParameterKeys={selectedInlineParameterKeys} onChange={updateParameter} onExpandCode={() => setCodeEditorOpen(true)} /> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
                 <label className="field" key={key}><span>{key}</span><input value={String(value ?? "")} onChange={(event) => updateParameter(key, event.target.value)} /></label>
               ))}
               {authoritativeSignatureError && <p className="validation-error">签名错误：{authoritativeSignatureError}</p>}

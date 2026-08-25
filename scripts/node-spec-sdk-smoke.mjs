@@ -19,7 +19,7 @@ try {
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
   const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
-  if (sdk.NODE_SPEC_SDK_VERSION !== 3) throw new Error("unexpected SDK version");
+  if (sdk.NODE_SPEC_SDK_VERSION !== 4) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({
     nodeType: "example.dynamic",
     label: "Example",
@@ -34,6 +34,20 @@ try {
   });
   const resolved = sdk.resolveNodeSpec(spec, { count: 3, mode: "many" });
   if (!resolved || resolved.inputPorts.map((port) => port.id).join(",") !== "item1,item2,item3") throw new Error("dynamic port resolution failed");
+  const declarative = sdk.defineNodeSpec({
+    ...spec,
+    nodeType: "example.declarative",
+    ui: {
+      parameterGroups: [{ id: "main", label: "Main", parameters: ["count", "mode"] }],
+      status: [{ label: "Count", parameter: "count" }],
+      help: { title: "Help", text: "Host-rendered help" },
+    },
+  });
+  if (declarative.ui?.parameterGroups?.[0]?.parameters.join(",") !== "count,mode") throw new Error("declarative parameter groups were not retained");
+  const invalidUi = { ...spec, nodeType: "example.invalid-ui", ui: { parameterGroups: [{ id: "bad", label: "Bad", parameters: ["missing"] }], status: [{ label: "Missing", parameter: "missing" }] } };
+  const uiErrors = sdk.validateNodeSpecDefinition(invalidUi);
+  if (!uiErrors.some((item) => item.includes("UI 参数分组引用不存在的参数")) || !uiErrors.some((item) => item.includes("UI 状态项引用不存在的参数"))) throw new Error("invalid declarative UI references were not rejected");
+
   const invalid = { ...spec, nodeType: "example.invalid", inputPorts: [{ id: "missing", label: "Missing", valueType: "number", defaultParameter: "unknown" }] };
   if (!sdk.validateNodeSpecDefinition(invalid).some((item) => item.includes("默认参数不存在"))) throw new Error("invalid parameter socket was not rejected");
   const registered = sdk.registerNodeSpec({ ...spec, nodeType: "example.registered", label: "Registered" });

@@ -26,3 +26,6 @@
 - `demo-29-plugin-resource-json.workflow.json`：插件在 Python/JavaScript 两端读取包内 JSON 资源并计算结果。
 - `demo-30-plugin-resource-table.workflow.json`：插件读取包内 CSV 资源生成原生表格并连接第一方 Plot。
 - `plugin-archives/demo-resource-*.plugin.zip`：包含 Provider、JSON/CSV 资源和节点 SVG 图标的真实插件包。
+- `demo-31-declarative-plugin-ui.workflow.json`：宿主统一渲染插件参数分组、只读状态和包内帮助文本，双 Runtime 结果一致。
+- `demo-32-declarative-plugin-table.workflow.json`：声明式参数面板驱动插件生成原生 Table，再连接第一方 Plot。
+- `plugin-archives/demo-declarative-*.plugin.zip`：对应 Demo 31/32 的真实声明式 UI 插件包与源码目录。

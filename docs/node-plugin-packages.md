@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.29 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
+PyDroid Node 1.6.30 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
 
 ## Package formats
 
@@ -145,5 +145,45 @@ No dependency resolver, update service, retry loop, compatibility fallback or wr
 - Demo 27/28: Manifest and multi-node Provider packages.
 - Demo 29: JSON resource read in both JavaScript and Python.
 - Demo 30: packaged CSV resource → native Table → first-party Plot.
+- Demo 31: grouped parameters + status cards + packaged help in a host-rendered plugin Inspector.
+- Demo 32: declarative plugin Inspector → native Table → first-party Plot.
 - `examples/plugins/`: directly serializable Manifest examples.
 - `examples/plugin-archives/`: real `.plugin.zip` examples and their source trees.
+
+## Declarative node Inspector UI
+
+NodeSpec SDK v4 adds host-rendered Inspector metadata. Plugins declare structure only; PyDroid Node owns every rendered control.
+
+```json
+{
+  "ui": {
+    "parameterGroups": [
+      {
+        "id": "calculation",
+        "label": "Calculation",
+        "parameters": ["factor", "offset"],
+        "description": "Linear transform parameters."
+      }
+    ],
+    "status": [
+      { "label": "Factor", "parameter": "factor" },
+      { "label": "Enabled", "parameter": "enabled" }
+    ],
+    "help": {
+      "title": "Declarative UI",
+      "text": "Short host-rendered help.",
+      "resource": "resources/help.md"
+    }
+  }
+}
+```
+
+Rules are intentionally small:
+
+- `parameterGroups` reference normal NodeSpec parameters and reuse the standard host `ParameterField` controls.
+- `status` is read-only and reflects current parameter values.
+- `help.text` is plain text. `help.resource` must be a declared package resource and is rendered as text from the installed resource bytes.
+- One parameter cannot be present in multiple groups or be both an inline node control and an Inspector group parameter.
+- There is no plugin `component`, `render`, HTML injection, React entrypoint or DOM callback.
+
+Runnable examples are `demo-declarative-scale.plugin.zip` and `demo-declarative-table.plugin.zip` under `examples/plugin-archives/`, paired with Demo 31 and Demo 32.

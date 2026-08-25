@@ -7,7 +7,10 @@ import type {
   InputPortGroupSpec,
   NodeConditionValue,
   NodeSpec,
+  NodeUiHelpSpec,
+  NodeUiParameterGroupSpec,
   NodeUiSpec,
+  NodeUiStatusItemSpec,
   NodeVariant,
   ParameterSpec,
   PortSpec,
@@ -15,13 +18,16 @@ import type {
   ValueType,
 } from "./nodeCatalog";
 
-export const NODE_SPEC_SDK_VERSION = 3 as const;
+export const NODE_SPEC_SDK_VERSION = 4 as const;
 
 export type {
   InputPortGroupSpec,
   NodeConditionValue,
   NodeSpec,
+  NodeUiHelpSpec,
+  NodeUiParameterGroupSpec,
   NodeUiSpec,
+  NodeUiStatusItemSpec,
   NodeVariant,
   ParameterSpec,
   PortSpec,
@@ -89,6 +95,26 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
     for (const key of Object.keys(variant.parameterPatches ?? {})) if (!parameterKeys.has(key)) errors.push(`${prefix}: variants[${index}] 参数补丁目标不存在：${key}`);
     for (const port of variant.inputPorts ?? []) validatePort(port, `variants[${index}].input`);
     for (const port of variant.outputPorts ?? []) validatePort(port, `variants[${index}].output`);
+  }
+
+  const uiGroupIds = new Set<string>();
+  const uiGroupedParameterKeys = new Set<string>();
+  const inlineParameterKeys = new Set(spec.ui?.inlineParameters ?? []);
+  for (const group of spec.ui?.parameterGroups ?? []) {
+    if (!group.id.trim()) errors.push(`${prefix}: UI 参数分组 id 不能为空`);
+    if (uiGroupIds.has(group.id)) errors.push(`${prefix}: UI 参数分组 id 重复：${group.id}`);
+    uiGroupIds.add(group.id);
+    if (!group.label.trim()) errors.push(`${prefix}: UI 参数分组 label 不能为空：${group.id}`);
+    for (const key of group.parameters) {
+      if (!parameterKeys.has(key)) errors.push(`${prefix}: UI 参数分组引用不存在的参数：${group.id}.${key}`);
+      if (uiGroupedParameterKeys.has(key)) errors.push(`${prefix}: UI 参数不能重复出现在多个分组：${key}`);
+      if (inlineParameterKeys.has(key)) errors.push(`${prefix}: UI 参数不能同时声明为 inline 和分组参数：${key}`);
+      uiGroupedParameterKeys.add(key);
+    }
+  }
+  for (const item of spec.ui?.status ?? []) {
+    if (!item.label.trim()) errors.push(`${prefix}: UI 状态项 label 不能为空`);
+    if (!parameterKeys.has(item.parameter)) errors.push(`${prefix}: UI 状态项引用不存在的参数：${item.parameter}`);
   }
 
   const inputGroupIds = new Set<string>();

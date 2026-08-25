@@ -67,10 +67,31 @@ export type NodeVariant = {
   hiddenParameters?: string[];
 };
 
+export type NodeUiParameterGroupSpec = {
+  id: string;
+  label: string;
+  parameters: string[];
+  description?: string;
+};
+
+export type NodeUiStatusItemSpec = {
+  label: string;
+  parameter: string;
+};
+
+export type NodeUiHelpSpec = {
+  title?: string;
+  text?: string;
+  resource?: string;
+};
+
 export type NodeUiSpec = {
   inlineParameters?: string[];
   inlineParameterLabels?: Record<string, string | null>;
   inlineLayout?: "stack" | "row";
+  parameterGroups?: NodeUiParameterGroupSpec[];
+  status?: NodeUiStatusItemSpec[];
+  help?: NodeUiHelpSpec;
 };
 
 export type NodeSpec = {
