@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { installNodePluginArchive } from "./nodePluginArchive";
 import {
   activateInstalledNodePluginPackage,
   installNodePluginPackage,
@@ -30,7 +31,8 @@ export function NodePluginManagerButton({ mode = "icon", onOpen }: NodePluginMan
   };
   const install = async (file: File) => {
     try {
-      installNodePluginPackage(await file.text());
+      if (file.name.toLowerCase().endsWith(".zip")) await installNodePluginArchive(await file.arrayBuffer());
+      else installNodePluginPackage(await file.text());
       refresh();
       setError("");
     } catch (reason) {
@@ -52,8 +54,8 @@ export function NodePluginManagerButton({ mode = "icon", onOpen }: NodePluginMan
       <section className="node-plugin-manager">
         <header><strong>节点插件</strong><button type="button" aria-label="关闭节点插件" onClick={() => setOpen(false)}>×</button></header>
         <div className="node-plugin-manager__toolbar">
-          <button type="button" className="button primary" onClick={() => fileInput.current?.click()}>安装 Manifest</button>
-          <input ref={fileInput} type="file" accept=".json,application/json" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file) void install(file); }} />
+          <button type="button" className="button primary" onClick={() => fileInput.current?.click()}>安装插件</button>
+          <input ref={fileInput} type="file" accept=".plugin.zip,.zip,.json,application/zip,application/json" onChange={(event) => { const file = event.target.files?.[0]; event.currentTarget.value = ""; if (file) void install(file); }} />
         </div>
         {error && <pre className="node-plugin-manager__error">{error}</pre>}
         <div className="node-plugin-manager__list">

@@ -1,0 +1,69 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.manifest-scale.archive",
+  "name": "Archive Scale Demo",
+  "version": "1.0.0",
+  "description": "ZIP plugin archive demo using manifest.json + js/ + python/ + resources/.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.manifest_scale_archive",
+        "label": "Manifest Scale Archive",
+        "description": "Dual-runtime node loaded from a serialized plugin manifest.",
+        "tags": [
+          "plugin",
+          "manifest",
+          "provider",
+          "scale"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "factor": 2
+        },
+        "parameters": [
+          {
+            "key": "factor",
+            "label": "Factor",
+            "kind": "number"
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          },
+          {
+            "id": "factor",
+            "label": "Factor",
+            "valueType": "number",
+            "defaultParameter": "factor"
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Scaled",
+            "valueType": "number"
+          }
+        ]
+      },
+      "providers": {
+        "javascript": {
+          "file": "js/manifest-scale.js"
+        },
+        "python": {
+          "file": "python/manifest-scale.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/README.txt"
+  ]
+}

@@ -1,10 +1,10 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.27 exposes the serializable plugin-package layer through a user-facing Node Plugin Manager as well as the NodeSpec and Runtime Provider SDKs.
+PyDroid Node 1.6.28 exposes both the serializable Manifest layer and a real `.plugin.zip` file container through the Node Plugin Manager, NodeSpec SDK and Runtime Provider SDK.
 
-## Package format
+## Package formats
 
-A package is one JSON manifest. The manifest is deliberately independent from the final file container, so a future `.zip` installer can wrap the same contract without changing NodeSpec or Runtime semantics.
+The core installed form remains one serializable JSON Manifest. PyDroid Node 1.6.28 also accepts a `.plugin.zip` archive whose root contains `manifest.json`; that archive references provider files instead of embedding provider source. After reading the archive, PyDroid resolves it into the same installed Manifest used by the existing lifecycle, so restart/enable/disable/uninstall semantics do not depend on the original ZIP path.
 
 ```json
 {
@@ -46,6 +46,44 @@ A package is one JSON manifest. The manifest is deliberately independent from th
 
 `runtimeSupport` and `providers` must agree. A package cannot declare JavaScript/Python execution and omit the corresponding provider.
 
+### `.plugin.zip` container
+
+The archive layout is deliberately fixed and small:
+
+```text
+example.plugin.zip
+├─ manifest.json
+├─ js/
+│  └─ scale.js
+├─ python/
+│  └─ scale.py
+└─ resources/
+   └─ icon.png
+```
+
+`manifest.json` uses file references for providers:
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "example.scale-tools",
+  "name": "Scale Tools",
+  "version": "1.0.0",
+  "nodes": [
+    {
+      "spec": { "nodeType": "example.scale", "label": "Scale", "runtimeSupport": ["python", "javascript"], "defaults": {}, "parameters": [], "inputPorts": [], "outputPorts": [] },
+      "providers": {
+        "javascript": { "file": "js/scale.js", "entrypoint": "execute" },
+        "python": { "file": "python/scale.py", "entrypoint": "execute" }
+      }
+    }
+  ],
+  "resources": ["resources/icon.png"]
+}
+```
+
+Provider files are read once during installation and converted to the existing serializable source descriptors. Listed resources are treated as opaque archive files; 1.6.28 verifies that they exist but does not yet expose a resource API to providers. The archive reader supports standard STORE and DEFLATE ZIP entries and does not add dependency installation or format fallback.
+
 ## Lifecycle
 
 `src/nodePluginSdk.ts` is the combined authoring surface.
@@ -53,6 +91,7 @@ A package is one JSON manifest. The manifest is deliberately independent from th
 ```ts
 import {
   installNodePluginPackage,
+  installNodePluginArchive,
   unloadNodePluginPackage,
   uninstallNodePluginPackage,
   restoreNodePluginPackages,
@@ -60,6 +99,7 @@ import {
 ```
 
 - `installNodePluginPackage(manifest)` validates, compiles and atomically registers every NodeSpec and Runtime Provider, then persists the manifest in renderer storage.
+- `installNodePluginArchive(arrayBuffer)` reads root `manifest.json` plus referenced provider files, resolves them into the same Manifest contract, then calls the same installation path.
 - `unloadNodePluginPackage(id)` removes the live NodeSpecs and Providers but keeps the installed manifest.
 - `restoreNodePluginPackages()` reactivates persisted manifests. The application invokes this before the React editor mounts.
 - `uninstallNodePluginPackage(id)` removes both the live registration and the persisted manifest.
@@ -71,7 +111,7 @@ The manager uses the same lifecycle API as code-driven installation. `listInstal
 
 Open **节点插件** from the desktop toolbar or the mobile **更多工具** menu. The manager intentionally has four operations only:
 
-- **安装 Manifest**: choose one `.json` Manifest, validate it, register every NodeSpec/Provider and persist the Manifest.
+- **安装插件**: choose either one `.json` Manifest or `.plugin.zip`; both resolve into the same installed Manifest lifecycle.
 - **停用**: unload live NodeSpecs/Providers while keeping the installed Manifest.
 - **启用**: reactivate the persisted Manifest.
 - **卸载**: remove both live registrations and the persisted Manifest.
@@ -114,6 +154,6 @@ The same manifest works through desktop, Android and Remote Python execution bec
 
 ## Current boundary
 
-The Manifest installer/manager is now user-facing. This layer still does not add dependency resolution, automatic updates, package signatures, a marketplace or a ZIP container. Those are separate capabilities and are not emulated with fallback logic.
+The Manifest installer/manager and `.plugin.zip` container are user-facing. This layer still does not add dependency resolution, automatic updates, package signatures, a marketplace or a provider resource API. Those are separate capabilities and are not emulated with fallback logic.
 
-Runnable examples are included in `examples/plugins/` and built-in Demo 27/28.
+Runnable inline-Manifest examples are included in `examples/plugins/`; real archive examples and their source trees live under `examples/plugin-archives/`. Built-in Demo 27/28 remain the runtime workflows used by both forms.

@@ -1,0 +1,147 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.manifest-table-tools.archive",
+  "name": "Archive Table Tools Demo",
+  "version": "1.0.0",
+  "description": "ZIP plugin archive demo using manifest.json + js/ + python/ + resources/.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.manifest_table_archive",
+        "label": "Manifest Table Archive",
+        "description": "Generate a portable table from a manifest runtime provider.",
+        "tags": [
+          "plugin",
+          "manifest",
+          "table",
+          "source"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "start": 1,
+          "step": 2,
+          "count": 6
+        },
+        "parameters": [
+          {
+            "key": "start",
+            "label": "Start",
+            "kind": "number"
+          },
+          {
+            "key": "step",
+            "label": "Step",
+            "kind": "number"
+          },
+          {
+            "key": "count",
+            "label": "Count",
+            "kind": "number",
+            "min": 1,
+            "max": 1000,
+            "step": 1
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "start",
+            "label": "Start",
+            "valueType": "number",
+            "defaultParameter": "start"
+          },
+          {
+            "id": "step",
+            "label": "Step",
+            "valueType": "number",
+            "defaultParameter": "step"
+          },
+          {
+            "id": "count",
+            "label": "Count",
+            "valueType": "number",
+            "defaultParameter": "count"
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Table",
+            "valueType": "table"
+          }
+        ]
+      },
+      "providers": {
+        "javascript": {
+          "file": "js/manifest-table.js"
+        },
+        "python": {
+          "file": "python/manifest-table.py"
+        }
+      }
+    },
+    {
+      "spec": {
+        "nodeType": "demo.manifest_table_offset_archive",
+        "label": "Manifest Table Offset Archive",
+        "description": "Offset the value column using a second provider from the same package.",
+        "tags": [
+          "plugin",
+          "manifest",
+          "table",
+          "offset"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "amount": 10
+        },
+        "parameters": [
+          {
+            "key": "amount",
+            "label": "Amount",
+            "kind": "number"
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Table",
+            "valueType": "table",
+            "required": true
+          },
+          {
+            "id": "amount",
+            "label": "Amount",
+            "valueType": "number",
+            "defaultParameter": "amount"
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Table",
+            "valueType": "table"
+          }
+        ]
+      },
+      "providers": {
+        "javascript": {
+          "file": "js/manifest-table-offset.js"
+        },
+        "python": {
+          "file": "python/manifest-table-offset.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/README.txt"
+  ]
+}

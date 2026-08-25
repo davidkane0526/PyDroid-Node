@@ -1,3 +1,13 @@
+## 1.6.28 (168) — Plugin ZIP archives — 2026-08-25
+
+- Added a real `.plugin.zip` container with a fixed root `manifest.json` plus referenced `js/`, `python/` and optional `resources/` files. Archive manifests keep provider source out of JSON and resolve once into the existing serializable Manifest contract before installation.
+- Added `readNodePluginArchive()` and `installNodePluginArchive()` to the combined plugin SDK. The archive reader uses the platform ZIP primitives directly, supports standard STORE/DEFLATE entries, requires explicit provider file paths and does not add a package dependency, extraction directory, retry path or format fallback.
+- Extended the Node Plugin Manager's single install action to accept either JSON Manifest or `.plugin.zip`. Both forms use the same install → persist → enable/disable → uninstall lifecycle, so restart restore does not depend on the original ZIP path.
+- Added two real archive examples under `examples/plugin-archives/`: a single dual-runtime Scale package and a two-node Table/Offset package. Both include `manifest.json`, separate JS/Python provider files and a sample resource file.
+- Added a dedicated archive smoke that opens the actual compressed example files, resolves providers, executes the Scale package in JavaScript and Python, executes the multi-node Table → Offset → first-party Plot chain in both runtimes, and verifies normal persisted uninstall behavior.
+- Kept this phase intentionally narrow: `resources/` are opaque files whose declared presence is validated, while dependency resolution, automatic updates, signatures, marketplace behavior and provider resource APIs remain outside the core path.
+- Build revision: `1.6.28-dev-r120-plugin-zip-archives`.
+
 ## 1.6.27 (167) — Node Plugin Manager — 2026-08-25
 
 - Added a user-facing Node Plugin Manager on both desktop and mobile tool surfaces. Users can select one JSON Manifest, install and activate it immediately, inspect its node labels/types/runtime support, disable it without deleting the installed record, re-enable it, or uninstall it completely.
