@@ -143,7 +143,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.45-dev-r140-node-form-density-balance"
+$script:BuildScriptRevision = "1.6.46-dev-r141-gradle-client-jvm-alignment"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
@@ -597,10 +597,10 @@ function Build-Android {
     Write-Host "Python：$env:PYDROID_PYTHON_EXECUTABLE"
     Write-Host "GRADLE_USER_HOME：$env:GRADLE_USER_HOME"
 
-    # Android 打包固定使用单 JVM / --no-daemon。构建缓存仍由独立 GRADLE_USER_HOME 复用，
-    # 但不会再为一次性 APK 打包额外启动后台 Java daemon。
+    # Android 打包固定使用 --no-daemon，并让 Gradle client JVM 与 build JVM 的不可变参数一致。
+    # instrumentation agent 被显式关闭，因此构建应直接复用 wrapper client JVM，不再 fork single-use daemon。
     Write-BuildStage -Percent 78 -Message "准备 Android Gradle 构建"
-    Write-Step "Gradle 单 JVM 模式：--no-daemon；保留 build cache，不启动后台 Java daemon。"
+    Write-Step "Gradle client/build JVM 已对齐：--no-daemon；禁止 single-use daemon。"
 
     Write-BuildStage -Percent 80 -Message "同步 Web 资源与 Capacitor Android 工程"
     # GUI 构建在这里完成一次 Android Web/Capacitor 同步，随后直接进入 Gradle。

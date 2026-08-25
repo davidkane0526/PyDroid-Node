@@ -79,9 +79,28 @@ assert.equal(existsSync(path.join(root, "scripts/local-storage.ps1")), false, "j
 assert.equal(existsSync(path.join(root, "scripts/fix-capacitor-paths.ps1")), false, "junction path rewrite shim must be removed");
 assert.equal(packageJson.scripts["android:sync"], "pnpm build && cap sync android");
 assert.match(gradleProperties, /org\.gradle\.daemon=false/);
-assert.doesNotMatch(gradleProperties, /org\.gradle\.jvmargs/);
-assert.match(gradleWrapperBat, /DEFAULT_JVM_OPTS="-Xms64m" "-Xmx1536m"/);
-assert.match(gradleWrapper, /DEFAULT_JVM_OPTS='"-Xms64m" "-Xmx1536m"'/);
+assert.match(gradleProperties, /org\.gradle\.internal\.instrumentation\.agent=false/);
+assert.match(gradleProperties, /org\.gradle\.jvmargs=-XX:MaxMetaspaceSize=384m -XX:\+HeapDumpOnOutOfMemoryError -Xms256m -Xmx1536m -Dfile\.encoding=UTF-8/);
+for (const requiredArg of [
+  "--add-opens=java.base/java.lang=ALL-UNNAMED",
+  "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED",
+  "--add-opens=java.base/java.util=ALL-UNNAMED",
+  "--add-opens=java.prefs/java.util.prefs=ALL-UNNAMED",
+  "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+  "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+  "--add-opens=java.base/java.nio.charset=ALL-UNNAMED",
+  "--add-opens=java.base/java.net=ALL-UNNAMED",
+  "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED",
+  "--add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED",
+  "-XX:MaxMetaspaceSize=384m",
+  "-XX:+HeapDumpOnOutOfMemoryError",
+  "-Xms256m",
+  "-Xmx1536m",
+  "-Dfile.encoding=UTF-8",
+]) {
+  assert.ok(gradleWrapperBat.includes(`"${requiredArg}"`), `gradlew.bat missing aligned client JVM arg: ${requiredArg}`);
+  assert.ok(gradleWrapper.includes(`"${requiredArg}"`), `gradlew missing aligned client JVM arg: ${requiredArg}`);
+}
 assert.doesNotMatch(build, /DisableGradleDaemon|PYDROID_DISABLE_GRADLE_DAEMON/);
 assert.match(androidPackage, /& "\.\\gradlew\.bat" @gradleArgs/);
 assert.match(androidPackage, /\$gradleArgs = @\("assembleDebug", "--stacktrace", "--no-daemon", "--console=plain"\)/);

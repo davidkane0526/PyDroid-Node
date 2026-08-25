@@ -1,11 +1,12 @@
-# Current development handoff — 1.6.45 Node Form Density Balance
+# Current development handoff — 1.6.46 Gradle Client JVM Alignment
 
-Branch: `feature/android-single-jvm-build`
-Version: **1.6.45**
-Android versionCode: **184**
-Build revision: `1.6.45-dev-r140-node-form-density-balance`
+Branch: `feature/android-client-jvm-alignment`
+Version: **1.6.46**
+Android versionCode: **186**
+Build revision: `1.6.46-dev-r141-gradle-client-jvm-alignment`
 
-- 1.6.45 node UI: horizontal dynamic cards share a single form-control width and append inline parameters after input rows, eliminating the cramped-header / oversized-lower-control imbalance.
+- 1.6.46 Android build: wrapper client JVM and Gradle build JVM immutable arguments are aligned and the instrumentation agent is disabled so `--no-daemon` can execute without spawning a single-use daemon.
+- 1.6.45 node UI remains unchanged: horizontal dynamic cards share a single form-control width and append inline parameters after input rows.
 - Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
 
 ## Current phase
@@ -31,7 +32,7 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.44: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Runtime parity revalidated in 1.6.46: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
 - Python suite revalidated in 1.6.44: **188 passed, 1 skipped**.
 - Built-in Demo smoke revalidated in 1.6.44: **38/38**.
 

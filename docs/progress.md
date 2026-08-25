@@ -1,25 +1,26 @@
-# Current progress — 1.6.45 Node Form Density Balance
+# Current progress — 1.6.46 Gradle Client JVM Alignment
 
 Date: 2026-08-26
 
-- 1.6.45 node UI: horizontal dynamic cards share a single form-control width and append inline parameters after input rows, eliminating the cramped-header / oversized-lower-control imbalance.
+- 1.6.46 Android packaging: `--no-daemon` now aligns the wrapper client JVM with the build JVM and disables the Gradle instrumentation agent, removing the remaining reason to fork a single-use daemon.
+- 1.6.45 node UI remains unchanged: horizontal dynamic cards share a single form-control width and append inline parameters after input rows.
 - Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
 
 ## Current release state
 
-- Product version: **1.6.45**, Android versionCode **185**.
-- Build revision: `1.6.45-dev-r140-node-form-density-balance`.
+- Product version: **1.6.46**, Android versionCode **186**.
+- Build revision: `1.6.46-dev-r141-gradle-client-jvm-alignment`.
 
-- 1.6.44 keeps the 1.6.43 node/UI/runtime surface unchanged and fixes only the Android build process: one wrapper JVM, `--no-daemon`, wrapper-owned 1536 MB heap, no `org.gradle.jvmargs` daemon fork. Windows 1.6.43 formal packaging already passed locally; Android 1.6.44 still requires the same pinned-machine packaging rerun.
+- 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 
 
-## 1.6.44 Android single-JVM build
+## 1.6.46 Gradle client JVM alignment
 
-- Replaces the default daemon child-process path with one deterministic `--no-daemon` wrapper JVM.
-- Wrapper JVM owns the build heap; `org.gradle.jvmargs` is removed so no single-use daemon is required.
+- Keeps the deterministic `--no-daemon` path but aligns the wrapper client JVM immutable options with the Gradle build JVM requirements.
+- Mirrors heap/metaspace/encoding settings through `org.gradle.jvmargs`, preloads the Gradle 8.14.3 Java 9+ JPMS opens/exports in the wrapper client, and disables the instrumentation agent so the already-running JVM can execute the build directly.
 - Gradle build cache remains reusable; no automatic retry/fallback/recovery path is introduced.
 
 

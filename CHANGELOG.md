@@ -1,3 +1,12 @@
+## 1.6.46 (186) — Gradle Client JVM Alignment — 2026-08-26
+
+- Fixed the remaining Android `--no-daemon` release-validation failure where Gradle still printed `To honour the JVM settings ... a single-use Daemon process will be forked` and Windows rejected the second `java.exe` with `CreateProcess error=5`.
+- Aligned wrapper client JVM immutable options with `org.gradle.jvmargs`: metaspace, heap dump, Xms/Xmx and UTF-8 now match exactly.
+- Added the Gradle-required JPMS `--add-opens` / `--add-exports` options to both wrapper launchers so the already-running Java 21 client satisfies the build-process compatibility criteria.
+- Disabled `org.gradle.internal.instrumentation.agent`; the agent cannot be attached retroactively to an already-running client JVM and was another reason for Gradle to require a disposable build JVM.
+- Kept `--no-daemon`, build cache, Android SDK/Python/JDK discovery, Remote Web and 1.6.45 node geometry unchanged. No retry/fallback daemon path was added.
+- Build revision: `1.6.46-dev-r141-gradle-client-jvm-alignment`.
+
 ## 1.6.45 (185) — Node Form Density Balance — 2026-08-26
 
 - Complex horizontal dynamic nodes now use one shared control-column width for socket defaults and inline parameters; compact text/number fields and select controls no longer form two unrelated density systems.

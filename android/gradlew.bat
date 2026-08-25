@@ -36,7 +36,7 @@ set APP_HOME=%DIRNAME%
 for %%i in ("%APP_HOME%") do set APP_HOME=%%~fi
 
 @rem Add default JVM options here. You can also use JAVA_OPTS and GRADLE_OPTS to pass JVM options to this script.
-set DEFAULT_JVM_OPTS="-Xms64m" "-Xmx1536m"
+set DEFAULT_JVM_OPTS="--add-opens=java.base/java.lang=ALL-UNNAMED" "--add-opens=java.base/java.lang.invoke=ALL-UNNAMED" "--add-opens=java.base/java.util=ALL-UNNAMED" "--add-opens=java.prefs/java.util.prefs=ALL-UNNAMED" "--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED" "--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED" "--add-opens=java.base/java.nio.charset=ALL-UNNAMED" "--add-opens=java.base/java.net=ALL-UNNAMED" "--add-opens=java.base/java.util.concurrent.atomic=ALL-UNNAMED" "--add-opens=java.xml/javax.xml.namespace=ALL-UNNAMED" "-XX:MaxMetaspaceSize=384m" "-XX:+HeapDumpOnOutOfMemoryError" "-Xms256m" "-Xmx1536m" "-Dfile.encoding=UTF-8"
 
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
