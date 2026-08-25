@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.32 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
+PyDroid Node 1.6.33 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
 
 ## Package formats
 
@@ -151,12 +151,14 @@ No dependency resolver, update service, retry loop, compatibility fallback or wr
 - Demo 34: linked enum table parameters → native Table → first-party Plot.
 - Demo 35: Mode-linked numeric constraints plus explicit disabled/read-only controls.
 - Demo 36: result-driven status (`kind`/`rows`/`columns`) from the latest host NodeExecutionPreview.
+- Demo 37: one plugin node exposes independent `table` / `count` / `label` outputs; the Inspector reads per-port status while the three outputs remain independently connectable.
+- Demo 38: declarative parameter validation reports required/range/select/custom errors or warnings without changing the stored parameter value.
 - `examples/plugins/`: directly serializable Manifest examples.
 - `examples/plugin-archives/`: real `.plugin.zip` examples and their source trees.
 
 ## Declarative node Inspector UI
 
-NodeSpec SDK v6 adds host-rendered Inspector metadata, declarative conditions, dynamic numeric constraints, edit states and bounded result status. Plugins declare structure only; PyDroid Node owns every rendered control.
+NodeSpec SDK v7 adds host-rendered Inspector metadata, declarative conditions, dynamic numeric constraints, edit states, bounded result/output-port status and declarative validation hints. Plugins declare structure only; PyDroid Node owns every rendered control.
 
 ```json
 {
@@ -188,10 +190,11 @@ Rules are intentionally small:
 - `parameterGroups` reference normal NodeSpec parameters and reuse the standard host `ParameterField` controls. Groups may declare `when`. A grouped parameter stays owned by that group; hiding the group does not move the parameter into another Inspector section.
 - Parameters may declare `visibleWhen`. Select parameters may declare ordered `optionVariants`, each with `when` and a complete replacement `options` list. Number parameters may declare ordered `constraintVariants` that patch `min`, `max` and `step`. The host changes the rendered option/constraint contract but does not silently mutate, clamp or repair the current parameter value.
 - Parameters may declare `readOnly` / `readOnlyWhen` and `disabled` / `disabledWhen`. These states are resolved by the same host path for Inspector fields, inline controls and Socket default controls and only block editing; they do not change stored values.
-- `status` is read-only. Each item declares exactly one source: `parameter`, or a bounded `result` field (`kind`, `value`, `text`, `rows`, `columns`) from the latest host `NodeExecutionPreview`; each item may also declare `when`.
+- `status` is read-only. Each item declares exactly one source: `parameter`, a bounded node-level `result` field, or `output: { port, field }` for one declared output port. Supported fields remain `kind`, `value`, `text`, `rows`, `columns`; each item may also declare `when`.
+- `validations` are host-rendered issues only. Required fields, numeric bounds and current select membership are checked from the resolved parameter contract; plugins may additionally declare exact-match `when` rules with an `error` or `warning` message and an optional target parameter. Validation never clamps, replaces or repairs the stored value.
 - `help.text` is plain text. `help.resource` must be a declared package resource and is rendered as text from the installed resource bytes; the help block may also declare `when`.
 - All `when` declarations use the same exact-match condition object already used by NodeSpec variants and dynamic input groups. There is no second expression language or UI callback.
 - One parameter cannot be present in multiple groups or be both an inline node control and an Inspector group parameter.
 - There is no plugin `component`, `render`, HTML injection, React entrypoint or DOM callback.
 
-Runnable examples are `demo-declarative-scale.plugin.zip`, `demo-declarative-table.plugin.zip`, `demo-conditional-ui.plugin.zip`, `demo-linked-enum-table.plugin.zip`, `demo-constraint-ui.plugin.zip` and `demo-result-status-table.plugin.zip` under `examples/plugin-archives/`, paired with Demo 31–36.
+Runnable examples are `demo-declarative-scale.plugin.zip`, `demo-declarative-table.plugin.zip`, `demo-conditional-ui.plugin.zip`, `demo-linked-enum-table.plugin.zip`, `demo-constraint-ui.plugin.zip`, `demo-result-status-table.plugin.zip`, `demo-multi-output-status.plugin.zip` and `demo-validation-ui.plugin.zip` under `examples/plugin-archives/`, paired with Demo 31–38.

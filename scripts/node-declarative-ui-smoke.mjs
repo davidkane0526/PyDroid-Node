@@ -168,6 +168,42 @@ try {
   if (py36.status !== "success" || py36.nodeResults?.table?.kind !== "table" || py36.nodeResults.table.preview.totalRows !== 6 || py36.nodeResults.table.preview.totalColumns !== 2 || py36.nodeResults?.plot?.kind !== "plot") throw new Error(`result status Python failed: ${JSON.stringify(py36)}`);
   statusRegistration.unload();
 
+
+  const multiZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-multi-output-status.plugin.zip"));
+  const multiManifest = await archives.readNodePluginArchive(arrayBuffer(multiZip));
+  const multiSpec = multiManifest.nodes[0].spec;
+  const multiRegistration = await archives.installNodePluginArchive(arrayBuffer(multiZip), { persist: false });
+  const workflow37 = JSON.parse(readFileSync(path.join(root, "examples", "demo-37-multi-output-status.workflow.json"), "utf8"));
+  const js37 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow37), ""));
+  const jsOutputs37 = js37.nodeResults?.multi?.outputs;
+  if (js37.status !== "success" || jsOutputs37?.table?.preview?.totalRows !== 5 || jsOutputs37?.table?.preview?.totalColumns !== 2 || jsOutputs37?.count?.value !== 5 || jsOutputs37?.label?.text !== "sample" || js37.nodeResults?.plot?.kind !== "plot") throw new Error(`multi-output status JS failed: ${JSON.stringify(js37)}`);
+  const multiValues = declarativeUi.declarativeUiValues(multiSpec, workflow37.nodes.find((node) => node.id === "multi").data.parameters);
+  const rowsStatus = multiSpec.ui.status.find((item) => item.output?.port === "table" && item.output?.field === "rows");
+  const countStatus = multiSpec.ui.status.find((item) => item.output?.port === "count");
+  const labelStatus = multiSpec.ui.status.find((item) => item.output?.port === "label");
+  if (!rowsStatus || !countStatus || !labelStatus || declarativeUi.declarativeStatusValue(rowsStatus, multiValues, js37.nodeResults.multi) !== 5 || declarativeUi.declarativeStatusValue(countStatus, multiValues, js37.nodeResults.multi) !== 5 || declarativeUi.declarativeStatusValue(labelStatus, multiValues, js37.nodeResults.multi) !== "sample") throw new Error("output-port status resolution failed");
+  const py37 = runPython({ ...workflow37, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  const pyOutputs37 = py37.nodeResults?.multi?.outputs;
+  if (py37.status !== "success" || pyOutputs37?.table?.preview?.totalRows !== 5 || pyOutputs37?.table?.preview?.totalColumns !== 2 || pyOutputs37?.count?.value !== 5 || pyOutputs37?.label?.text !== "sample" || py37.nodeResults?.plot?.kind !== "plot") throw new Error(`multi-output status Python failed: ${JSON.stringify(py37)}`);
+  multiRegistration.unload();
+
+  const validationZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-validation-ui.plugin.zip"));
+  const validationManifest = await archives.readNodePluginArchive(arrayBuffer(validationZip));
+  const validationSpec = validationManifest.nodes[0].spec;
+  const invalidIssues = declarativeUi.declarativeValidationIssues(validationSpec, { operation: "divide", operand: 0, label: "" });
+  if (!invalidIssues.some((item) => item.parameter === "operand" && item.severity === "error" && item.message.includes("must not be 0")) || !invalidIssues.some((item) => item.parameter === "label" && item.severity === "error")) throw new Error(`declarative validation errors failed: ${JSON.stringify(invalidIssues)}`);
+  const warningIssues = declarativeUi.declarativeValidationIssues(validationSpec, { operation: "add", operand: 0, label: "ok" });
+  if (warningIssues.length !== 1 || warningIssues[0].severity !== "warning") throw new Error(`declarative validation warning failed: ${JSON.stringify(warningIssues)}`);
+  const validIssues = declarativeUi.declarativeValidationIssues(validationSpec, { operation: "divide", operand: 3, label: "validated" });
+  if (validIssues.length) throw new Error(`valid declarative parameters reported issues: ${JSON.stringify(validIssues)}`);
+  const validationRegistration = await archives.installNodePluginArchive(arrayBuffer(validationZip), { persist: false });
+  const workflow38 = JSON.parse(readFileSync(path.join(root, "examples", "demo-38-declarative-validation.workflow.json"), "utf8"));
+  const js38 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow38), ""));
+  if (js38.status !== "success" || js38.nodeResults?.print?.value !== 4) throw new Error(`declarative validation JS failed: ${JSON.stringify(js38)}`);
+  const py38 = runPython({ ...workflow38, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py38.status !== "success" || py38.nodeResults?.print?.value !== 4) throw new Error(`declarative validation Python failed: ${JSON.stringify(py38)}`);
+  validationRegistration.unload();
+
   const invalid = structuredClone(scaleManifest);
   invalid.id = "demo.invalid-help";
   invalid.nodes[0].spec.nodeType = "demo.invalid_help";
@@ -183,7 +219,7 @@ try {
   ], { cwd: root, encoding: "utf8" });
   if (uiTranspile.error || uiTranspile.status !== 0) throw new Error(uiTranspile.stderr || uiTranspile.stdout || uiTranspile.error?.message);
 
-  console.log("Node Declarative UI smoke: PASS (conditions/linked enums/dynamic constraints/edit states/result status, host-only UI, archive resource, dual runtime)");
+  console.log("Node Declarative UI smoke: PASS (conditions/linked enums/dynamic constraints/edit states/result/output status/validation, host-only UI, archive resource, dual runtime)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

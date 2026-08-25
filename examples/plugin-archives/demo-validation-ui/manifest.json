@@ -1,0 +1,135 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.validation-ui",
+  "name": "Validation UI Demo",
+  "version": "1.0.0",
+  "description": "Declarative parameter validation without automatic correction.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.validation_ui",
+        "label": "Validation UI",
+        "description": "Declarative parameter validation without automatic correction.",
+        "tags": [
+          "plugin",
+          "ui"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "operation": "divide",
+          "operand": 3,
+          "label": "validated"
+        },
+        "parameters": [
+          {
+            "key": "operation",
+            "label": "Operation",
+            "kind": "select",
+            "defaultValue": "divide",
+            "options": [
+              {
+                "label": "Divide",
+                "value": "divide"
+              },
+              {
+                "label": "Add",
+                "value": "add"
+              }
+            ]
+          },
+          {
+            "key": "operand",
+            "label": "Operand",
+            "kind": "number",
+            "defaultValue": 3,
+            "step": 1
+          },
+          {
+            "key": "label",
+            "label": "Label",
+            "kind": "text",
+            "defaultValue": "validated",
+            "required": true
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Result",
+            "valueType": "number"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "formula",
+              "label": "Formula",
+              "parameters": [
+                "operation",
+                "operand",
+                "label"
+              ]
+            }
+          ],
+          "validations": [
+            {
+              "parameter": "operand",
+              "when": {
+                "operation": "divide",
+                "operand": 0
+              },
+              "message": "Operand must not be 0 when Operation is Divide.",
+              "severity": "error"
+            },
+            {
+              "when": {
+                "operation": "add",
+                "operand": 0
+              },
+              "message": "Adding 0 leaves the input unchanged.",
+              "severity": "warning"
+            }
+          ],
+          "status": [
+            {
+              "label": "Operation",
+              "parameter": "operation"
+            },
+            {
+              "label": "Operand",
+              "parameter": "operand"
+            }
+          ],
+          "help": {
+            "title": "Validation",
+            "text": "Validation reports invalid or notable parameter combinations. It never changes parameter values automatically."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "file": "js/provider.js"
+        },
+        "python": {
+          "file": "python/provider.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/icon.svg"
+  ]
+}

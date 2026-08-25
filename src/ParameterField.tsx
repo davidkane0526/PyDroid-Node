@@ -5,18 +5,22 @@ export function ParameterField({
   value,
   onChange,
   onExpand,
+  validation,
 }: {
   spec: ParameterSpec;
   value: string | number | boolean | null | undefined;
   onChange: (value: string | number | boolean | null) => void;
   onExpand?: () => void;
+  validation?: { message: string; severity: "error" | "warning" };
 }) {
   const displayValue = value === undefined ? spec.defaultValue : value;
+  const validationHint = validation ? <small className={`field__validation field__validation--${validation.severity}`}>{validation.message}</small> : null;
   if (spec.kind === "boolean") {
     return (
       <label className="field field--checkbox">
         <span>{spec.label}</span>
         <span className="switch"><input type="checkbox" checked={Boolean(displayValue)} disabled={Boolean(spec.disabled || spec.readOnly)} onChange={(event) => onChange(event.target.checked)} /><i /></span>
+        {validationHint}
       </label>
     );
   }
@@ -34,6 +38,7 @@ export function ParameterField({
         >
           {spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}
         </select>
+        {validationHint}
       </label>
     );
   }
@@ -60,6 +65,7 @@ export function ParameterField({
           spellCheck={false}
         />
         {spec.description && <small>{spec.description}</small>}
+        {validationHint}
       </label>
     );
   }
@@ -77,6 +83,7 @@ export function ParameterField({
           onChange={(event) => onChange(event.target.value)}
         />
         <small>{spec.description ? `${spec.description} · ` : ""}可输入 JSON 数组或用英文逗号分隔。</small>
+        {validationHint}
       </label>
     );
   }
@@ -95,6 +102,7 @@ export function ParameterField({
           onChange={(event) => onChange(Number(event.target.value))}
         />
         {spec.description && <small>{spec.description}</small>}
+        {validationHint}
       </label>
     );
   }
@@ -114,6 +122,7 @@ export function ParameterField({
         onChange={(event) => onChange(spec.kind === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value)}
       />
       {spec.description && <small>{spec.description}</small>}
+      {validationHint}
     </label>
   );
 }

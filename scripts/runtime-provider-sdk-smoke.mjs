@@ -45,7 +45,7 @@ try {
   const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
-  if (sdk.NODE_SPEC_SDK_VERSION !== 6) throw new Error("unexpected SDK version");
+  if (sdk.NODE_SPEC_SDK_VERSION !== 7) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({
     nodeType: "example.runtime_scale",
     label: "Runtime Scale",

@@ -86,11 +86,24 @@ export type NodeUiParameterGroupSpec = {
 
 export type NodeUiStatusResultField = "kind" | "value" | "text" | "rows" | "columns";
 
+export type NodeUiOutputStatusSpec = {
+  port: string;
+  field: NodeUiStatusResultField;
+};
+
 export type NodeUiStatusItemSpec = {
   label: string;
   parameter?: string;
   result?: NodeUiStatusResultField;
+  output?: NodeUiOutputStatusSpec;
   when?: Record<string, NodeConditionValue>;
+};
+
+export type NodeUiValidationSpec = {
+  message: string;
+  when: Record<string, NodeConditionValue>;
+  parameter?: string;
+  severity?: "error" | "warning";
 };
 
 export type NodeUiHelpSpec = {
@@ -106,6 +119,7 @@ export type NodeUiSpec = {
   inlineLayout?: "stack" | "row";
   parameterGroups?: NodeUiParameterGroupSpec[];
   status?: NodeUiStatusItemSpec[];
+  validations?: NodeUiValidationSpec[];
   help?: NodeUiHelpSpec;
 };
 

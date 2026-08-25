@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 38 · Declarative Validation",
+  "nodes": [
+    {"id":"value","type":"workflow","position":{"x":100,"y":180},"data":{"nodeType":"math.operation","label":"Value · 6 + 6","parameters":{"operation":"add","a":6,"b":6}}},
+    {"id":"validated","type":"workflow","position":{"x":430,"y":180},"data":{"nodeType":"demo.validation_ui","label":"Validation UI","parameters":{"operation":"divide","operand":3,"label":"validated"}}},
+    {"id":"print","type":"workflow","position":{"x":760,"y":180},"data":{"nodeType":"python.print","label":"Print Validated Result","parameters":{"prefix":"","format":"pretty","includeType":true,"maxRows":20,"maxChars":8000,"encoding":"utf-8","encodingErrors":"replace","bytesFormat":"decode","end":""}}}
+  ],
+  "edges": [
+    {"id":"e1","source":"value","sourceHandle":"output","target":"validated","targetHandle":"input"},
+    {"id":"e2","source":"validated","sourceHandle":"output","target":"print","targetHandle":"input"}
+  ],
+  "functions":[],"requirements":[],"parameters":[],"environment":{"pythonImports":[],"pythonDefinitions":[]}
+}

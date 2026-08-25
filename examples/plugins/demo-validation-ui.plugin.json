@@ -1,0 +1,139 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.validation-ui",
+  "name": "Validation UI Demo",
+  "version": "1.0.0",
+  "description": "Declarative parameter validation without automatic correction.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.validation_ui",
+        "label": "Validation UI",
+        "description": "Declarative parameter validation without automatic correction.",
+        "tags": [
+          "plugin",
+          "ui"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "operation": "divide",
+          "operand": 3,
+          "label": "validated"
+        },
+        "parameters": [
+          {
+            "key": "operation",
+            "label": "Operation",
+            "kind": "select",
+            "defaultValue": "divide",
+            "options": [
+              {
+                "label": "Divide",
+                "value": "divide"
+              },
+              {
+                "label": "Add",
+                "value": "add"
+              }
+            ]
+          },
+          {
+            "key": "operand",
+            "label": "Operand",
+            "kind": "number",
+            "defaultValue": 3,
+            "step": 1
+          },
+          {
+            "key": "label",
+            "label": "Label",
+            "kind": "text",
+            "defaultValue": "validated",
+            "required": true
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Result",
+            "valueType": "number"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "formula",
+              "label": "Formula",
+              "parameters": [
+                "operation",
+                "operand",
+                "label"
+              ]
+            }
+          ],
+          "validations": [
+            {
+              "parameter": "operand",
+              "when": {
+                "operation": "divide",
+                "operand": 0
+              },
+              "message": "Operand must not be 0 when Operation is Divide.",
+              "severity": "error"
+            },
+            {
+              "when": {
+                "operation": "add",
+                "operand": 0
+              },
+              "message": "Adding 0 leaves the input unchanged.",
+              "severity": "warning"
+            }
+          ],
+          "status": [
+            {
+              "label": "Operation",
+              "parameter": "operation"
+            },
+            {
+              "label": "Operand",
+              "parameter": "operand"
+            }
+          ],
+          "help": {
+            "title": "Validation",
+            "text": "Validation reports invalid or notable parameter combinations. It never changes parameter values automatically."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream) {\n  const value = Number(upstream ?? 0);\n  const operand = Number(params.operand ?? 0);\n  return String(params.operation ?? \"divide\") === \"add\" ? value + operand : value / operand;\n}\n"
+        },
+        "python": {
+          "source": "def execute(params, upstream, context):\n    value = float(upstream or 0)\n    operand = float(params.get(\"operand\", 0))\n    return value + operand if str(params.get(\"operation\", \"divide\")) == \"add\" else value / operand\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzE2NzdmZiIvPjxwYXRoIGQ9Ik03IDhoMTBNNyAxMmgxME03IDE2aDYiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4K",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

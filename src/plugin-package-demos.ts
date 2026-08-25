@@ -8,6 +8,8 @@ import conditionalUiPackage from "../examples/plugins/demo-conditional-ui.plugin
 import linkedEnumTablePackage from "../examples/plugins/demo-linked-enum-table.plugin.json?raw";
 import constraintUiPackage from "../examples/plugins/demo-constraint-ui.plugin.json?raw";
 import resultStatusTablePackage from "../examples/plugins/demo-result-status-table.plugin.json?raw";
+import multiOutputStatusPackage from "../examples/plugins/demo-multi-output-status.plugin.json?raw";
+import validationUiPackage from "../examples/plugins/demo-validation-ui.plugin.json?raw";
 import { activateNodePluginPackage, listActiveNodePluginPackages } from "./nodePluginPackages";
 
 function activateOnce(manifestText: string, id: string): void {
@@ -53,4 +55,12 @@ export function activateConstraintUiPackageDemo(): void {
 
 export function activateResultStatusTablePackageDemo(): void {
   activateOnce(resultStatusTablePackage, "demo.result-status-table");
+}
+
+export function activateMultiOutputStatusPackageDemo(): void {
+  activateOnce(multiOutputStatusPackage, "demo.multi-output-status");
+}
+
+export function activateValidationUiPackageDemo(): void {
+  activateOnce(validationUiPackage, "demo.validation-ui");
 }

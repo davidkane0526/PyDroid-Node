@@ -34,8 +34,10 @@ import conditionalPluginUi from "../examples/demo-33-conditional-plugin-ui.workf
 import linkedEnumTable from "../examples/demo-34-linked-enum-table.workflow.json?raw";
 import constraintEditStateUi from "../examples/demo-35-constraint-edit-state-ui.workflow.json?raw";
 import resultDrivenStatus from "../examples/demo-36-result-driven-status.workflow.json?raw";
+import multiOutputStatus from "../examples/demo-37-multi-output-status.workflow.json?raw";
+import declarativeValidation from "../examples/demo-38-declarative-validation.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
-import { activateConditionalUiPackageDemo, activateConstraintUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo, activateResultStatusTablePackageDemo } from "./plugin-package-demos";
+import { activateConditionalUiPackageDemo, activateConstraintUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo, activateResultStatusTablePackageDemo, activateMultiOutputStatusPackageDemo, activateValidationUiPackageDemo } from "./plugin-package-demos";
 
 export type WorkflowDemo = {
   id: string;
@@ -273,5 +275,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     description: "运行前结果状态为空，执行后由宿主 NodeExecutionPreview 显示 kind、行数和列数。",
     document: resultDrivenStatus,
     activate: activateResultStatusTablePackageDemo,
+  },
+  {
+    id: "multi-output-status",
+    label: "Demo 37 · 多输出端口状态",
+    description: "同一节点输出 Table / Count / Label，Inspector 可按输出端口读取 kind、行列数和值。",
+    document: multiOutputStatus,
+    activate: activateMultiOutputStatusPackageDemo,
+  },
+  {
+    id: "declarative-validation",
+    label: "Demo 38 · 声明式参数校验",
+    description: "宿主根据 required/min/max/options 与显式 validation 条件显示错误或警告，不自动修改参数值。",
+    document: declarativeValidation,
+    activate: activateValidationUiPackageDemo,
   },
 ] as const;

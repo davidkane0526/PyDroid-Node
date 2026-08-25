@@ -55,10 +55,14 @@ export type PlotExecutionPreview = {
   chart?: PlotChart;
 };
 
-export type NodeExecutionPreview =
+export type NodeOutputExecutionPreview =
   | { kind: "table"; preview: TablePreview }
   | PlotExecutionPreview
   | { kind: "value"; text: string; value?: unknown };
+
+export type NodeExecutionPreview = NodeOutputExecutionPreview & {
+  outputs?: Record<string, NodeOutputExecutionPreview>;
+};
 
 export type ExecutionResult = {
   status: "success";

@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 37 · Multi Output Status",
+  "nodes": [
+    {"id":"multi","type":"workflow","position":{"x":100,"y":180},"data":{"nodeType":"demo.multi_output_status","label":"Multi Output Status","parameters":{"rows":5,"scale":2,"label":"sample"}}},
+    {"id":"plot","type":"workflow","position":{"x":500,"y":80},"data":{"nodeType":"plot.line","label":"Table → Plot","parameters":{"xColumn":"index","yColumns":"value","title":"Multi-output Table","xLabel":"Index","yLabel":"Value","legend":true,"grid":true,"lineStyle":"-","marker":"o","lineWidth":1.5,"logX":false,"logY":false,"figureWidth":8,"figureHeight":4.5,"dpi":120}}},
+    {"id":"count-print","type":"workflow","position":{"x":500,"y":260},"data":{"nodeType":"python.print","label":"Print Count","parameters":{"prefix":"count: ","format":"pretty","includeType":false,"maxRows":20,"maxChars":8000,"encoding":"utf-8","encodingErrors":"replace","bytesFormat":"decode","end":""}}},
+    {"id":"label-print","type":"workflow","position":{"x":500,"y":420},"data":{"nodeType":"python.print","label":"Print Label","parameters":{"prefix":"label: ","format":"pretty","includeType":false,"maxRows":20,"maxChars":8000,"encoding":"utf-8","encodingErrors":"replace","bytesFormat":"decode","end":""}}}
+  ],
+  "edges": [
+    {"id":"e1","source":"multi","sourceHandle":"table","target":"plot","targetHandle":"input"},
+    {"id":"e2","source":"multi","sourceHandle":"count","target":"count-print","targetHandle":"input"},
+    {"id":"e3","source":"multi","sourceHandle":"label","target":"label-print","targetHandle":"input"}
+  ],
+  "functions":[],"requirements":[],"parameters":[],"environment":{"pythonImports":[],"pythonDefinitions":[]}
+}

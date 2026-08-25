@@ -569,6 +569,38 @@ def _execute_function_map(
         result_outputs["last"] = last_value
     return result_outputs, table_result, latest_plot, latest_export
 
+
+def _stable_output_text(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if value is None or isinstance(value, bool):
+        return json.dumps(_semantic_value(value), ensure_ascii=False, allow_nan=False)
+    if isinstance(value, (int, float, np.integer, np.floating)):
+        numeric = float(value)
+        return format(numeric, ".15g") if math.isfinite(numeric) else "null"
+    if isinstance(value, (list, tuple, set)):
+        return f"List · {len(value)}"
+    return "Object"
+
+def _output_previews(outputs: dict[str, Any], plot_result: str | None = None, node_type: str = "") -> dict[str, dict[str, Any]] | None:
+    public = [
+        (port, value)
+        for port, value in outputs.items()
+        if not str(port).startswith("__") and not (node_type.startswith("notebook.") and str(port) == "output")
+    ]
+    if len(public) <= 1:
+        return None
+    previews: dict[str, dict[str, Any]] = {}
+    for port, value in public:
+        if isinstance(value, pd.DataFrame):
+            previews[str(port)] = {"kind": "table", "preview": _preview(value, limit=200)}
+        elif plot_result is not None and value is plot_result:
+            previews[str(port)] = {"kind": "plot", "plotPngBase64": plot_result}
+        else:
+            scalar = value is None or isinstance(value, (str, bool, int, float, np.integer, np.floating))
+            previews[str(port)] = {"kind": "value", "text": _stable_output_text(value), **({"value": _semantic_value(value)} if scalar else {})}
+    return previews
+
 def _error_response(
     message: str,
     node_id: str = "__workflow__",
@@ -810,20 +842,21 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
 
         values[node_id] = outputs
         latest_value = outputs.get("output", next(iter(outputs.values()), latest_value))
+        port_previews = _output_previews(outputs, plot_result, str(node_type))
         # Print and alert nodes are transparent for dataflow, but their captured
         # text must win over a table preview so every print stays visible.
         if "__print__" in outputs:
-            node_results[node_id] = {"kind": "value", "text": str(outputs["__print__"]), "value": _semantic_value(outputs.get("output", outputs["__print__"]))}
+            node_results[node_id] = {"kind": "value", "text": str(outputs["__print__"]), "value": _semantic_value(outputs.get("output", outputs["__print__"])), **({"outputs": port_previews} if port_previews else {})}
         elif plot_result is not None:
-            node_results[node_id] = {"kind": "plot", "plotPngBase64": plot_result}
+            node_results[node_id] = {"kind": "plot", "plotPngBase64": plot_result, **({"outputs": port_previews} if port_previews else {})}
         elif table_result is not None:
-            node_results[node_id] = {"kind": "table", "preview": _preview(table_result, limit=200)}
+            node_results[node_id] = {"kind": "table", "preview": _preview(table_result, limit=200), **({"outputs": port_previews} if port_previews else {})}
         elif export_result is not None:
-            node_results[node_id] = {"kind": "value", "text": f"CSV · {len(export_result)} characters", "value": export_result}
+            node_results[node_id] = {"kind": "value", "text": f"CSV · {len(export_result)} characters", "value": export_result, **({"outputs": port_previews} if port_previews else {})}
         else:
             display = outputs.get("output", next(iter(outputs.values()), None))
             if display is not None:
-                node_results[node_id] = {"kind": "value", "text": _printable(display, 4_000), "value": _semantic_value(display)}
+                node_results[node_id] = {"kind": "value", "text": _printable(display, 4_000), "value": _semantic_value(display), **({"outputs": port_previews} if port_previews else {})}
 
     if latest_table is None:
         latest_table = pd.DataFrame({"result": [_printable(latest_value)]})

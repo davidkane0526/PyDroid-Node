@@ -19,7 +19,7 @@ try {
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
   const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
-  if (sdk.NODE_SPEC_SDK_VERSION !== 6) throw new Error("unexpected SDK version");
+  if (sdk.NODE_SPEC_SDK_VERSION !== 7) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({
     nodeType: "example.dynamic",
     label: "Example",
@@ -65,7 +65,22 @@ try {
   const invalidConstraint = { ...spec, nodeType: "example.invalid-constraint", parameters: [{ key: "mode", label: "Mode", kind: "select", options: [{ label: "Many", value: "many" }], constraintVariants: [{ when: { mode: "many" }, min: 0, max: 1 }] }, ...spec.parameters.filter((item) => item.key !== "mode")] };
   if (!sdk.validateNodeSpecDefinition(invalidConstraint).some((item) => item.includes("constraintVariants 仅适用于 number"))) throw new Error("invalid dynamic numeric constraints were not rejected");
   const invalidStatus = { ...spec, nodeType: "example.invalid-status", ui: { status: [{ label: "Bad", parameter: "count", result: "rows" }] } };
-  if (!sdk.validateNodeSpecDefinition(invalidStatus).some((item) => item.includes("必须且只能声明 parameter 或 result"))) throw new Error("ambiguous result status source was not rejected");
+  if (!sdk.validateNodeSpecDefinition(invalidStatus).some((item) => item.includes("必须且只能声明 parameter、result 或 output"))) throw new Error("ambiguous result status source was not rejected");
+
+  const outputStatus = sdk.defineNodeSpec({
+    ...spec,
+    nodeType: "example.output-status",
+    outputPorts: [{ id: "table", label: "Table", valueType: "table" }, { id: "count", label: "Count", valueType: "number" }],
+    ui: {
+      status: [{ label: "Rows", output: { port: "table", field: "rows" } }, { label: "Count", output: { port: "count", field: "value" } }],
+      validations: [{ parameter: "count", when: { count: 0 }, message: "Count must not be zero", severity: "error" }],
+    },
+  });
+  if (outputStatus.ui?.status?.[0]?.output?.port !== "table" || outputStatus.ui?.validations?.[0]?.message !== "Count must not be zero") throw new Error("output status/validation declarations were not retained");
+  const badOutputStatus = { ...outputStatus, nodeType: "example.bad-output-status", ui: { status: [{ label: "Missing", output: { port: "missing", field: "rows" } }] } };
+  if (!sdk.validateNodeSpecDefinition(badOutputStatus).some((item) => item.includes("不存在的输出端口"))) throw new Error("invalid output status port was not rejected");
+  const badValidation = { ...spec, nodeType: "example.bad-validation", ui: { validations: [{ parameter: "missing", when: { count: 2 }, message: "bad" }] } };
+  if (!sdk.validateNodeSpecDefinition(badValidation).some((item) => item.includes("引用不存在的参数"))) throw new Error("invalid validation parameter was not rejected");
 
   const invalid = { ...spec, nodeType: "example.invalid", inputPorts: [{ id: "missing", label: "Missing", valueType: "number", defaultParameter: "unknown" }] };
   if (!sdk.validateNodeSpecDefinition(invalid).some((item) => item.includes("默认参数不存在"))) throw new Error("invalid parameter socket was not rejected");

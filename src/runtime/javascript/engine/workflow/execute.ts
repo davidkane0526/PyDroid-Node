@@ -3,7 +3,7 @@ import { executeNode } from "../nodes";
 import { Table } from "../table";
 import { flattenWorkflowGroups, nodeUpstream, orderedNodes } from "./graph";
 import { parseWorkflowInputs } from "./input";
-import { errorResponse, printableText, roundMs, semanticValue } from "./result";
+import { errorResponse, outputPreviews, printableText, roundMs, semanticValue } from "./result";
 import { executeVisualStructure } from "./structures";
 import { decodeWorkspaceState, encodeWorkspaceState } from "./state";
 import { createFunctionExecutionContext, executeFunctionCall, executeFunctionMap } from "./functions";
@@ -110,22 +110,24 @@ export function executeWorkflowJson(workflowJson: string, csvText: string, input
       }
       values.set(nodeId, outputs);
       latestValue = outputs.output ?? Object.values(outputs)[0] ?? latestValue;
+      const portPreviews = outputPreviews(outputs, plotResult, nodeType);
       if ("__print__" in outputs) {
         nodeResults[nodeId] = {
           kind: "value",
           text: String(outputs.__print__),
           value: semanticValue(Object.prototype.hasOwnProperty.call(outputs, "output") ? outputs.output : outputs.__print__),
+          ...(portPreviews ? { outputs: portPreviews } : {}),
         };
       } else if (plotResult) {
-        nodeResults[nodeId] = { kind: "plot", chart: plotResult };
+        nodeResults[nodeId] = { kind: "plot", chart: plotResult, ...(portPreviews ? { outputs: portPreviews } : {}) };
       } else if (tableResult) {
-        nodeResults[nodeId] = { kind: "table", preview: tableResult.preview(200) };
+        nodeResults[nodeId] = { kind: "table", preview: tableResult.preview(200), ...(portPreviews ? { outputs: portPreviews } : {}) };
       } else if (exportResult !== null && exportResult !== undefined) {
-        nodeResults[nodeId] = { kind: "value", text: `CSV · ${exportResult.length} characters`, value: exportResult };
+        nodeResults[nodeId] = { kind: "value", text: `CSV · ${exportResult.length} characters`, value: exportResult, ...(portPreviews ? { outputs: portPreviews } : {}) };
       } else {
         const display = outputs.output ?? Object.values(outputs)[0] ?? null;
         if (display !== null && display !== undefined) {
-          nodeResults[nodeId] = { kind: "value", text: printableText(display, 4000), value: semanticValue(display) };
+          nodeResults[nodeId] = { kind: "value", text: printableText(display, 4000), value: semanticValue(display), ...(portPreviews ? { outputs: portPreviews } : {}) };
         }
       }
     }

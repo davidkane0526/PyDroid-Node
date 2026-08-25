@@ -1,3 +1,12 @@
+## 1.6.33 (173) — Output-port status and declarative validation — 2026-08-25
+
+- Promoted the NodeSpec authoring SDK to v7. Declarative status items can now target one explicit output port plus one bounded field (`kind`, `value`, `text`, `rows`, `columns`), while existing node-level `result` and parameter status remain unchanged. Runtime node results attach per-port previews only for real multi-output nodes, preserving the existing single-output result shape.
+- Added deterministic declarative validation hints. The host reports empty required parameters, numeric bound violations, resolved select-option mismatches and exact-match plugin-declared `error`/`warning` rules. Validation is presentation only: it never clamps, rewrites, repairs or resets parameter values.
+- Kept multi-output previews runtime-neutral: scalar outputs expose stable semantic values, tables expose structured previews, and complex list/object outputs expose only a stable type summary instead of Python/JavaScript pretty-print text. This keeps output status independent of runtime-specific formatting.
+- Added Demo 37 for a three-output plugin (`table` / `count` / `label`) whose ports remain independently connectable while Inspector status reads each output. Added Demo 38 for declarative validation, including an error rule for divide-by-zero and a warning for an identity add; the valid dual-runtime workflow evaluates to `4`. Built-in Demo smoke coverage is now 38/38.
+- Extended NodeSpec/declarative UI smoke coverage for output-port references, validation declaration errors, pre/post-run output status and validation severity. Existing first-party parity remains 134/134.
+- Build revision: `1.6.33-dev-r125-output-status-validation`.
+
 ## 1.6.32 (172) — Declarative constraints, edit states and result status — 2026-08-25
 
 - Promoted the NodeSpec authoring SDK to v6. Number parameters can declare ordered `constraintVariants` that change host-rendered `min`/`max`/`step` from ordinary NodeSpec conditions. The host changes control constraints only; it never clamps or rewrites the stored parameter value.

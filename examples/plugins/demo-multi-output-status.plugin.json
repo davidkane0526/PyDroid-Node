@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.multi-output-status",
+  "name": "Multi Output Status Demo",
+  "version": "1.0.0",
+  "description": "Three output ports with host result status per port.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.multi_output_status",
+        "label": "Multi Output Status",
+        "description": "Three output ports with host result status per port.",
+        "tags": [
+          "plugin",
+          "ui"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "rows": 5,
+          "scale": 2,
+          "label": "sample"
+        },
+        "parameters": [
+          {
+            "key": "rows",
+            "label": "Rows",
+            "kind": "number",
+            "defaultValue": 5,
+            "min": 1,
+            "max": 50,
+            "step": 1
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "kind": "number",
+            "defaultValue": 2,
+            "step": 0.1
+          },
+          {
+            "key": "label",
+            "label": "Label",
+            "kind": "text",
+            "defaultValue": "sample",
+            "required": true
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [
+          {
+            "id": "table",
+            "label": "Table",
+            "valueType": "table"
+          },
+          {
+            "id": "count",
+            "label": "Count",
+            "valueType": "number"
+          },
+          {
+            "id": "label",
+            "label": "Label",
+            "valueType": "text"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "data",
+              "label": "Data",
+              "parameters": [
+                "rows",
+                "scale",
+                "label"
+              ]
+            }
+          ],
+          "status": [
+            {
+              "label": "Table rows",
+              "output": {
+                "port": "table",
+                "field": "rows"
+              }
+            },
+            {
+              "label": "Table columns",
+              "output": {
+                "port": "table",
+                "field": "columns"
+              }
+            },
+            {
+              "label": "Count output",
+              "output": {
+                "port": "count",
+                "field": "value"
+              }
+            },
+            {
+              "label": "Label output",
+              "output": {
+                "port": "label",
+                "field": "text"
+              }
+            }
+          ],
+          "help": {
+            "title": "Output status",
+            "text": "Each status item reads one declared output port from the latest host result preview."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream, context, api) {\n  const rows = Math.max(1, Math.trunc(Number(params.rows ?? 5)));\n  const scale = Number(params.scale ?? 2);\n  const label = String(params.label ?? \"sample\");\n  const table = api.Table.fromRecords(Array.from({ length: rows }, (_, index) => ({ index, value: index * scale })));\n  return { outputs: { table, count: rows, label }, tableResult: table, plotResult: null, exportResult: null };\n}\n"
+        },
+        "python": {
+          "source": "def execute(params, upstream, context):\n    import pandas as pd\n    rows = max(1, int(params.get(\"rows\", 5)))\n    scale = float(params.get(\"scale\", 2))\n    label = str(params.get(\"label\", \"sample\"))\n    table = pd.DataFrame({\"index\": list(range(rows)), \"value\": [index * scale for index in range(rows)]})\n    return {\"outputs\": {\"table\": table, \"count\": rows, \"label\": label}, \"tableResult\": table}\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzE2NzdmZiIvPjxwYXRoIGQ9Ik03IDhoMTBNNyAxMmgxME03IDE2aDYiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4K",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

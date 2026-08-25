@@ -27,6 +27,25 @@ export function environmentInfoJson(): string {
   });
 }
 
+
+function stableOutputText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean" || value === null || value === undefined) return JSON.stringify(semanticValue(value));
+  if (Array.isArray(value)) return `List · ${value.length}`;
+  return "Object";
+}
+
+export function outputPreviews(outputs: Record<string, unknown>, plotResult: unknown = null, nodeType = ""): Record<string, unknown> | undefined {
+  const entries = Object.entries(outputs).filter(([key]) => !key.startsWith("__") && !(nodeType.startsWith("notebook.") && key === "output"));
+  if (entries.length <= 1) return undefined;
+  return Object.fromEntries(entries.map(([port, value]) => {
+    if (value instanceof Table) return [port, { kind: "table", preview: value.preview(200) }];
+    if (plotResult !== null && value === plotResult) return [port, { kind: "plot", chart: plotResult }];
+    const scalar = value === null || ["string", "number", "boolean"].includes(typeof value);
+    return [port, { kind: "value", text: stableOutputText(value), ...(scalar ? { value: semanticValue(value) } : {}) }];
+  }));
+}
+
 export function errorResponse(
   message: string,
   nodeId = "__workflow__",

@@ -37,3 +37,19 @@
 .app-shell[data-theme="light"] .node-declarative-status > div,
 .app-shell[data-theme="light"] .node-declarative-help,
 .app-shell[data-theme="light"] .node-declarative-group { border-color: #d7e0ea; background: #f8fafc; }
+
+.node-declarative-validation {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 10px;
+}
+.node-declarative-validation__item,
+.field__validation {
+  font-size: 10px;
+  line-height: 1.35;
+}
+.node-declarative-validation__item { padding: 6px 8px; border-radius: 6px; background: var(--surface-subtle); }
+.node-declarative-validation__item--error,
+.field__validation--error { color: var(--danger, #d84a4a); }
+.node-declarative-validation__item--warning,
+.field__validation--warning { color: var(--warning, #b7791f); }

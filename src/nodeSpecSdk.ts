@@ -12,6 +12,8 @@ import type {
   NodeUiSpec,
   NodeUiStatusItemSpec,
   NodeUiStatusResultField,
+  NodeUiOutputStatusSpec,
+  NodeUiValidationSpec,
   NodeVariant,
   ParameterOptionSpec,
   ParameterSpec,
@@ -20,7 +22,7 @@ import type {
   ValueType,
 } from "./nodeCatalog";
 
-export const NODE_SPEC_SDK_VERSION = 6 as const;
+export const NODE_SPEC_SDK_VERSION = 7 as const;
 
 export type {
   InputPortGroupSpec,
@@ -31,6 +33,8 @@ export type {
   NodeUiSpec,
   NodeUiStatusItemSpec,
   NodeUiStatusResultField,
+  NodeUiOutputStatusSpec,
+  NodeUiValidationSpec,
   NodeVariant,
   ParameterOptionSpec,
   ParameterSpec,
@@ -139,13 +143,27 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
     }
   }
   const statusResultFields = new Set(["kind", "value", "text", "rows", "columns"]);
+  const outputPortIds = new Set([
+    ...spec.outputPorts.map((port) => port.id),
+    ...(spec.variants ?? []).flatMap((variant) => (variant.outputPorts ?? []).map((port) => port.id)),
+  ]);
   for (const item of spec.ui?.status ?? []) {
     if (!item.label.trim()) errors.push(`${prefix}: UI 状态项 label 不能为空`);
     validateCondition(item.when, `UI 状态项 ${item.label}`);
-    const sources = Number(Boolean(item.parameter)) + Number(Boolean(item.result));
-    if (sources !== 1) errors.push(`${prefix}: UI 状态项必须且只能声明 parameter 或 result：${item.label}`);
+    const sources = Number(Boolean(item.parameter)) + Number(Boolean(item.result)) + Number(Boolean(item.output));
+    if (sources !== 1) errors.push(`${prefix}: UI 状态项必须且只能声明 parameter、result 或 output：${item.label}`);
     if (item.parameter && !parameterKeys.has(item.parameter)) errors.push(`${prefix}: UI 状态项引用不存在的参数：${item.parameter}`);
     if (item.result && !statusResultFields.has(item.result)) errors.push(`${prefix}: UI 状态项 result 字段无效：${item.result}`);
+    if (item.output) {
+      if (!outputPortIds.has(item.output.port)) errors.push(`${prefix}: UI 状态项引用不存在的输出端口：${item.output.port}`);
+      if (!statusResultFields.has(item.output.field)) errors.push(`${prefix}: UI 状态项 output 字段无效：${item.output.field}`);
+    }
+  }
+  for (const [index, validation] of (spec.ui?.validations ?? []).entries()) {
+    if (!validation.message.trim()) errors.push(`${prefix}: UI validation[${index}] message 不能为空`);
+    validateCondition(validation.when, `UI validation[${index}]`);
+    if (validation.parameter && !parameterKeys.has(validation.parameter)) errors.push(`${prefix}: UI validation[${index}] 引用不存在的参数：${validation.parameter}`);
+    if (validation.severity && !["error", "warning"].includes(validation.severity)) errors.push(`${prefix}: UI validation[${index}] severity 无效：${validation.severity}`);
   }
 
   validateCondition(spec.ui?.help?.when, "UI help");

@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.multi-output-status",
+  "name": "Multi Output Status Demo",
+  "version": "1.0.0",
+  "description": "Three output ports with host result status per port.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.multi_output_status",
+        "label": "Multi Output Status",
+        "description": "Three output ports with host result status per port.",
+        "tags": [
+          "plugin",
+          "ui"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "rows": 5,
+          "scale": 2,
+          "label": "sample"
+        },
+        "parameters": [
+          {
+            "key": "rows",
+            "label": "Rows",
+            "kind": "number",
+            "defaultValue": 5,
+            "min": 1,
+            "max": 50,
+            "step": 1
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "kind": "number",
+            "defaultValue": 2,
+            "step": 0.1
+          },
+          {
+            "key": "label",
+            "label": "Label",
+            "kind": "text",
+            "defaultValue": "sample",
+            "required": true
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [
+          {
+            "id": "table",
+            "label": "Table",
+            "valueType": "table"
+          },
+          {
+            "id": "count",
+            "label": "Count",
+            "valueType": "number"
+          },
+          {
+            "id": "label",
+            "label": "Label",
+            "valueType": "text"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "data",
+              "label": "Data",
+              "parameters": [
+                "rows",
+                "scale",
+                "label"
+              ]
+            }
+          ],
+          "status": [
+            {
+              "label": "Table rows",
+              "output": {
+                "port": "table",
+                "field": "rows"
+              }
+            },
+            {
+              "label": "Table columns",
+              "output": {
+                "port": "table",
+                "field": "columns"
+              }
+            },
+            {
+              "label": "Count output",
+              "output": {
+                "port": "count",
+                "field": "value"
+              }
+            },
+            {
+              "label": "Label output",
+              "output": {
+                "port": "label",
+                "field": "text"
+              }
+            }
+          ],
+          "help": {
+            "title": "Output status",
+            "text": "Each status item reads one declared output port from the latest host result preview."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "file": "js/provider.js"
+        },
+        "python": {
+          "file": "python/provider.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/icon.svg"
+  ]
+}

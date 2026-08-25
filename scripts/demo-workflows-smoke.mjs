@@ -40,6 +40,8 @@ const files = [
   "demo-34-linked-enum-table.workflow.json",
   "demo-35-constraint-edit-state-ui.workflow.json",
   "demo-36-result-driven-status.workflow.json",
+  "demo-37-multi-output-status.workflow.json",
+  "demo-38-declarative-validation.workflow.json",
 ];
 
 let failed = 0;

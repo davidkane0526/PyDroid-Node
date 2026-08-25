@@ -1,7 +1,7 @@
 import type { NodeSpec, ParameterSpec } from "./nodeCatalog";
 import type { NodeExecutionPreview } from "./runtime/types";
 import { ParameterField } from "./ParameterField";
-import { declarativeStatusValue, declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
+import { declarativeStatusValue, declarativeUiValues, declarativeUiVisible, declarativeValidationIssues, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
 import { getNodePluginResourceText } from "./nodePluginPackages";
 import "./node-declarative-inspector.css";
 
@@ -48,6 +48,10 @@ export function NodeDeclarativeInspector({
   const help = declarativeUiVisible(spec.ui?.help?.when, effectiveValues) ? spec.ui?.help : undefined;
   const status = (spec.ui?.status ?? []).filter((item) => declarativeUiVisible(item.when, effectiveValues));
   const resourceHelp = help?.resource ? getNodePluginResourceText(spec.nodeType, help.resource) : null;
+  const validationIssues = declarativeValidationIssues(spec, values);
+  const validationByParameter = new Map<string, typeof validationIssues[number]>();
+  for (const issue of validationIssues) if (issue.parameter && !validationByParameter.has(issue.parameter)) validationByParameter.set(issue.parameter, issue);
+  const generalValidationIssues = validationIssues.filter((issue) => !issue.parameter);
 
   const field = (parameter: ParameterSpec) => <ParameterField
     key={parameter.key}
@@ -55,11 +59,15 @@ export function NodeDeclarativeInspector({
     value={(values[parameter.key] ?? spec.defaults[parameter.key]) as ParameterValue}
     onChange={(value) => onChange(parameter.key, value)}
     onExpand={parameter.key === "code" ? onExpandCode : undefined}
+    validation={validationByParameter.get(parameter.key)}
   />;
 
   return <>
+    {generalValidationIssues.length > 0 && <section className="node-declarative-validation" aria-label="参数校验">
+      {generalValidationIssues.map((issue, index) => <div className={`node-declarative-validation__item node-declarative-validation__item--${issue.severity}`} key={`${issue.message}:${index}`}>{issue.message}</div>)}
+    </section>}
     {status.length > 0 && <section className="node-declarative-status" aria-label="节点状态">
-      {status.map((item) => <div key={`${item.label}:${item.parameter ?? item.result ?? "status"}`}><span>{item.label}</span><strong>{statusValue(declarativeStatusValue(item, effectiveValues, result))}</strong></div>)}
+      {status.map((item) => <div key={`${item.label}:${item.parameter ?? item.result ?? item.output?.port ?? "status"}`}><span>{item.label}</span><strong>{statusValue(declarativeStatusValue(item, effectiveValues, result))}</strong></div>)}
     </section>}
     {(help?.text || resourceHelp) && <section className="node-declarative-help">
       {help?.title && <strong>{help.title}</strong>}
