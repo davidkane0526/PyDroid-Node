@@ -42,6 +42,7 @@ try {
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
   const files = [
     "src/nodePluginPackages.ts",
+    "src/nodePluginResources.ts",
     "src/nodePluginSdk.ts",
     "src/nodeSpecSdk.ts",
     "src/nodeCatalog.ts",
@@ -66,7 +67,7 @@ try {
   const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
-  if (packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 1) throw new Error("unexpected plugin package API version");
+  if (packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin package API version");
   const manifest = JSON.parse(readFileSync(path.join(root, "examples", "plugins", "demo-manifest-scale.plugin.json"), "utf8"));
   const storage = new MemoryStorage();
   const registration = packages.installNodePluginPackage(manifest, { storage });

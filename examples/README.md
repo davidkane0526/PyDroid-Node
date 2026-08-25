@@ -22,3 +22,7 @@
 - `logic-control-demo.workflow.json`、`periodic-oscillating-pulse.workflow.json`、`ter-matrix.workflow.json`：保留的专项示例。
 
 建议验收时在 **Soft + Light**、**Soft + Dark**、**Classic + Light/Dark** 之间切换，重点观察节点厚度、文字层级、端口、运行按钮、函数/组合/控制流区分以及 hover 是否稳定。
+
+- `demo-29-plugin-resource-json.workflow.json`：插件在 Python/JavaScript 两端读取包内 JSON 资源并计算结果。
+- `demo-30-plugin-resource-table.workflow.json`：插件读取包内 CSV 资源生成原生表格并连接第一方 Plot。
+- `plugin-archives/demo-resource-*.plugin.zip`：包含 Provider、JSON/CSV 资源和节点 SVG 图标的真实插件包。

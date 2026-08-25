@@ -1,10 +1,24 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.28 exposes both the serializable Manifest layer and a real `.plugin.zip` file container through the Node Plugin Manager, NodeSpec SDK and Runtime Provider SDK.
+PyDroid Node 1.6.29 exposes one deterministic plugin path: NodeSpec + Runtime Providers + optional packaged resources. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest.
 
 ## Package formats
 
-The core installed form remains one serializable JSON Manifest. PyDroid Node 1.6.28 also accepts a `.plugin.zip` archive whose root contains `manifest.json`; that archive references provider files instead of embedding provider source. After reading the archive, PyDroid resolves it into the same installed Manifest used by the existing lifecycle, so restart/enable/disable/uninstall semantics do not depend on the original ZIP path.
+A serializable package can embed provider source and resources directly. A `.plugin.zip` instead keeps provider/resource files separate and resolves them once during installation.
+
+```text
+example.plugin.zip
+├─ manifest.json
+├─ js/
+│  └─ scale.js
+├─ python/
+│  └─ scale.py
+└─ resources/
+   ├─ config.json
+   └─ icon.svg
+```
+
+Archive `manifest.json` references exact files:
 
 ```json
 {
@@ -19,70 +33,23 @@ The core installed form remains one serializable JSON Manifest. PyDroid Node 1.6
         "label": "Scale",
         "category": "自定义",
         "runtimeSupport": ["python", "javascript"],
-        "defaults": { "factor": 2 },
-        "parameters": [
-          { "key": "factor", "label": "Factor", "kind": "number" }
-        ],
-        "inputPorts": [
-          { "id": "input", "label": "Value", "valueType": "number", "required": true },
-          { "id": "factor", "label": "Factor", "valueType": "number", "defaultParameter": "factor" }
-        ],
-        "outputPorts": [
-          { "id": "output", "label": "Scaled", "valueType": "number" }
-        ]
+        "defaults": {},
+        "parameters": [],
+        "inputPorts": [{ "id": "input", "label": "Value", "valueType": "number" }],
+        "outputPorts": [{ "id": "output", "label": "Scaled", "valueType": "number" }]
       },
+      "icon": "resources/icon.svg",
       "providers": {
-        "javascript": {
-          "source": "function execute(params, upstream, context, api) { return { output: Number(upstream ?? 0) * Number(params.factor ?? 1) }; }"
-        },
-        "python": {
-          "source": "def execute(params, upstream, context):\n    return {'output': float(upstream or 0) * float(params.get('factor', 1))}\n"
-        }
-      }
-    }
-  ]
-}
-```
-
-`runtimeSupport` and `providers` must agree. A package cannot declare JavaScript/Python execution and omit the corresponding provider.
-
-### `.plugin.zip` container
-
-The archive layout is deliberately fixed and small:
-
-```text
-example.plugin.zip
-├─ manifest.json
-├─ js/
-│  └─ scale.js
-├─ python/
-│  └─ scale.py
-└─ resources/
-   └─ icon.png
-```
-
-`manifest.json` uses file references for providers:
-
-```json
-{
-  "schemaVersion": 1,
-  "id": "example.scale-tools",
-  "name": "Scale Tools",
-  "version": "1.0.0",
-  "nodes": [
-    {
-      "spec": { "nodeType": "example.scale", "label": "Scale", "runtimeSupport": ["python", "javascript"], "defaults": {}, "parameters": [], "inputPorts": [], "outputPorts": [] },
-      "providers": {
-        "javascript": { "file": "js/scale.js", "entrypoint": "execute" },
-        "python": { "file": "python/scale.py", "entrypoint": "execute" }
+        "javascript": { "file": "js/scale.js" },
+        "python": { "file": "python/scale.py" }
       }
     }
   ],
-  "resources": ["resources/icon.png"]
+  "resources": ["resources/config.json", "resources/icon.svg"]
 }
 ```
 
-Provider files are read once during installation and converted to the existing serializable source descriptors. Listed resources are treated as opaque archive files; 1.6.28 verifies that they exist but does not yet expose a resource API to providers. The archive reader supports standard STORE and DEFLATE ZIP entries and does not add dependency installation or format fallback.
+Only files listed in `resources` become Runtime resources. Provider files are loaded as source, not as resources. Installation reads the archive once and persists provider source plus resource bytes in the normal package Manifest, so later enable/restore does not need the original ZIP.
 
 ## Lifecycle
 
@@ -93,67 +60,90 @@ import {
   installNodePluginPackage,
   installNodePluginArchive,
   unloadNodePluginPackage,
+  activateInstalledNodePluginPackage,
   uninstallNodePluginPackage,
   restoreNodePluginPackages,
 } from "./nodePluginSdk";
 ```
 
-- `installNodePluginPackage(manifest)` validates, compiles and atomically registers every NodeSpec and Runtime Provider, then persists the manifest in renderer storage.
-- `installNodePluginArchive(arrayBuffer)` reads root `manifest.json` plus referenced provider files, resolves them into the same Manifest contract, then calls the same installation path.
-- `unloadNodePluginPackage(id)` removes the live NodeSpecs and Providers but keeps the installed manifest.
-- `restoreNodePluginPackages()` reactivates persisted manifests. The application invokes this before the React editor mounts.
-- `uninstallNodePluginPackage(id)` removes both the live registration and the persisted manifest.
-- Multi-node packages are atomic: if any node collides or fails registration, previously registered nodes in that same package are rolled back.
+- `installNodePluginPackage(manifest)` validates, activates and persists one package.
+- `installNodePluginArchive(arrayBuffer)` resolves root `manifest.json`, provider files and declared resources, then calls the same package installer.
+- `unloadNodePluginPackage(id)` removes live NodeSpecs/Providers but keeps the installed package.
+- `activateInstalledNodePluginPackage(id)` activates one installed but unloaded package.
+- `restoreNodePluginPackages()` activates persisted packages during application startup.
+- `uninstallNodePluginPackage(id)` removes both live registrations and the persisted package.
 
-The manager uses the same lifecycle API as code-driven installation. `listInstalledNodePluginPackageDetails()` exposes installed/active state and node runtime metadata, while `activateInstalledNodePluginPackage(id)` reactivates a persisted but unloaded package.
+## JavaScript Runtime API v2
+
+JavaScript Providers use `execute(params, upstream, context, api)`.
+
+```js
+function execute(params, upstream, context, api) {
+  const config = JSON.parse(api.resources.text("resources/config.json"));
+  return Number(upstream ?? 0) * Number(config.factor);
+}
+```
+
+Runtime API v2 provides:
+
+```text
+api.Table
+api.resources.list()
+api.resources.bytes(path)
+api.resources.text(path)
+api.resources.dataUrl(path)
+```
+
+`bytes()` returns `Uint8Array`. `text()` decodes UTF-8. `dataUrl()` uses the stored resource MIME type. The API is read-only and package-local; it is not a filesystem API.
+
+## Python Runtime resources
+
+Python Providers receive the same package resources through execution context:
+
+```python
+import json
+
+def execute(params, upstream, context):
+    config = json.loads(context["resources"].text("resources/config.json"))
+    return float(upstream or 0) * float(config["factor"])
+```
+
+Available methods are:
+
+```text
+context["resources"].list()
+context["resources"].bytes(path)
+context["resources"].text(path)
+context["resources"].data_url(path)
+```
+
+The resource descriptor travels with the existing Python Runtime Provider request, so desktop, Android and Remote Python execution use the same contract.
+
+## Node icons
+
+A package node may declare:
+
+```json
+"icon": "resources/icon.svg"
+```
+
+The icon path must also appear in the package `resources` list. Active plugin node cards and the Node Plugin Manager render that resource directly from the installed package data; there is no second icon store.
 
 ## User-facing manager
 
-Open **节点插件** from the desktop toolbar or the mobile **更多工具** menu. The manager intentionally has four operations only:
+Open **节点插件** from the desktop toolbar or mobile **更多工具**. The manager intentionally keeps four operations:
 
-- **安装插件**: choose either one `.json` Manifest or `.plugin.zip`; both resolve into the same installed Manifest lifecycle.
-- **停用**: unload live NodeSpecs/Providers while keeping the installed Manifest.
-- **启用**: reactivate the persisted Manifest.
-- **卸载**: remove both live registrations and the persisted Manifest.
+- **安装插件**
+- **启用**
+- **停用**
+- **卸载**
 
-The manager shows package version, each node type/label and declared Python/JavaScript runtime support.
+No dependency resolver, update service, retry loop, compatibility fallback or writable resource layer is part of this path.
 
-## JavaScript provider runtime API
+## Examples
 
-Manifest JavaScript providers use a serializable source string with an `execute` entrypoint:
-
-```js
-function execute(params, upstream, context, api) {
-  return { output: 42 };
-}
-```
-
-The current runtime API is version 1. It exposes the native JavaScript `Table` implementation:
-
-```js
-function execute(params, upstream, context, api) {
-  return api.Table.fromRecords([
-    { index: 0, value: 1 },
-    { index: 1, value: 3 }
-  ]);
-}
-```
-
-Returning a `Table` automatically produces a normal table output that can feed first-party table or plot nodes. Providers may also return a plain output map such as `{output: 3}` or a full `NodeOutput` object.
-
-## Python provider runtime
-
-Python source is already transported by the existing Runtime Provider contract. It is loaded only for the current workflow execution and is not inserted into the global first-party handler registry.
-
-```python
-def execute(params, upstream, context):
-    return pd.DataFrame({"index": [0, 1], "value": [1, 3]})
-```
-
-The same manifest works through desktop, Android and Remote Python execution because provider descriptors travel with the workflow request.
-
-## Current boundary
-
-The Manifest installer/manager and `.plugin.zip` container are user-facing. This layer still does not add dependency resolution, automatic updates, package signatures, a marketplace or a provider resource API. Those are separate capabilities and are not emulated with fallback logic.
-
-Runnable inline-Manifest examples are included in `examples/plugins/`; real archive examples and their source trees live under `examples/plugin-archives/`. Built-in Demo 27/28 remain the runtime workflows used by both forms.
+- Demo 27/28: Manifest and multi-node Provider packages.
+- Demo 29: JSON resource read in both JavaScript and Python.
+- Demo 30: packaged CSV resource → native Table → first-party Plot.
+- `examples/plugins/`: directly serializable Manifest examples.
+- `examples/plugin-archives/`: real `.plugin.zip` examples and their source trees.

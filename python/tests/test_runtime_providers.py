@@ -50,3 +50,20 @@ def test_invalid_python_runtime_provider_reports_workflow_error():
     result = json.loads(execute_workflow(json.dumps(workflow), ""))
     assert result["status"] == "error"
     assert result["nodeType"] == "runtime.provider"
+
+
+def test_python_runtime_provider_reads_packaged_resource():
+    workflow = {
+        "nodes": [_node("provider", "external.resource")],
+        "edges": [],
+        "runtimeProviders": {
+            "python": [{
+                "nodeType": "external.resource",
+                "source": "def execute(params, upstream, context):\n    return context['resources'].text('resources/value.txt')\n",
+                "resources": [{"path": "resources/value.txt", "base64": "NDI=", "mimeType": "text/plain"}],
+            }]
+        },
+    }
+    result = json.loads(execute_workflow(json.dumps(workflow), ""))
+    assert result["status"] == "success"
+    assert result["nodeResults"]["provider"]["value"] == "42"

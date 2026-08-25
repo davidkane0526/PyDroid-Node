@@ -1,19 +1,24 @@
+import type { NodePluginResource } from "../nodePluginResources";
+
 export type PythonNodeProviderDescriptor = {
   nodeType: string;
   source: string;
   entrypoint?: string;
+  resources?: NodePluginResource[];
 };
 
-const providers = new Map<string, Required<PythonNodeProviderDescriptor>>();
+type RegisteredPythonProvider = { nodeType: string; source: string; entrypoint: string; resources: NodePluginResource[] };
 
-function normalizeDescriptor(descriptor: PythonNodeProviderDescriptor): Required<PythonNodeProviderDescriptor> {
+const providers = new Map<string, RegisteredPythonProvider>();
+
+function normalizeDescriptor(descriptor: PythonNodeProviderDescriptor): RegisteredPythonProvider {
   const nodeType = descriptor.nodeType.trim();
   const source = descriptor.source.trim();
   const entrypoint = (descriptor.entrypoint ?? "execute").trim();
   if (!nodeType) throw new Error("Python Provider nodeType 不能为空");
   if (!source) throw new Error(`Python Provider source 不能为空：${nodeType}`);
   if (!entrypoint) throw new Error(`Python Provider entrypoint 不能为空：${nodeType}`);
-  return { nodeType, source, entrypoint };
+  return { nodeType, source, entrypoint, resources: (descriptor.resources ?? []).map((resource) => ({ ...resource })) };
 }
 
 export function registerPythonNodeProvider(descriptor: PythonNodeProviderDescriptor): () => boolean {
@@ -36,6 +41,6 @@ export function hasPythonNodeProvider(nodeType: string): boolean {
   return providers.has(nodeType);
 }
 
-export function listPythonNodeProviders(): Required<PythonNodeProviderDescriptor>[] {
+export function listPythonNodeProviders(): RegisteredPythonProvider[] {
   return [...providers.values()].map((descriptor) => ({ ...descriptor }));
 }

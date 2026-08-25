@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.resource-table",
+  "name": "Resource Table Demo",
+  "version": "1.0.0",
+  "description": "Dual-runtime plugin loading a packaged CSV resource.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.resource_table",
+        "label": "Resource Table",
+        "description": "Load a packaged CSV resource as a native table.",
+        "tags": [
+          "plugin",
+          "resource",
+          "csv",
+          "table"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {},
+        "parameters": [],
+        "inputPorts": [],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Table",
+            "valueType": "table"
+          }
+        ]
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "file": "js/provider.js"
+        },
+        "python": {
+          "file": "python/provider.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/data.csv",
+    "resources/icon.svg"
+  ]
+}

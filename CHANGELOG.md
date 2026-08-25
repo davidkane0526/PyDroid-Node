@@ -1,3 +1,12 @@
+## 1.6.29 (169) — Plugin resource runtime API — 2026-08-25
+
+- Promoted `.plugin.zip` `resources/` from presence-only files into the installed Manifest contract. Archive resources are read once, persisted as base64-backed package resources and restored with the package, so providers and node icons never depend on the original ZIP path after installation.
+- Added the shared plugin resource API: JavaScript Runtime API v2 exposes `api.resources.list()/bytes()/text()/dataUrl()`, while Python Providers receive the same package resources at `context["resources"]` with `list()/bytes()/text()/data_url()`. No filesystem access, directory probing or writable resource layer was added.
+- Added per-node `icon` references to package/archive manifests. Icons must reference a declared package resource and are rendered on active external node cards and in the Node Plugin Manager from the same persisted resource data.
+- Added Demo 29 for a dual-runtime Provider reading `resources/config.json` to compute its result and Demo 30 for a dual-runtime Provider reading `resources/data.csv` into a native Table before the first-party Line Plot. Both have real `.plugin.zip` examples with packaged SVG icons. Built-in workflow smoke coverage is now 30/30.
+- Extended archive smoke coverage to execute both new resource packages in JavaScript and Python and to verify the plugin icon data URL. Existing package lifecycle, Runtime Provider and first-party runtime paths remain unchanged.
+- Build revision: `1.6.29-dev-r121-plugin-resource-api`.
+
 ## 1.6.28 (168) — Plugin ZIP archives — 2026-08-25
 
 - Added a real `.plugin.zip` container with a fixed root `manifest.json` plus referenced `js/`, `python/` and optional `resources/` files. Archive manifests keep provider source out of JSON and resolve once into the existing serializable Manifest contract before installation.

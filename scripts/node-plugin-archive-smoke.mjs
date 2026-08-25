@@ -46,6 +46,7 @@ try {
   catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
   const files = [
     "src/nodePluginArchive.ts",
+    "src/nodePluginResources.ts",
     "src/nodePluginPackages.ts",
     "src/nodeSpecSdk.ts",
     "src/nodeCatalog.ts",
@@ -100,7 +101,33 @@ try {
   if (py28.status !== "success" || py28.nodeResults?.offset?.kind !== "table" || py28.nodeResults?.plot?.kind !== "plot") throw new Error(`archive multi-node Python execution failed: ${JSON.stringify(py28)}`);
   tableRegistration.unload();
 
-  console.log("Node Plugin Archive smoke: PASS (.plugin.zip read/install, dual runtime, multi-node table→plot)");
+  const resourceScaleZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-resource-scale.plugin.zip"));
+  const resourceScaleManifest = await archives.readNodePluginArchive(arrayBuffer(resourceScaleZip));
+  if (resourceScaleManifest.resources?.length !== 2 || !resourceScaleManifest.nodes[0]?.icon) throw new Error("resource archive did not retain resources/icon");
+  const resourceScaleRegistration = await archives.installNodePluginArchive(arrayBuffer(resourceScaleZip), { storage });
+  const workflow29 = JSON.parse(readFileSync(path.join(root, "examples", "demo-29-plugin-resource-json.workflow.json"), "utf8"));
+  const js29 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow29), ""));
+  if (js29.status !== "success" || js29.nodeResults?.print?.value !== 35) throw new Error(`resource JSON JS execution failed: ${JSON.stringify(js29)}`);
+  const py29 = runPython({ ...workflow29, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py29.status !== "success" || py29.nodeResults?.print?.value !== 35) throw new Error(`resource JSON Python execution failed: ${JSON.stringify(py29)}`);
+  if (!packages.getNodePluginIconDataUrl("demo.resource_scale")?.startsWith("data:image/svg+xml;base64,")) throw new Error("plugin icon resource was not exposed as a data URL");
+  resourceScaleRegistration.unload();
+  if (packages.restoreNodePluginPackages(storage).length) throw new Error("resource package restore failed");
+  const js29Restored = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow29), ""));
+  if (js29Restored.status !== "success" || js29Restored.nodeResults?.print?.value !== 35) throw new Error("restored resource package lost runtime resources");
+  if (!packages.getNodePluginIconDataUrl("demo.resource_scale")) throw new Error("restored resource package lost icon resource");
+  packages.uninstallNodePluginPackage("demo.resource-scale", storage);
+
+  const resourceTableZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-resource-table.plugin.zip"));
+  const resourceTableRegistration = await archives.installNodePluginArchive(arrayBuffer(resourceTableZip), { persist: false });
+  const workflow30 = JSON.parse(readFileSync(path.join(root, "examples", "demo-30-plugin-resource-table.workflow.json"), "utf8"));
+  const js30 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow30), ""));
+  if (js30.status !== "success" || js30.nodeResults?.resource?.kind !== "table" || js30.nodeResults?.plot?.kind !== "plot") throw new Error(`resource CSV JS execution failed: ${JSON.stringify(js30)}`);
+  const py30 = runPython({ ...workflow30, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py30.status !== "success" || py30.nodeResults?.resource?.kind !== "table" || py30.nodeResults?.plot?.kind !== "plot") throw new Error(`resource CSV Python execution failed: ${JSON.stringify(py30)}`);
+  resourceTableRegistration.unload();
+
+  console.log("Node Plugin Archive smoke: PASS (.plugin.zip read/install, resources/icons, dual runtime, table→plot)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

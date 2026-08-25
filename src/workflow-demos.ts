@@ -26,8 +26,10 @@ import runtimeProviderScale from "../examples/demo-25-runtime-provider-scale.wor
 import pythonProviderTable from "../examples/demo-26-python-provider-table.workflow.json?raw";
 import manifestPluginPackage from "../examples/demo-27-manifest-plugin-package.workflow.json?raw";
 import manifestMultiNodePackage from "../examples/demo-28-manifest-multi-node-package.workflow.json?raw";
+import pluginResourceJson from "../examples/demo-29-plugin-resource-json.workflow.json?raw";
+import pluginResourceTable from "../examples/demo-30-plugin-resource-table.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
-import { activateManifestScalePackageDemo, activateManifestTablePackageDemo } from "./plugin-package-demos";
+import { activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo } from "./plugin-package-demos";
 
 export type WorkflowDemo = {
   id: string;
@@ -209,5 +211,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     description: "同一个 Manifest 原子装载两个双 Runtime 表格节点，并直接连接原生 Plot。",
     document: manifestMultiNodePackage,
     activate: activateManifestTablePackageDemo,
+  },
+  {
+    id: "plugin-resource-json",
+    label: "Demo 29 · 插件资源 JSON",
+    description: "双 Runtime Provider 从插件 resources/config.json 读取参数，节点图标也来自同一资源包。",
+    document: pluginResourceJson,
+    activate: activateResourceScalePackageDemo,
+  },
+  {
+    id: "plugin-resource-table",
+    label: "Demo 30 · 插件资源表格",
+    description: "Provider 从 resources/data.csv 读取静态数据并生成原生 Table，再连接第一方 Plot。",
+    document: pluginResourceTable,
+    activate: activateResourceTablePackageDemo,
   },
 ] as const;

@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 29 · Plugin Resource JSON",
+  "nodes": [
+    {
+      "id": "value",
+      "type": "workflow",
+      "position": {
+        "x": 100,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "math.operation",
+        "label": "Value · 2 + 3",
+        "parameters": {
+          "operation": "add",
+          "a": 2,
+          "b": 3
+        }
+      }
+    },
+    {
+      "id": "resource",
+      "type": "workflow",
+      "position": {
+        "x": 430,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "demo.resource_scale",
+        "label": "Resource Scale",
+        "parameters": {}
+      }
+    },
+    {
+      "id": "print",
+      "type": "workflow",
+      "position": {
+        "x": 740,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "python.print",
+        "label": "打印资源结果",
+        "parameters": {
+          "prefix": "",
+          "format": "pretty",
+          "includeType": true,
+          "maxRows": 20,
+          "maxChars": 8000,
+          "encoding": "utf-8",
+          "encodingErrors": "replace",
+          "bytesFormat": "decode",
+          "end": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "value",
+      "sourceHandle": "output",
+      "target": "resource",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e2",
+      "source": "resource",
+      "sourceHandle": "output",
+      "target": "print",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "parameters": [],
+  "environment": {
+    "pythonImports": [],
+    "pythonDefinitions": []
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 30 · Plugin Resource Table",
+  "nodes": [
+    {
+      "id": "resource",
+      "type": "workflow",
+      "position": {
+        "x": 150,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "demo.resource_table",
+        "label": "Resource Table",
+        "parameters": {}
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 520,
+        "y": 180
+      },
+      "data": {
+        "nodeType": "plot.line",
+        "label": "Resource CSV Plot",
+        "parameters": {
+          "xColumn": "index",
+          "yColumns": "value",
+          "title": "Packaged Resource CSV",
+          "xLabel": "index",
+          "yLabel": "value",
+          "lineWidth": 2,
+          "alpha": 1,
+          "lineStyle": "solid",
+          "marker": "none",
+          "seriesConfig": ""
+        }
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "source": "resource",
+      "sourceHandle": "output",
+      "target": "plot",
+      "targetHandle": "input"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "parameters": [],
+  "environment": {
+    "pythonImports": [],
+    "pythonDefinitions": []
+  }
+}

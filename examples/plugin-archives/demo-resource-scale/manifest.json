@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.resource-scale",
+  "name": "Resource Scale Demo",
+  "version": "1.0.0",
+  "description": "Dual-runtime plugin reading packaged JSON resources.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.resource_scale",
+        "label": "Resource Scale",
+        "description": "Read a packaged JSON resource from JavaScript or Python.",
+        "tags": [
+          "plugin",
+          "resource",
+          "json"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {},
+        "parameters": [],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Scaled",
+            "valueType": "number"
+          }
+        ]
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "file": "js/provider.js"
+        },
+        "python": {
+          "file": "python/provider.py"
+        }
+      }
+    }
+  ],
+  "resources": [
+    "resources/config.json",
+    "resources/icon.svg"
+  ]
+}

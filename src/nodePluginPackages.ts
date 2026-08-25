@@ -8,9 +8,10 @@ import {
 } from "./nodeSpecSdk";
 import { Table } from "./runtime/javascript/engine/table";
 import type { NodeOutput } from "./runtime/javascript/engine/nodes/support/types";
+import { createNodePluginResourceApi, type NodePluginResource, type NodePluginResourceApi } from "./nodePluginResources";
 
 export const NODE_PLUGIN_PACKAGE_SCHEMA_VERSION = 1 as const;
-export const NODE_PLUGIN_RUNTIME_API_VERSION = 1 as const;
+export const NODE_PLUGIN_RUNTIME_API_VERSION = 2 as const;
 const STORAGE_KEY = "pydroid-node.plugin-packages.v1";
 
 export type JavascriptNodeProviderDescriptor = {
@@ -18,8 +19,15 @@ export type JavascriptNodeProviderDescriptor = {
   entrypoint?: string;
 };
 
+export type JavascriptPluginRuntimeApi = {
+  version: typeof NODE_PLUGIN_RUNTIME_API_VERSION;
+  Table: typeof Table;
+  resources: NodePluginResourceApi;
+};
+
 export type NodePluginPackageNode = {
   spec: NodeSpec;
+  icon?: string;
   providers: {
     javascript?: JavascriptNodeProviderDescriptor;
     python?: Omit<PythonNodeProviderDescriptor, "nodeType">;
@@ -33,6 +41,7 @@ export type NodePluginPackageManifest = {
   version: string;
   description?: string;
   nodes: NodePluginPackageNode[];
+  resources?: NodePluginResource[];
 };
 
 export type NodePluginPackageSummary = {
@@ -45,7 +54,7 @@ export type NodePluginPackageSummary = {
 export type NodePluginPackageDetail = NodePluginPackageSummary & {
   description?: string;
   active: boolean;
-  nodes: Array<{ nodeType: string; label: string; runtimes: Array<"python" | "javascript"> }>;
+  nodes: Array<{ nodeType: string; label: string; runtimes: Array<"python" | "javascript">; iconDataUrl?: string }>;
 };
 
 export type NodePluginPackageStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
@@ -89,14 +98,15 @@ function normalizeJavascriptOutput(value: unknown): NodeOutput {
   return { outputs: { output: value }, tableResult: null, plotResult: null, exportResult: null };
 }
 
-function compileJavascriptProvider(descriptor: JavascriptNodeProviderDescriptor, nodeType: string): JavascriptNodeProvider {
+function compileJavascriptProvider(descriptor: JavascriptNodeProviderDescriptor, nodeType: string, resources: NodePluginResource[]): JavascriptNodeProvider {
   const source = descriptor.source.trim();
   const entrypoint = (descriptor.entrypoint ?? "execute").trim();
   if (!source) throw new Error(`${nodeType}: JavaScript Provider source 不能为空`);
   if (!/^[A-Za-z_$][\w$]*$/.test(entrypoint)) throw new Error(`${nodeType}: JavaScript Provider entrypoint 无效：${entrypoint}`);
+  const resourceApi = createNodePluginResourceApi(resources);
+  const api: JavascriptPluginRuntimeApi = Object.freeze({ version: NODE_PLUGIN_RUNTIME_API_VERSION, Table, resources: resourceApi });
   const factory = new Function("api", `"use strict";\n${source}\nif (typeof ${entrypoint} !== "function") throw new Error("JavaScript Provider entrypoint not found: ${entrypoint}");\nreturn ${entrypoint};`);
-  const execute = factory(Object.freeze({ version: NODE_PLUGIN_RUNTIME_API_VERSION, Table })) as (params: Record<string, unknown>, upstream: unknown, context: unknown, api: { version: number; Table: typeof Table }) => unknown;
-  const api = Object.freeze({ version: NODE_PLUGIN_RUNTIME_API_VERSION, Table });
+  const execute = factory(api) as (params: Record<string, unknown>, upstream: unknown, context: unknown, api: JavascriptPluginRuntimeApi) => unknown;
   return ({ params, upstream, context }) => normalizeJavascriptOutput(execute(params, upstream, context, api));
 }
 
@@ -107,6 +117,11 @@ export function validateNodePluginPackageManifest(manifest: NodePluginPackageMan
   validateIdentifier(manifest.name, "插件 name", errors);
   validateIdentifier(manifest.version, "插件 version", errors);
   if (!Array.isArray(manifest.nodes) || !manifest.nodes.length) errors.push(`${manifest.id || "<plugin>"}: nodes 至少包含一个节点`);
+  const resourcePaths = new Set((manifest.resources ?? []).map((resource) => resource.path));
+  for (const resource of manifest.resources ?? []) {
+    if (!resource.path.trim()) errors.push(`${manifest.id || "<plugin>"}: resource path 不能为空`);
+    if (!resource.base64.trim()) errors.push(`${manifest.id || "<plugin>"}: resource 内容为空：${resource.path}`);
+  }
   const nodeTypes = new Set<string>();
   for (const [index, node] of (manifest.nodes ?? []).entries()) {
     const specErrors: string[] = [];
@@ -114,6 +129,7 @@ export function validateNodePluginPackageManifest(manifest: NodePluginPackageMan
     errors.push(...specErrors.map((message) => `${manifest.id || "<plugin>"}.nodes[${index}]: ${message}`));
     if (nodeTypes.has(node.spec.nodeType)) errors.push(`${manifest.id || "<plugin>"}: nodeType 重复：${node.spec.nodeType}`);
     nodeTypes.add(node.spec.nodeType);
+    if (node.icon && !resourcePaths.has(node.icon)) errors.push(`${node.spec.nodeType}: icon 资源不存在：${node.icon}`);
     const runtimes = node.spec.runtimeSupport ?? [];
     if (runtimes.includes("javascript") && !node.providers?.javascript) errors.push(`${node.spec.nodeType}: Manifest 缺少 JavaScript Provider`);
     if (runtimes.includes("python") && !node.providers?.python) errors.push(`${node.spec.nodeType}: Manifest 缺少 Python Provider`);
@@ -171,10 +187,11 @@ export function activateNodePluginPackage(input: NodePluginPackageManifest | str
   const manifest = parseNodePluginPackageManifest(input);
   if (activePackages.has(manifest.id)) throw new Error(`插件已激活：${manifest.id}`);
 
+  const resources = (manifest.resources ?? []).map((resource) => ({ ...resource }));
   const compiled = manifest.nodes.map((node) => ({
     spec: defineNodeSpec(node.spec),
-    javascript: node.providers.javascript ? compileJavascriptProvider(node.providers.javascript, node.spec.nodeType) : undefined,
-    python: node.providers.python,
+    javascript: node.providers.javascript ? compileJavascriptProvider(node.providers.javascript, node.spec.nodeType, resources) : undefined,
+    python: node.providers.python ? { ...node.providers.python, resources } : undefined,
   }));
   const registrations: NodePluginRegistration[] = [];
   try {
@@ -256,6 +273,7 @@ export function listInstalledNodePluginPackageDetails(
       nodeType: node.spec.nodeType,
       label: node.spec.label,
       runtimes: [...(node.spec.runtimeSupport ?? [])],
+      iconDataUrl: node.icon ? createNodePluginResourceApi(manifest.resources ?? []).dataUrl(node.icon) : undefined,
     })),
   }));
 }
@@ -272,6 +290,20 @@ export function uninstallNodePluginPackage(id: string, storage: NodePluginPackag
   const unloaded = unloadNodePluginPackage(id);
   const removed = removePersistedManifest(id, storage);
   return unloaded || removed;
+}
+
+export function getNodePluginResourceDataUrl(pluginId: string, path: string): string | null {
+  const active = activePackages.get(pluginId);
+  if (!active) return null;
+  return createNodePluginResourceApi(active.manifest.resources ?? []).dataUrl(path);
+}
+
+export function getNodePluginIconDataUrl(nodeType: string): string | null {
+  for (const { manifest } of activePackages.values()) {
+    const node = manifest.nodes.find((item) => item.spec.nodeType === nodeType);
+    if (node?.icon) return createNodePluginResourceApi(manifest.resources ?? []).dataUrl(node.icon);
+  }
+  return null;
 }
 
 export function listActiveNodePluginPackages(): NodePluginPackageSummary[] {

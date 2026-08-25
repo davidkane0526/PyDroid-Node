@@ -6,6 +6,7 @@ import {
   type NodePluginPackageStorage,
 } from "./nodePluginPackages";
 import type { NodeSpec, PythonNodeProviderDescriptor } from "./nodeSpecSdk";
+import { bytesToBase64, resourceMimeType } from "./nodePluginResources";
 
 export const NODE_PLUGIN_ARCHIVE_SCHEMA_VERSION = 1 as const;
 export const NODE_PLUGIN_ARCHIVE_MANIFEST = "manifest.json" as const;
@@ -17,6 +18,7 @@ export type NodePluginArchiveProviderFile = {
 
 export type NodePluginArchiveNode = {
   spec: NodeSpec;
+  icon?: string;
   providers: {
     javascript?: NodePluginArchiveProviderFile;
     python?: NodePluginArchiveProviderFile;
@@ -111,6 +113,7 @@ function parseArchiveManifest(text: string): NodePluginArchiveManifest {
   if (!parsed.id?.trim() || !parsed.name?.trim() || !parsed.version?.trim()) throw new Error("插件包 manifest.json 缺少 id、name 或 version");
   if (!Array.isArray(parsed.nodes) || !parsed.nodes.length) throw new Error("插件包 manifest.json 至少包含一个节点");
   for (const node of parsed.nodes) {
+    if (node.icon && !validPluginPath(node.icon)) throw new Error(`插件包图标路径无效：${node.icon}`);
     for (const descriptor of [node.providers?.javascript, node.providers?.python]) {
       if (descriptor && !validPluginPath(descriptor.file)) throw new Error(`插件包 Provider 路径无效：${descriptor.file}`);
     }
@@ -131,7 +134,13 @@ export async function readNodePluginArchive(buffer: ArrayBuffer): Promise<NodePl
     if (!entry) throw new Error(`插件包缺少文件：${path}`);
     return utf8.decode(await readZipEntry(buffer, entry));
   };
-  for (const resource of archive.resources ?? []) if (!byName.has(resource)) throw new Error(`插件包缺少资源：${resource}`);
+  const resourcePaths = archive.resources ?? [];
+  for (const resource of resourcePaths) if (!byName.has(resource)) throw new Error(`插件包缺少资源：${resource}`);
+  for (const node of archive.nodes) if (node.icon && !resourcePaths.includes(node.icon)) throw new Error(`插件节点图标未声明为资源：${node.icon}`);
+  const resources = await Promise.all(resourcePaths.map(async (path) => {
+    const entry = byName.get(path)!;
+    return { path, base64: bytesToBase64(await readZipEntry(buffer, entry)), mimeType: resourceMimeType(path) };
+  }));
 
   const nodes = await Promise.all(archive.nodes.map(async (node) => {
     const javascript: JavascriptNodeProviderDescriptor | undefined = node.providers.javascript ? {
@@ -142,7 +151,7 @@ export async function readNodePluginArchive(buffer: ArrayBuffer): Promise<NodePl
       source: await readText(node.providers.python.file),
       entrypoint: node.providers.python.entrypoint,
     } : undefined;
-    return { spec: node.spec, providers: { javascript, python } };
+    return { spec: node.spec, icon: node.icon, providers: { javascript, python } };
   }));
 
   return {
@@ -152,6 +161,7 @@ export async function readNodePluginArchive(buffer: ArrayBuffer): Promise<NodePl
     version: archive.version,
     description: archive.description,
     nodes,
+    resources,
   };
 }
 

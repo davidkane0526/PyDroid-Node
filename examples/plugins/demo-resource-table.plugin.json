@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.resource-table",
+  "name": "Resource Table Demo",
+  "version": "1.0.0",
+  "description": "Dual-runtime plugin loading a packaged CSV resource.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.resource_table",
+        "label": "Resource Table",
+        "description": "Load a packaged CSV resource as a native table.",
+        "tags": [
+          "plugin",
+          "resource",
+          "csv",
+          "table"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {},
+        "parameters": [],
+        "inputPorts": [],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Table",
+            "valueType": "table"
+          }
+        ]
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream, context, api) {\n  const lines = api.resources.text(\"resources/data.csv\").trim().split(/\\r?\\n/);\n  const headers = lines[0].split(\",\");\n  const records = lines.slice(1).map((line) => Object.fromEntries(line.split(\",\").map((value, index) => [headers[index], Number(value)])));\n  return api.Table.fromRecords(records);\n}\n"
+        },
+        "python": {
+          "source": "from io import StringIO\n\ndef execute(params, upstream, context):\n    return pd.read_csv(StringIO(context[\"resources\"].text(\"resources/data.csv\")))\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/data.csv",
+      "base64": "aW5kZXgsdmFsdWUKMCwxCjEsNAoyLDkKMywxNgo0LDI1CjUsMzYK",
+      "mimeType": "text/csv"
+    },
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzRmOGNmZiIvPjxwYXRoIGQ9Ik04IDEyaDhNMTIgOHY4IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

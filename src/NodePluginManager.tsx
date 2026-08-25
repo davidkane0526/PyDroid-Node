@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { installNodePluginArchive } from "./nodePluginArchive";
 import {
   activateInstalledNodePluginPackage,
+  getNodePluginIconDataUrl,
   installNodePluginPackage,
   listInstalledNodePluginPackageDetails,
   unloadNodePluginPackage,
@@ -61,7 +62,7 @@ export function NodePluginManagerButton({ mode = "icon", onOpen }: NodePluginMan
         <div className="node-plugin-manager__list">
           {plugins.map((plugin) => <article key={plugin.id}>
             <div className="node-plugin-manager__identity"><strong>{plugin.name}</strong><span>v{plugin.version}</span><em className={plugin.active ? "active" : ""}>{plugin.active ? "已启用" : "已停用"}</em></div>
-            <div className="node-plugin-manager__nodes">{plugin.nodes.map((node) => <div key={node.nodeType}><span>{node.label}</span><code>{node.nodeType}</code><small>{node.runtimes.map((runtime) => runtime === "javascript" ? "JS" : "Python").join(" · ")}</small></div>)}</div>
+            <div className="node-plugin-manager__nodes">{plugin.nodes.map((node) => <div key={node.nodeType}>{node.iconDataUrl && <img className="node-plugin-manager__node-icon" src={node.iconDataUrl} alt=""/>}<span>{node.label}</span><code>{node.nodeType}</code><small>{node.runtimes.map((runtime) => runtime === "javascript" ? "JS" : "Python").join(" · ")}</small></div>)}</div>
             <footer>{plugin.active ? <button type="button" onClick={() => unload(plugin.id)}>停用</button> : <button type="button" onClick={() => activate(plugin.id)}>启用</button>}<button type="button" className="danger-link" onClick={() => uninstall(plugin.id)}>卸载</button></footer>
           </article>)}
           {!plugins.length && <div className="node-plugin-manager__empty">暂无节点插件</div>}
@@ -70,3 +71,5 @@ export function NodePluginManagerButton({ mode = "icon", onOpen }: NodePluginMan
     </div>}
   </>;
 }
+
+export { getNodePluginIconDataUrl };

@@ -69,7 +69,7 @@ import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
 import { ParameterField } from "./ParameterField";
-import { NodePluginManagerButton } from "./NodePluginManager";
+import { NodePluginManagerButton, getNodePluginIconDataUrl } from "./NodePluginManager";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -81,7 +81,6 @@ const SETTINGS_KEY = "pydroid-flow.settings.v1";
 const REMOTE_CONFIGURATION_OVERRIDE_KEY = "pydroid-flow.remote-configuration-override.v1";
 const PALETTE_MIN_WIDTH = 216;
 type PaletteResource = EditorResourceRef;
-
 type ThemeMode = "system" | "dark" | "light";
 const notebookCellRows = (source: string) => Math.max(3, source.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil(Array.from(line).length / 96)), 0));
 const VALUE_TYPE_COLORS: Record<ValueType, string> = { table: "#22c55e", plot: "#a855f7", csv: "#14b8a6", number: "#f59e0b", text: "#3b82f6", boolean: "#ef4444", list: "#06b6d4", object: "#8b5cf6", any: "#64748b" };
@@ -517,6 +516,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const isGroupNode = data.nodeType === "workflow.group";
   const nodeKindClasses = `${isFunctionNode ? "node-kind-function" : ""} ${isGroupNode ? "node-kind-group" : ""} ${isStructure ? "node-kind-flow" : "node-kind-node"}`;
   const visibleTypeLabel = hasDynamicUi ? (spec?.label && spec.label !== data.label ? spec.label : null) : data.nodeType;
+  const pluginIconUrl = getNodePluginIconDataUrl(data.nodeType);
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
     refresh();
@@ -558,7 +558,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
       })}
       <div className="workflow-node__body">
         {visibleTypeLabel && <div className="workflow-node__type" title={data.nodeType}>{visibleTypeLabel}</div>}
-        <div className="workflow-node__label" title={data.label}>{data.label}</div>
+        <div className="workflow-node__label" title={data.label}>{pluginIconUrl && <img className="workflow-node__plugin-icon" src={pluginIconUrl} alt=""/>}{data.label}</div>
         {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout}`}>{inlineParameters.map((parameter) => {
           const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
           const showLabel = declaredLabel !== null && declaredLabel !== "";

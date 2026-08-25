@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.resource-scale",
+  "name": "Resource Scale Demo",
+  "version": "1.0.0",
+  "description": "Dual-runtime plugin reading packaged JSON resources.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.resource_scale",
+        "label": "Resource Scale",
+        "description": "Read a packaged JSON resource from JavaScript or Python.",
+        "tags": [
+          "plugin",
+          "resource",
+          "json"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {},
+        "parameters": [],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Scaled",
+            "valueType": "number"
+          }
+        ]
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream, context, api) {\n  const config = JSON.parse(api.resources.text(\"resources/config.json\"));\n  return Number(upstream ?? 0) * Number(config.factor);\n}\n"
+        },
+        "python": {
+          "source": "import json\n\ndef execute(params, upstream, context):\n    config = json.loads(context[\"resources\"].text(\"resources/config.json\"))\n    return float(upstream or 0) * float(config[\"factor\"])\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/config.json",
+      "base64": "eyJmYWN0b3IiOjd9Cg==",
+      "mimeType": "application/json"
+    },
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzRmOGNmZiIvPjxwYXRoIGQ9Ik04IDEyaDhNMTIgOHY4IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjwvc3ZnPg==",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

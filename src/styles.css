@@ -4263,3 +4263,4 @@ select.node-inline-control {
   box-shadow: 0 6px 15px #64748b24;
 }
 .app-shell[data-theme="light"] .workflow-loop-zone .workflow-structure__lane > span { background: #ffffffde; }
+.workflow-node__plugin-icon { width: 18px; height: 18px; object-fit: contain; vertical-align: -4px; margin-right: 6px; }
