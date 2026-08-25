@@ -28,6 +28,8 @@ const files = [
   "demo-22-column-transform-pipeline.workflow.json",
   "demo-23-conditional-column-pipeline.workflow.json",
   "demo-24-legend-state.workflow.json",
+  "demo-25-runtime-provider-scale.workflow.json",
+  "demo-26-python-provider-table.workflow.json",
 ];
 
 let failed = 0;

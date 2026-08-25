@@ -1,6 +1,7 @@
 import {
   NODE_CATALOG,
   getNodeSpec,
+  isExternalNodeType,
   type NodeCachePolicy,
   type NodeExecutionModel,
   type NodeRuntimeId,
@@ -9,6 +10,8 @@ import {
   type NodeFunctionRole,
   type NodeSpec,
 } from "./nodeCatalog";
+import { hasJavascriptNodeProvider } from "./runtime/javascript/engine/providers";
+import { hasPythonNodeProvider } from "./runtime/pythonProviders";
 
 export type { NodeCachePolicy, NodeExecutionModel, NodeFunctionRole, NodeRuntimeId, NodeStateAccess, NodeStateScope } from "./nodeCatalog";
 
@@ -133,11 +136,14 @@ export function listNodeContracts(): NodeContract[] {
 }
 
 export function supportsNodeRuntime(nodeType: string, runtime: NodeRuntimeId): boolean {
-  return Boolean(getNodeContract(nodeType)?.runtimes[runtime]);
+  const contract = getNodeContract(nodeType);
+  if (!contract?.runtimes[runtime]) return false;
+  if (!isExternalNodeType(nodeType)) return true;
+  return runtime === "javascript" ? hasJavascriptNodeProvider(nodeType) : hasPythonNodeProvider(nodeType);
 }
 
 export function getJavascriptSupportedNodeTypes(): Set<string> {
-  return new Set(listNodeContracts().filter((contract) => contract.runtimes.javascript && contract.nodeType !== "workflow.group").map((contract) => contract.nodeType));
+  return new Set(listNodeContracts().filter((contract) => contract.nodeType !== "workflow.group" && supportsNodeRuntime(contract.nodeType, "javascript")).map((contract) => contract.nodeType));
 }
 
 export function nodeHasSideEffects(nodeType: string): boolean {

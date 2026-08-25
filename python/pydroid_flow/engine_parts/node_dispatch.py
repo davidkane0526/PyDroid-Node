@@ -5,6 +5,7 @@ from typing import Any
 import pandas as pd
 
 from .nodes import HANDLERS
+from .runtime_providers import execute_python_runtime_provider
 
 
 _PARAMETER_SOCKET_EXCLUDED_TYPES = {"custom.python_function"}
@@ -46,6 +47,10 @@ def _execute_node(
     data input.  Structural/function nodes keep their own multi-input binding.
     """
     params, upstream = _bind_parameter_socket_inputs(node_type, params, upstream)
+    runtime_providers = variables.get("__runtime_providers__", {}) if isinstance(variables, dict) else {}
+    provider = runtime_providers.get(node_type) if isinstance(runtime_providers, dict) else None
+    if provider is not None:
+        return execute_python_runtime_provider(provider, params, upstream, csv_text, input_files, variables)
     for supported_types, handler in HANDLERS:
         if node_type in supported_types:
             return handler(node_type, params, upstream, csv_text, input_files, variables)

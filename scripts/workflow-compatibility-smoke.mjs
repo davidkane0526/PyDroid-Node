@@ -115,6 +115,8 @@ try {
     "src/nodeSpec.ts",
     "src/customNode.ts",
     "src/nodeContract.ts",
+    "src/runtime/javascript/engine/providers.ts",
+    "src/runtime/pythonProviders.ts",
     "src/workflow-core/migrations.ts",
     "src/workflow-core/schema-migrations.ts",
     "src/workflow-core/node-migrations.ts",

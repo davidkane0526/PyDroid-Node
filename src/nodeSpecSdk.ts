@@ -1,5 +1,8 @@
 import { resolveNodeSpec } from "./nodeSpec";
-import { registerCatalogNodeSpec, unregisterCatalogNodeSpec } from "./nodeCatalog";
+import { getNodeSpec, isExternalNodeType, registerCatalogNodeSpec, unregisterCatalogNodeSpec } from "./nodeCatalog";
+import { hasJavascriptNodeProvider, registerJavascriptNodeProvider, unregisterJavascriptNodeProvider, type JavascriptNodeProvider } from "./runtime/javascript/engine/providers";
+import { hasPythonNodeProvider, registerPythonNodeProvider, unregisterPythonNodeProvider, type PythonNodeProviderDescriptor } from "./runtime/pythonProviders";
+
 import type {
   InputPortGroupSpec,
   NodeConditionValue,
@@ -12,7 +15,7 @@ import type {
   ValueType,
 } from "./nodeCatalog";
 
-export const NODE_SPEC_SDK_VERSION = 2 as const;
+export const NODE_SPEC_SDK_VERSION = 3 as const;
 
 export type {
   InputPortGroupSpec,
@@ -25,6 +28,8 @@ export type {
   SocketGroupSpec,
   ValueType,
 };
+
+export type { JavascriptNodeProvider, PythonNodeProviderDescriptor };
 
 export { resolveNodeSpec };
 
@@ -132,11 +137,79 @@ export function registerNodeSpec<T extends NodeSpec>(spec: T): NodeSpecRegistrat
     unregister: () => {
       if (!active) return false;
       active = false;
+      unregisterJavascriptNodeProvider(validated.nodeType);
+      unregisterPythonNodeProvider(validated.nodeType);
       return dispose();
     },
   };
 }
 
 export function unregisterNodeSpec(nodeType: string): boolean {
+  unregisterJavascriptNodeProvider(nodeType);
+  unregisterPythonNodeProvider(nodeType);
   return unregisterCatalogNodeSpec(nodeType);
+}
+
+function assertExternalProviderTarget(nodeType: string, runtime: "python" | "javascript"): NodeSpec {
+  const spec = getNodeSpec(nodeType);
+  if (!spec || !isExternalNodeType(nodeType)) throw new Error(`Runtime Provider requires a registered external NodeSpec: ${nodeType}`);
+  if (!(spec.runtimeSupport ?? []).includes(runtime)) throw new Error(`${nodeType} 未声明 ${runtime} Runtime 支持`);
+  return spec;
+}
+
+export function registerJavascriptProvider(nodeType: string, provider: JavascriptNodeProvider): () => boolean {
+  assertExternalProviderTarget(nodeType, "javascript");
+  return registerJavascriptNodeProvider(nodeType, provider);
+}
+
+export function registerPythonProvider(descriptor: PythonNodeProviderDescriptor): () => boolean {
+  assertExternalProviderTarget(descriptor.nodeType, "python");
+  return registerPythonNodeProvider(descriptor);
+}
+
+export type NodePluginDefinition = {
+  spec: NodeSpec;
+  javascript?: JavascriptNodeProvider;
+  python?: Omit<PythonNodeProviderDescriptor, "nodeType">;
+};
+
+export type NodePluginRegistration = {
+  nodeType: string;
+  unregister: () => boolean;
+};
+
+/** Register one external node declaration and all declared runtime providers atomically. */
+export function registerNodePlugin(definition: NodePluginDefinition): NodePluginRegistration {
+  const runtimes = definition.spec.runtimeSupport ?? [];
+  if (runtimes.includes("javascript") && !definition.javascript) throw new Error(`${definition.spec.nodeType}: 缺少 JavaScript Provider`);
+  if (runtimes.includes("python") && !definition.python) throw new Error(`${definition.spec.nodeType}: 缺少 Python Provider`);
+  const specRegistration = registerNodeSpec(definition.spec);
+  let unregisterJavascript: (() => boolean) | undefined;
+  let unregisterPython: (() => boolean) | undefined;
+  try {
+    if (definition.javascript) unregisterJavascript = registerJavascriptProvider(definition.spec.nodeType, definition.javascript);
+    if (definition.python) unregisterPython = registerPythonProvider({ nodeType: definition.spec.nodeType, ...definition.python });
+  } catch (error) {
+    unregisterJavascript?.();
+    unregisterPython?.();
+    specRegistration.unregister();
+    throw error;
+  }
+  let active = true;
+  return {
+    nodeType: definition.spec.nodeType,
+    unregister: () => {
+      if (!active) return false;
+      active = false;
+      unregisterJavascript?.();
+      unregisterPython?.();
+      return specRegistration.unregister();
+    },
+  };
+}
+
+export function hasRegisteredRuntimeProvider(nodeType: string, runtime: "python" | "javascript"): boolean {
+  const spec = getNodeSpec(nodeType);
+  if (!spec || !isExternalNodeType(nodeType) || !(spec.runtimeSupport ?? []).includes(runtime)) return false;
+  return runtime === "javascript" ? hasJavascriptNodeProvider(nodeType) : hasPythonNodeProvider(nodeType);
 }

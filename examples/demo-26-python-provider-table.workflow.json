@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 26 · Python Provider Table",
+  "nodes": [
+    {"id":"count","type":"workflow","position":{"x":80,"y":120},"data":{"nodeType":"math.operation","label":"Count · 3 + 3","parameters":{"operation":"add","a":3,"b":3}}},
+    {"id":"provider","type":"workflow","position":{"x":390,"y":160},"data":{"nodeType":"demo.python_provider_table","label":"Python Provider Table","parameters":{"start":1,"step":2,"count":4}}},
+    {"id":"plot","type":"workflow","position":{"x":720,"y":160},"data":{"nodeType":"plot.line","label":"Provider Table Plot","parameters":{"xColumn":"index","yColumns":"value","title":"Python Provider Table","xLabel":"index","yLabel":"value","lineWidth":2,"alpha":1,"lineStyle":"solid","marker":"none","seriesConfig":""}}}
+  ],
+  "edges": [
+    {"id":"e1","source":"count","sourceHandle":"output","target":"provider","targetHandle":"count"},
+    {"id":"e2","source":"provider","sourceHandle":"output","target":"plot","targetHandle":"input"}
+  ],
+  "functions": [],
+  "requirements": [],
+  "parameters": [],
+  "environment": {"pythonImports":[],"pythonDefinitions":[]}
+}

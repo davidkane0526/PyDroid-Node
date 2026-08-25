@@ -1778,6 +1778,10 @@ export function nodeCatalogSnapshot(): number {
   return NODE_CATALOG.length;
 }
 
+export function isExternalNodeType(nodeType: string): boolean {
+  return externalNodeTypes.has(nodeType);
+}
+
 export function getNodeSpec(nodeType: string): NodeSpec | undefined {
   return NODE_CATALOG.find((spec) => spec.nodeType === nodeType);
 }

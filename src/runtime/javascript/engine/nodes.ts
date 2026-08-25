@@ -9,6 +9,7 @@ import { executeAnalysisPulseNode } from "./nodes/analysis_pulse";
 import { executePlotsNode } from "./nodes/plots";
 import { executeConversionUiNode } from "./nodes/conversion_ui";
 import { executeSequenceNode } from "./nodes/sequence";
+import { getJavascriptNodeProvider } from "./providers";
 export { terMatrix } from "./nodes/support/analysis";
 
 
@@ -54,6 +55,8 @@ const DOMAIN_HANDLERS = [
 
 export function executeNode(nodeType: string, params: Record<string, unknown>, upstream: unknown, context: ExecutionContext): NodeOutput {
   const bound = bindParameterSocketInputs(nodeType, params, upstream);
+  const provider = getJavascriptNodeProvider(nodeType);
+  if (provider) return provider({ nodeType, params: bound.params, upstream: bound.upstream, context });
   for (const handler of DOMAIN_HANDLERS) {
     const result = handler(nodeType, bound.params, bound.upstream, context);
     if (result) return result;

@@ -2761,7 +2761,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
     catch { setMessage("流程库条目已损坏，无法打开"); }
   };
   const openWorkflowDemo = (demo: WorkflowDemo) => {
-    try { openSerializedCanvasWorkflow(demo.document, `已载入内置示例“${demo.label}”`); }
+    try { demo.activate?.(); openSerializedCanvasWorkflow(demo.document, `已载入内置示例“${demo.label}”`); }
     catch (error) { setMessage(error instanceof Error ? `示例加载失败：${error.message}` : "示例加载失败"); }
   };
 

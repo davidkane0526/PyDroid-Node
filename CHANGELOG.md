@@ -1,3 +1,14 @@
+## 1.6.25 (165) — Executable Runtime Provider SDK — 2026-08-25
+
+- Promoted the NodeSpec SDK to v3 with executable external Runtime Providers. `registerNodePlugin()` now atomically registers one external NodeSpec plus every runtime implementation declared by `runtimeSupport`; missing providers fail immediately, duplicate provider registration fails explicitly, and one deterministic unregister removes both providers and the catalog declaration.
+- Added live JavaScript Provider dispatch before the first-party domain-handler chain. Declaration-only external NodeSpecs no longer claim JavaScript compatibility until a matching provider is registered, so Auto Runtime selection cannot choose a runtime that has only UI metadata.
+- Added serializable Python Runtime Provider descriptors. Registered Python provider source/entrypoint descriptors are attached to each Python workflow request and loaded only for that execution by desktop/Android/Remote backends; the Python dispatcher resolves them before first-party handlers and supports scalar/object outputs plus real pandas DataFrame table results.
+- Runtime compatibility now treats external NodeSpecs as executable only when the declared runtime provider is actually present. Unregistering a provider/plugin immediately removes that runtime capability without mutating built-in NodeContracts.
+- Added built-in Demo 25, activated on demand, for Math → external dual-runtime Provider with a dynamically connected parameter Socket → Print. The demo executes to the same semantic value (`50`) in Python and JavaScript.
+- Added built-in Demo 26 for a Python-only external Provider that generates a pandas DataFrame and feeds the normal first-party Line Plot. The provider table and real Python PNG plot are both asserted by automated smoke testing.
+- Added dedicated Runtime Provider SDK and Demo execution gates plus direct Python provider tests; built-in Demo structure coverage is now 26/26 while first-party Python/JavaScript golden parity remains 134/134 with 96/96 JS-capable built-in NodeContract coverage.
+- Build revision: `1.6.25-dev-r117-runtime-provider-sdk`.
+
 ## 1.6.24 (164) — Conditional transforms, Legend State and live NodeSpec registration — 2026-08-25
 
 - Added declarative `table.conditional_transform`. It wraps an existing Transform with a boolean `condition`; ordered Column Pipelines keep their socket order and deterministically skip disabled transforms without introducing a second control-flow runtime. Compare/Boolean nodes can drive the condition through the generic parameter-Socket contract.

@@ -22,12 +22,16 @@ import legendGroupSolo from "../examples/demo-21-legend-group-solo.workflow.json
 import columnTransformPipeline from "../examples/demo-22-column-transform-pipeline.workflow.json?raw";
 import conditionalColumnPipeline from "../examples/demo-23-conditional-column-pipeline.workflow.json?raw";
 import legendStateDemo from "../examples/demo-24-legend-state.workflow.json?raw";
+import runtimeProviderScale from "../examples/demo-25-runtime-provider-scale.workflow.json?raw";
+import pythonProviderTable from "../examples/demo-26-python-provider-table.workflow.json?raw";
+import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
 
 export type WorkflowDemo = {
   id: string;
   label: string;
   description: string;
   document: string;
+  activate?: () => void;
 };
 
 export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
@@ -174,5 +178,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 24 · Legend State 交互分组",
     description: "Legend State 以结构化状态驱动 Registry，对 legendGroup 执行 Hide/Solo，而不修改 Series 声明。",
     document: legendStateDemo,
+  },
+  {
+    id: "runtime-provider-scale",
+    label: "Demo 25 · Runtime Provider",
+    description: "Math 同时驱动外部 Provider 的数据与参数 Socket；同一插件提供 Python / JavaScript 执行实现。",
+    document: runtimeProviderScale,
+    activate: activateRuntimeProviderScaleDemo,
+  },
+  {
+    id: "python-provider-table",
+    label: "Demo 26 · Python Provider Table",
+    description: "可序列化 Python Provider 在 backend 中生成 DataFrame，再直接连接原生 Plot 节点。",
+    document: pythonProviderTable,
+    activate: activatePythonTableProviderDemo,
   },
 ] as const;

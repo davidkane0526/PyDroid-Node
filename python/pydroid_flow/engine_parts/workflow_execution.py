@@ -22,6 +22,7 @@ from .graph import _contained_node_ids, _container_children, _data_edges, _edge_
 from .node_dispatch import _execute_node
 from .notebook_execution import _execute_notebook_cell
 from .presentation import _preview, _printable, _semantic_value
+from .runtime_providers import load_python_runtime_providers
 from .state import decode_workspace_state, encode_workspace_state
 from .values import _decode_json_compatible, _require_table
 
@@ -727,7 +728,15 @@ def execute_workflow(workflow_json: str, csv_text: str, input_files_json: str = 
     notebook_namespace = _new_notebook_namespace(csv_text, input_files)
     _initialize_notebook_context(workflow, notebook_namespace)
     workspace_variables = decode_workspace_state(workflow.get("workspaceState"))
-    variables: dict[str, Any] = {"__execution__": {}, "__workspace__": workspace_variables}
+    try:
+        runtime_providers = load_python_runtime_providers(workflow)
+    except Exception as exception:
+        return _error_response(str(exception), "__workflow__", "runtime.provider", debug_traceback=traceback.format_exc())
+    variables: dict[str, Any] = {
+        "__execution__": {},
+        "__workspace__": workspace_variables,
+        "__runtime_providers__": runtime_providers,
+    }
 
     for node in ordered_nodes:
         _raise_if_execution_cancelled(execution_id)

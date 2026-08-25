@@ -19,7 +19,7 @@ try {
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
   const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
-  if (sdk.NODE_SPEC_SDK_VERSION !== 2) throw new Error("unexpected SDK version");
+  if (sdk.NODE_SPEC_SDK_VERSION !== 3) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({
     nodeType: "example.dynamic",
     label: "Example",

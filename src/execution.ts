@@ -1,4 +1,5 @@
 import type { Edge } from "@xyflow/react";
+import { listPythonNodeProviders } from "./runtime/pythonProviders";
 import type { NotebookCellAnalysis } from "./notebook-analysis";
 import { PythonExecutor } from "./platform/android-plugin";
 import { getPlatformAdapter, isRemoteRuntime } from "./platform";
@@ -137,7 +138,11 @@ async function executePythonWorkflow(
   parameters: WorkflowParameterDefinition[] = [],
 ): Promise<ExecutionResult> {
   const executable = flattenWorkflowGroups(nodes, edges);
-  const workflow = JSON.stringify({ ...serializeWorkflow("Python 工作流", executable.nodes, executable.edges, [], functions, environment, parameters), workspaceState });
+  const workflow = JSON.stringify({
+    ...serializeWorkflow("Python 工作流", executable.nodes, executable.edges, [], functions, environment, parameters),
+    workspaceState,
+    runtimeProviders: { python: listPythonNodeProviders() },
+  });
 
   if (isRemoteRuntime()) {
     const platform = getPlatformAdapter();
