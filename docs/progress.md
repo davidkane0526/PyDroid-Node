@@ -5,7 +5,7 @@ Date: 2026-08-25
 ## Current release state
 
 - Product version: **1.6.35**, Android versionCode **175**.
-- Build revision: `1.6.35-dev-r127-release-validation`.
+- Build revision: `1.6.35-dev-r128-settings-extension-ui`.
 - Phase: release convergence; feature expansion is frozen.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
@@ -25,7 +25,7 @@ Date: 2026-08-25
 ## 1.6.35 release-validation work
 
 - Main-toolbar and mobile-overflow Python package/plugin entries removed.
-- Settings → Extensions now owns both management entry points with equal-width aligned controls.
+- Settings → Extensions owns both management entry points as one normal two-column-grid card; its actions now use the same compact metrics as the other settings-card buttons instead of full-width secondary controls.
 - Current plugin demos remain SDK/regression examples rather than built-in product plugins, avoiding duplicate user-facing node semantics.
 - Source revalidation remains green: demos **38/38**, Runtime parity **134/134**, JS-capable coverage **96/96**, Python **188 passed / 1 skipped**, plus Plugin/SDK, MCP, Remote/LAN, Workflow Migration and architecture gates.
 - Full project TypeScript/Vitest and Windows Desktop/Android packaging remain the release gates on the pinned Node 24 / pnpm 11.21 environment.
