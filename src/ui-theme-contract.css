@@ -2,7 +2,7 @@
  * PyDroid Node visual contract.
  *
  * This file is intentionally appearance-only and is loaded after legacy/core style sheets.
- * Theme plugins can replace semantic color/material tokens, while Core keeps typography,
+ * Theme plugins can replace semantic color, material and motion tokens, while Core keeps typography,
  * spacing, dimensions, node geometry and responsive breakpoints deterministic.
  */
 .workspace-shell[data-ui-theme] {
@@ -20,7 +20,7 @@
 .workspace-shell[data-ui-theme] .tabbar__tab { color: var(--text-muted); }
 .workspace-shell[data-ui-theme] .tabbar__tab:hover { color: var(--text); background: var(--surface-hover); }
 .workspace-shell[data-ui-theme] .tabbar__tab.active { border-color: var(--border-soft); color: var(--text-highlight); background: var(--canvas-bg); }
-.workspace-shell[data-ui-theme] .tab-context-menu { border-color: var(--border-pop); color: var(--text); background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: 0 12px 30px var(--ui-shadow); }
+.workspace-shell[data-ui-theme] .tab-context-menu { border-color: var(--border-pop); color: var(--text); background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: var(--material-popup-shadow); }
 
 .app-shell[data-ui-theme] {
   color: var(--text);
@@ -58,7 +58,7 @@
 }
 .app-shell[data-ui-theme] .icon-button:hover:not(:disabled),
 .app-shell[data-ui-theme] .canvas-toolbar button:hover { border-color: var(--border-strong); color: var(--text-highlight); background: var(--surface-hover); }
-.app-shell[data-ui-theme] .canvas-toolbar { border-color: var(--border); color: var(--text); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: 0 8px 22px var(--ui-shadow); }
+.app-shell[data-ui-theme] .canvas-toolbar { border-color: var(--border); color: var(--text); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--material-card-shadow); }
 
 .app-shell[data-ui-theme] .field > span,
 .app-shell[data-ui-theme] .field .field__heading,
@@ -90,7 +90,7 @@
   border-color: var(--border-pop);
   color: var(--text);
   background: color-mix(in srgb, var(--surface) 97%, transparent);
-  box-shadow: 0 10px 28px var(--ui-shadow);
+  box-shadow: var(--material-popup-shadow);
 }
 .workspace-shell[data-ui-theme] .themed-select__menu button,
 .app-shell[data-ui-theme] .themed-select__menu button { color: var(--text); }
@@ -107,7 +107,7 @@
   border-color: var(--border);
   color: var(--text);
   background: var(--surface);
-  box-shadow: 0 24px 70px var(--ui-shadow);
+  box-shadow: var(--material-popup-shadow);
 }
 .app-shell[data-ui-theme] .settings-dialog > header,
 .app-shell[data-ui-theme] .package-manager > header { border-color: var(--border-soft); background: color-mix(in srgb, var(--surface) 94%, var(--surface-raised)); }
@@ -234,7 +234,7 @@
   border-color: var(--border-pop);
   color: var(--text);
   background: var(--surface);
-  box-shadow: 0 16px 40px var(--ui-shadow);
+  box-shadow: var(--material-popup-shadow);
 }
 
 .app-shell[data-ui-theme] .interaction-backdrop,
@@ -292,7 +292,7 @@
 }
 .app-shell[data-ui-theme] .settings-copy-button:hover,
 .app-shell[data-ui-theme] .settings-help-button:hover { border-color: var(--accent-hover); background: var(--surface-hover); }
-.app-shell[data-ui-theme] .settings-copy-toast { border-color: color-mix(in srgb, var(--success) 48%, var(--border)); color: var(--success-text); background: color-mix(in srgb, var(--success) 12%, var(--surface)); box-shadow: 0 10px 28px var(--ui-shadow); }
+.app-shell[data-ui-theme] .settings-copy-toast { border-color: color-mix(in srgb, var(--success) 48%, var(--border)); color: var(--success-text); background: color-mix(in srgb, var(--success) 12%, var(--surface)); box-shadow: var(--material-popup-shadow); }
 .app-shell[data-ui-theme] .settings-copy-toast.error { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 34%, var(--surface)); }
 .app-shell[data-ui-theme] .settings-dialog label > input[type="range"],
 .app-shell[data-ui-theme] .field--range input { accent-color: var(--accent); }
@@ -344,9 +344,196 @@
 .app-shell[data-ui-theme] .workflow-node.status-error,
 .app-shell[data-ui-theme] .workflow-node.status-error.selected,
 .app-shell[data-ui-theme] .workflow-structure.status-error { border-color: var(--danger); box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent); }
-.app-shell[data-ui-theme] .node-run-action { border-color: var(--canvas-node-border); color: var(--accent-hover); background: color-mix(in srgb, var(--canvas-node-face) 92%, var(--surface-deep)); box-shadow: 0 3px 8px var(--ui-shadow); }
+.app-shell[data-ui-theme] .node-run-action { border-color: var(--canvas-node-border); color: var(--accent-hover); background: color-mix(in srgb, var(--canvas-node-face) 92%, var(--surface-deep)); box-shadow: var(--material-control-shadow); }
 .app-shell[data-ui-theme] .node-run-action:hover,
-.app-shell[data-ui-theme] .node-run-action:focus-visible { border-color: var(--accent-hover); color: var(--text-bright); background: color-mix(in srgb, var(--accent) 18%, var(--canvas-node-face)); box-shadow: 0 4px 10px var(--ui-shadow); }
+.app-shell[data-ui-theme] .node-run-action:focus-visible { border-color: var(--accent-hover); color: var(--text-bright); background: color-mix(in srgb, var(--accent) 18%, var(--canvas-node-face)); box-shadow: var(--material-control-shadow); }
 .app-shell[data-ui-theme] .workflow-structure > .workflow-node__body,
 .app-shell[data-ui-theme] .workflow-if-zone__end,
 .app-shell[data-ui-theme] .workflow-loop-zone__end { border-color: var(--canvas-node-border); color: var(--canvas-node-label); background: color-mix(in srgb, var(--canvas-node-face) 94%, var(--surface-deep)); }
+
+/* Unified Design SDK v1: material + motion. These rules are appearance-only. */
+.workspace-shell[data-ui-theme][data-theme="light"],
+.app-shell[data-ui-theme][data-theme="light"] {
+  --material-panel-shadow: 0 8px 24px #52677f24, inset 0 1px 0 #ffffffcc;
+  --material-card-shadow: 0 3px 12px #52677f1c, inset 0 1px 0 #ffffffdd;
+  --material-control-shadow: 0 1px 2px #52677f1c, inset 0 1px 0 #ffffffee;
+  --material-popup-shadow: 0 18px 46px #3341552e, inset 0 1px 0 #ffffffee;
+  --material-node-shadow: 0 5px 15px #52677f24, inset 0 1px 0 #ffffffee;
+  --material-node-hover-shadow: 0 8px 20px #52677f2e, inset 0 1px 0 #ffffff;
+  --material-node-selected-shadow: 0 0 0 1px #3b82f655, 0 9px 24px #52677f2e, inset 0 1px 0 #ffffff;
+  --material-surface-highlight: #ffffffcc;
+}
+
+.workspace-shell[data-ui-theme] .titlebar,
+.app-shell[data-ui-theme] .topbar,
+.app-shell[data-ui-theme] .node-palette,
+.app-shell[data-ui-theme] .inspector,
+.app-shell[data-ui-theme] .app-statusbar,
+.app-shell[data-ui-theme] .result-panel--bottom {
+  box-shadow: inset 0 1px 0 var(--material-surface-highlight);
+}
+
+.app-shell[data-ui-theme] .settings-dialog,
+.app-shell[data-ui-theme] .package-manager,
+.app-shell[data-ui-theme] .node-plugin-manager,
+.app-shell[data-ui-theme] .agent-dialog,
+.app-shell[data-ui-theme] .debug-dialog,
+.app-shell[data-ui-theme] .diagnostics-dialog,
+.app-shell[data-ui-theme] .history-dialog,
+.app-shell[data-ui-theme] .smb-dialog,
+.app-shell[data-ui-theme] .remote-access-dialog,
+.app-shell[data-ui-theme] .workspace-choice-dialog,
+.app-shell[data-ui-theme] .modern-confirm-dialog,
+.app-shell[data-ui-theme] .modern-prompt-dialog,
+.app-shell[data-ui-theme] .interaction-dialog {
+  box-shadow: var(--material-popup-shadow);
+  animation: ui-surface-enter var(--motion-duration-slow) var(--motion-ease-emphasized) both;
+}
+
+.app-shell[data-ui-theme] .settings-dialog__body section,
+.app-shell[data-ui-theme] .node-plugin-manager__stats,
+.app-shell[data-ui-theme] .node-plugin-manager__list > article,
+.app-shell[data-ui-theme] .package-list article,
+.app-shell[data-ui-theme] .result-export-card,
+.app-shell[data-ui-theme] .workspace-choice-card,
+.app-shell[data-ui-theme] .group-resource-card,
+.app-shell[data-ui-theme] .workflow-function-card {
+  box-shadow: var(--material-card-shadow);
+}
+
+.workspace-shell[data-ui-theme] button,
+.app-shell[data-ui-theme] button,
+.workspace-shell[data-ui-theme] .themed-select__trigger,
+.app-shell[data-ui-theme] .themed-select__trigger,
+.app-shell[data-ui-theme] .field input,
+.app-shell[data-ui-theme] .field select,
+.app-shell[data-ui-theme] .field textarea,
+.app-shell[data-ui-theme] .node-inline-control {
+  transition:
+    color var(--motion-duration-fast) var(--motion-ease-standard),
+    background var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard),
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.app-shell[data-ui-theme] .button,
+.app-shell[data-ui-theme] .icon-button,
+.app-shell[data-ui-theme] .canvas-toolbar button,
+.app-shell[data-ui-theme] .settings-action-row button,
+.app-shell[data-ui-theme] .settings-extension-actions button,
+.app-shell[data-ui-theme] .node-plugin-manager button,
+.app-shell[data-ui-theme] .package-manager button {
+  box-shadow: var(--material-control-shadow);
+}
+
+.app-shell[data-ui-theme] .button:hover:not(:disabled),
+.app-shell[data-ui-theme] .icon-button:hover:not(:disabled),
+.app-shell[data-ui-theme] .canvas-toolbar button:hover:not(:disabled),
+.app-shell[data-ui-theme] .settings-action-row button:hover:not(:disabled),
+.app-shell[data-ui-theme] .settings-extension-actions button:hover:not(:disabled),
+.app-shell[data-ui-theme] .node-plugin-manager button:hover:not(:disabled),
+.app-shell[data-ui-theme] .package-manager button:hover:not(:disabled) {
+  transform: translateY(var(--motion-hover-lift));
+}
+
+.app-shell[data-ui-theme] .button:active:not(:disabled),
+.app-shell[data-ui-theme] .icon-button:active:not(:disabled),
+.app-shell[data-ui-theme] .canvas-toolbar button:active:not(:disabled),
+.app-shell[data-ui-theme] .settings-action-row button:active:not(:disabled),
+.app-shell[data-ui-theme] .settings-extension-actions button:active:not(:disabled),
+.app-shell[data-ui-theme] .node-plugin-manager button:active:not(:disabled),
+.app-shell[data-ui-theme] .package-manager button:active:not(:disabled) {
+  transform: scale(var(--motion-press-scale));
+}
+
+.app-shell[data-ui-theme] .field input,
+.app-shell[data-ui-theme] .field select,
+.app-shell[data-ui-theme] .field textarea,
+.app-shell[data-ui-theme] .node-inline-control,
+.workspace-shell[data-ui-theme] .themed-select__trigger,
+.app-shell[data-ui-theme] .themed-select__trigger {
+  box-shadow: var(--material-control-shadow);
+}
+
+.workspace-shell[data-ui-theme] .themed-select__menu,
+.app-shell[data-ui-theme] .themed-select__menu,
+.workspace-shell[data-ui-theme] .tab-context-menu,
+.app-shell[data-ui-theme] .statusbar-task-menu {
+  box-shadow: var(--material-popup-shadow);
+  backdrop-filter: blur(var(--material-glass-blur));
+  animation: ui-popup-enter var(--motion-duration-normal) var(--motion-ease-emphasized) both;
+}
+
+.app-shell[data-ui-theme] .settings-backdrop,
+.app-shell[data-ui-theme] .package-manager-backdrop,
+.app-shell[data-ui-theme] .node-plugin-manager-backdrop,
+.app-shell[data-ui-theme] .debug-backdrop,
+.app-shell[data-ui-theme] .history-backdrop,
+.app-shell[data-ui-theme] .smb-backdrop {
+  backdrop-filter: blur(var(--material-overlay-blur));
+  animation: ui-backdrop-enter var(--motion-duration-normal) var(--motion-ease-standard) both;
+}
+
+.app-shell[data-ui-theme] .workflow-node:not(.workflow-structure) {
+  box-shadow: var(--material-node-shadow);
+  transition:
+    border-color var(--motion-duration-normal) var(--motion-ease-standard),
+    background var(--motion-duration-normal) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-standard);
+}
+.app-shell[data-ui-theme] .workflow-node:not(.workflow-structure):hover { box-shadow: var(--material-node-hover-shadow); }
+.app-shell[data-ui-theme] .workflow-node:not(.workflow-structure).selected { box-shadow: var(--material-node-selected-shadow); }
+
+.app-shell[data-ui-theme] .palette-group button[draggable="true"],
+.app-shell[data-ui-theme] .flow-library-item[draggable="true"],
+.app-shell[data-ui-theme] .group-resource-card[draggable="true"],
+.app-shell[data-ui-theme] .node-plugin-manager__list > article,
+.app-shell[data-ui-theme] .workspace-choice-card {
+  transition:
+    border-color var(--motion-duration-normal) var(--motion-ease-standard),
+    background var(--motion-duration-normal) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-normal) var(--motion-ease-standard),
+    transform var(--motion-duration-normal) var(--motion-ease-standard),
+    opacity var(--motion-duration-fast) var(--motion-ease-standard);
+}
+.app-shell[data-ui-theme] .node-plugin-manager__list > article:hover,
+.app-shell[data-ui-theme] .workspace-choice-card:hover {
+  box-shadow: var(--material-panel-shadow);
+  transform: translateY(var(--motion-hover-lift));
+}
+
+@keyframes ui-surface-enter {
+  from { opacity: 0; transform: translateY(var(--motion-enter-distance)) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ui-popup-enter {
+  from { opacity: 0; transform: translateY(calc(var(--motion-enter-distance) * -0.5)) scale(.988); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes ui-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-shell[data-ui-theme],
+  .app-shell[data-ui-theme] {
+    --motion-duration-fast: 0ms;
+    --motion-duration-normal: 0ms;
+    --motion-duration-slow: 0ms;
+    --motion-hover-lift: 0px;
+    --motion-press-scale: 1;
+    --motion-enter-distance: 0px;
+  }
+}
+
+/* Material elevation is shared by every canvas appearance, including dynamic/structure nodes. */
+.app-shell[data-ui-theme] .workflow-structure:not(.workflow-if-zone):not(.workflow-loop-zone) { box-shadow: var(--material-panel-shadow); }
+.app-shell[data-ui-theme] .workflow-structure > .workflow-node__body,
+.app-shell[data-ui-theme] .workflow-if-zone__end,
+.app-shell[data-ui-theme] .workflow-loop-zone__end,
+.app-shell[data-ui-theme] .node-insight,
+.app-shell[data-ui-theme] .react-flow__controls,
+.app-shell[data-ui-theme] .react-flow__minimap { box-shadow: var(--material-card-shadow); }
+.app-shell[data-ui-theme] .workflow-node.status-running:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--info) 24%, transparent), var(--material-node-shadow); }
+.app-shell[data-ui-theme] .workflow-node.status-error:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent), var(--material-node-shadow); }
+.app-shell[data-ui-theme] .workflow-node.status-error.selected:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 36%, transparent), var(--material-node-selected-shadow); }

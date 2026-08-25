@@ -3,7 +3,7 @@
   "id": "demo.midnight-theme",
   "name": "Midnight Theme Demo",
   "version": "1.0.0",
-  "description": "Token-only UI theme plugin. It changes visual identity without changing Core layout geometry.",
+  "description": "Unified Design SDK demo: semantic color, material and motion without changing Core layout geometry.",
   "themes": [
     {
       "id": "demo.midnight",
@@ -87,6 +87,42 @@
           "canvas-function": "#7953c6",
           "canvas-group": "#16784f"
         }
+      },
+      "material": {
+        "dark": {
+          "material-panel-shadow": "0 12px 30px #00000052, inset 0 1px 0 #ffffff0a",
+          "material-card-shadow": "0 5px 16px #00000036, inset 0 1px 0 #ffffff0a",
+          "material-control-shadow": "0 1px 3px #00000038, inset 0 1px 0 #ffffff10",
+          "material-popup-shadow": "0 20px 54px #00000078, inset 0 1px 0 #ffffff0d",
+          "material-node-shadow": "0 7px 18px #00000044, inset 0 1px 0 #ffffff0d",
+          "material-node-hover-shadow": "0 10px 25px #00000055, inset 0 1px 0 #ffffff10",
+          "material-node-selected-shadow": "0 0 0 1px #69b2f466, 0 12px 28px #00000060, inset 0 1px 0 #ffffff10",
+          "material-surface-highlight": "#ffffff0a",
+          "material-overlay-blur": "12px",
+          "material-glass-blur": "10px"
+        },
+        "light": {
+          "material-panel-shadow": "0 9px 24px #526d8729, inset 0 1px 0 #ffffffee",
+          "material-card-shadow": "0 4px 13px #526d8720, inset 0 1px 0 #ffffff",
+          "material-control-shadow": "0 1px 2px #526d8724, inset 0 1px 0 #ffffff",
+          "material-popup-shadow": "0 18px 46px #33415538, inset 0 1px 0 #ffffff",
+          "material-node-shadow": "0 6px 16px #526d8728, inset 0 1px 0 #ffffff",
+          "material-node-hover-shadow": "0 9px 22px #526d8733, inset 0 1px 0 #ffffff",
+          "material-node-selected-shadow": "0 0 0 1px #3f8dde55, 0 10px 24px #526d8733, inset 0 1px 0 #ffffff",
+          "material-surface-highlight": "#ffffffee",
+          "material-overlay-blur": "10px",
+          "material-glass-blur": "8px"
+        }
+      },
+      "motion": {
+        "motion-duration-fast": "100ms",
+        "motion-duration-normal": "150ms",
+        "motion-duration-slow": "210ms",
+        "motion-ease-standard": "cubic-bezier(.2, 0, 0, 1)",
+        "motion-ease-emphasized": "cubic-bezier(.2, .8, .2, 1)",
+        "motion-hover-lift": "-1px",
+        "motion-press-scale": ".985",
+        "motion-enter-distance": "6px"
       }
     }
   ]

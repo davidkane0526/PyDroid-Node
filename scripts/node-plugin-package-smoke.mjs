@@ -71,7 +71,7 @@ try {
   const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
   const pythonProviders = pythonProvidersModule.default ?? pythonProvidersModule;
 
-  if (pluginSdk.PLUGIN_SDK_VERSION !== 2 || pluginSdk.UI_THEME_SDK_VERSION !== 1 || packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin SDK/package API version");
+  if (pluginSdk.PLUGIN_SDK_VERSION !== 3 || pluginSdk.UI_THEME_SDK_VERSION !== 2 || pluginSdk.UI_DESIGN_SDK_VERSION !== 1 || packages.NODE_PLUGIN_PACKAGE_SCHEMA_VERSION !== 1 || packages.NODE_PLUGIN_RUNTIME_API_VERSION !== 2) throw new Error("unexpected plugin SDK/package API version");
   const manifest = JSON.parse(readFileSync(path.join(root, "examples", "plugins", "demo-manifest-scale.plugin.json"), "utf8"));
   const storage = new MemoryStorage();
   const registration = packages.installNodePluginPackage(manifest, { storage });

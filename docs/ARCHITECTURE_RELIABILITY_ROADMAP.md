@@ -1,6 +1,6 @@
 # Architecture and reliability roadmap
 
-Current release state: **1.6.36 Theme / Node Layout Contract**
+Current release state: **1.6.37 Unified Design SDK**
 Remote/Host architectural baseline: **1.4.92 Baseline Consolidation**
 Authoritative current handoff: `docs/development-handoff.md`
 

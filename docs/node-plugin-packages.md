@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.36 exposes one deterministic plugin path: NodeSpec + Runtime Providers + packaged resources + token-only UI themes. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest. A package may contain nodes, themes, or both.
+PyDroid Node 1.6.37 exposes one deterministic plugin path: NodeSpec + Runtime Providers + packaged resources + token-only UI themes. A JSON Manifest is the installed form; `.plugin.zip` is only the file container used to load that same Manifest. A package may contain nodes, themes, or both.
 
 ## Distribution boundary
 
@@ -81,9 +81,9 @@ import {
 - `restoreNodePluginPackages()` activates persisted packages during application startup.
 - `uninstallNodePluginPackage(id)` removes both live registrations and the persisted package.
 
-## UI Theme Plugin SDK v1
+## UI Theme Plugin SDK v2 + Unified Design SDK v1
 
-Plugin SDK v2 adds a token-only UI theme contract. A theme plugin cannot inject CSS, HTML, React components, layout callbacks or arbitrary DOM styles. It can only replace the semantic appearance tokens whitelisted by `UI_THEME_TOKEN_NAMES`. Core keeps component size, spacing, typography metrics, responsive breakpoints and node geometry.
+Plugin SDK v3 exposes UI Theme SDK v2 and Unified Design SDK v1 through the same `nodePluginSdk.ts` authoring surface. A theme plugin cannot inject CSS, HTML, React components, layout callbacks or arbitrary DOM styles. It can only replace the semantic appearance tokens whitelisted by `UI_THEME_TOKEN_NAMES`. Core keeps component size, spacing, typography metrics, responsive breakpoints and node geometry.
 
 A theme-only package is valid:
 
@@ -114,9 +114,9 @@ A theme-only package is valid:
 }
 ```
 
-The public authoring surface exports `UI_THEME_SDK_VERSION`, `UI_THEME_TOKEN_NAMES`, `defineUiTheme()`, `registerUiTheme()`, `listUiThemes()` and the normal package install lifecycle. Installed themes appear under **Settings → Appearance → UI theme**. If an active theme package is disabled or uninstalled, the UI deterministically falls back to `core.default`.
+The public authoring surface exports `UI_THEME_SDK_VERSION`, `UI_DESIGN_SDK_VERSION`, the color/material/motion token registries, `defineUiTheme()`, `registerUiTheme()`, `listUiThemes()` and the normal package install lifecycle. Installed themes appear under **Settings → Appearance → UI theme**. If an active theme package is disabled or uninstalled, the UI deterministically falls back to `core.default`.
 
-Theme tokens cover semantic application surfaces, text/borders/accent/material and canvas appearance. Geometry tokens such as node width, control height, radius, spacing, font size, node scale and endpoint scale are not part of the theme SDK. See `docs/UI_THEME_AND_NODE_LAYOUT_CONTRACT.md`.
+Theme color tokens cover semantic application/canvas appearance. `material` controls semantic elevation and blur; `motion` controls shared timing/easing and restrained visual interaction transforms. Host-rendered declarative plugin UI receives the same material/motion automatically. Geometry tokens such as node width, control height, radius, spacing, font size, node scale and endpoint scale are not part of the theme SDK. See `docs/UI_THEME_AND_NODE_LAYOUT_CONTRACT.md`.
 
 A real theme-only JSON example lives at `examples/plugins/demo-midnight-theme.plugin.json`; the same package is also provided as `examples/plugin-archives/demo-midnight-theme.plugin.zip`.
 

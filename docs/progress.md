@@ -1,14 +1,14 @@
-# Current progress — 1.6.36 Theme / Node Layout Contract
+# Current progress — 1.6.37 Unified Design SDK
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.36**, Android versionCode **176**.
-- Build revision: `1.6.36-dev-r131-theme-node-layout-contract`.
+- Product version: **1.6.37**, Android versionCode **177**.
+- Build revision: `1.6.37-dev-r132-unified-design-sdk`.
 
-- 1.6.36 release-contract validation: Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**; MCP/Remote/LAN and plugin/theme/layout smoke gates pass. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
-- Phase: release convergence; Theme Plugin / node-layout source contract is closed. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
+- 1.6.37 source validation: Unified Design SDK, Theme SDK, UI contract, node layout, plugin package/archive/manager/declarative UI, Canvas Theme and UI regression gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
+- Phase: release convergence; the visual contract is now unified as Plugin SDK v3 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 ## Completed before this audit
@@ -23,6 +23,17 @@ Date: 2026-08-25
 - Built-in workflow demos through Demo 38.
 
 1.6.34 source revalidation: Runtime parity **134/134** with JavaScript-capable NodeContract coverage **96/96**, Python **188 passed / 1 skipped**, demos **38/38**. MCP HTTP/Desktop E2E, Remote Host E2E, LAN, Workflow Migration, Plugin/SDK and ownership/architecture smokes also pass. Full pinned `pnpm check` plus Windows/Android packaging remain 1.6.35 release gates because this source ZIP does not include `node_modules` and the current shell is not the pinned Windows Node 24 build environment.
+
+
+## 1.6.37 unified design contract
+
+- Plugin SDK v3 exports UI Theme SDK v2 and Unified Design SDK v1 from the same public authoring surface.
+- Theme definitions now have separate `tokens`, `material` and `motion` sections. Theme packages remain token-only and cannot inject CSS or layout logic.
+- Core material tokens unify panel/card/control/popup/node elevation, overlay/glass blur and surface highlights.
+- Core motion tokens unify control/menu/dialog/card/node state timing and easing, with restrained hover/press/enter amplitudes.
+- `prefers-reduced-motion` is enforced at the shared contract level.
+- Host-rendered declarative plugin UI automatically consumes the same material/motion system; plugins cannot create a parallel visual stack.
+- Dynamic-node measurement remains unchanged and Core-owned. Motion never changes node bounds, port rows or edge anchors.
 
 ## 1.6.36 theme / node-layout contract
 
@@ -52,4 +63,4 @@ Date: 2026-08-25
 
 ## Next
 
-**1.6.36 Release Validation**: full `pnpm check`, Windows Desktop package, Android package, then one final physical acceptance pass. If no structural defect is found, freeze and stop the current development cycle.
+**1.6.37 Release Validation**: full `pnpm check`, Windows Desktop package, Android package, then one final physical acceptance pass. If no structural defect is found, freeze and stop the current development cycle.

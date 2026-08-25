@@ -57,10 +57,10 @@
     0 2px 5px rgba(74,104,145,.08),
     0 10px 22px rgba(74,104,145,.16);
   transform: none;
-  transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
+  transition: border-color var(--motion-duration-normal) var(--motion-ease-standard), box-shadow var(--motion-duration-normal) var(--motion-ease-standard), background var(--motion-duration-normal) var(--motion-ease-standard);
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-  border-color: #c1d7ef;
+  border-color: color-mix(in srgb, var(--canvas-node-border) 68%, var(--canvas-selection));
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,1),
     inset 0 -1px 0 rgba(170,194,224,.27),
@@ -70,7 +70,7 @@
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
   outline: none !important;
-  border-color: #9fc5ee;
+  border-color: color-mix(in srgb, var(--canvas-node-border) 48%, var(--canvas-selection));
   box-shadow:
     0 0 0 1px rgba(54,152,230,.10),
     inset 0 1px 0 rgba(255,255,255,.98),
@@ -173,7 +173,7 @@
     0 10px 22px rgba(0,0,0,.28);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-  border-color: #496682;
+  border-color: color-mix(in srgb, var(--canvas-node-border) 70%, var(--canvas-selection));
   background:
     linear-gradient(180deg, rgba(255,255,255,.026) 0, rgba(255,255,255,.008) 34%, rgba(255,255,255,0) 74%),
     color-mix(in srgb, var(--canvas-node-face) 94%, var(--canvas-selection) 6%);
@@ -184,7 +184,7 @@
     0 12px 25px rgba(0,0,0,.30);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
-  border-color: #5480a7;
+  border-color: color-mix(in srgb, var(--canvas-node-border) 54%, var(--canvas-selection));
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.075),
     inset 0 -1px 0 rgba(0,0,0,.28),

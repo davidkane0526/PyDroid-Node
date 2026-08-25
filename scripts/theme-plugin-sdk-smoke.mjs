@@ -20,11 +20,11 @@ try {
   const sdk = module.default ?? module;
   if (sdk.DEFAULT_UI_THEME_ID !== "core.default") throw new Error("unexpected default theme id");
   if (!sdk.listUiThemes().some((theme) => theme.id === "core.default")) throw new Error("core default theme missing");
-  const definition = sdk.defineUiTheme({ id: "demo.contract", labelZh: "契约主题", labelEn: "Contract", tokens: { dark: { bg: "#010203", accent: "#336699", "canvas-node-face": "#112233" } } });
+  const definition = sdk.defineUiTheme({ id: "demo.contract", labelZh: "契约主题", labelEn: "Contract", tokens: { dark: { bg: "#010203", accent: "#336699", "canvas-node-face": "#112233" } }, material: { dark: { "material-card-shadow": "0 4px 12px #0008", "material-overlay-blur": "9px" } }, motion: { "motion-duration-normal": "150ms", "motion-ease-standard": "ease-out" } });
   const registration = sdk.registerUiTheme(definition);
   if (sdk.resolveUiTheme("demo.contract").id !== "demo.contract") throw new Error("registered theme not resolvable");
   const vars = sdk.uiThemeCssVariables("demo.contract", "dark");
-  if (vars["--bg"] !== "#010203" || vars["--canvas-node-face"] !== "#112233") throw new Error("theme tokens were not mapped to CSS custom properties");
+  if (vars["--bg"] !== "#010203" || vars["--canvas-node-face"] !== "#112233" || vars["--material-card-shadow"] !== "0 4px 12px #0008" || vars["--motion-duration-normal"] !== "150ms") throw new Error("theme/design tokens were not mapped to CSS custom properties");
   let geometryRejected = false;
   try { sdk.defineUiTheme({ id: "demo.bad-layout", labelZh: "坏", labelEn: "Bad", tokens: { dark: { "node-width": "999px" } } }); } catch { geometryRejected = true; }
   if (!geometryRejected) throw new Error("theme SDK accepted a layout/geometry token");
@@ -33,7 +33,7 @@ try {
   if (!duplicateRejected) throw new Error("duplicate theme registration was accepted");
   if (!registration.unregister() || registration.unregister()) throw new Error("theme unregister is not deterministic");
   if (sdk.resolveUiTheme("demo.contract").id !== "core.default") throw new Error("unregistered theme did not fall back to Core default");
-  console.log("Theme Plugin SDK smoke: PASS (token whitelist, CSS variables, duplicate guard, deterministic unload, no layout injection)");
+  console.log("Theme Plugin SDK smoke: PASS (color/material/motion whitelist, CSS variables, duplicate guard, deterministic unload, no layout injection)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

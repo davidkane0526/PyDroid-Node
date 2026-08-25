@@ -1,16 +1,17 @@
-# UI Theme and Node Layout Contract — 1.6.36
+# UI Theme and Node Layout Contract — 1.6.37
 
 ## Scope
 
-PyDroid Node 1.6.36 separates **appearance** from **geometry**. Plugin SDK v2 may extend NodeSpec/Runtime/resources/declarative UI and may register UI themes, but a theme is never allowed to redefine component layout. Core remains the single owner of layout metrics and node geometry.
+PyDroid Node 1.6.37 separates **appearance** from **geometry**. Plugin SDK v3 may extend NodeSpec/Runtime/resources/declarative UI and may register UI themes, but a theme is never allowed to redefine component layout. Core remains the single owner of layout metrics and node geometry.
 
 ## Plugin SDK surface
 
 `src/nodePluginSdk.ts` is the public authoring surface.
 
-- `PLUGIN_SDK_VERSION = 2`
+- `PLUGIN_SDK_VERSION = 3`
 - `NODE_SPEC_SDK_VERSION = 7`
-- `UI_THEME_SDK_VERSION = 1`
+- `UI_THEME_SDK_VERSION = 2`
+- `UI_DESIGN_SDK_VERSION = 1`
 - package schema remains `1`
 - JavaScript Runtime API remains `2`
 
@@ -24,7 +25,7 @@ A package may be **node-only**, **theme-only**, or contain both. First-party and
 
 ## Theme plugin boundary
 
-A UI theme declares semantic tokens for `dark` and/or `light` modes. The token whitelist is defined by `UI_THEME_TOKEN_NAMES` in `src/themePluginSdk.ts`.
+A UI theme declares semantic color `tokens`, mode-specific `material`, and shared `motion`. Color tokens are defined by `UI_THEME_TOKEN_NAMES`; material/motion tokens are defined by `UI_MATERIAL_TOKEN_NAMES` and `UI_MOTION_TOKEN_NAMES` in `src/designSystemSdk.ts`.
 
 The theme layer covers:
 
@@ -50,7 +51,7 @@ A theme plugin **cannot** provide:
 - endpoint size
 - port row spacing or socket-control geometry
 
-`src/ui-theme-contract.css` is loaded last and is appearance-only. It maps the semantic theme tokens onto the product's shared UI surfaces. Legacy component styles may still contain default material values, but the final visual contract overrides their appearance through the semantic token layer.
+`src/ui-theme-contract.css` is loaded last and is appearance-only. It maps semantic color, material and motion tokens onto the product's shared UI surfaces. Legacy component styles may still contain default material values, but the final visual contract overrides their appearance through the semantic token layer.
 
 ## Theme lifecycle
 

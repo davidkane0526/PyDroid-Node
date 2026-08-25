@@ -1,3 +1,14 @@
+## 1.6.37 (177) — Unified Design SDK: material + motion — 2026-08-25
+
+- Promoted the combined public authoring surface to Plugin SDK v3, UI Theme SDK v2 and Unified Design SDK v1 while keeping NodeSpec SDK v7, plugin package schema v1 and Runtime API v2 unchanged.
+- Theme definitions now carry three bounded appearance layers: semantic color `tokens`, mode-specific `material`, and shared `motion`. Arbitrary CSS/render/layout injection remains unsupported.
+- Added semantic elevation/blur tokens for panels, cards, controls, popups and node states, and shared motion tokens for duration, easing, hover/press response and enter distance.
+- Unified Core controls, Settings/dialog surfaces, package/plugin managers, menus, cards, Canvas controls and node visual-state transitions through the same final `ui-theme-contract.css` material/motion mapping.
+- Dynamic-node geometry remains isolated in `nodeLayout.ts`; material/motion can change perceived depth and visual transitions but cannot alter bounds, port rows, endpoint positions, typography metrics or responsive layout.
+- Added central `prefers-reduced-motion` handling and updated the Midnight JSON/ZIP theme example to exercise color + material + motion through a real theme-only plugin lifecycle.
+- Source regression: Design SDK/Theme/UI/node-layout/plugin package/archive/manager/declarative UI/Canvas/UI regression gates pass; demos **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed / 1 skipped**.
+- Build revision: `1.6.37-dev-r132-unified-design-sdk`.
+
 ## 1.6.36 (176) — Theme plugin and deterministic node-layout contract — 2026-08-25
 
 - Added Plugin SDK v2 with UI Theme SDK v1. JSON Manifest and `.plugin.zip` packages may now contain nodes, token-only UI themes, or both, with atomic registration and the existing deterministic install/disable/enable/uninstall/restore lifecycle.

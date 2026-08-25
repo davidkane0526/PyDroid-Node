@@ -1,4 +1,6 @@
-export const UI_THEME_SDK_VERSION = 1 as const;
+import { UI_DESIGN_TOKEN_NAMES, type UiMotionTokens, type UiThemeMaterial } from "./designSystemSdk";
+
+export const UI_THEME_SDK_VERSION = 2 as const;
 
 export const UI_THEME_TOKEN_NAMES = [
   "bg", "bg-canvas", "surface", "surface-deep", "surface-raised", "surface-hover", "surface-overlay",
@@ -25,6 +27,8 @@ export type UiThemeDefinition = {
     dark?: UiThemeTokens;
     light?: UiThemeTokens;
   };
+  material?: UiThemeMaterial;
+  motion?: UiMotionTokens;
 };
 
 export type UiThemeRegistration = {
@@ -64,6 +68,7 @@ export function validateUiThemeDefinition(theme: UiThemeDefinition): string[] {
   if (!theme.labelEn?.trim()) errors.push(`${theme.id || "<theme>"}: labelEn 不能为空`);
   if (!theme.tokens || typeof theme.tokens !== "object") errors.push(`${theme.id || "<theme>"}: tokens 必须是对象`);
   const allowed = new Set<string>(UI_THEME_TOKEN_NAMES);
+  const allowedDesign = new Set<string>(UI_DESIGN_TOKEN_NAMES);
   for (const mode of ["dark", "light"] as const) {
     const tokens = theme.tokens?.[mode];
     if (!tokens) continue;
@@ -71,6 +76,18 @@ export function validateUiThemeDefinition(theme: UiThemeDefinition): string[] {
       if (!allowed.has(name)) errors.push(`${theme.id || "<theme>"}: 不支持的 ${mode} token：${name}`);
       if (typeof value !== "string" || !value.trim()) errors.push(`${theme.id || "<theme>"}: ${mode}.${name} 必须是非空字符串`);
     }
+  }
+  for (const mode of ["dark", "light"] as const) {
+    const material = theme.material?.[mode];
+    if (!material) continue;
+    for (const [name, value] of Object.entries(material)) {
+      if (!allowedDesign.has(name) || !name.startsWith("material-")) errors.push(`${theme.id || "<theme>"}: 不支持的 ${mode} 材质 token：${name}`);
+      if (typeof value !== "string" || !value.trim()) errors.push(`${theme.id || "<theme>"}: ${mode}.${name} 必须是非空字符串`);
+    }
+  }
+  for (const [name, value] of Object.entries(theme.motion ?? {})) {
+    if (!allowedDesign.has(name) || !name.startsWith("motion-")) errors.push(`${theme.id || "<theme>"}: 不支持的动画 token：${name}`);
+    if (typeof value !== "string" || !value.trim()) errors.push(`${theme.id || "<theme>"}: motion.${name} 必须是非空字符串`);
   }
   return errors;
 }
@@ -116,7 +133,9 @@ export function resolveUiTheme(id: string): UiThemeDefinition {
 export function uiThemeCssVariables(id: string, mode: UiThemeMode): Record<string, string> {
   const theme = resolveUiTheme(id);
   const tokens = theme.tokens[mode] ?? {};
-  return Object.fromEntries(Object.entries(tokens).map(([name, value]) => [`--${name}`, value]));
+  const material = theme.material?.[mode] ?? {};
+  const motion = theme.motion ?? {};
+  return Object.fromEntries([...Object.entries(tokens), ...Object.entries(material), ...Object.entries(motion)].map(([name, value]) => [`--${name}`, value]));
 }
 
 export function subscribeUiThemes(listener: () => void): () => void {

@@ -11,6 +11,7 @@ const main = read("src/main.tsx");
 const app = read("src/App.tsx");
 const dialogs = read("src/dialogs.tsx");
 const sdk = read("src/themePluginSdk.ts");
+const designSdk = read("src/designSystemSdk.ts");
 const contract = read("src/ui-theme-contract.css");
 const styles = read("src/styles.css");
 const canvas = read("src/canvas-themes.css");
@@ -32,6 +33,12 @@ for (const forbidden of ["ui-control-height", "ui-radius-sm", "ui-radius-md", "u
 for (const required of ["bg", "surface", "text", "accent", "ui-shadow", "canvas-bg", "canvas-node-face", "canvas-node-border", "canvas-edge", "canvas-selection"]) {
   assert.match(sdk, new RegExp(`\\"${required}\\"`), `theme SDK is missing semantic token ${required}`);
 }
+for (const designToken of ["material-panel-shadow", "material-card-shadow", "material-control-shadow", "material-popup-shadow", "material-node-shadow", "material-overlay-blur", "motion-duration-fast", "motion-duration-normal", "motion-ease-standard", "motion-hover-lift", "motion-press-scale", "motion-enter-distance"]) {
+  assert.ok(designSdk.includes(`"${designToken}"`), `Design SDK is missing ${designToken}`);
+}
+assert.match(contract, /prefers-reduced-motion: reduce/, "theme/design contract must respect reduced motion");
+assert.match(contract, /material-popup-shadow/, "theme/design contract must use semantic popup material");
+assert.match(contract, /motion-duration-normal/, "theme/design contract must use semantic motion timing");
 for (const selector of [".workspace-shell[data-ui-theme]", ".app-shell[data-ui-theme] .topbar", ".app-shell[data-ui-theme] .node-palette", ".app-shell[data-ui-theme] .inspector", ".app-shell[data-ui-theme] .app-statusbar", ".app-shell[data-ui-theme] .settings-dialog", ".app-shell[data-ui-theme] .package-manager", ".app-shell[data-ui-theme] .data-grid", ".app-shell[data-ui-theme] .notebook-view", ".app-shell[data-ui-theme] .smb-dialog", ".app-shell[data-ui-theme] .result-panel", ".app-shell[data-ui-theme] .workflow-node"]) {
   assert.ok(contract.includes(selector), `theme contract does not cover ${selector}`);
 }
@@ -45,8 +52,8 @@ const require = createRequire(import.meta.url);
 let tsc;
 try { tsc = { command: process.execPath, args: [require.resolve("typescript/bin/tsc")] }; }
 catch { tsc = { command: process.platform === "win32" ? "tsc.cmd" : "tsc", args: [] }; }
-const syntaxFiles = ["src/App.tsx", "src/dialogs.tsx", "src/NodePluginManager.tsx", "src/themePluginSdk.ts", "src/nodeLayout.ts", "src/nodePluginPackages.ts", "src/nodePluginArchive.ts"].map((file) => path.join(root, file));
+const syntaxFiles = ["src/App.tsx", "src/dialogs.tsx", "src/NodePluginManager.tsx", "src/themePluginSdk.ts", "src/designSystemSdk.ts", "src/nodeLayout.ts", "src/nodePluginPackages.ts", "src/nodePluginArchive.ts"].map((file) => path.join(root, file));
 const transpile = spawnSync(tsc.command, [...tsc.args, ...syntaxFiles, "--jsx", "react-jsx", "--target", "ES2022", "--module", "ESNext", "--moduleResolution", "bundler", "--skipLibCheck", "--noCheck", "--noEmit"], { cwd: root, encoding: "utf8" });
 if (transpile.error || transpile.status !== 0) throw new Error(transpile.stderr || transpile.stdout || transpile.error?.message);
 
-console.log("UI Theme Contract smoke: PASS (settings registry, semantic tokens, appearance-only CSS, no geometry injection, theme-only package, TSX syntax)");
+console.log("UI Theme Contract smoke: PASS (color/material/motion registry, appearance-only CSS, reduced motion, no geometry injection, theme-only package, TSX syntax)");
