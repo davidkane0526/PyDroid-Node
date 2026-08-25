@@ -84,7 +84,8 @@ function readZipDirectory(buffer: ArrayBuffer): ZipEntry[] {
 }
 
 async function inflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  const ownedBytes = new Uint8Array(bytes);
+  const stream = new Blob([ownedBytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
