@@ -791,7 +791,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "aggregate", label: "重复值聚合", kind: "select", options: [{ label: "平均值", value: "mean" }, { label: "首项", value: "first" }, { label: "最大值", value: "max" }, { label: "最小值", value: "min" }] },
       { key: "resetIndex", label: "将行键保留为首列", kind: "boolean" },
     ],
-    ui: { inlineParameters: ["aggregate"], inlineParameterLabels: { aggregate: null }, inlineLayout: "row" },
+    ui: { inlineParameters: ["aggregate"], inlineParameterLabels: { aggregate: "聚合" }, inlineLayout: "row" },
   },
   {
     nodeType: "table.group_aggregate", runtimeSupport: ["python", "javascript"],
@@ -1652,7 +1652,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "figureHeight", label: "图片高度", kind: "number", min: 3, max: 12, step: 0.5, control: "slider", rememberDefault: true },
       { key: "dpi", label: "清晰度 DPI", kind: "number", min: 72, max: 300, step: 12, control: "slider", rememberDefault: true },
     ],
-    ui: { inlineParameters: ["colorMap"], inlineParameterLabels: { colorMap: null }, inlineLayout: "row" },
+    ui: { inlineParameters: ["colorMap"], inlineParameterLabels: { colorMap: "配色" }, inlineLayout: "row" },
   },
   {
     nodeType: "convert.to_text", runtimeSupport: ["python", "javascript"],

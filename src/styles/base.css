@@ -458,8 +458,8 @@ button, input, select, textarea { font: inherit; }
 .node-selection-check{ position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
 .node-selection-check { left: -11px; }
 
-.node-run-action { position: absolute; z-index: 9; top: 6px; right: 6px; display: grid; width: 24px; height: 24px; padding: 0; place-items: center; border: 1px solid #334b68; border-radius: 7px; color: #55a8ff; background: #192536; box-shadow: none; cursor: pointer; font-size: 0; line-height: 0; opacity: 0; visibility: hidden; pointer-events: none; transform: none; transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease; }
-.node-run-action__icon { position: relative; top: -0.5px; display: block; width: 12px; height: 12px; overflow: visible; fill: currentColor; pointer-events: none; }
+.node-run-action { position: absolute; z-index: 9; top: 5px; right: 5px; display: grid; width: 20px; height: 20px; padding: 0; place-items: center; border: 1px solid #30445f; border-radius: 6px; color: #62afff; background: #172334d9; box-shadow: none; cursor: pointer; font-size: 0; line-height: 0; opacity: 0; visibility: hidden; pointer-events: none; transform: none; transition: opacity .12s ease, visibility .12s linear, border-color .14s ease, background .14s ease, color .14s ease; }
+.node-run-action__icon { position: relative; top: -0.25px; display: block; width: 9px; height: 9px; overflow: visible; fill: currentColor; pointer-events: none; }
 .node-run-action__icon path { vector-effect: non-scaling-stroke; }
 .workflow-node:hover > .node-run-action, .workflow-node:focus-within > .node-run-action { opacity: 1; visibility: visible; pointer-events: auto; transform: none; }
 .node-run-action:hover, .node-run-action:focus-visible { border-color: #496784; color: #7cc0ff; background: #1d2c3e; box-shadow: none; outline: none; }
@@ -4094,21 +4094,60 @@ select.node-inline-control {
 }
 .workflow-node--side-rail.direction-horizontal .workflow-node__body {
   min-height: calc(48px * var(--node-scale, 1));
+  margin-inline: 0 !important;
+  padding: 0;
   align-content: center;
 }
-.workflow-node--side-rail.direction-horizontal .workflow-node__label,
-.workflow-node--side-rail.direction-horizontal .workflow-node__meta {
-  padding-inline: 0;
+/* Complex horizontal nodes have one centered header spanning the whole card.
+   Rails no longer push the title/meta away from the real visual center. */
+.workflow-node--side-rail.direction-horizontal .workflow-node__label {
+  position: absolute;
+  z-index: 5;
+  top: calc(7px * var(--node-scale, 1));
+  right: calc(30px * var(--node-scale, 1));
+  left: calc(30px * var(--node-scale, 1));
+  padding: 0;
+  overflow: hidden;
   text-align: center;
-  transform: translateX(var(--node-center-shift, 0px));
+  text-overflow: ellipsis;
+  transform: none;
 }
-.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--socket-grid {
-  width: var(--socket-control-width, 82px);
-  justify-self: start;
-  transform: translateX(var(--side-form-control-offset, 0px));
+.workflow-node--side-rail.direction-horizontal .workflow-node__meta {
+  position: absolute;
+  z-index: 5;
+  top: calc(25px * var(--node-scale, 1));
+  right: calc(30px * var(--node-scale, 1));
+  left: calc(30px * var(--node-scale, 1));
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  transform: none;
 }
-.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--socket-grid > .workflow-node__inline-control--label-hidden {
+/* Inline node parameters become real form rows on the same grid as socket defaults. */
+.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--side-form {
+  position: absolute;
+  z-index: 6;
+  top: calc(40px * var(--node-scale, 1));
+  left: calc(11px * var(--node-scale, 1));
+  display: grid;
+  width: calc(var(--input-port-label-width, 48px) + var(--socket-control-width, 82px) + 7px * var(--node-scale, 1));
+  margin: 0;
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  gap: calc(5px * var(--node-scale, 1));
+}
+.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--side-form > label {
+  display: grid;
   width: 100%;
+  grid-template-columns: minmax(0, var(--input-port-label-width, 48px)) minmax(0, var(--socket-control-width, 82px));
+  align-items: center;
+  gap: calc(7px * var(--node-scale, 1));
+}
+.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--side-form > .workflow-node__inline-control--label-hidden {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  padding-left: calc(var(--input-port-label-width, 48px) + 7px * var(--node-scale, 1));
 }
 .workflow-node--dynamic-ui.direction-horizontal .input-port {
   width: var(--input-rail-width, 0px);

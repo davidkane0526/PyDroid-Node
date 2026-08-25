@@ -105,7 +105,7 @@ assert.match(app, /const position = requestedPosition \?\? functionInsertionPosi
 assert.match(workflowFunctions, /functionInsertionPosition[\s\S]*direction === "vertical"[\s\S]*Math\.max[\s\S]*\+ 285/, "function palette fallback placement must remain owned by the shared workflow-function helper");
 assert.match(app, /node-run-action[\s\S]*单独运行 · 自动补齐上游依赖/, "every canvas node/group should expose the compact node-scoped run action");
 assert.match(css, /\.workflow-function-card \.flow-library-actions button \{[^}]*display:\s*inline-flex;[^}]*align-items:\s*center;[^}]*justify-content:\s*center;/, "workflow function action labels should be centered by layout rather than line-height compensation");
-assert.match(css, /\.node-run-action \{[^}]*border:\s*1px solid #334b68;[^}]*color:\s*#55a8ff;[^}]*background:\s*#192536;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/, "node run action should use the shared Soft dark material and stay hidden by default");
+assert.match(css, /\.node-run-action \{[^}]*border:\s*1px solid #30445f;[^}]*color:\s*#62afff;[^}]*background:\s*#172334d9;[^}]*opacity:\s*0;[^}]*visibility:\s*hidden;[^}]*pointer-events:\s*none;/, "node run action should use the shared Soft dark material and stay hidden by default");
 assert.match(css, /\.workflow-node:hover > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "desktop node hover should reveal the run action");
 assert.match(css, /app-shell\.native-platform \.workflow-node\.selected > \.node-run-action[^}]*opacity:\s*1;[^}]*visibility:\s*visible;/, "native touch UI should reveal the run action only for the selected node");
 assert.match(css, /app-shell\[data-theme="light"\] \.node-run-action \{[^}]*border-color:\s*#c9dcf4;[^}]*color:\s*#0877f9;[^}]*background:\s*rgba\(255,255,255,\.84\);/, "light mode should use the shared Soft run-control material in every canvas theme");
@@ -115,8 +115,8 @@ assert.match(app, /resolveNodeCardLayout[\s\S]*sideRailLayout[\s\S]*portTop/, "W
 assert.doesNotMatch(themeContract, /(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|font-size|line-height)\s*:/, "theme plugin contract must not own layout geometry");
 assert.match(css, /workflow-node--dynamic-ui[\s\S]*node-port-content--input[\s\S]*input-port-label-width[\s\S]*socket-control-width/, "dynamic socket UI should use a structured label/control row instead of overlapping absolute controls");
 assert.doesNotMatch(css, /node-inline-control--socket\s*\{[^}]*width:\s*70px/, "dynamic socket controls must not regress to the fixed 70px width that clipped values");
-assert.match(css, /workflow-node__inline-controls--socket-grid[\s\S]*side-form-control-offset/, "horizontal inline selectors should align to the same smart form column as socket defaults");
-assert.match(css, /workflow-node--side-rail\.direction-horizontal \.workflow-node__label,[\s\S]*workflow-node__meta[\s\S]*node-center-shift/, "horizontal dynamic title and description must use the node visual center rather than asymmetric rail space");
+assert.match(css, /workflow-node__inline-controls--side-form[\s\S]*input-port-label-width[\s\S]*socket-control-width/, "horizontal inline parameters should use the same label/control grid as socket defaults");
+assert.match(css, /workflow-node--side-rail\.direction-horizontal \.workflow-node__label[\s\S]*left:\s*calc\(30px \* var\(--node-scale, 1\)\)[\s\S]*workflow-node__meta[\s\S]*text-align:\s*center[\s\S]*transform:\s*none/, "horizontal dynamic title and description must use the full-card visual center rather than asymmetric rail space");
 assert.match(numericInput, /numeric-input__stepper[\s\S]*aria-label=\{`\$\{label\} 增加`\}[\s\S]*aria-label=\{`\$\{label\} 减少`\}/, "numeric controls should use the compact Core stepper instead of Chromium's oversized native spinner");
 assert.match(parameterField, /NumericInput[\s\S]*spec\.kind === "number"/, "inspector number fields should share the same Core NumericInput component as node controls");
 assert.match(css, /numeric-input__field::?-webkit-inner-spin-button|numeric-input__field::\-webkit-inner-spin-button/, "native Chromium number spinners should be removed from node inline controls");
@@ -124,9 +124,9 @@ assert.match(app, /inlineParameterLabels[\s\S]*inlineLayout[\s\S]*workflow-node_
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");
 assert.match(css, /\.notebook-order-handle\s*\{[^}]*opacity:\s*0\s*!important;[^}]*pointer-events:\s*none\s*!important;/, "Notebook order handles must remain invisible and non-interactive");
 
-assert.match(css, /\.node-run-action\s*\{[^}]*display:\s*grid;[^}]*width:\s*24px;[^}]*height:\s*24px;[^}]*place-items:\s*center;/, "shared node run button geometry should center the play mark in both canvas themes");
+assert.match(css, /\.node-run-action\s*\{[^}]*display:\s*grid;[^}]*width:\s*20px;[^}]*height:\s*20px;[^}]*place-items:\s*center;/, "shared node run button geometry should center the play mark in both canvas themes");
 assert.match(app, /node-run-action__icon[\s\S]*viewBox="0 0 14 14"[\s\S]*M5\.25 3\.15 L11\.25 6\.55 Q12\.85 7 11\.25 7\.45/, "shared run button should use the smaller rounded SVG play mark");
-assert.match(css, /\.node-run-action__icon\s*\{[^}]*top:\s*-0\.5px;[^}]*width:\s*12px;[^}]*height:\s*12px;[^}]*fill:\s*currentColor;/, "shared run icon should use the smaller optically centered glyph");
+assert.match(css, /\.node-run-action__icon\s*\{[^}]*top:\s*-0\.25px;[^}]*width:\s*9px;[^}]*height:\s*9px;[^}]*fill:\s*currentColor;/, "shared run icon should use the smaller optically centered glyph");
 assert.match(css, /\.environment-float-button > svg\s*\{[^}]*stroke-width:\s*1;/, "environment icon should use crisp one-pixel rails");
 assert.match(css, /\.environment-float-button > svg circle\s*\{[^}]*fill:\s*currentColor;[^}]*stroke:\s*none;/, "environment icon should use solid control knobs rather than hollow circles");
 assert.match(css, /\.react-flow__handle\s*\{[^}]*width:\s*calc\(16px \* var\(--endpoint-scale, 1\)\);[^}]*height:\s*calc\(16px \* var\(--endpoint-scale, 1\)\)/, "shared endpoint geometry should be enlarged consistently across light/dark and canvas themes");

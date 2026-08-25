@@ -87,7 +87,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const labelUnits = visualTextUnits(input.label);
   const contentWidth = direction === "vertical"
     ? Math.min(276, Math.max(164, 92 + labelUnits * 8.6, inlineToolbarWidth + 24))
-    : Math.min(272, Math.max(146, 82 + labelUnits * 8.8, inlineToolbarWidth + 18));
+    : Math.min(248, Math.max(132, 62 + labelUnits * 7.4, inlineToolbarWidth + 14));
 
   const verticalFormPreferredWidth = verticalFormLayout
     ? Math.max(236, verticalFormLabelWidth + verticalFormControlWidth + 42)
@@ -96,12 +96,17 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     ? Math.min(352, 28 + maxPortCount * Math.min(78, Math.max(52, verticalPortLabelWidth)))
     : 0;
   const verticalWidth = Math.min(360, Math.max(contentWidth, verticalFormPreferredWidth, verticalPortStripWidth));
-  const sharedSimplePortInset = Math.max(inputPortLabelWidth, outputPortLabelWidth) + 14;
+  const sharedSimplePortInset = Math.max(inputPortLabelWidth, outputPortLabelWidth) + 10;
   const compactInputInset = inputPorts.length ? sharedSimplePortInset : 0;
   const compactOutputInset = outputPorts.length ? sharedSimplePortInset : 0;
-  const compactBodyWidth = Math.min(220, Math.max(128, 56 + labelUnits * 7.8));
-  const simpleHorizontalWidth = Math.min(360, Math.max(compactBodyWidth + compactInputInset + compactOutputInset, input.isGroup ? 230 : 184));
-  const dynamicHorizontalWidth = Math.min(520, Math.max(contentWidth + inputRailWidth + outputRailWidth + 16, input.isGroup ? 230 : 184));
+  const compactBodyWidth = Math.min(196, Math.max(112, 48 + labelUnits * 6.8));
+  const simpleHorizontalWidth = Math.min(320, Math.max(compactBodyWidth + compactInputInset + compactOutputInset, input.isGroup ? 224 : 210));
+  // Side-rail cards do not need a second full-width center column for the title.
+  // The header spans the whole card; width is therefore driven by the two rails plus a modest breathing gap,
+  // with the title only acting as a minimum-width floor.
+  const dynamicHeaderWidth = Math.min(310, Math.max(176, 58 + labelUnits * 8.2));
+  const dynamicRailWidth = inputRailWidth + outputRailWidth + 82;
+  const dynamicHorizontalWidth = Math.min(430, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 230 : 208));
   const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
   const baseWidth = direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
@@ -109,12 +114,20 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     : Math.max(verticalPortLabelWidth, 64);
 
   const inlineRows = inlineParameters.length ? (input.inlineLayout === "row" ? 1 : inlineParameters.length) : 0;
+  const sideInlineRows = sideRailLayout ? inlineParameters.length : 0;
   const socketRows = inputDefaultSpecs.length;
   const basePortRowHeight = inputDefaultSpecs.length ? 34 : dynamic ? 30 : 28;
   const minimumHandleRowHeight = Math.ceil((16 * input.endpointScale + 6) / Math.max(0.01, input.nodeScale));
   const portRowHeight = Math.max(basePortRowHeight, minimumHandleRowHeight);
-  const railHeight = maxPortCount ? 34 + maxPortCount * portRowHeight : 0;
-  const contentHeight = 62 + inlineRows * 27;
+  const sideHeaderReserve = sideRailLayout ? 40 : 0;
+  const sideInlineReserve = sideInlineRows ? sideInlineRows * 28 + 5 : 0;
+  const sidePortStart = sideHeaderReserve + sideInlineReserve;
+  const railHeight = maxPortCount
+    ? sideRailLayout
+      ? sidePortStart + maxPortCount * portRowHeight + 10
+      : 34 + maxPortCount * portRowHeight
+    : 0;
+  const contentHeight = 62 + (sideRailLayout ? 0 : inlineRows * 27);
   const verticalFormRows = socketRows + inlineRows;
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29
@@ -123,7 +136,8 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const portTop = (index: number, count = maxPortCount) => {
     const safeCount = Math.max(1, count);
     const occupiedHeight = safeCount * portRowHeight;
-    const topInset = Math.max(17, (baseHeight - occupiedHeight) / 2);
+    const centeredInset = (baseHeight - occupiedHeight) / 2;
+    const topInset = sideRailLayout ? Math.max(sidePortStart, centeredInset) : Math.max(17, centeredInset);
     return topInset + portRowHeight * (index + 0.5);
   };
   const verticalPortLeft = (index: number, count: number) => count > 0 ? ((index + 1) * 100) / (count + 1) : 50;

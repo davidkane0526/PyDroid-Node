@@ -502,10 +502,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const isGroupNode = data.nodeType === "workflow.group";
   const nodeKindClasses = `${isFunctionNode ? "node-kind-function" : ""} ${isGroupNode ? "node-kind-group" : ""} ${isStructure ? "node-kind-flow" : "node-kind-node"}`;
   const visibleTypeLabel = hasDynamicUi ? null : data.nodeType;
-  const alignInlineToSocketGrid = nodeLayout.sideRailLayout && hasInlineSocketDefaults && inlineParameters.length > 0 && inlineParameters.every((parameter) => {
-    const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
-    return declaredLabel === null || declaredLabel === "";
-  });
+  const useHorizontalSideForm = nodeLayout.sideRailLayout && inlineParameters.length > 0;
   const pluginIconUrl = getNodePluginIconDataUrl(data.nodeType);
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
@@ -560,7 +557,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
           const socketSpec = connected ? { ...defaultSpec, disabled: true } : defaultSpec;
           return <label key={port.id} title={`${port.label} · ${defaultSpec.label}`}><span>{defaultSpec.label}</span><InlineNodeControl spec={socketSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} /></label>;
         })}</div>}
-        {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout} ${alignInlineToSocketGrid ? "workflow-node__inline-controls--socket-grid" : ""}`}>{inlineParameters.map((parameter) => {
+        {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout} ${useHorizontalSideForm ? "workflow-node__inline-controls--side-form" : ""}`}>{inlineParameters.map((parameter) => {
           const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
           const showLabel = declaredLabel !== null && declaredLabel !== "";
           return <label className={showLabel ? "" : "workflow-node__inline-control--label-hidden"} key={parameter.key} title={parameter.label}>{showLabel && <span>{declaredLabel}</span>}<InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>;

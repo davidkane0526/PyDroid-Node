@@ -1,16 +1,23 @@
-# Current progress — 1.6.42 Node Layout Refinement
+# Current progress — 1.6.43 Node Layout Balance
 
-Date: 2026-08-25
+Date: 2026-08-26
 
 ## Current release state
 
-- Product version: **1.6.42**, Android versionCode **182**.
-- Build revision: `1.6.42-dev-r137-node-layout-refinement`.
+- Product version: **1.6.43**, Android versionCode **183**.
+- Build revision: `1.6.43-dev-r138-node-layout-balance`.
 
-- 1.6.42 source validation: Node Layout, Core Default Visual Baseline, UI regression, Canvas Theme, Theme/Design SDK, plugin manager/package/archive/declarative UI and SDK layout gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
+- 1.6.43 source validation: Node Layout, Core Default Visual Baseline, UI regression, Canvas Theme, Theme/Design SDK, plugin manager/package/archive/declarative UI, SDK layout and build-tool architecture gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
+
+
+## 1.6.43 node-layout balance
+
+- Horizontal complex nodes now size from input/output Rail needs plus a compact center gap instead of adding a separate title-width body.
+- Title/meta are centered against the full card; inline parameters and Socket defaults share one label/control grid.
+- Pivot/heatmap inline selectors carry concise labels (`聚合`, `配色`); simple nodes are tighter and the run action is lighter.
 
 ## 1.6.42 node-layout refinement
 

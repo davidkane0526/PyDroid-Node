@@ -1,3 +1,13 @@
+## 1.6.43 (183) — Node Layout Balance — 2026-08-26
+
+- Reworked horizontal complex-node width measurement to be Rail-driven: input Rail + compact center gap + output Rail, with the centered header only acting as a minimum-width floor. This removes the large unused right-side area seen in `table.pivot`/heatmap-style nodes.
+- Horizontal dynamic titles and parameter-count descriptions now span the full card center axis instead of the residual body area.
+- Inline parameters use the same explicit label/control grid as Socket defaults; `table.pivot` now shows `聚合 [平均值]` and `plot.heatmap` shows `配色 [Viridis]` rather than unlabeled floating controls.
+- Simple horizontal nodes use a tighter content-fit width budget; `导出 TER 矩阵` measures about 239 px at nodeScale 1.0.
+- Reduced the node-scoped run action from 24 px/12 px glyph to a lighter 20 px/9 px control while preserving the accepted Classic/Soft material behavior.
+- Added/updated Node Layout, UI and Canvas regression contracts for rail-driven width, shared side-form columns, full-card centering and compact run-control geometry. Runtime semantics are unchanged.
+- Build revision: `1.6.43-dev-r138-node-layout-balance`.
+
 ## 1.6.42 (182) — Node Layout Refinement — 2026-08-25
 
 - Added a shared horizontal form-grid alignment rule so hidden-label inline controls (for example aggregate/color-map selectors) start on the same control column as Rows/Columns/Values/Min/Max socket defaults.

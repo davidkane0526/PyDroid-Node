@@ -48,16 +48,15 @@ try {
   ];
   const heatmapLayout = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "绘制 TER 热图", inputPorts: heatmapInputs, outputPorts: [{ id: "output", label: "图像", valueType: "plot" }], inputDefaultSpecs: heatmapDefaults, inlineParameters: [{ key: "colorMap", label: "配色", kind: "select", defaultValue: "viridis", options: [{ value: "viridis", label: "Viridis" }] }], inlineLayout: "row", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   const heatmapInputTops = heatmapInputs.map((_, index) => heatmapLayout.portTop(index, heatmapInputs.length));
-  if (!heatmapLayout.sideRailLayout || heatmapLayout.nodeMinHeight < 160) throw new Error("horizontal heatmap did not reserve a full side-rail card");
+  if (!heatmapLayout.sideRailLayout || heatmapLayout.nodeMinHeight < 190 || heatmapLayout.nodeWidth > 380) throw new Error("horizontal heatmap did not reserve a full side-rail card");
   if (heatmapInputTops.at(-1) + heatmapLayout.portRowHeight / 2 >= heatmapLayout.nodeMinHeight) throw new Error("horizontal heatmap socket row escapes the card boundary");
   if (Math.abs(heatmapLayout.portTop(0, 1) - heatmapLayout.nodeMinHeight / 2) > 1) throw new Error("horizontal heatmap output is not vertically centered");
   const heatmapSocketColumn = heatmapLayout.inputRailWidth + heatmapLayout.sideFormControlOffset;
   const expectedHeatmapSocketColumn = 11 + heatmapLayout.inputPortLabelWidth + 7;
   if (Math.abs(heatmapSocketColumn - expectedHeatmapSocketColumn) > 0.001) throw new Error("horizontal heatmap inline control does not share the socket control column");
-  if (Math.abs(heatmapLayout.nodeCenterShift - (heatmapLayout.outputRailWidth - heatmapLayout.inputRailWidth) / 2) > 0.001) throw new Error("horizontal dynamic title/meta center compensation is inconsistent with asymmetric rails");
 
   const compactExport = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "导出 TER 矩阵", inputPorts: [{ id: "input", label: "表格", valueType: "table" }], outputPorts: [{ id: "output", label: "CSV", valueType: "table" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
-  if (compactExport.dynamic || compactExport.nodeWidth > 300 || compactExport.nodeWidth < 230) throw new Error("simple horizontal node did not use compact content-fit width");
+  if (compactExport.dynamic || compactExport.nodeWidth > 250 || compactExport.nodeWidth < 210) throw new Error("simple horizontal node did not use compact content-fit width");
 
   const staticVertical = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "Static", inputPorts: [{ id: "input", label: "Input", valueType: "any" }], outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (staticVertical.dynamic || staticVertical.direction !== "vertical" || staticVertical.verticalFormLayout) throw new Error("static node layout was unnecessarily overridden");
@@ -94,6 +93,7 @@ try {
 
   const appSource = readFileSync(path.join(root, "src", "App.tsx"), "utf8");
   const cssSource = readFileSync(path.join(root, "src", "styles", "base.css"), "utf8");
+  const catalogSource = readFileSync(path.join(root, "src", "nodeCatalog.ts"), "utf8");
   if (!appSource.includes('nodeLayout.verticalFormLayout ? "workflow-node--vertical-form"')) throw new Error("WorkflowNodeCard does not expose vertical form layout class");
   if (!appSource.includes('className="workflow-node__socket-form"')) throw new Error("vertical socket defaults are not rendered as body form rows");
   if (!appSource.includes('position={effectiveDirection === "horizontal" ? Position.Left : Position.Top}')) throw new Error("vertical input handles are not top-facing");
@@ -102,9 +102,13 @@ try {
   if (!cssSource.includes('grid-template-columns: minmax(0, var(--vertical-form-label-width')) throw new Error("vertical form rows do not share aligned label/control columns");
   if (!cssSource.includes('min-height: max(calc(62px * var(--node-scale, 1)), var(--node-min-height')) throw new Error("wide-screen CSS can still override measured node height");
   if (!appSource.includes('workflow-node--side-rail')) throw new Error("WorkflowNodeCard does not expose horizontal side-rail layout class");
+  if (!appSource.includes('workflow-node__inline-controls--side-form')) throw new Error("horizontal inline parameters are not rendered through the shared side-form grid");
   if (!cssSource.includes('.workflow-node--side-rail.direction-horizontal {\n  min-height: var(--node-min-height')) throw new Error("horizontal side-rail card does not directly preserve measured height");
+  if (!cssSource.includes('grid-template-columns: minmax(0, var(--input-port-label-width')) throw new Error("horizontal side-form rows do not share the socket label/control columns");
+  if (!cssSource.includes('left: calc(30px * var(--node-scale, 1));') || !cssSource.includes('transform: none;')) throw new Error("horizontal dynamic header is not centered against the full card");
+  if (!catalogSource.includes('inlineParameterLabels: { aggregate: "聚合" }') || !catalogSource.includes('inlineParameterLabels: { colorMap: "配色" }')) throw new Error("pivot/heatmap inline controls lost their concise form labels");
 
-  console.log("Node Layout Contract smoke: PASS (vertical forms, horizontal socket-grid alignment, compact simple widths, centered rail metadata, endpoint-scale spacing)");
+  console.log("Node Layout Contract smoke: PASS (vertical forms, horizontal side-form alignment, compact rail-driven widths, centered full-card metadata, endpoint-scale spacing)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

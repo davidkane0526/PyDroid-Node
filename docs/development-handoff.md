@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.42 Node Layout Refinement
+# Current development handoff — 1.6.43 Node Layout Balance
 
-Branch: `feature/node-layout-refinement`
-Version: **1.6.42**
-Android versionCode: **182**
-Build revision: `1.6.42-dev-r137-node-layout-refinement`
+Branch: `feature/node-layout-balance`
+Version: **1.6.43**
+Android versionCode: **183**
+Build revision: `1.6.43-dev-r138-node-layout-balance`
 
 ## Current phase
 
@@ -28,13 +28,20 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.42: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.42: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.42: **38/38**.
+- Runtime parity revalidated in 1.6.43: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.43: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.43: **38/38**.
 
 
 
 
+## 1.6.43 horizontal node balance
+
+- Complex horizontal nodes are Rail-driven rather than title+Rail additive, eliminating large unused center/right space.
+- Header label and metadata use the full node-card center axis.
+- Inline parameters share the exact label/control columns used by Socket defaults; `table.pivot` exposes `聚合`, heatmap exposes `配色`.
+- Simple horizontal nodes use a tighter content-fit budget; the node-scoped run action is smaller/lighter.
+- Runtime, vertical form, Theme/Design SDK, MCP and Remote/LAN behavior are unchanged.
 
 ## 1.6.42 node-layout refinement
 
