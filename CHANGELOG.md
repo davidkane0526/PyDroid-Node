@@ -1,3 +1,12 @@
+## 1.6.27 (167) — Node Plugin Manager — 2026-08-25
+
+- Added a user-facing Node Plugin Manager on both desktop and mobile tool surfaces. Users can select one JSON Manifest, install and activate it immediately, inspect its node labels/types/runtime support, disable it without deleting the installed record, re-enable it, or uninstall it completely.
+- Kept plugin management on the existing deterministic Manifest lifecycle: install → activate, disable → unload live NodeSpecs/Providers, enable → reactivate the persisted Manifest, uninstall → remove live registrations and the persisted record. No retry loop, fallback runtime, dependency guessing, automatic repair or update subsystem was added.
+- Added `activateInstalledNodePluginPackage()` and `listInstalledNodePluginPackageDetails()` to the package API so the UI reads and changes the same lifecycle state used by the Runtime rather than maintaining a second plugin state model.
+- Isolated the manager in `NodePluginManager.tsx` and its own stylesheet. `App.tsx` remains under the existing 4400-line ownership limit instead of absorbing plugin-install state and logic.
+- Extended plugin-package smoke coverage with installed/active detail state and reactivation, and added a dedicated Plugin Manager smoke for desktop/mobile exposure, the four lifecycle actions and TypeScript JSX transpilation. Existing Demo 27/28 manifests remain the direct install demos for the manager.
+- Build revision: `1.6.27-dev-r119-node-plugin-manager`.
+
 ## 1.6.26 (166) — Manifest Plugin Packages — 2026-08-25
 
 - Added the first serializable Node Plugin Package manifest (`schemaVersion: 1`). One JSON package can declare one or more validated NodeSpecs plus matching JavaScript/Python Runtime Provider source; runtime declarations and providers must agree before activation.

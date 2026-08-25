@@ -79,9 +79,14 @@ try {
   const py = runPython({ ...workflow, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
   if (py.status !== "success" || py.nodeResults?.print?.value !== 50) throw new Error(`manifest Python execution failed: ${JSON.stringify(py)}`);
 
+  const installedBeforeUnload = packages.listInstalledNodePluginPackageDetails(storage);
+  if (installedBeforeUnload.length !== 1 || !installedBeforeUnload[0].active || installedBeforeUnload[0].nodes[0].runtimes.join(",") !== "python,javascript") throw new Error("plugin manager details did not expose active runtimes");
   if (!packages.unloadNodePluginPackage(manifest.id)) throw new Error("manifest unload failed");
   if (contract.supportsNodeRuntime("demo.manifest_scale", "javascript") || contract.supportsNodeRuntime("demo.manifest_scale", "python")) throw new Error("providers survived unload");
-  if (storage.values.size !== 1) throw new Error("unload unexpectedly removed installed manifest");
+  if (storage.values.size !== 1 || packages.listInstalledNodePluginPackageDetails(storage)[0]?.active) throw new Error("unload state was not reflected in installed plugin details");
+  packages.activateInstalledNodePluginPackage(manifest.id, storage);
+  if (!packages.listInstalledNodePluginPackageDetails(storage)[0]?.active) throw new Error("installed plugin activation failed");
+  packages.unloadNodePluginPackage(manifest.id);
   const failures = packages.restoreNodePluginPackages(storage);
   if (failures.length) throw new Error(`manifest restore failed: ${JSON.stringify(failures)}`);
   if (!contract.supportsNodeRuntime("demo.manifest_scale", "javascript") || !contract.supportsNodeRuntime("demo.manifest_scale", "python")) throw new Error("restored manifest is not executable");

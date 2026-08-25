@@ -1,6 +1,6 @@
 # Node Plugin Packages
 
-PyDroid Node 1.6.26 adds the first serializable plugin-package layer on top of the NodeSpec and Runtime Provider SDKs.
+PyDroid Node 1.6.27 exposes the serializable plugin-package layer through a user-facing Node Plugin Manager as well as the NodeSpec and Runtime Provider SDKs.
 
 ## Package format
 
@@ -65,7 +65,18 @@ import {
 - `uninstallNodePluginPackage(id)` removes both the live registration and the persisted manifest.
 - Multi-node packages are atomic: if any node collides or fails registration, previously registered nodes in that same package are rolled back.
 
-The package manager exposes `listActiveNodePluginPackages()` and `listInstalledNodePluginPackages()` for a future plugin-management UI.
+The manager uses the same lifecycle API as code-driven installation. `listInstalledNodePluginPackageDetails()` exposes installed/active state and node runtime metadata, while `activateInstalledNodePluginPackage(id)` reactivates a persisted but unloaded package.
+
+## User-facing manager
+
+Open **节点插件** from the desktop toolbar or the mobile **更多工具** menu. The manager intentionally has four operations only:
+
+- **安装 Manifest**: choose one `.json` Manifest, validate it, register every NodeSpec/Provider and persist the Manifest.
+- **停用**: unload live NodeSpecs/Providers while keeping the installed Manifest.
+- **启用**: reactivate the persisted Manifest.
+- **卸载**: remove both live registrations and the persisted Manifest.
+
+The manager shows package version, each node type/label and declared Python/JavaScript runtime support.
 
 ## JavaScript provider runtime API
 
@@ -103,6 +114,6 @@ The same manifest works through desktop, Android and Remote Python execution bec
 
 ## Current boundary
 
-This phase implements the package contract and automatic renderer-side activation/persistence. It does not yet add a user-facing plugin installer, dependency resolver, package signature system, marketplace, or ZIP container. Those can be layered on top of the same manifest contract later.
+The Manifest installer/manager is now user-facing. This layer still does not add dependency resolution, automatic updates, package signatures, a marketplace or a ZIP container. Those are separate capabilities and are not emulated with fallback logic.
 
 Runnable examples are included in `examples/plugins/` and built-in Demo 27/28.

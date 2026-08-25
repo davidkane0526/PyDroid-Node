@@ -4,6 +4,7 @@ import "@xyflow/react/dist/style.css";
 import "./styles.css";
 import "./ui-fixes.css";
 import "./canvas-themes.css";
+import "./node-plugin-manager.css";
 import { App } from "./App";
 import { restoreNodePluginPackages } from "./nodePluginPackages";
 

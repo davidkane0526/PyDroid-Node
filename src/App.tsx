@@ -69,6 +69,7 @@ import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
 import { ParameterField } from "./ParameterField";
+import { NodePluginManagerButton } from "./NodePluginManager";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -225,10 +226,7 @@ const NodeSelectionContext = createContext<{ active: boolean; toggle: (nodeId: s
 const NodeRunContext = createContext<{ run: (nodeId: string) => void; busy: boolean }>({ run: () => undefined, busy: false });
 const NodeParameterContext = createContext<{ update: (nodeId: string, key: string, value: string | number | boolean | null) => void }>({ update: () => undefined });
 const NodeConnectionsContext = createContext<{ isInputConnected: (nodeId: string, handleId: string) => boolean }>({ isInputConnected: () => false });
-const BUNDLED_PACKAGES = [
-  { name: "pandas", version: "2.1.3", purpose: "表格处理与 CSV" },
-  { name: "matplotlib", version: "3.8.2", purpose: "绘图与热图" },
-];
+const BUNDLED_PACKAGES = [{ name: "pandas", version: "2.1.3", purpose: "表格处理与 CSV" }, { name: "matplotlib", version: "3.8.2", purpose: "绘图与热图" }];
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state: { error: Error | null } = { error: null };
@@ -3516,6 +3514,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
           <button className="button secondary icon-button topbar-tool-action" title="Python 包管理" aria-label="Python 包管理" onClick={() => void openPackageManager()}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z" /><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z" /><path d="M12 12v9" /></svg>
           </button>
+          <NodePluginManagerButton />
           <div className="mobile-tools-overflow">
             <button type="button" className="button secondary icon-button mobile-tools-overflow__trigger" title="更多工具" aria-label="更多工具" aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen((open) => !open)}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><g className="mobile-tools-overflow__dots"><circle cx="6" cy="9" r="1.35"/><circle cx="12" cy="9" r="1.35"/><circle cx="18" cy="9" r="1.35"/></g><path className="mobile-tools-overflow__chevron" d="m8.75 15.5 3.25 3.1 3.25-3.1"/></svg>
@@ -3527,6 +3526,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
               <button type="button" onClick={() => { setMobileToolsOpen(false); setSettingsOpen(true); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6h14M5 12h14M5 18h14"/><circle cx="9" cy="6" r="1.7"/><circle cx="15" cy="12" r="1.7"/><circle cx="11" cy="18" r="1.7"/></svg><span>{ui("设置", "Settings")}</span></button>
               {canHostRemoteServer() && <button type="button" onClick={() => { setMobileToolsOpen(false); void toggleRemoteServer(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"/><path d="M7.8 16.2a6 6 0 0 1 0-8.4M16.2 7.8a6 6 0 0 1 0 8.4"/><path d="M4.7 19.3a10.3 10.3 0 0 1 0-14.6M19.3 4.7a10.3 10.3 0 0 1 0 14.6"/></svg><span>{remoteServer ? "关闭局域网" : "开启局域网"}</span></button>}
               <button type="button" onClick={() => { setMobileToolsOpen(false); void openPackageManager(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5V16l-8 5-8-5V7.5Z"/><path d="M12 12v9"/></svg><span>{ui("Python 包管理", "Python packages")}</span></button>
+              <NodePluginManagerButton mode="menu" onOpen={() => setMobileToolsOpen(false)} />
               <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); requestNewWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>{ui("新建工作流", "New workflow")}</span></button>
               <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); workflowInput.current?.click(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19h14"/></svg><span>{ui("导入工作流", "Import workflow")}</span></button>
               <button type="button" className="mobile-tools-menu__compact-only" onClick={() => { setMobileToolsOpen(false); saveWorkflow(); }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h12l2 2v14H5z"/><path d="M8 4v6h8V4"/><path d="M8 20v-6h8v6"/></svg><span>{ui("保存工作流", "Save workflow")}</span></button>

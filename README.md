@@ -113,9 +113,9 @@ AI 无法绕过该层直接访问文件、执行 Python 或改写任意工作流
 
 ### Node 插件包 Manifest
 
-NodeSpec SDK 与 Runtime Provider SDK 之上现提供可序列化插件包契约。一个 JSON Manifest 可以同时声明多个动态 NodeSpec、JavaScript Provider 与 Python Provider；安装时先完整校验并编译，再原子注册到节点目录和 Runtime，任一节点失败会回滚该插件包已经注册的节点。Manifest 安装记录保存在渲染端存储中，应用启动并挂载编辑器前会自动恢复；卸载同时移除 NodeSpec、JavaScript/Python Provider 和持久化记录。
+NodeSpec SDK 与 Runtime Provider SDK 之上现提供可序列化插件包契约。一个 JSON Manifest 可以同时声明多个动态 NodeSpec、JavaScript Provider 与 Python Provider；安装时完整校验并编译，再原子注册到节点目录和 Runtime。Manifest 安装记录保存在渲染端存储中，应用启动并挂载编辑器前自动恢复。
 
-JavaScript Manifest Provider 使用 `execute(params, upstream, context, api)` 入口，当前 Runtime API v1 暴露原生 `Table`，因此第三方 Provider 生成的表格可以直接连接第一方表格/绘图节点。Python Provider 继续使用可序列化 source/entrypoint descriptor，并随每次 Python 工作流请求发送到桌面、Android 或 Remote backend。当前阶段只实现 Manifest 契约、自动装载和生命周期 API，尚未加入用户可见的插件安装器、依赖解析、签名或 ZIP 容器。完整格式见 `docs/node-plugin-packages.md`，可运行样例见 Demo 27/28 与 `examples/plugins/`。
+桌面端与移动端现已提供“节点插件”管理入口，可直接选择 Manifest，执行安装、启用、停用和卸载，并查看插件版本、节点类型与 Python/JavaScript Runtime 支持。JavaScript Manifest Provider 使用 `execute(params, upstream, context, api)` 入口，Runtime API v1 暴露原生 `Table`；Python Provider 使用可序列化 source/entrypoint descriptor，并随 Python 工作流请求发送到桌面、Android 或 Remote backend。当前仍不包含依赖解析、自动更新、签名、Marketplace 或 ZIP 容器。完整格式见 `docs/node-plugin-packages.md`，可直接安装的样例见 Demo 27/28 与 `examples/plugins/`。
 
 ### 自定义 Python 函数节点
 

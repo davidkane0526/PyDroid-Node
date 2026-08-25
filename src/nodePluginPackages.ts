@@ -42,6 +42,12 @@ export type NodePluginPackageSummary = {
   nodeTypes: string[];
 };
 
+export type NodePluginPackageDetail = NodePluginPackageSummary & {
+  description?: string;
+  active: boolean;
+  nodes: Array<{ nodeType: string; label: string; runtimes: Array<"python" | "javascript"> }>;
+};
+
 export type NodePluginPackageStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
 export type NodePluginPackageRegistration = NodePluginPackageSummary & {
@@ -224,6 +230,34 @@ export function installNodePluginPackage(
       return unloaded || removed;
     },
   };
+}
+
+
+export function activateInstalledNodePluginPackage(
+  id: string,
+  storage: NodePluginPackageStorage | undefined = browserStorage(),
+): NodePluginPackageRegistration {
+  const manifest = readPersistedManifests(storage).find((item) => item.id === id);
+  if (!manifest) throw new Error(`插件未安装：${id}`);
+  return activateNodePluginPackage(manifest);
+}
+
+export function listInstalledNodePluginPackageDetails(
+  storage: NodePluginPackageStorage | undefined = browserStorage(),
+): NodePluginPackageDetail[] {
+  return readPersistedManifests(storage).map((manifest) => ({
+    id: manifest.id,
+    name: manifest.name,
+    version: manifest.version,
+    description: manifest.description,
+    active: activePackages.has(manifest.id),
+    nodeTypes: manifest.nodes.map((node) => node.spec.nodeType),
+    nodes: manifest.nodes.map((node) => ({
+      nodeType: node.spec.nodeType,
+      label: node.spec.label,
+      runtimes: [...(node.spec.runtimeSupport ?? [])],
+    })),
+  }));
 }
 
 export function unloadNodePluginPackage(id: string): boolean {
