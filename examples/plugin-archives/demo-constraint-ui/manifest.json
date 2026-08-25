@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.constraint-ui",
+  "name": "Constraint UI Demo",
+  "version": "1.0.0",
+  "description": "Declarative numeric constraints and explicit read-only/disabled states.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.constraint_ui",
+        "label": "Constraint UI",
+        "description": "Host-rendered dynamic numeric constraints with explicit edit states.",
+        "tags": ["plugin", "ui", "constraints"],
+        "category": "自定义",
+        "runtimeSupport": ["python", "javascript"],
+        "defaults": { "mode": "coarse", "gain": 2, "bias": 3, "locked": true },
+        "parameters": [
+          {
+            "key": "mode", "label": "Mode", "kind": "select", "defaultValue": "coarse",
+            "options": [{ "label": "Coarse", "value": "coarse" }, { "label": "Fine", "value": "fine" }]
+          },
+          {
+            "key": "gain", "label": "Gain", "kind": "number", "defaultValue": 2,
+            "min": 0, "max": 10, "step": 1,
+            "constraintVariants": [
+              { "when": { "mode": "coarse" }, "min": 0, "max": 10, "step": 1 },
+              { "when": { "mode": "fine" }, "min": 0, "max": 1, "step": 0.05 }
+            ],
+            "disabledWhen": { "locked": true }
+          },
+          {
+            "key": "bias", "label": "Bias", "kind": "number", "defaultValue": 3, "step": 0.1,
+            "readOnlyWhen": { "locked": true }
+          },
+          { "key": "locked", "label": "Locked", "kind": "boolean", "defaultValue": true }
+        ],
+        "inputPorts": [{ "id": "input", "label": "Value", "valueType": "number", "required": true }],
+        "outputPorts": [{ "id": "output", "label": "Result", "valueType": "number" }],
+        "ui": {
+          "parameterGroups": [
+            { "id": "range", "label": "Range", "parameters": ["mode", "gain"] },
+            { "id": "lock", "label": "Lock", "parameters": ["locked", "bias"] }
+          ],
+          "status": [
+            { "label": "Mode", "parameter": "mode" },
+            { "label": "Locked", "parameter": "locked" }
+          ],
+          "help": { "title": "Constraint UI", "text": "Changing Mode changes Gain constraints only. Locked blocks Gain editing and makes Bias read-only without changing either value." }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": { "file": "js/provider.js" },
+        "python": { "file": "python/provider.py" }
+      }
+    }
+  ],
+  "resources": ["resources/icon.svg"]
+}

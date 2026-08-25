@@ -1,6 +1,7 @@
 import type { NodeSpec, ParameterSpec } from "./nodeCatalog";
+import type { NodeExecutionPreview } from "./runtime/types";
 import { ParameterField } from "./ParameterField";
-import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
+import { declarativeStatusValue, declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
 import { getNodePluginResourceText } from "./nodePluginPackages";
 import "./node-declarative-inspector.css";
 
@@ -15,12 +16,14 @@ function statusValue(value: unknown): string {
 export function NodeDeclarativeInspector({
   spec,
   values,
+  result,
   excludedParameterKeys,
   onChange,
   onExpandCode,
 }: {
   spec: NodeSpec;
   values: Record<string, unknown>;
+  result?: NodeExecutionPreview;
   excludedParameterKeys: Set<string>;
   onChange: (key: string, value: string | number | boolean | null) => void;
   onExpandCode?: () => void;
@@ -56,7 +59,7 @@ export function NodeDeclarativeInspector({
 
   return <>
     {status.length > 0 && <section className="node-declarative-status" aria-label="节点状态">
-      {status.map((item) => <div key={`${item.label}:${item.parameter}`}><span>{item.label}</span><strong>{statusValue(values[item.parameter] ?? spec.defaults[item.parameter])}</strong></div>)}
+      {status.map((item) => <div key={`${item.label}:${item.parameter ?? item.result ?? "status"}`}><span>{item.label}</span><strong>{statusValue(declarativeStatusValue(item, effectiveValues, result))}</strong></div>)}
     </section>}
     {(help?.text || resourceHelp) && <section className="node-declarative-help">
       {help?.title && <strong>{help.title}</strong>}

@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.result-status-table",
+  "name": "Result Status Table Demo",
+  "version": "1.0.0",
+  "description": "Declarative status items derived from the latest node result.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.result_status_table",
+        "label": "Result Status Table",
+        "description": "Generate a table and let the host display result kind and dimensions.",
+        "tags": [
+          "plugin",
+          "ui",
+          "status",
+          "table"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "rows": 6,
+          "scale": 2
+        },
+        "parameters": [
+          {
+            "key": "rows",
+            "label": "Rows",
+            "kind": "number",
+            "defaultValue": 6,
+            "min": 2,
+            "max": 50,
+            "step": 1
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "kind": "number",
+            "defaultValue": 2,
+            "step": 0.1
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Table",
+            "valueType": "table"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "data",
+              "label": "Data",
+              "parameters": [
+                "rows",
+                "scale"
+              ]
+            }
+          ],
+          "status": [
+            {
+              "label": "Requested rows",
+              "parameter": "rows"
+            },
+            {
+              "label": "Result kind",
+              "result": "kind"
+            },
+            {
+              "label": "Output rows",
+              "result": "rows"
+            },
+            {
+              "label": "Output columns",
+              "result": "columns"
+            }
+          ],
+          "help": {
+            "title": "Result status",
+            "text": "Result-derived status is empty before execution and reads only the latest host NodeExecutionPreview after execution."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream, context, api) {\n  const rows = Math.max(2, Math.trunc(Number(params.rows ?? 6)));\n  const scale = Number(params.scale ?? 2);\n  return api.Table.fromRecords(Array.from({ length: rows }, (_, index) => ({ index, value: index * scale })));\n}\n"
+        },
+        "python": {
+          "source": "def execute(params, upstream, context):\n    import pandas as pd\n    rows = max(2, int(params.get(\"rows\", 6)))\n    scale = float(params.get(\"scale\", 2))\n    return pd.DataFrame({\"index\": list(range(rows)), \"value\": [index * scale for index in range(rows)]})\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzE2NzdmZiIvPjxwYXRoIGQ9Ik03IDhoMTBNNyAxMmgxME03IDE2aDEwTTExIDZ2MTIiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS13aWR0aD0iMS41IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz48L3N2Zz4K",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

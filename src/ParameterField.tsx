@@ -16,7 +16,7 @@ export function ParameterField({
     return (
       <label className="field field--checkbox">
         <span>{spec.label}</span>
-        <span className="switch"><input type="checkbox" checked={Boolean(displayValue)} onChange={(event) => onChange(event.target.checked)} /><i /></span>
+        <span className="switch"><input type="checkbox" checked={Boolean(displayValue)} disabled={Boolean(spec.disabled || spec.readOnly)} onChange={(event) => onChange(event.target.checked)} /><i /></span>
       </label>
     );
   }
@@ -26,6 +26,7 @@ export function ParameterField({
         <span>{spec.label}</span>
         <select
           value={String(displayValue ?? "")}
+          disabled={Boolean(spec.disabled || spec.readOnly)}
           onChange={(event) => {
             const option = spec.options?.find((item) => String(item.value) === event.target.value);
             onChange(option?.value ?? event.target.value);
@@ -39,14 +40,16 @@ export function ParameterField({
   if (spec.kind === "textarea") {
     return (
       <label className="field">
-        <span className="field__heading">{spec.label}{onExpand && <button type="button" onClick={onExpand}>全屏编辑</button>}</span>
+        <span className="field__heading">{spec.label}{onExpand && !spec.readOnly && !spec.disabled && <button type="button" onClick={onExpand}>全屏编辑</button>}</span>
         <textarea
           value={String(displayValue ?? "")}
           placeholder={spec.placeholder}
           required={spec.required}
+          readOnly={Boolean(spec.readOnly)}
+          disabled={Boolean(spec.disabled)}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key !== "Tab") return;
+            if (spec.readOnly || spec.disabled || event.key !== "Tab") return;
             event.preventDefault();
             const input = event.currentTarget;
             const start = input.selectionStart;
@@ -69,6 +72,8 @@ export function ParameterField({
           value={String(displayValue ?? "")}
           placeholder={spec.placeholder ?? (spec.itemType === "text" ? "a,b,c" : "0,1,2")}
           required={spec.required}
+          readOnly={Boolean(spec.readOnly)}
+          disabled={Boolean(spec.disabled)}
           onChange={(event) => onChange(event.target.value)}
         />
         <small>{spec.description ? `${spec.description} · ` : ""}可输入 JSON 数组或用英文逗号分隔。</small>
@@ -86,6 +91,7 @@ export function ParameterField({
           min={spec.min}
           max={spec.max}
           step={spec.step}
+          disabled={Boolean(spec.disabled || spec.readOnly)}
           onChange={(event) => onChange(Number(event.target.value))}
         />
         {spec.description && <small>{spec.description}</small>}
@@ -103,6 +109,8 @@ export function ParameterField({
         min={spec.min}
         max={spec.max}
         step={spec.step}
+        readOnly={Boolean(spec.readOnly)}
+        disabled={Boolean(spec.disabled)}
         onChange={(event) => onChange(spec.kind === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value)}
       />
       {spec.description && <small>{spec.description}</small>}

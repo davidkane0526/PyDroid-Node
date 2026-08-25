@@ -34,7 +34,7 @@ function runPython(workflow) {
 
 try {
   const inspectorSource = readFileSync(path.join(root, "src", "NodeDeclarativeInspector.tsx"), "utf8");
-  for (const token of ["parameterGroups", "status", "help", "visibleWhen", "resolveDeclarativeParameter", "ParameterField", "getNodePluginResourceText"]) {
+  for (const token of ["parameterGroups", "status", "help", "visibleWhen", "resolveDeclarativeParameter", "declarativeStatusValue", "ParameterField", "getNodePluginResourceText"]) {
     if (!inspectorSource.includes(token)) throw new Error(`declarative inspector is missing ${token}`);
   }
   for (const forbidden of ["dangerouslySetInnerHTML", "createElement(", "eval(", "new Function("]) {
@@ -129,6 +129,45 @@ try {
   if (py34.status !== "success" || py34.nodeResults?.table?.kind !== "table" || py34.nodeResults?.plot?.kind !== "plot") throw new Error(`linked enum table Python failed: ${JSON.stringify(py34)}`);
   linkedRegistration.unload();
 
+  const constraintZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-constraint-ui.plugin.zip"));
+  const constraintManifest = await archives.readNodePluginArchive(arrayBuffer(constraintZip));
+  const constraintSpec = constraintManifest.nodes[0].spec;
+  const gain = constraintSpec.parameters.find((item) => item.key === "gain");
+  const bias = constraintSpec.parameters.find((item) => item.key === "bias");
+  if (!gain || !bias) throw new Error("constraint UI parameters missing");
+  const coarseLocked = declarativeUi.declarativeUiValues(constraintSpec, { mode: "coarse", gain: 2, bias: 3, locked: true });
+  const fineUnlocked = declarativeUi.declarativeUiValues(constraintSpec, { mode: "fine", gain: 0.5, bias: 3, locked: false });
+  const resolvedCoarseGain = declarativeUi.resolveDeclarativeParameter(gain, coarseLocked);
+  const resolvedFineGain = declarativeUi.resolveDeclarativeParameter(gain, fineUnlocked);
+  const resolvedLockedBias = declarativeUi.resolveDeclarativeParameter(bias, coarseLocked);
+  if (resolvedCoarseGain.min !== 0 || resolvedCoarseGain.max !== 10 || resolvedCoarseGain.step !== 1 || !resolvedCoarseGain.disabled) throw new Error("coarse numeric constraint/disabled state failed");
+  if (resolvedFineGain.min !== 0 || resolvedFineGain.max !== 1 || resolvedFineGain.step !== 0.05 || resolvedFineGain.disabled) throw new Error("fine numeric constraint state failed");
+  if (!resolvedLockedBias.readOnly || resolvedLockedBias.disabled) throw new Error("read-only state failed");
+  const constraintRegistration = await archives.installNodePluginArchive(arrayBuffer(constraintZip), { persist: false });
+  const workflow35 = JSON.parse(readFileSync(path.join(root, "examples", "demo-35-constraint-edit-state-ui.workflow.json"), "utf8"));
+  const js35 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow35), ""));
+  if (js35.status !== "success" || js35.nodeResults?.print?.value !== 13) throw new Error(`constraint UI JS failed: ${JSON.stringify(js35)}`);
+  const py35 = runPython({ ...workflow35, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py35.status !== "success" || py35.nodeResults?.print?.value !== 13) throw new Error(`constraint UI Python failed: ${JSON.stringify(py35)}`);
+  constraintRegistration.unload();
+
+  const statusZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-result-status-table.plugin.zip"));
+  const statusManifest = await archives.readNodePluginArchive(arrayBuffer(statusZip));
+  const statusSpec = statusManifest.nodes[0].spec;
+  const resultItems = statusSpec.ui.status.filter((item) => item.result);
+  if (declarativeUi.declarativeStatusValue(resultItems[1], declarativeUi.declarativeUiValues(statusSpec, {}), undefined) !== undefined) throw new Error("result status must be empty before execution");
+  const statusRegistration = await archives.installNodePluginArchive(arrayBuffer(statusZip), { persist: false });
+  const workflow36 = JSON.parse(readFileSync(path.join(root, "examples", "demo-36-result-driven-status.workflow.json"), "utf8"));
+  const js36 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow36), ""));
+  if (js36.status !== "success" || js36.nodeResults?.table?.kind !== "table" || js36.nodeResults.table.preview.totalRows !== 6 || js36.nodeResults.table.preview.totalColumns !== 2 || js36.nodeResults?.plot?.kind !== "plot") throw new Error(`result status JS failed: ${JSON.stringify(js36)}`);
+  const effectiveStatusValues = declarativeUi.declarativeUiValues(statusSpec, workflow36.nodes.find((node) => node.id === "table").data.parameters);
+  const rowsItem = statusSpec.ui.status.find((item) => item.result === "rows");
+  const columnsItem = statusSpec.ui.status.find((item) => item.result === "columns");
+  if (!rowsItem || !columnsItem || declarativeUi.declarativeStatusValue(rowsItem, effectiveStatusValues, js36.nodeResults.table) !== 6 || declarativeUi.declarativeStatusValue(columnsItem, effectiveStatusValues, js36.nodeResults.table) !== 2) throw new Error("result-driven status resolution failed");
+  const py36 = runPython({ ...workflow36, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py36.status !== "success" || py36.nodeResults?.table?.kind !== "table" || py36.nodeResults.table.preview.totalRows !== 6 || py36.nodeResults.table.preview.totalColumns !== 2 || py36.nodeResults?.plot?.kind !== "plot") throw new Error(`result status Python failed: ${JSON.stringify(py36)}`);
+  statusRegistration.unload();
+
   const invalid = structuredClone(scaleManifest);
   invalid.id = "demo.invalid-help";
   invalid.nodes[0].spec.nodeType = "demo.invalid_help";
@@ -144,7 +183,7 @@ try {
   ], { cwd: root, encoding: "utf8" });
   if (uiTranspile.error || uiTranspile.status !== 0) throw new Error(uiTranspile.stderr || uiTranspile.stdout || uiTranspile.error?.message);
 
-  console.log("Node Declarative UI smoke: PASS (conditions/linked enums/groups/status/help, host-only UI, archive resource, dual runtime)");
+  console.log("Node Declarative UI smoke: PASS (conditions/linked enums/dynamic constraints/edit states/result status, host-only UI, archive resource, dual runtime)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

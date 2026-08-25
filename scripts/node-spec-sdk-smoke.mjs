@@ -19,7 +19,7 @@ try {
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
   const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
-  if (sdk.NODE_SPEC_SDK_VERSION !== 5) throw new Error("unexpected SDK version");
+  if (sdk.NODE_SPEC_SDK_VERSION !== 6) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({
     nodeType: "example.dynamic",
     label: "Example",
@@ -48,18 +48,24 @@ try {
     ...spec,
     nodeType: "example.conditional-ui",
     parameters: [
-      { key: "count", label: "Count", kind: "number", visibleWhen: { mode: "many" } },
+      { key: "count", label: "Count", kind: "number", visibleWhen: { mode: "many" }, constraintVariants: [{ when: { mode: "many" }, min: 1, max: 8, step: 1 }], readOnlyWhen: { mode: "many" }, disabledWhen: { mode: "few" } },
       { key: "mode", label: "Mode", kind: "select", options: [{ label: "Many", value: "many" }], optionVariants: [{ when: { mode: "many" }, options: [{ label: "Many", value: "many" }, { label: "Few", value: "few" }] }] },
     ],
     ui: { parameterGroups: [{ id: "conditional", label: "Conditional", parameters: ["count"], when: { mode: "many" } }], status: [{ label: "Count", parameter: "count", when: { mode: "many" } }], help: { text: "help", when: { mode: "many" } } },
   });
   if (conditional.parameters[1]?.optionVariants?.[0]?.options.length !== 2) throw new Error("linked select options were not retained");
+  if (conditional.parameters[0]?.constraintVariants?.[0]?.max !== 8 || !conditional.parameters[0]?.readOnlyWhen) throw new Error("dynamic numeric/edit-state declarations were not retained");
   const invalidUi = { ...spec, nodeType: "example.invalid-ui", ui: { parameterGroups: [{ id: "bad", label: "Bad", parameters: ["missing"] }], status: [{ label: "Missing", parameter: "missing" }] } };
   const uiErrors = sdk.validateNodeSpecDefinition(invalidUi);
   if (!uiErrors.some((item) => item.includes("UI 参数分组引用不存在的参数")) || !uiErrors.some((item) => item.includes("UI 状态项引用不存在的参数"))) throw new Error("invalid declarative UI references were not rejected");
   const invalidConditional = { ...spec, nodeType: "example.invalid-conditional", parameters: [{ key: "count", label: "Count", kind: "number", visibleWhen: { missing: true }, optionVariants: [{ when: { mode: "many" }, options: [{ label: "x", value: "x" }] }] }, ...spec.parameters.slice(1)], ui: { help: { text: "bad", when: { missing: true } } } };
   const conditionalErrors = sdk.validateNodeSpecDefinition(invalidConditional);
   if (!conditionalErrors.some((item) => item.includes("visibleWhen 条件参数不存在")) || !conditionalErrors.some((item) => item.includes("optionVariants 仅适用于 select")) || !conditionalErrors.some((item) => item.includes("UI help 条件参数不存在"))) throw new Error("invalid declarative UI conditions were not rejected");
+
+  const invalidConstraint = { ...spec, nodeType: "example.invalid-constraint", parameters: [{ key: "mode", label: "Mode", kind: "select", options: [{ label: "Many", value: "many" }], constraintVariants: [{ when: { mode: "many" }, min: 0, max: 1 }] }, ...spec.parameters.filter((item) => item.key !== "mode")] };
+  if (!sdk.validateNodeSpecDefinition(invalidConstraint).some((item) => item.includes("constraintVariants 仅适用于 number"))) throw new Error("invalid dynamic numeric constraints were not rejected");
+  const invalidStatus = { ...spec, nodeType: "example.invalid-status", ui: { status: [{ label: "Bad", parameter: "count", result: "rows" }] } };
+  if (!sdk.validateNodeSpecDefinition(invalidStatus).some((item) => item.includes("必须且只能声明 parameter 或 result"))) throw new Error("ambiguous result status source was not rejected");
 
   const invalid = { ...spec, nodeType: "example.invalid", inputPorts: [{ id: "missing", label: "Missing", valueType: "number", defaultParameter: "unknown" }] };
   if (!sdk.validateNodeSpecDefinition(invalid).some((item) => item.includes("默认参数不存在"))) throw new Error("invalid parameter socket was not rejected");

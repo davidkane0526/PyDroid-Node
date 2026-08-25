@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.constraint-ui",
+  "name": "Constraint UI Demo",
+  "version": "1.0.0",
+  "description": "Declarative numeric constraints and explicit read-only/disabled states.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.constraint_ui",
+        "label": "Constraint UI",
+        "description": "Host-rendered dynamic numeric constraints with explicit edit states.",
+        "tags": [
+          "plugin",
+          "ui",
+          "constraints"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "mode": "coarse",
+          "gain": 2,
+          "bias": 3,
+          "locked": true
+        },
+        "parameters": [
+          {
+            "key": "mode",
+            "label": "Mode",
+            "kind": "select",
+            "defaultValue": "coarse",
+            "options": [
+              {
+                "label": "Coarse",
+                "value": "coarse"
+              },
+              {
+                "label": "Fine",
+                "value": "fine"
+              }
+            ]
+          },
+          {
+            "key": "gain",
+            "label": "Gain",
+            "kind": "number",
+            "defaultValue": 2,
+            "min": 0,
+            "max": 10,
+            "step": 1,
+            "constraintVariants": [
+              {
+                "when": {
+                  "mode": "coarse"
+                },
+                "min": 0,
+                "max": 10,
+                "step": 1
+              },
+              {
+                "when": {
+                  "mode": "fine"
+                },
+                "min": 0,
+                "max": 1,
+                "step": 0.05
+              }
+            ],
+            "disabledWhen": {
+              "locked": true
+            }
+          },
+          {
+            "key": "bias",
+            "label": "Bias",
+            "kind": "number",
+            "defaultValue": 3,
+            "step": 0.1,
+            "readOnlyWhen": {
+              "locked": true
+            }
+          },
+          {
+            "key": "locked",
+            "label": "Locked",
+            "kind": "boolean",
+            "defaultValue": true
+          }
+        ],
+        "inputPorts": [
+          {
+            "id": "input",
+            "label": "Value",
+            "valueType": "number",
+            "required": true
+          }
+        ],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Result",
+            "valueType": "number"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "range",
+              "label": "Range",
+              "parameters": [
+                "mode",
+                "gain"
+              ]
+            },
+            {
+              "id": "lock",
+              "label": "Lock",
+              "parameters": [
+                "locked",
+                "bias"
+              ]
+            }
+          ],
+          "status": [
+            {
+              "label": "Mode",
+              "parameter": "mode"
+            },
+            {
+              "label": "Locked",
+              "parameter": "locked"
+            }
+          ],
+          "help": {
+            "title": "Constraint UI",
+            "text": "Changing Mode changes Gain constraints only. Locked blocks Gain editing and makes Bias read-only without changing either value."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream) {\n  return Number(upstream ?? 0) * Number(params.gain ?? 1) + Number(params.bias ?? 0);\n}\n"
+        },
+        "python": {
+          "source": "def execute(params, upstream, context):\n    return float(upstream or 0) * float(params.get(\"gain\", 1)) + float(params.get(\"bias\", 0))\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzdjNWNmZiIvPjxwYXRoIGQ9Ik03IDhoMTBNNyAxMmg3TTcgMTZoNCIgc3Ryb2tlPSJ3aGl0ZSIgc3Ryb2tlLXdpZHRoPSIxLjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxjaXJjbGUgY3g9IjE1IiBjeT0iMTIiIHI9IjEuNiIgZmlsbD0id2hpdGUiLz48L3N2Zz4K",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

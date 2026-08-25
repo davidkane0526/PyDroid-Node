@@ -1,3 +1,12 @@
+## 1.6.32 (172) — Declarative constraints, edit states and result status — 2026-08-25
+
+- Promoted the NodeSpec authoring SDK to v6. Number parameters can declare ordered `constraintVariants` that change host-rendered `min`/`max`/`step` from ordinary NodeSpec conditions. The host changes control constraints only; it never clamps or rewrites the stored parameter value.
+- Added explicit declarative edit states through `readOnly`/`readOnlyWhen` and `disabled`/`disabledWhen`. Inspector fields, inline controls and Socket default controls resolve the same state and constraints. Read-only/disabled controls keep their current values; no automatic correction or fallback path was added.
+- Extended declarative status items with one bounded result source: `kind`, `value`, `text`, `rows` or `columns` from the latest host `NodeExecutionPreview`. A status item must declare exactly one source (`parameter` or `result`), so result summaries remain read-only host presentation rather than a plugin expression language.
+- Added Demo 35 for Mode-linked numeric constraints plus explicit disabled/read-only controls; its dual-runtime workflow evaluates to `13`. Added Demo 36 for a plugin Table whose Inspector reports result kind and dimensions after execution; JavaScript and Python both produce a 6×2 native Table consumed by the first-party Line Plot. Built-in Demo smoke coverage is now 36/36.
+- Extended NodeSpec/declarative UI validation and smoke coverage for dynamic constraints, edit-state conditions, result-status source exclusivity, pre-run empty status and post-run result dimensions. Existing first-party parity remains 134/134 and the complete Python suite remains 188 passed / 1 skipped.
+- Build revision: `1.6.32-dev-r124-declarative-constraints-result-status`.
+
 ## 1.6.31 (171) — Conditional declarative plugin UI — 2026-08-25
 
 - Promoted the NodeSpec authoring SDK to v5 with pure declarative UI conditions. Parameters can declare `visibleWhen`; Inspector parameter groups, status items and help blocks can each declare `when`; all conditions reuse the existing exact NodeSpec condition semantics rather than a second UI expression language.

@@ -11,6 +11,7 @@ import type {
   NodeUiParameterGroupSpec,
   NodeUiSpec,
   NodeUiStatusItemSpec,
+  NodeUiStatusResultField,
   NodeVariant,
   ParameterOptionSpec,
   ParameterSpec,
@@ -19,7 +20,7 @@ import type {
   ValueType,
 } from "./nodeCatalog";
 
-export const NODE_SPEC_SDK_VERSION = 5 as const;
+export const NODE_SPEC_SDK_VERSION = 6 as const;
 
 export type {
   InputPortGroupSpec,
@@ -29,6 +30,7 @@ export type {
   NodeUiParameterGroupSpec,
   NodeUiSpec,
   NodeUiStatusItemSpec,
+  NodeUiStatusResultField,
   NodeVariant,
   ParameterOptionSpec,
   ParameterSpec,
@@ -66,6 +68,16 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
   };
   for (const parameter of spec.parameters) {
     validateCondition(parameter.visibleWhen, `参数 ${parameter.key} visibleWhen`);
+    validateCondition(parameter.readOnlyWhen, `参数 ${parameter.key} readOnlyWhen`);
+    validateCondition(parameter.disabledWhen, `参数 ${parameter.key} disabledWhen`);
+    if (parameter.min !== undefined && parameter.max !== undefined && parameter.min > parameter.max) errors.push(`${prefix}: 参数 ${parameter.key} min 不能大于 max`);
+    if (parameter.step !== undefined && parameter.step <= 0) errors.push(`${prefix}: 参数 ${parameter.key} step 必须大于 0`);
+    if (parameter.constraintVariants?.length && parameter.kind !== "number") errors.push(`${prefix}: constraintVariants 仅适用于 number 参数：${parameter.key}`);
+    for (const [index, variant] of (parameter.constraintVariants ?? []).entries()) {
+      validateCondition(variant.when, `参数 ${parameter.key} constraintVariants[${index}]`);
+      if (variant.min !== undefined && variant.max !== undefined && variant.min > variant.max) errors.push(`${prefix}: 参数 ${parameter.key} constraintVariants[${index}] min 不能大于 max`);
+      if (variant.step !== undefined && variant.step <= 0) errors.push(`${prefix}: 参数 ${parameter.key} constraintVariants[${index}] step 必须大于 0`);
+    }
     if (parameter.optionVariants?.length && parameter.kind !== "select") errors.push(`${prefix}: optionVariants 仅适用于 select 参数：${parameter.key}`);
     for (const [index, variant] of (parameter.optionVariants ?? []).entries()) {
       validateCondition(variant.when, `参数 ${parameter.key} optionVariants[${index}]`);
@@ -126,10 +138,14 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
       uiGroupedParameterKeys.add(key);
     }
   }
+  const statusResultFields = new Set(["kind", "value", "text", "rows", "columns"]);
   for (const item of spec.ui?.status ?? []) {
     if (!item.label.trim()) errors.push(`${prefix}: UI 状态项 label 不能为空`);
     validateCondition(item.when, `UI 状态项 ${item.label}`);
-    if (!parameterKeys.has(item.parameter)) errors.push(`${prefix}: UI 状态项引用不存在的参数：${item.parameter}`);
+    const sources = Number(Boolean(item.parameter)) + Number(Boolean(item.result));
+    if (sources !== 1) errors.push(`${prefix}: UI 状态项必须且只能声明 parameter 或 result：${item.label}`);
+    if (item.parameter && !parameterKeys.has(item.parameter)) errors.push(`${prefix}: UI 状态项引用不存在的参数：${item.parameter}`);
+    if (item.result && !statusResultFields.has(item.result)) errors.push(`${prefix}: UI 状态项 result 字段无效：${item.result}`);
   }
 
   validateCondition(spec.ui?.help?.when, "UI help");

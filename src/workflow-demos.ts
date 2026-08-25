@@ -32,8 +32,10 @@ import declarativePluginUi from "../examples/demo-31-declarative-plugin-ui.workf
 import declarativePluginTable from "../examples/demo-32-declarative-plugin-table.workflow.json?raw";
 import conditionalPluginUi from "../examples/demo-33-conditional-plugin-ui.workflow.json?raw";
 import linkedEnumTable from "../examples/demo-34-linked-enum-table.workflow.json?raw";
+import constraintEditStateUi from "../examples/demo-35-constraint-edit-state-ui.workflow.json?raw";
+import resultDrivenStatus from "../examples/demo-36-result-driven-status.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
-import { activateConditionalUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo } from "./plugin-package-demos";
+import { activateConditionalUiPackageDemo, activateConstraintUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo, activateResultStatusTablePackageDemo } from "./plugin-package-demos";
 
 export type WorkflowDemo = {
   id: string;
@@ -257,5 +259,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     description: "Profile 改变 Series 枚举与参数可见性，双 Runtime 生成原生 Table 并进入第一方 Plot。",
     document: linkedEnumTable,
     activate: activateLinkedEnumTablePackageDemo,
+  },
+  {
+    id: "constraint-edit-state-ui",
+    label: "Demo 35 · 数值约束与编辑状态",
+    description: "Mode 动态改变 number 的 min/max/step；Locked 明确控制 disabled 与 read-only，不自动改值。",
+    document: constraintEditStateUi,
+    activate: activateConstraintUiPackageDemo,
+  },
+  {
+    id: "result-driven-status",
+    label: "Demo 36 · 节点结果驱动状态",
+    description: "运行前结果状态为空，执行后由宿主 NodeExecutionPreview 显示 kind、行数和列数。",
+    document: resultDrivenStatus,
+    activate: activateResultStatusTablePackageDemo,
   },
 ] as const;

@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.result-status-table",
+  "name": "Result Status Table Demo",
+  "version": "1.0.0",
+  "description": "Declarative status items derived from the latest node result.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.result_status_table",
+        "label": "Result Status Table",
+        "description": "Generate a table and let the host display result kind and dimensions.",
+        "tags": ["plugin", "ui", "status", "table"],
+        "category": "自定义",
+        "runtimeSupport": ["python", "javascript"],
+        "defaults": { "rows": 6, "scale": 2 },
+        "parameters": [
+          { "key": "rows", "label": "Rows", "kind": "number", "defaultValue": 6, "min": 2, "max": 50, "step": 1 },
+          { "key": "scale", "label": "Scale", "kind": "number", "defaultValue": 2, "step": 0.1 }
+        ],
+        "inputPorts": [],
+        "outputPorts": [{ "id": "output", "label": "Table", "valueType": "table" }],
+        "ui": {
+          "parameterGroups": [{ "id": "data", "label": "Data", "parameters": ["rows", "scale"] }],
+          "status": [
+            { "label": "Requested rows", "parameter": "rows" },
+            { "label": "Result kind", "result": "kind" },
+            { "label": "Output rows", "result": "rows" },
+            { "label": "Output columns", "result": "columns" }
+          ],
+          "help": { "title": "Result status", "text": "Result-derived status is empty before execution and reads only the latest host NodeExecutionPreview after execution." }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": { "file": "js/provider.js" },
+        "python": { "file": "python/provider.py" }
+      }
+    }
+  ],
+  "resources": ["resources/icon.svg"]
+}

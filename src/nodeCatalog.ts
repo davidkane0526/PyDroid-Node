@@ -26,6 +26,11 @@ export type ParameterSpec = {
   options?: ParameterOptionSpec[];
   visibleWhen?: Record<string, NodeConditionValue>;
   optionVariants?: Array<{ when: Record<string, NodeConditionValue>; options: ParameterOptionSpec[] }>;
+  constraintVariants?: Array<{ when: Record<string, NodeConditionValue>; min?: number; max?: number; step?: number }>;
+  readOnly?: boolean;
+  readOnlyWhen?: Record<string, NodeConditionValue>;
+  disabled?: boolean;
+  disabledWhen?: Record<string, NodeConditionValue>;
   description?: string;
   placeholder?: string;
   required?: boolean;
@@ -79,9 +84,12 @@ export type NodeUiParameterGroupSpec = {
   when?: Record<string, NodeConditionValue>;
 };
 
+export type NodeUiStatusResultField = "kind" | "value" | "text" | "rows" | "columns";
+
 export type NodeUiStatusItemSpec = {
   label: string;
-  parameter: string;
+  parameter?: string;
+  result?: NodeUiStatusResultField;
   when?: Record<string, NodeConditionValue>;
 };
 

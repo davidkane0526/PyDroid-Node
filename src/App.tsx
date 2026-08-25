@@ -427,15 +427,15 @@ function InlineNodeControl({
 }) {
   const stop = (event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>) => event.stopPropagation();
   if (spec.kind === "boolean") {
-    return <label className={`node-inline-control node-inline-control--boolean nodrag nopan ${className}`} title={spec.label} onPointerDown={stop}><input type="checkbox" checked={Boolean(value)} onChange={(event) => onChange(event.target.checked)} /><span>{Boolean(value) ? "True" : "False"}</span></label>;
+    return <label className={`node-inline-control node-inline-control--boolean nodrag nopan ${className}`} title={spec.label} onPointerDown={stop}><input type="checkbox" checked={Boolean(value)} disabled={Boolean(spec.disabled || spec.readOnly)} onChange={(event) => onChange(event.target.checked)} /><span>{Boolean(value) ? "True" : "False"}</span></label>;
   }
   if (spec.kind === "select") {
-    return <select className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} value={String(value ?? "")} onPointerDown={stop} onClick={stop} onChange={(event) => { const option = spec.options?.find((item) => String(item.value) === event.target.value); onChange(option?.value ?? event.target.value); }}>{spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>;
+    return <select className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} value={String(value ?? "")} disabled={Boolean(spec.disabled || spec.readOnly)} onPointerDown={stop} onClick={stop} onChange={(event) => { const option = spec.options?.find((item) => String(item.value) === event.target.value); onChange(option?.value ?? event.target.value); }}>{spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>;
   }
   if (spec.kind === "number") {
-    return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="number" value={value === null || value === undefined ? "" : String(value)} min={spec.min} max={spec.max} step={spec.step ?? "any"} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} />;
+    return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="number" value={value === null || value === undefined ? "" : String(value)} min={spec.min} max={spec.max} step={spec.step ?? "any"} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} />;
   }
-  return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
+  return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
 }
 
 function inlineControlPreferredWidth(spec: ParameterSpec): number {
@@ -478,7 +478,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     .map((parameter) => resolveDeclarativeParameter(parameter, effectiveUiValues));
   const inlineLayout = spec?.ui?.inlineLayout ?? "stack";
   const inlineParameterLabels = spec?.ui?.inlineParameterLabels ?? {};
-  const parameterByKey = new Map((spec?.parameters ?? []).map((parameter) => [parameter.key, parameter]));
+  const parameterByKey = new Map((spec?.parameters ?? []).map((parameter) => [parameter.key, resolveDeclarativeParameter(parameter, effectiveUiValues)]));
   const inlineOwnedParameterKeys = new Set([...inlineParameterKeys, ...inputPorts.flatMap((port) => port.defaultParameter ? [port.defaultParameter] : [])]);
   const inspectorParameterCount = (spec?.parameters ?? []).filter((parameter) => !inlineOwnedParameterKeys.has(parameter.key)).length;
   const inputDefaultSpecs = inputPorts.map((port) => port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
@@ -3831,7 +3831,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
                   <span>{selectedSignature.inputPorts.length} 输入 · {selectedSignature.parameters.length} 参数 · {selectedSignature.outputPorts.length} 输出</span>
                 </p>
               )}
-              {selectedSpec ? <NodeDeclarativeInspector spec={selectedSpec} values={selectedNode.data.parameters} excludedParameterKeys={selectedInlineParameterKeys} onChange={updateParameter} onExpandCode={() => setCodeEditorOpen(true)} /> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
+              {selectedSpec ? <NodeDeclarativeInspector spec={selectedSpec} values={selectedNode.data.parameters} result={selectedNodeResult} excludedParameterKeys={selectedInlineParameterKeys} onChange={updateParameter} onExpandCode={() => setCodeEditorOpen(true)} /> : Object.entries(selectedNode.data.parameters).map(([key, value]) => (
                 <label className="field" key={key}><span>{key}</span><input value={String(value ?? "")} onChange={(event) => updateParameter(key, event.target.value)} /></label>
               ))}
               {authoritativeSignatureError && <p className="validation-error">签名错误：{authoritativeSignatureError}</p>}

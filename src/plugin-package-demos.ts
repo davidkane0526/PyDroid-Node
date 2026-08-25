@@ -6,6 +6,8 @@ import declarativeScalePackage from "../examples/plugins/demo-declarative-scale.
 import declarativeTablePackage from "../examples/plugins/demo-declarative-table.plugin.json?raw";
 import conditionalUiPackage from "../examples/plugins/demo-conditional-ui.plugin.json?raw";
 import linkedEnumTablePackage from "../examples/plugins/demo-linked-enum-table.plugin.json?raw";
+import constraintUiPackage from "../examples/plugins/demo-constraint-ui.plugin.json?raw";
+import resultStatusTablePackage from "../examples/plugins/demo-result-status-table.plugin.json?raw";
 import { activateNodePluginPackage, listActiveNodePluginPackages } from "./nodePluginPackages";
 
 function activateOnce(manifestText: string, id: string): void {
@@ -43,4 +45,12 @@ export function activateConditionalUiPackageDemo(): void {
 
 export function activateLinkedEnumTablePackageDemo(): void {
   activateOnce(linkedEnumTablePackage, "demo.linked-enum-table");
+}
+
+export function activateConstraintUiPackageDemo(): void {
+  activateOnce(constraintUiPackage, "demo.constraint-ui");
+}
+
+export function activateResultStatusTablePackageDemo(): void {
+  activateOnce(resultStatusTablePackage, "demo.result-status-table");
 }
