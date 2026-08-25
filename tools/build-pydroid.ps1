@@ -148,7 +148,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.39-dev-r134-visual-compatibility-restore"
+$script:BuildScriptRevision = "1.6.40-dev-r135-vertical-node-form-layout"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

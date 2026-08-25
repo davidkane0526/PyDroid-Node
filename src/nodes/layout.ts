@@ -22,9 +22,11 @@ export type NodeCardLayout = {
   direction: NodeLayoutDirection;
   dynamic: boolean;
   sideRailLayout: boolean;
+  verticalFormLayout: boolean;
   inputPortLabelWidth: number;
   outputPortLabelWidth: number;
   verticalPortLabelWidth: number;
+  verticalFormLabelWidth: number;
   socketControlWidth: number;
   inputRailWidth: number;
   outputRailWidth: number;
@@ -34,6 +36,7 @@ export type NodeCardLayout = {
   inlineToolbarWidth: number;
   portRowHeight: number;
   portTop: (index: number) => number;
+  verticalPortLeft: (index: number, count: number) => number;
 };
 
 export function visualTextUnits(value: string): number {
@@ -54,14 +57,15 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const { inputPorts, outputPorts, inputDefaultSpecs, inlineParameters } = input;
   const dynamic = inputDefaultSpecs.length > 0 || inlineParameters.length > 0 || input.hasVariants || input.hasInputPortGroups || input.hasDynamicPorts;
   const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
-  const sideRailLayout = dynamic && maxPortCount > 0;
-  const direction: NodeLayoutDirection = sideRailLayout ? "horizontal" : input.requestedDirection;
+  const sideRailLayout = dynamic && maxPortCount > 0 && input.requestedDirection === "horizontal";
+  const verticalFormLayout = dynamic && maxPortCount > 0 && input.requestedDirection === "vertical";
+  const direction: NodeLayoutDirection = input.requestedDirection;
 
   const longestInput = Math.max(0, ...inputPorts.map((port) => visualTextUnits(port.label ?? "")));
   const longestOutput = Math.max(0, ...outputPorts.map((port) => visualTextUnits(port.label ?? "")));
   const inputPortLabelWidth = Math.min(126, Math.max(46, 16 + longestInput * 5.8));
   const outputPortLabelWidth = Math.min(126, Math.max(46, 16 + longestOutput * 5.8));
-  const verticalPortLabelWidth = Math.min(118, Math.max(64, 20 + Math.max(longestInput, longestOutput) * 5.6));
+  const verticalPortLabelWidth = Math.min(92, Math.max(46, 14 + Math.max(longestInput, longestOutput) * 5.2));
   const socketControlWidth = Math.max(0, ...inputDefaultSpecs.map(inlineControlPreferredWidth));
   const inputRailWidth = inputPorts.length ? 13 + inputPortLabelWidth + (inputDefaultSpecs.length ? 7 + socketControlWidth : 0) : 0;
   const outputRailWidth = outputPorts.length ? 13 + outputPortLabelWidth : 0;
@@ -72,34 +76,52 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
       : Math.min(176, Math.max(...inlineParameters.map((parameter) => inlineControlPreferredWidth(parameter) + 48)))
     : 0;
 
+  const longestFormLabel = Math.max(0, ...inputDefaultSpecs.map((parameter) => visualTextUnits(parameter.label ?? "")), ...inlineParameters.map((parameter) => visualTextUnits(parameter.label ?? "")));
+  const verticalFormLabelWidth = Math.min(104, Math.max(58, 18 + longestFormLabel * 5.4));
+  const verticalFormControlWidth = Math.max(104, socketControlWidth, inlineParameters.length ? Math.max(...inlineParameters.map(inlineControlPreferredWidth)) : 0);
+
   const labelUnits = visualTextUnits(input.label);
   const contentWidth = direction === "vertical"
-    ? Math.min(286, Math.max(150, 88 + labelUnits * 9.2, inlineToolbarWidth + 18))
+    ? Math.min(276, Math.max(164, 92 + labelUnits * 8.6, inlineToolbarWidth + 24))
     : Math.min(272, Math.max(146, 82 + labelUnits * 8.8, inlineToolbarWidth + 18));
-  const verticalPortItemWidth = Math.max(verticalPortLabelWidth, socketControlWidth || 0, 78);
-  const portDrivenWidth = direction === "vertical"
-    ? Math.max(contentWidth, maxPortCount ? 24 + maxPortCount * (verticalPortItemWidth + 10) : contentWidth)
-    : Math.max(contentWidth + inputRailWidth + outputRailWidth + 16, 184);
-  const widthCap = direction === "vertical" ? 720 : 520;
-  const baseWidth = Math.min(widthCap, Math.max(input.isGroup ? 230 : 0, portDrivenWidth));
+
+  const verticalFormPreferredWidth = verticalFormLayout
+    ? Math.max(236, verticalFormLabelWidth + verticalFormControlWidth + 42)
+    : 0;
+  const verticalPortStripWidth = maxPortCount
+    ? Math.min(352, 28 + maxPortCount * Math.min(78, Math.max(52, verticalPortLabelWidth)))
+    : 0;
+  const verticalWidth = Math.min(360, Math.max(contentWidth, verticalFormPreferredWidth, verticalPortStripWidth));
+  const horizontalWidth = Math.min(520, Math.max(contentWidth + inputRailWidth + outputRailWidth + 16, input.isGroup ? 230 : 184));
+  const baseWidth = direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
+  const verticalPortItemWidth = maxPortCount
+    ? Math.max(34, Math.min(verticalPortLabelWidth, (baseWidth - 24) / maxPortCount))
+    : Math.max(verticalPortLabelWidth, 64);
 
   const inlineRows = inlineParameters.length ? (input.inlineLayout === "row" ? 1 : inlineParameters.length) : 0;
+  const socketRows = inputDefaultSpecs.length;
   const basePortRowHeight = inputDefaultSpecs.length ? 34 : dynamic ? 30 : 28;
   const minimumHandleRowHeight = Math.ceil((16 * input.endpointScale + 6) / Math.max(0.01, input.nodeScale));
   const portRowHeight = Math.max(basePortRowHeight, minimumHandleRowHeight);
   const railHeight = maxPortCount ? 34 + maxPortCount * portRowHeight : 0;
   const contentHeight = 62 + inlineRows * 27;
-  const verticalHeight = (inputDefaultSpecs.length ? 122 : 92) + inlineRows * 27;
+  const verticalFormRows = socketRows + inlineRows;
+  const verticalHeight = verticalFormLayout
+    ? 104 + verticalFormRows * 29
+    : (inputDefaultSpecs.length ? 122 : 92) + inlineRows * 27;
   const baseHeight = direction === "horizontal" ? Math.max(contentHeight, railHeight) : verticalHeight;
   const portTop = (index: number) => 26 + portRowHeight * (index + 0.5);
+  const verticalPortLeft = (index: number, count: number) => count > 0 ? ((index + 1) * 100) / (count + 1) : 50;
 
   return {
     direction,
     dynamic,
     sideRailLayout,
+    verticalFormLayout,
     inputPortLabelWidth,
     outputPortLabelWidth,
     verticalPortLabelWidth,
+    verticalFormLabelWidth,
     socketControlWidth,
     inputRailWidth,
     outputRailWidth,
@@ -109,5 +131,6 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     inlineToolbarWidth,
     portRowHeight,
     portTop,
+    verticalPortLeft,
   };
 }

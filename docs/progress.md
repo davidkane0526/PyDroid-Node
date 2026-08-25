@@ -1,15 +1,22 @@
-# Current progress — 1.6.39 Core Default Visual Compatibility Restore
+# Current progress — 1.6.40 Vertical Dynamic Node Form Layout
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.39**, Android versionCode **179**.
-- Build revision: `1.6.39-dev-r134-visual-compatibility-restore`.
+- Product version: **1.6.40**, Android versionCode **180**.
+- Build revision: `1.6.40-dev-r135-vertical-node-form-layout`.
 
 - 1.6.38 source validation: SDK layout, Unified Design/Theme, node layout, plugin package/archive/manager/declarative UI and UI regression gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
+
+## 1.6.40 vertical dynamic-node layout
+
+- Vertical canvas direction is now preserved for dynamic nodes; no horizontal side-rail override.
+- Socket defaults and inline controls use compact aligned body rows while inputs remain top-facing and outputs bottom-facing.
+- Vertical complex nodes have a bounded width and deterministic height growth; horizontal dynamic nodes retain side rails.
+- `core.default` visuals and Plugin/Theme/Design SDK behavior are unchanged.
 
 ## 1.6.39 visual compatibility correction
 

@@ -490,7 +490,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   });
   const effectiveDirection = nodeLayout.direction;
   const hasDynamicUi = nodeLayout.dynamic;
-  const { inputPortLabelWidth, outputPortLabelWidth, verticalPortLabelWidth, socketControlWidth, inputRailWidth, outputRailWidth, verticalPortItemWidth, nodeWidth, nodeMinHeight } = nodeLayout;
+  const { inputPortLabelWidth, outputPortLabelWidth, verticalPortLabelWidth, verticalFormLabelWidth, socketControlWidth, inputRailWidth, outputRailWidth, verticalPortItemWidth, nodeWidth, nodeMinHeight } = nodeLayout;
   const isStructure = isVisualStructureNodeType(data.nodeType);
   const isIfZone = isIfStructureNodeType(data.nodeType);
   const isLoopZone = isLoopStructureNodeType(data.nodeType);
@@ -515,16 +515,18 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     if (isBoundaryZone && effectiveDirection === "horizontal") return { top: `${28 + index * 26}px` };
     if (isBoundaryZone && effectiveDirection === "vertical") return { left: `${70 + index * 78}px` };
     if (nodeLayout.sideRailLayout) return { top: `${nodeLayout.portTop(index) * nodeScale}px` };
+    if (nodeLayout.verticalFormLayout) return { left: `${nodeLayout.verticalPortLeft(index, inputPorts.length)}%` };
     return effectiveDirection === "horizontal" ? { top: `${((index + 1) * 100) / (inputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (inputPorts.length + 1)}%` };
   };
   const outputPortStyle = (index: number): CSSProperties => {
     if (isBoundaryZone && effectiveDirection === "horizontal") return { top: `calc(100% - ${56 - index * 19}px)` };
     if (isBoundaryZone && effectiveDirection === "vertical") return { left: `calc(100% - ${190 - index * 62}px)` };
     if (nodeLayout.sideRailLayout) return { top: `${nodeLayout.portTop(index) * nodeScale}px` };
+    if (nodeLayout.verticalFormLayout) return { left: `${nodeLayout.verticalPortLeft(index, outputPorts.length)}%` };
     return effectiveDirection === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
   };
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--vertical-form-label-width": `${verticalFormLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${nodeLayout.verticalFormLayout ? "workflow-node--vertical-form" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
       {isStructure && <NodeResizer minWidth={isBoundaryZone ? 440 : 360} minHeight={isBoundaryZone ? 250 : 220} isVisible={selected} />}
@@ -538,7 +540,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
             <Handle id={port.id} type="target" position={effectiveDirection === "horizontal" ? Position.Left : Position.Top} />
             <div className="node-port-content node-port-content--input">
               {port.label && <span className="node-port-label" title={`${port.label} · ${port.valueType}`}>{port.label}<small>{port.valueType}</small></span>}
-              {defaultSpec && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
+              {defaultSpec && !nodeLayout.verticalFormLayout && !connected && <InlineNodeControl spec={defaultSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} className="node-inline-control--socket" onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} />}
             </div>
           </div>
         );
@@ -546,6 +548,13 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
       <div className="workflow-node__body">
         {visibleTypeLabel && <div className="workflow-node__type" title={data.nodeType}>{visibleTypeLabel}</div>}
         <div className="workflow-node__label" title={data.label}>{pluginIconUrl && <img className="workflow-node__plugin-icon" src={pluginIconUrl} alt=""/>}{data.label}</div>
+        {nodeLayout.verticalFormLayout && inputPorts.some((port) => Boolean(port.defaultParameter)) && <div className="workflow-node__socket-form">{inputPorts.map((port) => {
+          const defaultSpec = port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined;
+          if (!defaultSpec) return null;
+          const connected = nodeConnections.isInputConnected(id, port.id);
+          const socketSpec = connected ? { ...defaultSpec, disabled: true } : defaultSpec;
+          return <label key={port.id} title={`${port.label} · ${defaultSpec.label}`}><span>{defaultSpec.label}</span><InlineNodeControl spec={socketSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} /></label>;
+        })}</div>}
         {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout}`}>{inlineParameters.map((parameter) => {
           const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
           const showLabel = declaredLabel !== null && declaredLabel !== "";

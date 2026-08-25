@@ -1,3 +1,12 @@
+## 1.6.40 (180) — Vertical Dynamic Node Form Layout — 2026-08-25
+
+- Fixed vertical canvas layout so dynamic nodes no longer switch to horizontal left/right rails while surrounding nodes use top/bottom flow.
+- Added a dedicated vertical form contract: input sockets remain on the top edge, outputs remain on the bottom edge, and socket defaults/inline controls use aligned internal form rows.
+- Capped complex vertical nodes at a compact width and let height grow with editable rows; horizontal mode keeps deterministic side rails and endpoint-aware row spacing.
+- Kept the accepted `core.default` appearance, Plugin/Theme/Design SDK and runtime/Remote/MCP behavior unchanged.
+- Revalidated Node Layout/UI/Canvas/Plugin/Theme/Design gates, demos 38/38, Runtime parity 134/134 with JS NodeContract 96/96, Python 188 passed / 1 skipped, and Workflow Compatibility.
+- Build revision: `1.6.40-dev-r135-vertical-node-form-layout`.
+
 ## 1.6.39 (179) — Core Default Visual Compatibility Restore — 2026-08-25
 
 - Restored the accepted pre-Design-SDK Core appearance and interaction effects as the `core.default` visual baseline. Buttons, dialogs, Canvas/Soft node materials, hover/selection states, plugin manager surfaces and legacy enter/drag transitions no longer inherit new material/motion defaults.

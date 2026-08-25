@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.39 Core Default Visual Compatibility Restore
+# Current development handoff — 1.6.40 Vertical Dynamic Node Form Layout
 
-Branch: `feature/sdk-repository-cleanup`
-Version: **1.6.39**
-Android versionCode: **178**
-Build revision: `1.6.39-dev-r134-visual-compatibility-restore`
+Branch: `feature/vertical-node-form-layout`
+Version: **1.6.40**
+Android versionCode: **180**
+Build revision: `1.6.40-dev-r135-vertical-node-form-layout`
 
 ## Current phase
 
@@ -25,7 +25,7 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - NodeSpec SDK: **v7**; combined Plugin SDK: **v4**; UI Theme SDK: **v2**; Unified Design SDK: **v1**.
 - Plugin path: JSON Manifest or `.plugin.zip` -> NodeSpec + JavaScript/Python Runtime Providers + persisted read-only resources and/or token-only UI themes -> enable/disable/uninstall/restore.
 - Theme/design boundary: semantic color + material + motion tokens only. Core owns selectors, component rendering, spacing, dimensions, typography metrics, responsive geometry and all node layout.
-- Node layout: `src/nodes/layout.ts` is the single measurement contract; complex dynamic nodes use deterministic horizontal side rails and fixed port rows instead of percentage placement.
+- Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
 - Runtime parity revalidated in 1.6.38: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
@@ -36,6 +36,14 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 
 
 
+
+## 1.6.40 vertical dynamic-node correction
+
+- Dynamic nodes now respect the requested canvas direction instead of forcing horizontal orientation whenever dynamic UI is present.
+- Vertical mode uses top input sockets, bottom output sockets and a bounded-width internal form for socket defaults/inline controls; node height grows deterministically with form rows.
+- Horizontal mode keeps the existing side-rail contract, including endpoint-scale-aware row spacing.
+- `core.default` visual compatibility remains protected; no Theme/Material/Motion default was changed.
+- Revalidated in 1.6.40: Node Layout, Visual Baseline, UI regression, Canvas 22/22, Plugin/Theme/Design gates, Demo 38/38, Runtime parity 134/134 with JS NodeContract 96/96, Python 188 passed / 1 skipped, Workflow Compatibility.
 
 ## 1.6.39 visual compatibility correction
 

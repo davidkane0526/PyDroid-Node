@@ -4110,6 +4110,82 @@ select.node-inline-control {
 .workflow-node--dynamic-ui.direction-vertical .node-inline-control--socket {
   width: min(var(--socket-control-width, 82px), var(--vertical-port-item-width, 88px));
 }
+
+/* Vertical workflow contract: complex/dynamic nodes become narrow form cards.
+   Graph direction stays top-to-bottom; editable socket defaults live in aligned body rows instead of stretching side rails. */
+.workflow-node--dynamic-ui.workflow-node--vertical-form.direction-vertical {
+  padding-block: calc(21px * var(--node-scale, 1));
+}
+.workflow-node--dynamic-ui.workflow-node--vertical-form.direction-vertical.has-inputs .workflow-node__body,
+.workflow-node--dynamic-ui.workflow-node--vertical-form.direction-vertical.has-outputs .workflow-node__body,
+.workflow-node--dynamic-ui.workflow-node--vertical-form.direction-vertical.has-inline-input-defaults .workflow-node__body {
+  margin-inline: 0;
+  padding: calc(10px * var(--node-scale, 1)) calc(8px * var(--node-scale, 1));
+  align-content: start;
+}
+.workflow-node--vertical-form .workflow-node__label {
+  text-align: center;
+}
+.workflow-node--vertical-form .workflow-node__meta {
+  margin-top: calc(4px * var(--node-scale, 1));
+  text-align: center;
+}
+.workflow-node__socket-form {
+  display: grid;
+  gap: calc(4px * var(--node-scale, 1));
+  width: 100%;
+  min-width: 0;
+  margin-top: calc(7px * var(--node-scale, 1));
+}
+.workflow-node__socket-form > label,
+.workflow-node--vertical-form .workflow-node__inline-controls > label:not(.workflow-node__inline-control--label-hidden) {
+  display: grid;
+  grid-template-columns: minmax(0, var(--vertical-form-label-width, 76px)) minmax(0, 1fr);
+  align-items: center;
+  gap: calc(7px * var(--node-scale, 1));
+  min-width: 0;
+  color: var(--text-muted);
+  font-size: calc(9.5px * var(--node-scale, 1));
+  font-weight: 650;
+  line-height: 1.15;
+  text-align: left;
+}
+.workflow-node__socket-form > label > span,
+.workflow-node--vertical-form .workflow-node__inline-controls > label > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workflow-node--vertical-form .workflow-node__inline-controls {
+  width: 100%;
+  margin-top: calc(4px * var(--node-scale, 1));
+}
+.workflow-node--vertical-form .workflow-node__inline-controls--row {
+  grid-auto-flow: row;
+  grid-auto-columns: auto;
+  width: 100%;
+}
+.workflow-node--vertical-form .workflow-node__inline-controls > .workflow-node__inline-control--label-hidden {
+  display: block;
+  width: 100%;
+}
+.workflow-node--vertical-form .node-inline-control {
+  height: calc(24px * var(--node-scale, 1));
+}
+.workflow-node--vertical-form.direction-vertical .input-port,
+.workflow-node--vertical-form.direction-vertical .output-port {
+  max-width: calc((var(--node-width, 260px) - 20px) / 2);
+}
+.workflow-node--vertical-form.direction-vertical .node-port-content {
+  overflow: hidden;
+}
+.workflow-node--vertical-form.direction-vertical .node-port-label {
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .app-shell[data-theme="light"] .node-inline-control {
   color: #172b45;
   background: #ffffff;

@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.39 (179) · Core Default Visual Compatibility Restore**。Plugin SDK / Theme SDK / Design SDK 保留，但默认 `core.default` 重新锁定为已验收的原产品视觉与交互效果；只有明确选择非默认主题时才启用 Theme/Material/Motion 覆盖。动态节点几何仍由 Core 独占。Remote Web/LAN 生产路径不变；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.40 (180) · Vertical Dynamic Node Form Layout**。默认 `core.default` 视觉基线保持不变；纵向画布中的复杂动态节点现在保持 Top→Bottom 连线方向，并把 Socket 默认值/内联参数收进紧凑的逐行表单。横向画布继续使用确定性的左右 Rail。Plugin/Theme/Design SDK 与 Remote Web/LAN 生产路径不变；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,8 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.39 Visual Compatibility Restore（当前分支）**：Plugin SDK v4 / UI Theme SDK v2 / Design SDK v1 保持不变；`core.default` 保留原有按钮、弹窗、节点、Soft/Classic 画布材质与动画，第三方主题以显式 opt-in 覆盖这些外观 Token，且仍不能改变布局或动态节点几何。
+- **1.6.40 Vertical Dynamic Node Form Layout（当前分支）**：纵向工作流中的动态节点不再被强制改成横向左右 Rail；输入端口保持顶部、输出端口保持底部，Socket 默认值与内联控件按统一标签列/控件列纵向排列，节点以增加高度换取更紧凑的宽度。横向布局仍保留固定端口行 Rail；`core.default` 视觉基线不变。
+- **1.6.39 Visual Compatibility Restore**：Plugin SDK v4 / UI Theme SDK v2 / Design SDK v1 保持不变；`core.default` 保留原有按钮、弹窗、节点、Soft/Classic 画布材质与动画，第三方主题以显式 opt-in 覆盖这些外观 Token，且仍不能改变布局或动态节点几何。
 - **1.6.34 Final Freeze Audit**：冻结功能面，只允许删除明确无调用的内部代码、退役运行时兼容桥、重复契约和过期开发状态；公共 NodeSpec/Plugin SDK、Workflow Migration、Remote/LAN 既有生产路径不因“内部零引用”被误删。
 - **动态节点与插件体系**：NodeSpec SDK v7 支持动态端口、参数 Socket、重复输入、节点 Variant、Series/Legend、列处理 Pipeline、声明式 Inspector、校验和多输出状态；第三方 `.plugin.zip` 统一走 Manifest + Runtime Provider + resources 生命周期。
 - **MCP / AI Core 接口**：Desktop/Android 提供标准 Streamable HTTP MCP，Core 适配层复用 Editor/Runtime 现有所有权，不建立第二套工作流状态。
