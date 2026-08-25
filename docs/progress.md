@@ -1,15 +1,24 @@
-# Current progress — 1.6.41 Horizontal Rail Containment
+# Current progress — 1.6.42 Node Layout Refinement
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.41**, Android versionCode **181**.
-- Build revision: `1.6.41-dev-r136-horizontal-rail-containment`.
+- Product version: **1.6.42**, Android versionCode **182**.
+- Build revision: `1.6.42-dev-r137-node-layout-refinement`.
 
-- 1.6.41 source validation: Node Layout, Core Default Visual Baseline, UI regression, Canvas Theme, Theme/Design SDK, plugin manager/declarative UI and SDK layout gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
+- 1.6.42 source validation: Node Layout, Core Default Visual Baseline, UI regression, Canvas Theme, Theme/Design SDK, plugin manager/package/archive/declarative UI and SDK layout gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
+
+
+## 1.6.42 node-layout refinement
+
+- Horizontal complex nodes use one smart form control column for Socket defaults and hidden-label inline controls.
+- Simple horizontal nodes use content-fit compact width; structured dynamic nodes retain measured rails and bounded controls.
+- Dynamic title/meta blocks compensate for asymmetric rails and are visually centered against the whole node card.
+- Core `NumericInput` replaces the native browser spinner in both node controls and the inspector with a smaller shared stepper.
+- Port label selectors are scoped to `.node-port-label`, preventing nested control markup from inheriting port-label geometry.
 
 
 ## 1.6.41 horizontal dynamic-node layout

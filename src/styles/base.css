@@ -450,10 +450,10 @@ button, input, select, textarea { font: inherit; }
 .input-port { left: 0; }
 .output-port { right: 0; }
 .input-port .react-flow__handle, .output-port .react-flow__handle { pointer-events: all; }
-.input-port span, .output-port span { position: absolute; top: 50%; display: grid; width: var(--port-label-width, 42px); transform: translateY(-50%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-xs); line-height: 1.15; }
-.input-port span { left: 11px; color: var(--accent-soft); text-align: left; }
-.output-port span { right: 11px; color: #a7f3d0; text-align: right; }
-.input-port small, .output-port small { opacity: .65; font-size: 9px; }
+.input-port .node-port-label, .output-port .node-port-label { position: absolute; top: 50%; display: grid; width: var(--port-label-width, 42px); transform: translateY(-50%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-xs); line-height: 1.15; }
+.input-port .node-port-label { left: 11px; color: var(--accent-soft); text-align: left; }
+.output-port .node-port-label { right: 11px; color: #a7f3d0; text-align: right; }
+.input-port .node-port-label small, .output-port .node-port-label small { opacity: .65; font-size: 9px; }
 .workflow-node.selected { border-color: var(--accent-hover); box-shadow: 0 0 0 2px #2563eb55; }
 .node-selection-check{ position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
 .node-selection-check { left: -11px; }
@@ -505,11 +505,11 @@ button, input, select, textarea { font: inherit; }
 .workflow-node.direction-vertical .input-port, .workflow-node.direction-vertical .output-port { right: auto; transform: translateX(-50%); }
 .workflow-node.direction-vertical .input-port { top: 0; bottom: auto; }
 .workflow-node.direction-vertical .output-port { top: auto; bottom: 0; }
-.workflow-node.direction-vertical .input-port span, .workflow-node.direction-vertical .output-port span { top: auto; right: auto; left: 50%; width: var(--vertical-port-label-width, 62px); transform: translateX(-50%); text-align: center; }
-.workflow-node.direction-vertical .input-port span { top: 8px; }
-.workflow-node.direction-vertical .output-port span { bottom: 8px; }
-.workflow-node.direction-vertical .output-port span { font-size: calc(9.5px * var(--node-scale, 1)); line-height: 1.25; }
-.workflow-node.direction-vertical .input-port small, .workflow-node.direction-vertical .output-port small { display: none; }
+.workflow-node.direction-vertical .input-port .node-port-label, .workflow-node.direction-vertical .output-port .node-port-label { top: auto; right: auto; left: 50%; width: var(--vertical-port-label-width, 62px); transform: translateX(-50%); text-align: center; }
+.workflow-node.direction-vertical .input-port .node-port-label { top: 8px; }
+.workflow-node.direction-vertical .output-port .node-port-label { bottom: 8px; }
+.workflow-node.direction-vertical .output-port .node-port-label { font-size: calc(9.5px * var(--node-scale, 1)); line-height: 1.25; }
+.workflow-node.direction-vertical .input-port .node-port-label small, .workflow-node.direction-vertical .output-port .node-port-label small { display: none; }
 .workflow-structure { width: 100%; height: 100%; min-width: 360px; min-height: 220px; padding: 0; overflow: visible; border: 2px solid var(--text-faint); border-radius: 5px; background: var(--surface-deep)d9; }
 .workflow-structure > .workflow-node__body { position: absolute; z-index: 6; top: 0; left: 0; right: 0; min-height: 68px; padding: 8px 48px 9px; border-bottom: 1px solid var(--border-strong); background: var(--surface-hover)fa; box-shadow: 0 5px 12px #02061755; text-align: left; }
 .workflow-structure.has-inputs .workflow-node__body, .workflow-structure.has-outputs .workflow-node__body { margin: 0; }
@@ -756,7 +756,7 @@ button, input, select, textarea { font: inherit; }
 .app-shell[data-theme="light"] .remote-access-dialog { border-color: #cbd5e1; color: #172554; background: #fff; }.app-shell[data-theme="light"] .remote-access-dialog p { color: #52677f; }.app-shell[data-theme="light"] .remote-pin-input { border-color: #60a5fa; color: #172554; background: #f8fafc; }
 .app-shell[data-theme="light"] .error-detail-dialog details pre { color: #fee2e2; background: #172033; }.app-shell[data-theme="light"] .error-detail-dialog > div button { color: #fff; background: #b91c1c; }.error-detail-dialog > div button:active, .data-grid__actions button:active { transform: translateY(1px) scale(.97); filter: brightness(.9); }
 .workflow-node.status-error, .workflow-node.status-error.selected, .workflow-structure.status-error { border: 3px solid #ef4444 !important; box-shadow: 0 0 0 4px #ef444444, 0 8px 24px #ef444466 !important; }
-.input-port span, .output-port span { font-size: calc(10.5px * var(--node-scale, 1)); font-weight: 650; }.input-port small, .output-port small { margin-top: 1px; font-size: calc(8.75px * var(--node-scale, 1)); opacity: .86; }.output-port span { color: #34d399; font-weight: 650; }.workflow-node.direction-vertical .input-port span, .workflow-node.direction-vertical .output-port span { font-size: calc(11px * var(--node-scale, 1)); }
+.input-port .node-port-label, .output-port .node-port-label { font-size: calc(10.5px * var(--node-scale, 1)); font-weight: 650; }.input-port .node-port-label small, .output-port .node-port-label small { margin-top: 1px; font-size: calc(8.75px * var(--node-scale, 1)); opacity: .86; }.output-port .node-port-label { color: #34d399; font-weight: 650; }.workflow-node.direction-vertical .input-port .node-port-label, .workflow-node.direction-vertical .output-port .node-port-label { font-size: calc(11px * var(--node-scale, 1)); }
 .settings-inline-actions button { padding: 6px 9px; font-size: var(--font-xs); }
 .app-shell[data-theme="light"] .node-selection-check { border-color: #64748b; color: #1e293b; background: #ffffff; box-shadow: 0 3px 9px #64748b44; }.app-shell[data-theme="light"] .react-flow__resize-control.handle { border-color: #1d4ed8; background: #dbeafe; }
 .app-shell[data-theme="light"] .result-actions label{ color: #40566f; }
@@ -766,7 +766,7 @@ button, input, select, textarea { font: inherit; }
 .app-shell[data-theme="light"] .notebook-editor { border-color: #b9c7d8; background: #fff; }.app-shell[data-theme="light"] .notebook-editor__lines { border-color: #dbe3ed; color: #64748b; background: #edf2f7; }.app-shell[data-theme="light"] .debug-dialog { border-color: #cbd5e1; color: #1e293b; background: #fff; }.app-shell[data-theme="light"] .debug-dialog > header, .app-shell[data-theme="light"] .debug-dialog > footer, .app-shell[data-theme="light"] .debug-dialog li { border-color: #dbe3ed; }.app-shell[data-theme="light"] .debug-dialog > footer button { border-color: #cbd5e1; color: #173a63; background: #f8fafc; }
 .app-shell[data-theme="light"] .debug-controls button, .app-shell[data-theme="light"] .debug-dialog li > button { border-color: #b9c7d8; color: #173a63; background: #f8fafc; }.app-shell[data-theme="light"] .debug-summary span { color: #1e40af; background: #dbeafe; }.app-shell[data-theme="light"] .debug-dialog li.paused { border-color: #d97706; background: #fef3c7; }
 .app-shell[data-theme="light"] .runtime-packages { border-color: #b9c7d8; color: #334155; background: #fff; }.app-shell[data-theme="light"] .runtime-packages summary { color: #1e3a5f; font-weight: 600; }.app-shell[data-theme="light"] .runtime-packages code { color: #243b53; background: #e8eef5; font-size: var(--font-xs); }
-.app-shell[data-theme="light"] .input-port span { color: #1d4ed8; }.app-shell[data-theme="light"] .output-port span { color: #047857; }.app-shell[data-theme="light"] .workflow-node.status-error, .app-shell[data-theme="light"] .workflow-node.status-error.selected, .app-shell[data-theme="light"] .workflow-structure.status-error { border-color: #dc2626 !important; box-shadow: 0 0 0 4px #fecaca, 0 7px 20px #991b1b44 !important; }
+.app-shell[data-theme="light"] .input-port .node-port-label { color: #1d4ed8; }.app-shell[data-theme="light"] .output-port .node-port-label { color: #047857; }.app-shell[data-theme="light"] .workflow-node.status-error, .app-shell[data-theme="light"] .workflow-node.status-error.selected, .app-shell[data-theme="light"] .workflow-structure.status-error { border-color: #dc2626 !important; box-shadow: 0 0 0 4px #fecaca, 0 7px 20px #991b1b44 !important; }
 
 @media (min-width: 1200px) {
   .workflow-node { min-height: max(calc(62px * var(--node-scale, 1)), var(--node-min-height, calc(58px * var(--node-scale, 1)))); }
@@ -3976,6 +3976,84 @@ select.node-inline-control {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.numeric-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.numeric-input__field {
+  box-sizing: border-box;
+  padding-right: 26px !important;
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+.numeric-input__field::-webkit-inner-spin-button,
+.numeric-input__field::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
+}
+.numeric-input__stepper {
+  position: absolute;
+  z-index: 2;
+  top: 5px;
+  right: 4px;
+  bottom: 5px;
+  display: grid;
+  width: 14px;
+  grid-template-rows: 1fr 1fr;
+  overflow: hidden;
+  border-left: 1px solid color-mix(in srgb, var(--border-strong) 46%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--surface-raised) 30%, transparent);
+}
+.numeric-input__stepper button {
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  color: var(--text-faint);
+  background: transparent;
+  cursor: pointer;
+}
+.numeric-input__stepper button + button {
+  border-top: 1px solid color-mix(in srgb, var(--border-strong) 32%, transparent);
+}
+.numeric-input__stepper button:hover:not(:disabled) {
+  color: var(--text-highlight);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.numeric-input__stepper button:disabled { opacity: .3; cursor: default; }
+.numeric-input__stepper svg {
+  width: 7px;
+  height: 4px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.numeric-input--node {
+  height: calc(23px * var(--node-scale, 1));
+}
+.numeric-input--node .numeric-input__field {
+  height: 100%;
+  padding-right: calc(19px * var(--node-scale, 1)) !important;
+}
+.numeric-input--node .numeric-input__stepper {
+  top: calc(3px * var(--node-scale, 1));
+  right: calc(3px * var(--node-scale, 1));
+  bottom: calc(3px * var(--node-scale, 1));
+  width: calc(13px * var(--node-scale, 1));
+  border-radius: calc(3px * var(--node-scale, 1));
+}
+.numeric-input--node .numeric-input__stepper svg {
+  width: calc(7px * var(--node-scale, 1));
+  height: calc(4px * var(--node-scale, 1));
+}
 .node-inline-control:hover {
   border-color: color-mix(in srgb, var(--accent-hover) 56%, var(--border-strong));
 }
@@ -4017,6 +4095,20 @@ select.node-inline-control {
 .workflow-node--side-rail.direction-horizontal .workflow-node__body {
   min-height: calc(48px * var(--node-scale, 1));
   align-content: center;
+}
+.workflow-node--side-rail.direction-horizontal .workflow-node__label,
+.workflow-node--side-rail.direction-horizontal .workflow-node__meta {
+  padding-inline: 0;
+  text-align: center;
+  transform: translateX(var(--node-center-shift, 0px));
+}
+.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--socket-grid {
+  width: var(--socket-control-width, 82px);
+  justify-self: start;
+  transform: translateX(var(--side-form-control-offset, 0px));
+}
+.workflow-node--side-rail.direction-horizontal .workflow-node__inline-controls--socket-grid > .workflow-node__inline-control--label-hidden {
+  width: 100%;
 }
 .workflow-node--dynamic-ui.direction-horizontal .input-port {
   width: var(--input-rail-width, 0px);
@@ -4182,6 +4274,9 @@ select.node-inline-control {
 .workflow-node--vertical-form .node-inline-control {
   height: calc(24px * var(--node-scale, 1));
 }
+.workflow-node--vertical-form .numeric-input--node {
+  height: calc(24px * var(--node-scale, 1));
+}
 .workflow-node--vertical-form.direction-vertical .input-port,
 .workflow-node--vertical-form.direction-vertical .output-port {
   max-width: calc((var(--node-width, 260px) - 20px) / 2);
@@ -4277,8 +4372,8 @@ select.node-inline-control {
 .workflow-if-zone__end small { margin-top: 2px; overflow: hidden; color: var(--text-faint); font-size: calc(8.5px * var(--node-scale, 1)); text-overflow: ellipsis; white-space: nowrap; }
 .workflow-if-zone.direction-horizontal > .input-port { z-index: 8; left: 0; }
 .workflow-if-zone.direction-horizontal > .output-port { z-index: 8; right: 0; }
-.workflow-if-zone.direction-horizontal > .input-port span { width: 42px; }
-.workflow-if-zone.direction-horizontal > .output-port span { width: 50px; }
+.workflow-if-zone.direction-horizontal > .input-port .node-port-label { width: 42px; }
+.workflow-if-zone.direction-horizontal > .output-port .node-port-label { width: 50px; }
 .workflow-if-zone.direction-vertical > .input-port { z-index: 8; top: 0; }
 .workflow-if-zone.direction-vertical > .output-port { z-index: 8; bottom: 0; }
 .app-shell[data-theme="light"] .workflow-node.workflow-if-zone {
@@ -4366,8 +4461,8 @@ select.node-inline-control {
 .workflow-loop-zone__end strong { margin-top: 2px; font-size: calc(14px * var(--node-scale, 1)); line-height: 1.15; }
 .workflow-loop-zone.direction-horizontal > .input-port { z-index: 8; left: 0; }
 .workflow-loop-zone.direction-horizontal > .output-port { z-index: 8; right: 0; }
-.workflow-loop-zone.direction-horizontal > .input-port span { width: 58px; }
-.workflow-loop-zone.direction-horizontal > .output-port span { width: 72px; }
+.workflow-loop-zone.direction-horizontal > .input-port .node-port-label { width: 58px; }
+.workflow-loop-zone.direction-horizontal > .output-port .node-port-label { width: 72px; }
 .workflow-loop-zone.direction-vertical > .input-port { z-index: 8; top: 0; }
 .workflow-loop-zone.direction-vertical > .output-port { z-index: 8; bottom: 0; }
 .app-shell[data-theme="light"] .workflow-node.workflow-loop-zone {

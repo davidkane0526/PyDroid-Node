@@ -1,3 +1,13 @@
+## 1.6.42 (182) — Node Layout Refinement — 2026-08-25
+
+- Added a shared horizontal form-grid alignment rule so hidden-label inline controls (for example aggregate/color-map selectors) start on the same control column as Rows/Columns/Values/Min/Max socket defaults.
+- Simple horizontal nodes now use content-fit compact width instead of inheriting the conservative complex-node width budget; dynamic side-rail nodes keep their measured structured width.
+- Dynamic horizontal titles and descriptions are compensated against asymmetric input/output rails so their visual center matches the whole card rather than only the residual body area.
+- Added Core `NumericInput` and replaced Chromium's oversized native number spinner in both node inline controls and the parameter inspector with one compact shared stepper.
+- Scoped port-label CSS to `.node-port-label` so nested controls no longer inherit legacy absolute port-label positioning. Default Classic/Soft appearance, vertical form geometry and runtime semantics are unchanged.
+- Revalidated Node Layout/UI/Core Visual/Canvas/Theme/Design/Plugin/SDK gates, Demo **38/38**, Runtime parity **134/134** with JavaScript-capable NodeContract **96/96**, and Python **188 passed / 1 skipped**.
+- Build revision: `1.6.42-dev-r137-node-layout-refinement`.
+
 ## 1.6.41 (181) — Horizontal Rail Containment — 2026-08-25
 
 - Fixed a wide-screen CSS regression that overrode `--node-min-height` with a fixed 62 px minimum, which allowed dynamic input/socket rows to render outside the node card.

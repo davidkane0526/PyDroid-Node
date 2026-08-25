@@ -1,4 +1,5 @@
 import type { ParameterSpec } from "./nodeCatalog";
+import { NumericInput } from "./NumericInput";
 
 export function ParameterField({
   spec,
@@ -106,11 +107,22 @@ export function ParameterField({
       </label>
     );
   }
+  if (spec.kind === "number") {
+    return (
+      <label className="field">
+        <span>{spec.label}</span>
+        <NumericInput label={spec.label} value={displayValue as string | number | null | undefined} min={spec.min} max={spec.max} step={spec.step} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onChange={onChange} />
+        {spec.description && <small>{spec.description}</small>}
+        {validationHint}
+      </label>
+    );
+  }
+
   return (
     <label className="field">
       <span>{spec.label}</span>
       <input
-        type={spec.kind === "number" ? "number" : "text"}
+        type="text"
         value={String(displayValue ?? "")}
         placeholder={spec.placeholder}
         required={spec.required}
@@ -119,7 +131,7 @@ export function ParameterField({
         step={spec.step}
         readOnly={Boolean(spec.readOnly)}
         disabled={Boolean(spec.disabled)}
-        onChange={(event) => onChange(spec.kind === "number" ? (event.target.value === "" ? null : Number(event.target.value)) : event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
       />
       {spec.description && <small>{spec.description}</small>}
       {validationHint}

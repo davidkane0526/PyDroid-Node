@@ -74,6 +74,7 @@ import { NodeDeclarativeInspector } from "./nodes/DeclarativeInspector";
 import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodes/declarativeUi";
 import { NodePluginManager, getNodePluginIconDataUrl } from "./plugins/PluginManager";
 import { nodeDisplayName } from "./plugins/displayNames";
+import { NumericInput } from "./NumericInput";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -437,7 +438,7 @@ function InlineNodeControl({
     return <select className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} value={String(value ?? "")} disabled={Boolean(spec.disabled || spec.readOnly)} onPointerDown={stop} onClick={stop} onChange={(event) => { const option = spec.options?.find((item) => String(item.value) === event.target.value); onChange(option?.value ?? event.target.value); }}>{spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>;
   }
   if (spec.kind === "number") {
-    return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="number" value={value === null || value === undefined ? "" : String(value)} min={spec.min} max={spec.max} step={spec.step ?? "any"} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))} />;
+    return <NumericInput label={spec.label} value={value as string | number | null | undefined} min={spec.min} max={spec.max} step={spec.step} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} className={`numeric-input--node nodrag nopan ${className}`} inputClassName="node-inline-control node-inline-control--number" stopPropagation onChange={onChange} />;
   }
   return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
 }
@@ -490,7 +491,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   });
   const effectiveDirection = nodeLayout.direction;
   const hasDynamicUi = nodeLayout.dynamic;
-  const { inputPortLabelWidth, outputPortLabelWidth, verticalPortLabelWidth, verticalFormLabelWidth, socketControlWidth, inputRailWidth, outputRailWidth, verticalPortItemWidth, nodeWidth, nodeMinHeight } = nodeLayout;
+  const { inputPortLabelWidth, outputPortLabelWidth, verticalPortLabelWidth, verticalFormLabelWidth, socketControlWidth, inputRailWidth, outputRailWidth, sideFormControlOffset, nodeCenterShift, verticalPortItemWidth, nodeWidth, nodeMinHeight } = nodeLayout;
   const isStructure = isVisualStructureNodeType(data.nodeType);
   const isIfZone = isIfStructureNodeType(data.nodeType);
   const isLoopZone = isLoopStructureNodeType(data.nodeType);
@@ -501,6 +502,10 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const isGroupNode = data.nodeType === "workflow.group";
   const nodeKindClasses = `${isFunctionNode ? "node-kind-function" : ""} ${isGroupNode ? "node-kind-group" : ""} ${isStructure ? "node-kind-flow" : "node-kind-node"}`;
   const visibleTypeLabel = hasDynamicUi ? null : data.nodeType;
+  const alignInlineToSocketGrid = nodeLayout.sideRailLayout && hasInlineSocketDefaults && inlineParameters.length > 0 && inlineParameters.every((parameter) => {
+    const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
+    return declaredLabel === null || declaredLabel === "";
+  });
   const pluginIconUrl = getNodePluginIconDataUrl(data.nodeType);
   useEffect(() => {
     const refresh = () => updateNodeInternals(id);
@@ -526,7 +531,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     return effectiveDirection === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
   };
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--vertical-form-label-width": `${verticalFormLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${nodeLayout.sideRailLayout ? "workflow-node--side-rail" : ""} ${nodeLayout.verticalFormLayout ? "workflow-node--vertical-form" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--vertical-form-label-width": `${verticalFormLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--side-form-control-offset": `${sideFormControlOffset * nodeScale}px`, "--node-center-shift": `${nodeCenterShift * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${nodeLayout.sideRailLayout ? "workflow-node--side-rail" : ""} ${nodeLayout.verticalFormLayout ? "workflow-node--vertical-form" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
       {isStructure && <NodeResizer minWidth={isBoundaryZone ? 440 : 360} minHeight={isBoundaryZone ? 250 : 220} isVisible={selected} />}
@@ -555,7 +560,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
           const socketSpec = connected ? { ...defaultSpec, disabled: true } : defaultSpec;
           return <label key={port.id} title={`${port.label} · ${defaultSpec.label}`}><span>{defaultSpec.label}</span><InlineNodeControl spec={socketSpec} value={data.parameters[defaultSpec.key] ?? defaultSpec.defaultValue} onChange={(value) => nodeParameters.update(id, defaultSpec.key, value)} /></label>;
         })}</div>}
-        {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout}`}>{inlineParameters.map((parameter) => {
+        {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout} ${alignInlineToSocketGrid ? "workflow-node__inline-controls--socket-grid" : ""}`}>{inlineParameters.map((parameter) => {
           const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
           const showLabel = declaredLabel !== null && declaredLabel !== "";
           return <label className={showLabel ? "" : "workflow-node__inline-control--label-hidden"} key={parameter.key} title={parameter.label}>{showLabel && <span>{declaredLabel}</span>}<InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>;

@@ -30,6 +30,8 @@ export type NodeCardLayout = {
   socketControlWidth: number;
   inputRailWidth: number;
   outputRailWidth: number;
+  sideFormControlOffset: number;
+  nodeCenterShift: number;
   verticalPortItemWidth: number;
   nodeWidth: number;
   nodeMinHeight: number;
@@ -69,6 +71,8 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const socketControlWidth = Math.max(0, ...inputDefaultSpecs.map(inlineControlPreferredWidth));
   const inputRailWidth = inputPorts.length ? 13 + inputPortLabelWidth + (inputDefaultSpecs.length ? 7 + socketControlWidth : 0) : 0;
   const outputRailWidth = outputPorts.length ? 13 + outputPortLabelWidth : 0;
+  const sideFormControlOffset = inputDefaultSpecs.length ? (11 + inputPortLabelWidth + 7) - inputRailWidth : 0;
+  const nodeCenterShift = (outputRailWidth - inputRailWidth) / 2;
 
   const inlineToolbarWidth = inlineParameters.length
     ? input.inlineLayout === "row"
@@ -92,7 +96,13 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     ? Math.min(352, 28 + maxPortCount * Math.min(78, Math.max(52, verticalPortLabelWidth)))
     : 0;
   const verticalWidth = Math.min(360, Math.max(contentWidth, verticalFormPreferredWidth, verticalPortStripWidth));
-  const horizontalWidth = Math.min(520, Math.max(contentWidth + inputRailWidth + outputRailWidth + 16, input.isGroup ? 230 : 184));
+  const sharedSimplePortInset = Math.max(inputPortLabelWidth, outputPortLabelWidth) + 14;
+  const compactInputInset = inputPorts.length ? sharedSimplePortInset : 0;
+  const compactOutputInset = outputPorts.length ? sharedSimplePortInset : 0;
+  const compactBodyWidth = Math.min(220, Math.max(128, 56 + labelUnits * 7.8));
+  const simpleHorizontalWidth = Math.min(360, Math.max(compactBodyWidth + compactInputInset + compactOutputInset, input.isGroup ? 230 : 184));
+  const dynamicHorizontalWidth = Math.min(520, Math.max(contentWidth + inputRailWidth + outputRailWidth + 16, input.isGroup ? 230 : 184));
+  const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
   const baseWidth = direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
     ? Math.max(34, Math.min(verticalPortLabelWidth, (baseWidth - 24) / maxPortCount))
@@ -130,6 +140,8 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     socketControlWidth,
     inputRailWidth,
     outputRailWidth,
+    sideFormControlOffset,
+    nodeCenterShift,
     verticalPortItemWidth,
     nodeWidth: baseWidth * input.nodeScale,
     nodeMinHeight: baseHeight * input.nodeScale,

@@ -51,6 +51,13 @@ try {
   if (!heatmapLayout.sideRailLayout || heatmapLayout.nodeMinHeight < 160) throw new Error("horizontal heatmap did not reserve a full side-rail card");
   if (heatmapInputTops.at(-1) + heatmapLayout.portRowHeight / 2 >= heatmapLayout.nodeMinHeight) throw new Error("horizontal heatmap socket row escapes the card boundary");
   if (Math.abs(heatmapLayout.portTop(0, 1) - heatmapLayout.nodeMinHeight / 2) > 1) throw new Error("horizontal heatmap output is not vertically centered");
+  const heatmapSocketColumn = heatmapLayout.inputRailWidth + heatmapLayout.sideFormControlOffset;
+  const expectedHeatmapSocketColumn = 11 + heatmapLayout.inputPortLabelWidth + 7;
+  if (Math.abs(heatmapSocketColumn - expectedHeatmapSocketColumn) > 0.001) throw new Error("horizontal heatmap inline control does not share the socket control column");
+  if (Math.abs(heatmapLayout.nodeCenterShift - (heatmapLayout.outputRailWidth - heatmapLayout.inputRailWidth) / 2) > 0.001) throw new Error("horizontal dynamic title/meta center compensation is inconsistent with asymmetric rails");
+
+  const compactExport = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "导出 TER 矩阵", inputPorts: [{ id: "input", label: "表格", valueType: "table" }], outputPorts: [{ id: "output", label: "CSV", valueType: "table" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
+  if (compactExport.dynamic || compactExport.nodeWidth > 300 || compactExport.nodeWidth < 230) throw new Error("simple horizontal node did not use compact content-fit width");
 
   const staticVertical = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "Static", inputPorts: [{ id: "input", label: "Input", valueType: "any" }], outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (staticVertical.dynamic || staticVertical.direction !== "vertical" || staticVertical.verticalFormLayout) throw new Error("static node layout was unnecessarily overridden");
@@ -97,7 +104,7 @@ try {
   if (!appSource.includes('workflow-node--side-rail')) throw new Error("WorkflowNodeCard does not expose horizontal side-rail layout class");
   if (!cssSource.includes('.workflow-node--side-rail.direction-horizontal {\n  min-height: var(--node-min-height')) throw new Error("horizontal side-rail card does not directly preserve measured height");
 
-  console.log("Node Layout Contract smoke: PASS (vertical dynamic form cards, aligned body rows, top/bottom sockets, horizontal side rails, endpoint-scale spacing)");
+  console.log("Node Layout Contract smoke: PASS (vertical forms, horizontal socket-grid alignment, compact simple widths, centered rail metadata, endpoint-scale spacing)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

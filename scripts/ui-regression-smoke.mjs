@@ -12,6 +12,8 @@ const workflowFunctions = readFileSync(path.join(root, "src/workflow-functions.t
 const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
 const canvasThemes = readFileSync(path.join(root, "src/styles/canvas.css"), "utf8");
 const nodeLayout = readFileSync(path.join(root, "src/nodes/layout.ts"), "utf8");
+const numericInput = readFileSync(path.join(root, "src/NumericInput.tsx"), "utf8");
+const parameterField = readFileSync(path.join(root, "src/ParameterField.tsx"), "utf8");
 const themeContract = readFileSync(path.join(root, "src/styles/theme-contract.css"), "utf8");
 
 const pluginManagerCss = readFileSync(path.join(root, "src/plugins/plugin-manager.css"), "utf8");
@@ -113,6 +115,11 @@ assert.match(app, /resolveNodeCardLayout[\s\S]*sideRailLayout[\s\S]*portTop/, "W
 assert.doesNotMatch(themeContract, /(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|font-size|line-height)\s*:/, "theme plugin contract must not own layout geometry");
 assert.match(css, /workflow-node--dynamic-ui[\s\S]*node-port-content--input[\s\S]*input-port-label-width[\s\S]*socket-control-width/, "dynamic socket UI should use a structured label/control row instead of overlapping absolute controls");
 assert.doesNotMatch(css, /node-inline-control--socket\s*\{[^}]*width:\s*70px/, "dynamic socket controls must not regress to the fixed 70px width that clipped values");
+assert.match(css, /workflow-node__inline-controls--socket-grid[\s\S]*side-form-control-offset/, "horizontal inline selectors should align to the same smart form column as socket defaults");
+assert.match(css, /workflow-node--side-rail\.direction-horizontal \.workflow-node__label,[\s\S]*workflow-node__meta[\s\S]*node-center-shift/, "horizontal dynamic title and description must use the node visual center rather than asymmetric rail space");
+assert.match(numericInput, /numeric-input__stepper[\s\S]*aria-label=\{`\$\{label\} 增加`\}[\s\S]*aria-label=\{`\$\{label\} 减少`\}/, "numeric controls should use the compact Core stepper instead of Chromium's oversized native spinner");
+assert.match(parameterField, /NumericInput[\s\S]*spec\.kind === "number"/, "inspector number fields should share the same Core NumericInput component as node controls");
+assert.match(css, /numeric-input__field::?-webkit-inner-spin-button|numeric-input__field::\-webkit-inner-spin-button/, "native Chromium number spinners should be removed from node inline controls");
 assert.match(app, /inlineParameterLabels[\s\S]*inlineLayout[\s\S]*workflow-node__inline-control--label-hidden/, "dynamic node UI should support declarative compact labels and row/stack layouts");
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");
 assert.match(css, /\.notebook-order-handle\s*\{[^}]*opacity:\s*0\s*!important;[^}]*pointer-events:\s*none\s*!important;/, "Notebook order handles must remain invisible and non-interactive");
@@ -123,7 +130,7 @@ assert.match(css, /\.node-run-action__icon\s*\{[^}]*top:\s*-0\.5px;[^}]*width:\s
 assert.match(css, /\.environment-float-button > svg\s*\{[^}]*stroke-width:\s*1;/, "environment icon should use crisp one-pixel rails");
 assert.match(css, /\.environment-float-button > svg circle\s*\{[^}]*fill:\s*currentColor;[^}]*stroke:\s*none;/, "environment icon should use solid control knobs rather than hollow circles");
 assert.match(css, /\.react-flow__handle\s*\{[^}]*width:\s*calc\(16px \* var\(--endpoint-scale, 1\)\);[^}]*height:\s*calc\(16px \* var\(--endpoint-scale, 1\)\)/, "shared endpoint geometry should be enlarged consistently across light/dark and canvas themes");
-assert.match(css, /\.input-port span, \.output-port span \{[^}]*font-size:\s*calc\(10\.5px \* var\(--node-scale, 1\)\)/, "port labels should use the enlarged shared type size");
+assert.match(css, /\.input-port \.node-port-label, \.output-port \.node-port-label \{[^}]*font-size:\s*calc\(10\.5px \* var\(--node-scale, 1\)\)/, "port labels should use the enlarged shared type size");
 assert.match(dialogs, /settings-canvas-select-row[\s\S]*画布主题[\s\S]*缩略图/, "canvas theme and minimap selectors should share one aligned settings row");
 assert.match(dialogs, /settings-canvas-result-row[\s\S]*结果区高度[\s\S]*显示节点运行结果/, "node-result visibility should align with the result-height control row");
 assert.match(css, /\.settings-canvas-select\s*\{[^}]*grid-template-columns:\s*max-content minmax\(138px, 164px\)[^}]*gap:\s*8px;/, "canvas selector labels should sit close to their dropdowns");

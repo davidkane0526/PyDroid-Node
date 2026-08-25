@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.41 Horizontal Rail Containment
+# Current development handoff — 1.6.42 Node Layout Refinement
 
-Branch: `feature/horizontal-rail-containment`
-Version: **1.6.41**
-Android versionCode: **181**
-Build revision: `1.6.41-dev-r136-horizontal-rail-containment`
+Branch: `feature/node-layout-refinement`
+Version: **1.6.42**
+Android versionCode: **182**
+Build revision: `1.6.42-dev-r137-node-layout-refinement`
 
 ## Current phase
 
@@ -28,14 +28,22 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.41: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.41: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.41: **38/38**.
+- Runtime parity revalidated in 1.6.42: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.42: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.42: **38/38**.
 
 
 
 
 
+## 1.6.42 node-layout refinement
+
+- Horizontal complex nodes now share one measured control column between socket-default rows and hidden-label inline controls such as aggregate/color-map selectors.
+- Simple horizontal nodes use compact content-fit width instead of the structured dynamic-node width budget.
+- Dynamic side-rail titles/descriptions compensate for asymmetric rail widths and align to the visual center of the full card.
+- Added shared Core `NumericInput`; node inline number controls and Inspector number fields no longer expose Chromium's oversized native spinner.
+- Port-label CSS is scoped to the explicit `.node-port-label` element so nested control spans remain normal component content.
+- No runtime, Theme/Design default, vertical form, Remote/LAN or MCP production behavior changed.
 
 
 ## 1.6.41 horizontal dynamic-node correction
