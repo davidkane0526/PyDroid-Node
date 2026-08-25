@@ -3,6 +3,31 @@ import { Table } from "../table";
 import { asBool, parameterList, requireTable } from "./support/common";
 import type { ExecutionContext, NodeOutput } from "./support/types";
 
+
+function legendStateValue(params: Record<string, unknown>): Record<string, unknown> {
+  const mode = String(params.mode ?? "all");
+  if (!["all", "hide", "solo"].includes(mode)) throw new Error(`Unsupported Legend State mode: ${mode}`);
+  const groups = parameterList(params.groups).map((item) => String(item).trim()).filter(Boolean);
+  if (mode !== "all" && !groups.length) throw new Error("Legend State requires at least one legend group");
+  return { mode, groups };
+}
+
+function applyLegendState(items: Array<Record<string, unknown>>, raw: unknown): { items: Array<Record<string, unknown>>; mode: string } {
+  if (raw === null || raw === undefined) return { items, mode: "all" };
+  if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw instanceof Table) throw new Error("Series Registry legendState must be a Legend State object");
+  const state = raw as Record<string, unknown>;
+  const mode = String(state.mode ?? "all");
+  if (!["all", "hide", "solo"].includes(mode)) throw new Error(`Unsupported Legend State mode: ${mode}`);
+  const groups = new Set(parameterList(state.groups).map((item) => String(item).trim()).filter(Boolean));
+  if (mode !== "all" && !groups.size) throw new Error("Legend State requires at least one legend group");
+  if (mode === "all") return { items, mode };
+  for (const item of items) {
+    const groupMatch = groups.has(String(item.legendGroup ?? "").trim());
+    item.visible = asBool(item.visible ?? true) && (mode === "solo" ? groupMatch : !groupMatch);
+  }
+  return { items, mode };
+}
+
 export function executePlotsNode(nodeType: string, params: Record<string, unknown>, upstream: unknown, context: ExecutionContext): NodeOutput | null {
   const tableResult: Table | null = null;
   const plotResult = null;
@@ -29,6 +54,10 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
       if (asBool(params.solo ?? false)) value.solo = true;
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
+    case "plot.legend_state": {
+      const value = legendStateValue(params);
+      return { outputs: { output: value }, tableResult, plotResult, exportResult };
+    }
     case "plot.series_registry": {
       if (!upstream || typeof upstream !== "object" || upstream instanceof Table || Array.isArray(upstream)) {
         throw new Error("Series Registry requires named Series inputs");
@@ -45,7 +74,7 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
       if (!["all", "include", "exclude"].includes(groupMode)) throw new Error(`Unsupported Series Registry groupMode: ${groupMode}`);
       const groups = new Set(parameterList(params.groups).map((item) => String(item).trim()).filter(Boolean));
       if (groupMode !== "all" && !groups.size) throw new Error("Series Registry group filter requires at least one group");
-      const value = entries.map(([, item]) => {
+      let value = entries.map(([, item]) => {
         const result = { ...item };
         const currentlyVisible = asBool(result.visible ?? true);
         const group = String(result.group ?? "").trim();
@@ -53,8 +82,12 @@ export function executePlotsNode(nodeType: string, params: Record<string, unknow
         result.visible = currentlyVisible && (groupMode === "all" || (groupMode === "include" ? groupMatch : !groupMatch));
         return result;
       });
-      const hasSolo = value.some((item) => asBool(item.visible ?? true) && asBool(item.solo ?? false));
-      if (hasSolo) value.forEach((item) => { item.visible = asBool(item.visible ?? true) && asBool(item.solo ?? false); });
+      const legendState = applyLegendState(value, (upstream as Record<string, unknown>).legendState);
+      value = legendState.items;
+      if (legendState.mode !== "solo") {
+        const hasSolo = value.some((item) => asBool(item.visible ?? true) && asBool(item.solo ?? false));
+        if (hasSolo) value.forEach((item) => { item.visible = asBool(item.visible ?? true) && asBool(item.solo ?? false); });
+      }
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "plot.line": {

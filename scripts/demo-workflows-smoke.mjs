@@ -26,6 +26,8 @@ const files = [
   "demo-20-scientific-column-transforms.workflow.json",
   "demo-21-legend-group-solo.workflow.json",
   "demo-22-column-transform-pipeline.workflow.json",
+  "demo-23-conditional-column-pipeline.workflow.json",
+  "demo-24-legend-state.workflow.json",
 ];
 
 let failed = 0;

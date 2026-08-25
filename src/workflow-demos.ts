@@ -20,6 +20,8 @@ import seriesGroups from "../examples/demo-19-series-groups.workflow.json?raw";
 import scientificColumnTransforms from "../examples/demo-20-scientific-column-transforms.workflow.json?raw";
 import legendGroupSolo from "../examples/demo-21-legend-group-solo.workflow.json?raw";
 import columnTransformPipeline from "../examples/demo-22-column-transform-pipeline.workflow.json?raw";
+import conditionalColumnPipeline from "../examples/demo-23-conditional-column-pipeline.workflow.json?raw";
+import legendStateDemo from "../examples/demo-24-legend-state.workflow.json?raw";
 
 export type WorkflowDemo = {
   id: string;
@@ -160,5 +162,17 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     label: "Demo 22 · 批量列变换 Pipeline",
     description: "三个 Column Transform 声明通过动态 Transform Socket 按顺序作用于同一张表。",
     document: columnTransformPipeline,
+  },
+  {
+    id: "conditional-column-pipeline",
+    label: "Demo 23 · 条件列变换 Pipeline",
+    description: "Compare 动态驱动条件 Transform；条件为 false 时 Pipeline 保持顺序但跳过该变换。",
+    document: conditionalColumnPipeline,
+  },
+  {
+    id: "legend-state",
+    label: "Demo 24 · Legend State 交互分组",
+    description: "Legend State 以结构化状态驱动 Registry，对 legendGroup 执行 Hide/Solo，而不修改 Series 声明。",
+    document: legendStateDemo,
   },
 ] as const;

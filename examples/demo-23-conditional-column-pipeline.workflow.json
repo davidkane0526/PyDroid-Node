@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 23 · 条件列变换 Pipeline",
+  "nodes": [
+    {
+      "id": "random",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 160
+      },
+      "data": {
+        "label": "Positive Data",
+        "nodeType": "generate.random_table",
+        "nodeVersion": 1,
+        "parameters": {
+          "count": 10,
+          "distribution": "uniform",
+          "min": 0.5,
+          "max": 8,
+          "mean": 0,
+          "std": 1,
+          "seed": 22,
+          "indexColumn": "index",
+          "valueColumn": "value"
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "transform-scale",
+      "type": "workflow",
+      "position": {
+        "x": 430,
+        "y": 420
+      },
+      "data": {
+        "label": "Transform · ×2（条件）",
+        "nodeType": "table.column_transform",
+        "nodeVersion": 1,
+        "parameters": {
+          "columns": "value",
+          "operation": "multiply",
+          "operand": 2,
+          "operand2": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "transform-clip",
+      "type": "workflow",
+      "position": {
+        "x": 430,
+        "y": 640
+      },
+      "data": {
+        "label": "Transform · Clip",
+        "nodeType": "table.column_transform",
+        "nodeVersion": 1,
+        "parameters": {
+          "columns": "value",
+          "operation": "clip",
+          "operand": 1,
+          "operand2": 10
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "transform-normalize",
+      "type": "workflow",
+      "position": {
+        "x": 430,
+        "y": 860
+      },
+      "data": {
+        "label": "Transform · Normalize",
+        "nodeType": "table.column_transform",
+        "nodeVersion": 1,
+        "parameters": {
+          "columns": "value",
+          "operation": "normalize",
+          "operand": 1,
+          "operand2": 1
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "pipeline",
+      "type": "workflow",
+      "position": {
+        "x": 900,
+        "y": 480
+      },
+      "data": {
+        "label": "Conditional Pipeline",
+        "nodeType": "table.column_pipeline",
+        "nodeVersion": 1,
+        "parameters": {
+          "transformCount": 3
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": {
+        "x": 1360,
+        "y": 260
+      },
+      "data": {
+        "label": "Conditional Result",
+        "nodeType": "plot.line",
+        "nodeVersion": 1,
+        "parameters": {
+          "xColumn": "index",
+          "yColumns": "value",
+          "title": "Conditional Transform → Clip → Normalize",
+          "xLabel": "index",
+          "yLabel": "normalized value",
+          "legend": true,
+          "grid": true,
+          "logX": false,
+          "logY": false,
+          "scientificNotation": true,
+          "lineStyle": "-",
+          "marker": "o",
+          "lineWidth": 1.5,
+          "seriesConfig": "",
+          "figureWidth": 8,
+          "figureHeight": 4.5,
+          "dpi": 120
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "condition",
+      "type": "workflow",
+      "position": {
+        "x": 40,
+        "y": 520
+      },
+      "data": {
+        "label": "1 > 2 ?",
+        "nodeType": "logic.compare",
+        "nodeVersion": 1,
+        "parameters": {
+          "valueType": "number",
+          "operation": "greater",
+          "a": 1,
+          "b": 2
+        },
+        "status": "idle"
+      }
+    },
+    {
+      "id": "conditional-scale",
+      "type": "workflow",
+      "position": {
+        "x": 680,
+        "y": 400
+      },
+      "data": {
+        "label": "条件应用 ×2",
+        "nodeType": "table.conditional_transform",
+        "nodeVersion": 1,
+        "parameters": {
+          "condition": true
+        },
+        "status": "idle"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e2",
+      "source": "random",
+      "sourceHandle": "output",
+      "target": "pipeline",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e4",
+      "source": "transform-clip",
+      "sourceHandle": "output",
+      "target": "pipeline",
+      "targetHandle": "transform2"
+    },
+    {
+      "id": "e5",
+      "source": "transform-normalize",
+      "sourceHandle": "output",
+      "target": "pipeline",
+      "targetHandle": "transform3"
+    },
+    {
+      "id": "e6",
+      "source": "pipeline",
+      "sourceHandle": "output",
+      "target": "plot",
+      "targetHandle": "input"
+    },
+    {
+      "id": "e7",
+      "source": "transform-scale",
+      "sourceHandle": "output",
+      "target": "conditional-scale",
+      "targetHandle": "transform"
+    },
+    {
+      "id": "e8",
+      "source": "condition",
+      "sourceHandle": "output",
+      "target": "conditional-scale",
+      "targetHandle": "condition"
+    },
+    {
+      "id": "e9",
+      "source": "conditional-scale",
+      "sourceHandle": "output",
+      "target": "pipeline",
+      "targetHandle": "transform1"
+    }
+  ],
+  "functions": [],
+  "requirements": [],
+  "environment": {
+    "sourceLanguage": "portable",
+    "pythonImports": [],
+    "pythonDefinitions": []
+  },
+  "parameters": []
+}

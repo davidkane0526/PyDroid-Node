@@ -12,6 +12,12 @@ def column_transform_output(params: dict[str, Any]) -> dict[str, Any]:
     return column_transform_spec(params)
 
 
+def conditional_transform_output(upstream: Any, params: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(upstream, dict) or not isinstance(upstream.get("transform"), dict):
+        raise ValueError("Conditional transform requires a Transform input")
+    return {**upstream["transform"], "enabled": bool(params.get("condition", True))}
+
+
 def column_pipeline(upstream: Any, params: dict[str, Any]) -> pd.DataFrame:
     if not isinstance(upstream, dict):
         raise ValueError("Column transform Pipeline requires named inputs")
@@ -36,5 +42,7 @@ def column_pipeline(upstream: Any, params: dict[str, Any]) -> pd.DataFrame:
     for expected_order, (actual_order, transform) in enumerate(transforms, start=1):
         if actual_order != expected_order:
             raise ValueError("Column transform Pipeline inputs must use consecutive Transform ports")
+        if transform.get("enabled", True) is False:
+            continue
         value = column_math(value, transform)
     return value

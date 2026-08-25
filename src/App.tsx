@@ -24,7 +24,9 @@ import {
   areValueTypesCompatible,
   getNodeSpec,
   NODE_CATALOG,
+  nodeCatalogSnapshot,
   searchNodeCatalog,
+  subscribeNodeCatalog,
   type NodeSpec,
   type ParameterSpec,
   type ValueType,
@@ -3906,6 +3908,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
 }
 
 export function App() {
+  useSyncExternalStore(subscribeNodeCatalog, nodeCatalogSnapshot, nodeCatalogSnapshot);
   return <AppErrorBoundary><MultiTabWorkspace /></AppErrorBoundary>;
 }
 

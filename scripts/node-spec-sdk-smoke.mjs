@@ -19,7 +19,7 @@ try {
   writeFileSync(path.join(temp, "package.json"), '{"type":"commonjs"}\n');
   const sdkModule = await import(pathToFileURL(path.join(temp, "nodeSpecSdk.js")).href);
   const sdk = sdkModule.default ?? sdkModule;
-  if (sdk.NODE_SPEC_SDK_VERSION !== 1) throw new Error("unexpected SDK version");
+  if (sdk.NODE_SPEC_SDK_VERSION !== 2) throw new Error("unexpected SDK version");
   const spec = sdk.defineNodeSpec({
     nodeType: "example.dynamic",
     label: "Example",
@@ -36,6 +36,12 @@ try {
   if (!resolved || resolved.inputPorts.map((port) => port.id).join(",") !== "item1,item2,item3") throw new Error("dynamic port resolution failed");
   const invalid = { ...spec, nodeType: "example.invalid", inputPorts: [{ id: "missing", label: "Missing", valueType: "number", defaultParameter: "unknown" }] };
   if (!sdk.validateNodeSpecDefinition(invalid).some((item) => item.includes("默认参数不存在"))) throw new Error("invalid parameter socket was not rejected");
+  const registered = sdk.registerNodeSpec({ ...spec, nodeType: "example.registered", label: "Registered" });
+  if (registered.nodeType !== "example.registered") throw new Error("registration did not return the node type");
+  let duplicateRejected = false;
+  try { sdk.registerNodeSpec({ ...spec, nodeType: "example.registered", label: "Duplicate" }); } catch { duplicateRejected = true; }
+  if (!duplicateRejected) throw new Error("duplicate external registration was not rejected");
+  if (!registered.unregister() || registered.unregister()) throw new Error("registration cleanup is not deterministic");
   console.log("NodeSpec SDK smoke: PASS");
 } finally {
   rmSync(temp, { recursive: true, force: true });

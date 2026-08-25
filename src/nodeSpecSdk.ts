@@ -1,4 +1,5 @@
 import { resolveNodeSpec } from "./nodeSpec";
+import { registerCatalogNodeSpec, unregisterCatalogNodeSpec } from "./nodeCatalog";
 import type {
   InputPortGroupSpec,
   NodeConditionValue,
@@ -11,7 +12,7 @@ import type {
   ValueType,
 } from "./nodeCatalog";
 
-export const NODE_SPEC_SDK_VERSION = 1 as const;
+export const NODE_SPEC_SDK_VERSION = 2 as const;
 
 export type {
   InputPortGroupSpec,
@@ -30,8 +31,8 @@ export { resolveNodeSpec };
 /**
  * Validate the declaration-only part of a NodeSpec.
  *
- * This intentionally does not register or execute third-party code. It is the
- * stable authoring boundary for dynamic ports, variants and socket groups.
+ * Validation is declaration-only. Registration is an explicit SDK action and
+ * runtime execution remains a separate host/plugin responsibility.
  */
 export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
   const errors: string[] = [];
@@ -108,4 +109,34 @@ export function defineNodeSpec<T extends NodeSpec>(spec: T): T {
   const errors = validateNodeSpecDefinition(spec);
   if (errors.length) throw new Error(`Invalid NodeSpec:\n${errors.map((error) => `- ${error}`).join("\n")}`);
   return spec;
+}
+
+
+export type NodeSpecRegistration = {
+  nodeType: string;
+  unregister: () => boolean;
+};
+
+/**
+ * Register a validated NodeSpec in the live editor catalog.
+ *
+ * This is a declaration/catalog registration only. Runtime execution still
+ * requires a matching runtime implementation supplied by the host/plugin layer.
+ */
+export function registerNodeSpec<T extends NodeSpec>(spec: T): NodeSpecRegistration {
+  const validated = defineNodeSpec(spec);
+  const dispose = registerCatalogNodeSpec(validated);
+  let active = true;
+  return {
+    nodeType: validated.nodeType,
+    unregister: () => {
+      if (!active) return false;
+      active = false;
+      return dispose();
+    },
+  };
+}
+
+export function unregisterNodeSpec(nodeType: string): boolean {
+  return unregisterCatalogNodeSpec(nodeType);
 }

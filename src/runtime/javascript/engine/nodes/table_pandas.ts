@@ -1,7 +1,7 @@
 import { PortableRandom, portableSampleCount } from "../random";
 import { Table, compileQuery, isMissing, toNumber } from "../table";
 import { columnMath } from "./support/table_column_math";
-import { columnPipeline, columnTransformOutput } from "./support/table_column_pipeline";
+import { columnPipeline, columnTransformOutput, conditionalTransformOutput } from "./support/table_column_pipeline";
 import { asBool, optionalFloat, parameterList, parseColumns, renameColumns, requireTable, resolveColumn, resolveColumns, scalarValue } from "./support/common";
 import { filterRange, groupAggregate, groupByAggregate } from "./support/table_ops";
 import type { ExecutionContext, NodeOutput } from "./support/types";
@@ -32,6 +32,10 @@ export function executeTablePandasNode(nodeType: string, params: Record<string, 
     }
     case "table.column_transform": {
       const value = columnTransformOutput(params);
+      return { outputs: { output: value }, tableResult, plotResult, exportResult };
+    }
+    case "table.conditional_transform": {
+      const value = conditionalTransformOutput(upstream, params);
       return { outputs: { output: value }, tableResult, plotResult, exportResult };
     }
     case "table.column_pipeline": {

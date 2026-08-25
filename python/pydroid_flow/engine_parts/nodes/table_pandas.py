@@ -8,7 +8,7 @@ import pandas as pd
 from ..analysis_nodes import _filter_range, _group_aggregate
 from ..random_portable import _portable_sample_count, _portable_sample_indexes
 from ..table_column_math import column_math
-from ..table_column_pipeline import column_pipeline, column_transform_output
+from ..table_column_pipeline import column_pipeline, column_transform_output, conditional_transform_output
 from ..table_groupby import groupby_aggregate
 from ..values import _as_bool, _optional_float, _parameter_list, _parse_columns, _rename_columns, _require_table, _resolve_columns, _scalar_value
 
@@ -17,6 +17,7 @@ NODE_TYPES = {
     "table.select_columns",
     "table.column_math",
     "table.column_transform",
+    "table.conditional_transform",
     "table.column_pipeline",
     "table.absolute",
     "table.transpose",
@@ -72,6 +73,9 @@ def execute(
         value = column_math(_require_table(upstream, "Column math"), params)
     elif node_type == "table.column_transform":
         value = column_transform_output(params)
+        return {"output": value}, None, None, None
+    elif node_type == "table.conditional_transform":
+        value = conditional_transform_output(upstream, params)
         return {"output": value}, None, None, None
     elif node_type == "table.column_pipeline":
         value = column_pipeline(upstream, params)

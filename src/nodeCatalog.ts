@@ -517,6 +517,25 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
   {
+    nodeType: "table.conditional_transform", runtimeSupport: ["python", "javascript"],
+    label: "条件变换",
+    description: "根据布尔条件决定是否应用一个 Transform；用于在列变换 Pipeline 中声明条件步骤。",
+    tags: ["column", "transform", "condition", "pipeline", "列", "条件", "变换"],
+    category: "表格处理",
+    defaults: { condition: true },
+    socketGroups: [
+      { id: "conditionTransform", label: "条件变换" },
+      { id: "conditionInput", label: "Transform", parentId: "conditionTransform" },
+      { id: "conditionGate", label: "Condition", parentId: "conditionTransform" },
+    ],
+    inputPorts: [
+      { id: "transform", label: "Transform", valueType: "object", required: true, socketGroup: "conditionInput" },
+      { id: "condition", label: "Condition", valueType: "boolean", defaultParameter: "condition", socketGroup: "conditionGate" },
+    ],
+    outputPorts: [{ id: "output", label: "Transform", valueType: "object" }],
+    parameters: [{ key: "condition", label: "应用条件", kind: "boolean" }],
+  },
+  {
     nodeType: "table.column_pipeline", runtimeSupport: ["python", "javascript"],
     label: "列变换 Pipeline",
     description: "按 Transform 端口顺序对同一张表连续执行多次列变换；适合将批量列处理作为一个确定性流水线组合。",
@@ -1408,18 +1427,44 @@ export const NODE_CATALOG: NodeSpec[] = [
     ui: { inlineParameters: ["lineStyle", "marker"], inlineParameterLabels: { lineStyle: null, marker: null }, inlineLayout: "row" },
   },
   {
+    nodeType: "plot.legend_state", runtimeSupport: ["python", "javascript"],
+    label: "Legend State",
+    description: "声明图例分组的交互状态；Hide 隐藏指定 legendGroup，Solo 仅保留指定 legendGroup。",
+    tags: ["plot", "legend", "state", "group", "图例", "分组", "交互", "单显"],
+    category: "绘图",
+    defaults: { mode: "all", groups: "" },
+    socketGroups: [
+      { id: "legendState", label: "Legend State" },
+      { id: "legendStateFilter", label: "分组", parentId: "legendState" },
+    ],
+    inputPorts: [{ id: "groups", label: "Groups", valueType: "any", defaultParameter: "groups", socketGroup: "legendStateFilter" }],
+    outputPorts: [{ id: "output", label: "Legend State", valueType: "object" }],
+    parameters: [
+      { key: "mode", label: "状态", kind: "select", options: [
+        { label: "全部显示", value: "all" }, { label: "隐藏分组", value: "hide" }, { label: "单显分组", value: "solo" },
+      ] },
+      { key: "groups", label: "图例分组", kind: "list", itemType: "text", placeholder: "bias,gate" },
+    ],
+    ui: { inlineParameters: ["mode"], inlineParameterLabels: { mode: null }, inlineLayout: "row" },
+    variants: [{ when: { mode: "all" }, inputPorts: [], hiddenParameters: ["groups"] }],
+  },
+  {
     nodeType: "plot.series_registry", runtimeSupport: ["python", "javascript"],
     label: "Series Registry",
-    description: "按确定顺序收集多条 Series，并可按 group 统一包含或排除曲线。",
+    description: "按确定顺序收集多条 Series，可按数据 group 筛选，并应用独立 Legend State 交互状态。",
     tags: ["plot", "series", "registry", "多曲线", "图例", "分组", "可见性"],
     category: "绘图",
     defaults: { seriesCount: 3, groupMode: "all", groups: "" },
     socketGroups: [
       { id: "registry", label: "Registry" },
       { id: "registryFilter", label: "分组筛选", parentId: "registry" },
+      { id: "registryInteraction", label: "图例状态", parentId: "registry" },
       { id: "registryItems", label: "Series", parentId: "registry" },
     ],
-    inputPorts: [{ id: "groups", label: "Groups", valueType: "any", defaultParameter: "groups", socketGroup: "registryFilter" }],
+    inputPorts: [
+      { id: "groups", label: "Groups", valueType: "any", defaultParameter: "groups", socketGroup: "registryFilter" },
+      { id: "legendState", label: "Legend State", valueType: "object", socketGroup: "registryInteraction" },
+    ],
     outputPorts: [{ id: "output", label: "Series List", valueType: "list" }],
     parameters: [
       { key: "seriesCount", label: "曲线数量", kind: "number", min: 1, max: 16, step: 1 },
@@ -1429,7 +1474,7 @@ export const NODE_CATALOG: NodeSpec[] = [
       { key: "groups", label: "分组", kind: "list", itemType: "text", placeholder: "drain,gate" },
     ],
     ui: { inlineParameters: ["seriesCount", "groupMode"], inlineParameterLabels: { seriesCount: null, groupMode: null }, inlineLayout: "row" },
-    variants: [{ when: { groupMode: "all" }, inputPorts: [], hiddenParameters: ["groups"] }],
+    variants: [{ when: { groupMode: "all" }, inputPorts: [{ id: "legendState", label: "Legend State", valueType: "object", socketGroup: "registryInteraction" }], hiddenParameters: ["groups"] }],
     inputPortGroups: [{ id: "series", socketGroup: "registryItems", repeat: { countParameter: "seriesCount", idPrefix: "series", labelPrefix: "Series", valueType: "object", required: true, min: 1, max: 16 } }],
   },
   {
@@ -1701,6 +1746,37 @@ export const NODE_CATALOG: NodeSpec[] = [
     ],
   },
 ];
+
+const BUILTIN_NODE_TYPES = new Set(NODE_CATALOG.map((spec) => spec.nodeType));
+const externalNodeTypes = new Set<string>();
+const nodeCatalogListeners = new Set<() => void>();
+
+export function registerCatalogNodeSpec(spec: NodeSpec): () => boolean {
+  if (getNodeSpec(spec.nodeType)) throw new Error(`NodeSpec already registered: ${spec.nodeType}`);
+  NODE_CATALOG.push(spec);
+  externalNodeTypes.add(spec.nodeType);
+  nodeCatalogListeners.forEach((listener) => listener());
+  return () => unregisterCatalogNodeSpec(spec.nodeType);
+}
+
+export function unregisterCatalogNodeSpec(nodeType: string): boolean {
+  if (BUILTIN_NODE_TYPES.has(nodeType) || !externalNodeTypes.has(nodeType)) return false;
+  const index = NODE_CATALOG.findIndex((spec) => spec.nodeType === nodeType);
+  if (index < 0) return false;
+  NODE_CATALOG.splice(index, 1);
+  externalNodeTypes.delete(nodeType);
+  nodeCatalogListeners.forEach((listener) => listener());
+  return true;
+}
+
+export function subscribeNodeCatalog(listener: () => void): () => void {
+  nodeCatalogListeners.add(listener);
+  return () => { nodeCatalogListeners.delete(listener); };
+}
+
+export function nodeCatalogSnapshot(): number {
+  return NODE_CATALOG.length;
+}
 
 export function getNodeSpec(nodeType: string): NodeSpec | undefined {
   return NODE_CATALOG.find((spec) => spec.nodeType === nodeType);

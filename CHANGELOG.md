@@ -1,3 +1,12 @@
+## 1.6.24 (164) — Conditional transforms, Legend State and live NodeSpec registration — 2026-08-25
+
+- Added declarative `table.conditional_transform`. It wraps an existing Transform with a boolean `condition`; ordered Column Pipelines keep their socket order and deterministically skip disabled transforms without introducing a second control-flow runtime. Compare/Boolean nodes can drive the condition through the generic parameter-Socket contract.
+- Added structured `plot.legend_state` with `all/hide/solo` modes over `legendGroup`. Series Registry accepts the state as a separate interaction input: data `group` filtering remains independent, explicit `visible=false` is never re-enabled, and an interactive group Solo overrides static per-Series solo selection for that interaction state.
+- Extended Workflow→Notebook serialization with Conditional Transform skip semantics and Legend State/Registry interaction semantics so the same state contract is preserved outside the host runtime.
+- Promoted the NodeSpec authoring SDK to v2 with live catalog registration/unregistration. Registered specs are validated, duplicate/built-in replacement is rejected, the editor catalog is subscribable and refreshes after registration changes, while runtime implementation remains an explicit separate host/plugin responsibility.
+- Added runnable Demo 23 for Compare → Conditional Transform → Pipeline and Demo 24 for Legend State → Series Registry. Both are Python/JavaScript golden parity fixtures and the built-in demo smoke now covers 24/24 workflows.
+- Build revision: `1.6.24-dev-r116-conditional-pipeline-legend-state-sdk-registry`.
+
 ## 1.6.23 (163) — Legend Group/Solo, declarative column pipelines and NodeSpec authoring SDK — 2026-08-25
 
 - Separated Series filtering identity from legend interaction identity: `group` remains the Registry data/filter group, while new `legendGroup` is preserved as plot metadata for future grouped legend interactions. Added real `solo` semantics; after ordinary visibility/group filtering, any effective Solo Series hides all effective non-Solo Series without re-enabling explicitly hidden curves.

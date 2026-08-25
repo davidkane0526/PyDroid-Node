@@ -6,6 +6,14 @@ export function columnTransformOutput(params: Record<string, unknown>): Record<s
   return columnTransformSpec(params);
 }
 
+export function conditionalTransformOutput(upstream: unknown, params: Record<string, unknown>): Record<string, unknown> {
+  if (!upstream || typeof upstream !== "object" || Array.isArray(upstream) || upstream instanceof Table) throw new Error("Conditional transform requires a Transform input");
+  const inputs = upstream as Record<string, unknown>;
+  const transform = inputs.transform;
+  if (!transform || typeof transform !== "object" || Array.isArray(transform) || transform instanceof Table) throw new Error("Conditional transform input must be a Transform object");
+  return { ...(transform as Record<string, unknown>), enabled: Boolean(params.condition ?? true) };
+}
+
 export function columnPipeline(upstream: unknown, params: Record<string, unknown>): Table {
   if (!upstream || typeof upstream !== "object" || Array.isArray(upstream) || upstream instanceof Table) throw new Error("Column transform Pipeline requires named inputs");
   const inputs = upstream as Record<string, unknown>;
@@ -20,6 +28,9 @@ export function columnPipeline(upstream: unknown, params: Record<string, unknown
   }).sort((left, right) => left[0] - right[0]);
   if (transforms.length !== expected) throw new Error(`Column transform Pipeline requires ${expected} connected Transform inputs`);
   transforms.forEach(([order], index) => { if (order !== index + 1) throw new Error("Column transform Pipeline inputs must use consecutive Transform ports"); });
-  for (const [, transform] of transforms) value = columnMath(value, transform);
+  for (const [, transform] of transforms) {
+    if (transform.enabled === false) continue;
+    value = columnMath(value, transform);
+  }
   return value;
 }

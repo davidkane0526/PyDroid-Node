@@ -1444,3 +1444,20 @@ def test_column_transform_pipeline_applies_declared_transforms_in_socket_order()
     assert table_result is result["output"]
     assert result["output"]["value"].tolist() == pytest.approx([0.0, 2 / 3, 1.0])
     assert result["output"]["keep"].tolist() == [10, 20, 30]
+
+
+def test_conditional_transform_can_disable_pipeline_step():
+    frame = pd.DataFrame({"value": [1.0, 2.0]})
+    transform = _execute_node("table.column_transform", {"columns": "value", "operation": "multiply", "operand": 10, "operand2": 1}, None, "", [])[0]["output"]
+    disabled = _execute_node("table.conditional_transform", {"condition": False}, {"transform": transform}, "", [])[0]["output"]
+    result = _execute_node("table.column_pipeline", {"transformCount": 1}, {"input": frame, "transform1": disabled}, "", [])[0]["output"]
+    assert result["value"].tolist() == [1.0, 2.0]
+
+
+def test_legend_state_solo_filters_legend_group_without_reenabling_hidden_series():
+    drain = _execute_node("plot.series", {"y": "Drain", "legendGroup": "bias", "visible": True}, None, "", [])[0]["output"]
+    gate = _execute_node("plot.series", {"y": "Gate", "legendGroup": "gate", "visible": True}, None, "", [])[0]["output"]
+    hidden = _execute_node("plot.series", {"y": "Hidden", "legendGroup": "bias", "visible": False}, None, "", [])[0]["output"]
+    state = _execute_node("plot.legend_state", {"mode": "solo", "groups": "bias"}, None, "", [])[0]["output"]
+    registry = _execute_node("plot.series_registry", {"seriesCount": 3, "groupMode": "all", "groups": ""}, {"series1": drain, "series2": gate, "series3": hidden, "legendState": state}, "", [])[0]["output"]
+    assert [item["visible"] for item in registry] == [True, False, False]

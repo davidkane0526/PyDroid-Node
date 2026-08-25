@@ -10,12 +10,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from ..plot_series import series_registry, series_value
+from ..plot_series import legend_state_value, series_registry, series_value
 from ..presentation import _apply_scientific_notation
 from ..values import _as_bool, _optional_float, _require_table, _resolve_column, _resolve_columns
 
 NODE_TYPES = {
     "plot.series",
+    "plot.legend_state",
     "plot.series_registry",
     "plot.line",
     "plot.scatter",
@@ -40,6 +41,8 @@ def execute(
 
     if node_type == "plot.series":
         value = series_value(params)
+    elif node_type == "plot.legend_state":
+        value = legend_state_value(params)
     elif node_type == "plot.series_registry":
         value = series_registry(upstream, params)
     elif node_type == "plot.line":

@@ -39,6 +39,37 @@ def series_value(params: dict[str, Any]) -> dict[str, Any]:
     return value
 
 
+
+
+def legend_state_value(params: dict[str, Any]) -> dict[str, Any]:
+    mode = str(params.get("mode", "all"))
+    if mode not in {"all", "hide", "solo"}:
+        raise ValueError(f"Unsupported Legend State mode: {mode}")
+    groups = [str(item).strip() for item in _parameter_list(params.get("groups")) if str(item).strip()]
+    if mode != "all" and not groups:
+        raise ValueError("Legend State requires at least one legend group")
+    return {"mode": mode, "groups": groups}
+
+
+def _apply_legend_state(value: list[dict[str, Any]], raw: Any) -> tuple[list[dict[str, Any]], str]:
+    if raw is None:
+        return value, "all"
+    if not isinstance(raw, dict):
+        raise ValueError("Series Registry legendState must be a Legend State object")
+    mode = str(raw.get("mode", "all"))
+    if mode not in {"all", "hide", "solo"}:
+        raise ValueError(f"Unsupported Legend State mode: {mode}")
+    groups = {str(item).strip() for item in _parameter_list(raw.get("groups")) if str(item).strip()}
+    if mode != "all" and not groups:
+        raise ValueError("Legend State requires at least one legend group")
+    if mode == "all":
+        return value, mode
+    for item in value:
+        matches = str(item.get("legendGroup", "")).strip() in groups
+        item["visible"] = _as_bool(item.get("visible", True)) and (matches if mode == "solo" else not matches)
+    return value, mode
+
+
 def series_registry(upstream: Any, params: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(upstream, dict):
         raise ValueError("Series Registry requires named Series inputs")
@@ -71,8 +102,10 @@ def series_registry(upstream: Any, params: dict[str, Any]) -> list[dict[str, Any
         group_match = group in groups
         result["visible"] = currently_visible and (group_mode == "all" or (group_match if group_mode == "include" else not group_match))
         value.append(result)
-    has_solo = any(_as_bool(item.get("visible", True)) and _as_bool(item.get("solo", False)) for item in value)
-    if has_solo:
-        for item in value:
-            item["visible"] = _as_bool(item.get("visible", True)) and _as_bool(item.get("solo", False))
+    value, legend_mode = _apply_legend_state(value, upstream.get("legendState"))
+    if legend_mode != "solo":
+        has_solo = any(_as_bool(item.get("visible", True)) and _as_bool(item.get("solo", False)) for item in value)
+        if has_solo:
+            for item in value:
+                item["visible"] = _as_bool(item.get("visible", True)) and _as_bool(item.get("solo", False))
     return value

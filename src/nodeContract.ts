@@ -127,7 +127,9 @@ export function getNodeContract(nodeType: string): NodeContract | undefined {
 }
 
 export function listNodeContracts(): NodeContract[] {
-  return [...NODE_CONTRACTS.values()].sort((left, right) => left.nodeType.localeCompare(right.nodeType));
+  const contracts = new Map(NODE_CONTRACTS);
+  for (const spec of NODE_CATALOG) if (!contracts.has(spec.nodeType)) contracts.set(spec.nodeType, normalizeContract(spec.nodeType, spec));
+  return [...contracts.values()].sort((left, right) => left.nodeType.localeCompare(right.nodeType));
 }
 
 export function supportsNodeRuntime(nodeType: string, runtime: NodeRuntimeId): boolean {

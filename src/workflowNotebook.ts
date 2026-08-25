@@ -1457,6 +1457,10 @@ if ${params}.get("inputKind") == "number":
   if (type === "table.select_columns") return `${name} = ${input}.iloc[:, _columns(${params}.get("columns", ""))]`;
   if (type === "table.column_math") return `${name} = _apply_column_transform(${input}, ${params})`;
   if (type === "table.column_transform") return `${name} = _column_transform_spec(${params})`;
+  if (type === "table.conditional_transform") return `_conditional_inputs = ${input}
+if not isinstance(_conditional_inputs, dict) or not isinstance(_conditional_inputs.get("transform"), dict): raise ValueError("Conditional transform requires a Transform input")
+${name} = dict(_conditional_inputs["transform"])
+${name}["enabled"] = _generic_bool(${params}.get("condition", True))`;
   if (type === "table.column_pipeline") return `_pipeline_inputs = ${input}
 if not isinstance(_pipeline_inputs, dict): raise ValueError("Column transform Pipeline requires named inputs")
 _pipeline_expected = int(${params}.get("transformCount", 1))
@@ -1474,6 +1478,7 @@ ${name} = _pipeline_inputs.get("input")
 if not isinstance(${name}, pd.DataFrame): raise ValueError("Column transform Pipeline requires a table input")
 for _pipeline_index, (_pipeline_order, _pipeline_transform) in enumerate(_pipeline_entries, start=1):
     if _pipeline_order != _pipeline_index: raise ValueError("Column transform Pipeline inputs must use consecutive Transform ports")
+    if _pipeline_transform.get("enabled", True) is False: continue
     ${name} = _apply_column_transform(${name}, _pipeline_transform)`;
   if (type === "table.absolute") return `${name} = ${input}.abs()`;
   if (type === "table.transpose") return `${name} = ${input}.transpose().reset_index(drop=True)`;
@@ -1725,6 +1730,11 @@ if _series_label: ${name}["label"] = _series_label
 if _series_group: ${name}["group"] = _series_group
 if _series_legend_group: ${name}["legendGroup"] = _series_legend_group
 if _generic_bool(${params}.get("solo", False)): ${name}["solo"] = True`;
+  if (type === "plot.legend_state") return `_legend_mode = str(${params}.get("mode", "all"))
+if _legend_mode not in {"all", "hide", "solo"}: raise ValueError(f"Unsupported Legend State mode: {_legend_mode}")
+_legend_groups = [str(item).strip() for item in _parameter_list(${params}.get("groups", "")) if str(item).strip()]
+if _legend_mode != "all" and not _legend_groups: raise ValueError("Legend State requires at least one legend group")
+${name} = {"mode": _legend_mode, "groups": _legend_groups}`;
   if (type === "plot.series_registry") return `_series_inputs = ${input}
 if not isinstance(_series_inputs, dict): raise ValueError("Series Registry requires named Series inputs")
 _series_entries = []
@@ -1749,9 +1759,22 @@ for _, _series_item in _series_entries:
     _series_match = _series_group in _series_groups
     _series_result["visible"] = _generic_bool(_series_result.get("visible", True)) and (_series_group_mode == "all" or (_series_match if _series_group_mode == "include" else not _series_match))
     ${name}.append(_series_result)
-_series_has_solo = any(_generic_bool(_item.get("visible", True)) and _generic_bool(_item.get("solo", False)) for _item in ${name})
-if _series_has_solo:
-    for _item in ${name}: _item["visible"] = _generic_bool(_item.get("visible", True)) and _generic_bool(_item.get("solo", False))`;
+_legend_state = _series_inputs.get("legendState")
+_legend_mode = "all"
+if _legend_state is not None:
+    if not isinstance(_legend_state, dict): raise ValueError("Series Registry legendState must be a Legend State object")
+    _legend_mode = str(_legend_state.get("mode", "all"))
+    if _legend_mode not in {"all", "hide", "solo"}: raise ValueError(f"Unsupported Legend State mode: {_legend_mode}")
+    _legend_groups = {str(item).strip() for item in _parameter_list(_legend_state.get("groups", "")) if str(item).strip()}
+    if _legend_mode != "all" and not _legend_groups: raise ValueError("Legend State requires at least one legend group")
+    if _legend_mode != "all":
+        for _item in ${name}:
+            _legend_match = str(_item.get("legendGroup", "")).strip() in _legend_groups
+            _item["visible"] = _generic_bool(_item.get("visible", True)) and (_legend_match if _legend_mode == "solo" else not _legend_match)
+if _legend_mode != "solo":
+    _series_has_solo = any(_generic_bool(_item.get("visible", True)) and _generic_bool(_item.get("solo", False)) for _item in ${name})
+    if _series_has_solo:
+        for _item in ${name}: _item["visible"] = _generic_bool(_item.get("visible", True)) and _generic_bool(_item.get("solo", False))`;
   if (type === "plot.line") return `_series_raw = ${params}.get("seriesConfig", "")
 _series = json.loads(_series_raw) if isinstance(_series_raw, str) and _series_raw.strip() else (_series_raw or [])
 _x_column = _column(${input}, ${params}.get("xColumn")) if str(${params}.get("xColumn", "")).strip() else None
