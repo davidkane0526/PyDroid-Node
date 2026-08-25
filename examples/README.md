@@ -28,4 +28,6 @@
 - `plugin-archives/demo-resource-*.plugin.zip`：包含 Provider、JSON/CSV 资源和节点 SVG 图标的真实插件包。
 - `demo-31-declarative-plugin-ui.workflow.json`：宿主统一渲染插件参数分组、只读状态和包内帮助文本，双 Runtime 结果一致。
 - `demo-32-declarative-plugin-table.workflow.json`：声明式参数面板驱动插件生成原生 Table，再连接第一方 Plot。
-- `plugin-archives/demo-declarative-*.plugin.zip`：对应 Demo 31/32 的真实声明式 UI 插件包与源码目录。
+- `demo-33-conditional-plugin-ui.workflow.json`：Mode 控制参数分组、状态和帮助显示，并联动 Preset 枚举。
+- `demo-34-linked-enum-table.workflow.json`：Profile 联动 Series 枚举与参数可见性，再生成原生 Table 进入第一方 Plot。
+- `plugin-archives/demo-declarative-*.plugin.zip`、`demo-conditional-ui.plugin.zip` 与 `demo-linked-enum-table.plugin.zip`：对应 Demo 31～34 的真实声明式 UI 插件包与源码目录。

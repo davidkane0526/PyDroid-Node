@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.linked-enum-table",
+  "name": "Linked Enum Table Demo",
+  "version": "1.0.0",
+  "description": "Conditional table parameters with host-linked enum options.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.linked_enum_table",
+        "label": "Linked Enum Table",
+        "description": "Generate a table using a profile-specific linked enum.",
+        "tags": ["plugin", "table", "conditional"],
+        "category": "自定义",
+        "runtimeSupport": ["python", "javascript"],
+        "defaults": { "rows": 6, "profile": "linear", "series": "value", "scale": 2, "power": 2 },
+        "parameters": [
+          { "key": "rows", "label": "Rows", "kind": "number", "defaultValue": 6, "min": 2, "max": 50, "step": 1 },
+          { "key": "profile", "label": "Profile", "kind": "select", "defaultValue": "linear", "options": [
+            { "label": "Linear", "value": "linear" }, { "label": "Polynomial", "value": "polynomial" }
+          ] },
+          { "key": "series", "label": "Series", "kind": "select", "defaultValue": "value", "options": [{ "label": "Value", "value": "value" }],
+            "optionVariants": [
+              { "when": { "profile": "linear" }, "options": [
+                { "label": "Value", "value": "value" }, { "label": "Double", "value": "double" }
+              ] },
+              { "when": { "profile": "polynomial" }, "options": [
+                { "label": "Square", "value": "square" }, { "label": "Cube", "value": "cube" }
+              ] }
+            ]
+          },
+          { "key": "scale", "label": "Scale", "kind": "number", "defaultValue": 2, "visibleWhen": { "profile": "linear" } },
+          { "key": "power", "label": "Power", "kind": "number", "defaultValue": 2, "min": 2, "max": 6, "step": 1, "visibleWhen": { "profile": "polynomial" } }
+        ],
+        "inputPorts": [],
+        "outputPorts": [{ "id": "output", "label": "Table", "valueType": "table" }],
+        "ui": {
+          "parameterGroups": [
+            { "id": "data", "label": "Data", "parameters": ["rows", "profile", "series"] },
+            { "id": "linear", "label": "Linear", "parameters": ["scale"], "when": { "profile": "linear" } },
+            { "id": "polynomial", "label": "Polynomial", "parameters": ["power"], "when": { "profile": "polynomial" } }
+          ],
+          "status": [
+            { "label": "Profile", "parameter": "profile" },
+            { "label": "Series", "parameter": "series" }
+          ],
+          "help": { "title": "Linked enum", "text": "Series choices are declared by profile; the host does not execute plugin UI code." }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": { "javascript": { "file": "js/provider.js" }, "python": { "file": "python/provider.py" } }
+    }
+  ],
+  "resources": ["resources/icon.svg"]
+}

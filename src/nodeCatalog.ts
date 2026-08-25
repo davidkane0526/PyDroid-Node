@@ -1,5 +1,7 @@
 export type ParameterKind = "text" | "textarea" | "number" | "boolean" | "select" | "list";
 
+export type ParameterOptionSpec = { label: string; value: string | number | boolean };
+
 export type ValueType = "table" | "plot" | "csv" | "number" | "text" | "boolean" | "list" | "object" | "any";
 export type NodeRuntimeId = "python" | "javascript";
 export type NodeExecutionModel = "standard" | "control-flow" | "custom-code" | "function" | "ui" | "workflow";
@@ -21,7 +23,9 @@ export type ParameterSpec = {
   key: string;
   label: string;
   kind: ParameterKind;
-  options?: Array<{ label: string; value: string | number | boolean }>;
+  options?: ParameterOptionSpec[];
+  visibleWhen?: Record<string, NodeConditionValue>;
+  optionVariants?: Array<{ when: Record<string, NodeConditionValue>; options: ParameterOptionSpec[] }>;
   description?: string;
   placeholder?: string;
   required?: boolean;
@@ -72,17 +76,20 @@ export type NodeUiParameterGroupSpec = {
   label: string;
   parameters: string[];
   description?: string;
+  when?: Record<string, NodeConditionValue>;
 };
 
 export type NodeUiStatusItemSpec = {
   label: string;
   parameter: string;
+  when?: Record<string, NodeConditionValue>;
 };
 
 export type NodeUiHelpSpec = {
   title?: string;
   text?: string;
   resource?: string;
+  when?: Record<string, NodeConditionValue>;
 };
 
 export type NodeUiSpec = {

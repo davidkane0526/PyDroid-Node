@@ -12,13 +12,14 @@ import type {
   NodeUiSpec,
   NodeUiStatusItemSpec,
   NodeVariant,
+  ParameterOptionSpec,
   ParameterSpec,
   PortSpec,
   SocketGroupSpec,
   ValueType,
 } from "./nodeCatalog";
 
-export const NODE_SPEC_SDK_VERSION = 4 as const;
+export const NODE_SPEC_SDK_VERSION = 5 as const;
 
 export type {
   InputPortGroupSpec,
@@ -29,6 +30,7 @@ export type {
   NodeUiSpec,
   NodeUiStatusItemSpec,
   NodeVariant,
+  ParameterOptionSpec,
   ParameterSpec,
   PortSpec,
   SocketGroupSpec,
@@ -59,6 +61,17 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
     parameterKeys.add(parameter.key);
   }
   const conditionKeys = new Set([...parameterKeys, ...Object.keys(spec.defaults)]);
+  const validateCondition = (when: Record<string, NodeConditionValue> | undefined, owner: string) => {
+    for (const key of Object.keys(when ?? {})) if (!conditionKeys.has(key)) errors.push(`${prefix}: ${owner} 条件参数不存在：${key}`);
+  };
+  for (const parameter of spec.parameters) {
+    validateCondition(parameter.visibleWhen, `参数 ${parameter.key} visibleWhen`);
+    if (parameter.optionVariants?.length && parameter.kind !== "select") errors.push(`${prefix}: optionVariants 仅适用于 select 参数：${parameter.key}`);
+    for (const [index, variant] of (parameter.optionVariants ?? []).entries()) {
+      validateCondition(variant.when, `参数 ${parameter.key} optionVariants[${index}]`);
+      if (!variant.options.length) errors.push(`${prefix}: 参数 ${parameter.key} optionVariants[${index}] options 不能为空`);
+    }
+  }
 
   const socketGroupIds = new Set<string>();
   for (const group of spec.socketGroups ?? []) {
@@ -105,6 +118,7 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
     if (uiGroupIds.has(group.id)) errors.push(`${prefix}: UI 参数分组 id 重复：${group.id}`);
     uiGroupIds.add(group.id);
     if (!group.label.trim()) errors.push(`${prefix}: UI 参数分组 label 不能为空：${group.id}`);
+    validateCondition(group.when, `UI 参数分组 ${group.id}`);
     for (const key of group.parameters) {
       if (!parameterKeys.has(key)) errors.push(`${prefix}: UI 参数分组引用不存在的参数：${group.id}.${key}`);
       if (uiGroupedParameterKeys.has(key)) errors.push(`${prefix}: UI 参数不能重复出现在多个分组：${key}`);
@@ -114,8 +128,11 @@ export function validateNodeSpecDefinition(spec: NodeSpec): string[] {
   }
   for (const item of spec.ui?.status ?? []) {
     if (!item.label.trim()) errors.push(`${prefix}: UI 状态项 label 不能为空`);
+    validateCondition(item.when, `UI 状态项 ${item.label}`);
     if (!parameterKeys.has(item.parameter)) errors.push(`${prefix}: UI 状态项引用不存在的参数：${item.parameter}`);
   }
+
+  validateCondition(spec.ui?.help?.when, "UI help");
 
   const inputGroupIds = new Set<string>();
   for (const group of spec.inputPortGroups ?? []) {

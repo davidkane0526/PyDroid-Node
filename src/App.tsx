@@ -69,6 +69,7 @@ import { DEFAULT_CANVAS_THEME, normalizeCanvasTheme, type CanvasThemeId } from "
 import { WORKFLOW_DEMOS, type WorkflowDemo } from "./workflow-demos";
 import { useMcpCoreHost } from "./useMcpCoreHost";
 import { NodeDeclarativeInspector } from "./NodeDeclarativeInspector";
+import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
 import { NodePluginManagerButton, getNodePluginIconDataUrl } from "./NodePluginManager";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
@@ -469,7 +470,12 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const inputPorts = spec?.inputPorts ?? [];
   const outputPorts = spec?.outputPorts ?? [];
   const inlineParameterKeys = spec?.ui?.inlineParameters ?? [];
-  const inlineParameters = inlineParameterKeys.map((key) => spec?.parameters.find((parameter) => parameter.key === key)).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
+  const effectiveUiValues = spec ? declarativeUiValues(spec, data.parameters) : data.parameters;
+  const inlineParameters = inlineParameterKeys
+    .map((key) => spec?.parameters.find((parameter) => parameter.key === key))
+    .filter((parameter): parameter is ParameterSpec => Boolean(parameter))
+    .filter((parameter) => declarativeUiVisible(parameter.visibleWhen, effectiveUiValues))
+    .map((parameter) => resolveDeclarativeParameter(parameter, effectiveUiValues));
   const inlineLayout = spec?.ui?.inlineLayout ?? "stack";
   const inlineParameterLabels = spec?.ui?.inlineParameterLabels ?? {};
   const parameterByKey = new Map((spec?.parameters ?? []).map((parameter) => [parameter.key, parameter]));

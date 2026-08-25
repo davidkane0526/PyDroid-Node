@@ -36,6 +36,8 @@ const files = [
   "demo-30-plugin-resource-table.workflow.json",
   "demo-31-declarative-plugin-ui.workflow.json",
   "demo-32-declarative-plugin-table.workflow.json",
+  "demo-33-conditional-plugin-ui.workflow.json",
+  "demo-34-linked-enum-table.workflow.json",
 ];
 
 let failed = 0;

@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 4,
+  "name": "Demo 34 · Linked Enum Table",
+  "nodes": [
+    {
+      "id": "table",
+      "type": "workflow",
+      "position": { "x": 150, "y": 180 },
+      "data": {
+        "nodeType": "demo.linked_enum_table",
+        "label": "Linked Enum Table",
+        "parameters": { "rows": 6, "profile": "linear", "series": "double", "scale": 2, "power": 2 }
+      }
+    },
+    {
+      "id": "plot",
+      "type": "workflow",
+      "position": { "x": 520, "y": 180 },
+      "data": {
+        "nodeType": "plot.line",
+        "label": "Linked Enum Plot",
+        "parameters": { "xColumn": "index", "yColumns": "selected", "title": "Linked Enum Table", "xLabel": "index", "yLabel": "selected", "lineWidth": 2, "alpha": 1, "lineStyle": "solid", "marker": "none", "seriesConfig": "" }
+      }
+    }
+  ],
+  "edges": [{ "id": "e1", "source": "table", "sourceHandle": "output", "target": "plot", "targetHandle": "input" }],
+  "functions": [], "requirements": [], "parameters": [],
+  "environment": { "pythonImports": [], "pythonDefinitions": [] }
+}

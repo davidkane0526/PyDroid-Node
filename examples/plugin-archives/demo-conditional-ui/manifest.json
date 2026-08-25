@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.conditional-ui",
+  "name": "Conditional UI Demo",
+  "version": "1.0.0",
+  "description": "Declarative visibility conditions and linked select options.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.conditional_ui",
+        "label": "Conditional UI",
+        "description": "Host-rendered conditional parameter groups and linked enum options.",
+        "tags": ["plugin", "ui", "conditional"],
+        "category": "自定义",
+        "runtimeSupport": ["python", "javascript"],
+        "defaults": { "mode": "scale", "preset": "custom", "factor": 4, "offset": 2, "showHelp": true },
+        "parameters": [
+          { "key": "mode", "label": "Mode", "kind": "select", "defaultValue": "scale", "options": [
+            { "label": "Scale", "value": "scale" }, { "label": "Shift", "value": "shift" }
+          ] },
+          { "key": "preset", "label": "Preset", "kind": "select", "defaultValue": "custom", "options": [{ "label": "Custom", "value": "custom" }],
+            "optionVariants": [
+              { "when": { "mode": "scale" }, "options": [
+                { "label": "Custom", "value": "custom" }, { "label": "Double", "value": "double" }, { "label": "Triple", "value": "triple" }
+              ] },
+              { "when": { "mode": "shift" }, "options": [
+                { "label": "Custom", "value": "custom" }, { "label": "Plus 1", "value": "plus1" }, { "label": "Plus 5", "value": "plus5" }
+              ] }
+            ]
+          },
+          { "key": "factor", "label": "Factor", "kind": "number", "defaultValue": 4, "step": 0.1, "visibleWhen": { "mode": "scale" } },
+          { "key": "offset", "label": "Offset", "kind": "number", "defaultValue": 2, "step": 0.1, "visibleWhen": { "mode": "shift" } },
+          { "key": "showHelp", "label": "Show help", "kind": "boolean", "defaultValue": true }
+        ],
+        "inputPorts": [{ "id": "input", "label": "Value", "valueType": "number", "required": true }],
+        "outputPorts": [{ "id": "output", "label": "Result", "valueType": "number" }],
+        "ui": {
+          "parameterGroups": [
+            { "id": "operation", "label": "Operation", "parameters": ["mode", "preset"] },
+            { "id": "scale", "label": "Scale", "parameters": ["factor"], "when": { "mode": "scale" } },
+            { "id": "shift", "label": "Shift", "parameters": ["offset"], "when": { "mode": "shift" } },
+            { "id": "help", "label": "Help", "parameters": ["showHelp"] }
+          ],
+          "status": [
+            { "label": "Mode", "parameter": "mode" },
+            { "label": "Factor", "parameter": "factor", "when": { "mode": "scale" } },
+            { "label": "Offset", "parameter": "offset", "when": { "mode": "shift" } }
+          ],
+          "help": { "title": "Conditional UI", "resource": "resources/help.md", "when": { "showHelp": true } }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": { "javascript": { "file": "js/provider.js" }, "python": { "file": "python/provider.py" } }
+    }
+  ],
+  "resources": ["resources/help.md", "resources/icon.svg"]
+}

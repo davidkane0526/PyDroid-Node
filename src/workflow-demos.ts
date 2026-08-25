@@ -30,8 +30,10 @@ import pluginResourceJson from "../examples/demo-29-plugin-resource-json.workflo
 import pluginResourceTable from "../examples/demo-30-plugin-resource-table.workflow.json?raw";
 import declarativePluginUi from "../examples/demo-31-declarative-plugin-ui.workflow.json?raw";
 import declarativePluginTable from "../examples/demo-32-declarative-plugin-table.workflow.json?raw";
+import conditionalPluginUi from "../examples/demo-33-conditional-plugin-ui.workflow.json?raw";
+import linkedEnumTable from "../examples/demo-34-linked-enum-table.workflow.json?raw";
 import { activatePythonTableProviderDemo, activateRuntimeProviderScaleDemo } from "./runtime-provider-demos";
-import { activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo } from "./plugin-package-demos";
+import { activateConditionalUiPackageDemo, activateDeclarativeScalePackageDemo, activateDeclarativeTablePackageDemo, activateLinkedEnumTablePackageDemo, activateManifestScalePackageDemo, activateManifestTablePackageDemo, activateResourceScalePackageDemo, activateResourceTablePackageDemo } from "./plugin-package-demos";
 
 export type WorkflowDemo = {
   id: string;
@@ -241,5 +243,19 @@ export const WORKFLOW_DEMOS: readonly WorkflowDemo[] = [
     description: "声明式参数面板驱动双 Runtime 原生 Table，再直接连接第一方 Plot。",
     document: declarativePluginTable,
     activate: activateDeclarativeTablePackageDemo,
+  },
+  {
+    id: "conditional-plugin-ui",
+    label: "Demo 33 · 条件声明式 UI",
+    description: "Mode 控制参数分组、Status 和帮助显示，Preset 选项由同一声明动态联动。",
+    document: conditionalPluginUi,
+    activate: activateConditionalUiPackageDemo,
+  },
+  {
+    id: "linked-enum-table",
+    label: "Demo 34 · 联动枚举表格插件",
+    description: "Profile 改变 Series 枚举与参数可见性，双 Runtime 生成原生 Table 并进入第一方 Plot。",
+    document: linkedEnumTable,
+    activate: activateLinkedEnumTablePackageDemo,
   },
 ] as const;

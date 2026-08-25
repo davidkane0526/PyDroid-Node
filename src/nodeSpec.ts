@@ -1,7 +1,7 @@
 import { parsePythonFunctionSignature } from "./customNode";
 import type { NodeConditionValue, NodeSpec, ParameterSpec, PortSpec } from "./nodeCatalog";
 
-function matchesVariant(
+export function matchesNodeCondition(
   when: Record<string, NodeConditionValue>,
   parameters: Record<string, unknown>,
 ): boolean {
@@ -20,7 +20,7 @@ function applyParameterPatches(
 function inputPortGroups(base: NodeSpec, parameters: Record<string, unknown>): PortSpec[] {
   const ports: PortSpec[] = [];
   for (const group of base.inputPortGroups ?? []) {
-    if (group.when && !matchesVariant(group.when, parameters)) continue;
+    if (group.when && !matchesNodeCondition(group.when, parameters)) continue;
     ports.push(...(group.ports ?? []).map((port) => ({ ...port, socketGroup: port.socketGroup ?? group.socketGroup })));
     const repeat = group.repeat;
     if (!repeat) continue;
@@ -55,7 +55,7 @@ export function resolveNodeSpec(base: NodeSpec | undefined, parameters: Record<s
   const effectiveParameters: Record<string, unknown> = { ...base.defaults, ...parameters };
   let resolved = base;
   for (const variant of base.variants ?? []) {
-    if (!matchesVariant(variant.when, effectiveParameters)) continue;
+    if (!matchesNodeCondition(variant.when, effectiveParameters)) continue;
     const hidden = new Set(variant.hiddenParameters ?? []);
     resolved = {
       ...resolved,

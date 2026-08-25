@@ -1,3 +1,12 @@
+## 1.6.31 (171) — Conditional declarative plugin UI — 2026-08-25
+
+- Promoted the NodeSpec authoring SDK to v5 with pure declarative UI conditions. Parameters can declare `visibleWhen`; Inspector parameter groups, status items and help blocks can each declare `when`; all conditions reuse the existing exact NodeSpec condition semantics rather than a second UI expression language.
+- Added linked select options through `ParameterSpec.optionVariants`. A select can expose different option sets from current node parameters, and the same resolver is used by the Inspector and inline node controls. Changing the controlling parameter does not silently rewrite the current select value.
+- Kept conditional group ownership deterministic: a parameter assigned to a declarative group never falls back into the ordinary parameter list when that group is hidden. Invalid condition keys and `optionVariants` on non-select parameters fail at NodeSpec validation.
+- Added Demo 33 with Scale/Shift conditional groups, conditional status/help and Mode-linked Preset options; the dual-runtime workflow evaluates to `20`. Added Demo 34 with Profile-linked Series options and conditional linear/polynomial parameters, generating a native Table consumed by the first-party Line Plot in JavaScript and Python. Built-in Demo smoke coverage is now 34/34.
+- Extended declarative UI smoke coverage with exact visibility and linked-enum assertions plus real `.plugin.zip` execution for Demo 33/34. Existing first-party parity remains 134/134 and the complete Python suite remains 188 passed / 1 skipped.
+- Build revision: `1.6.31-dev-r123-conditional-declarative-ui`.
+
 ## 1.6.30 (170) — Declarative plugin UI — 2026-08-25
 
 - Extended the NodeSpec authoring SDK to v4 with host-rendered declarative Inspector metadata: `ui.parameterGroups`, `ui.status` and `ui.help`. Parameter groups reuse the normal `ParameterField` controls, status items are read-only views of current parameters, and help can combine short manifest text with one declared package text resource. No plugin React component, DOM injection or render callback was added.

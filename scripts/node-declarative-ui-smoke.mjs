@@ -34,7 +34,7 @@ function runPython(workflow) {
 
 try {
   const inspectorSource = readFileSync(path.join(root, "src", "NodeDeclarativeInspector.tsx"), "utf8");
-  for (const token of ["parameterGroups", "status", "help", "ParameterField", "getNodePluginResourceText"]) {
+  for (const token of ["parameterGroups", "status", "help", "visibleWhen", "resolveDeclarativeParameter", "ParameterField", "getNodePluginResourceText"]) {
     if (!inspectorSource.includes(token)) throw new Error(`declarative inspector is missing ${token}`);
   }
   for (const forbidden of ["dangerouslySetInnerHTML", "createElement(", "eval(", "new Function("]) {
@@ -53,6 +53,7 @@ try {
     "src/nodeCatalog.ts",
     "src/customNode.ts",
     "src/nodeSpec.ts",
+    "src/nodeDeclarativeUi.ts",
     "src/nodeContract.ts",
     "src/runtime/pythonProviders.ts",
     "src/runtime/javascript/engine/engine.ts",
@@ -67,6 +68,8 @@ try {
   const archives = archiveModule.default ?? archiveModule;
   const packagesModule = await import(pathToFileURL(path.join(temp, "nodePluginPackages.js")).href);
   const packages = packagesModule.default ?? packagesModule;
+  const declarativeModule = await import(pathToFileURL(path.join(temp, "nodeDeclarativeUi.js")).href);
+  const declarativeUi = declarativeModule.default ?? declarativeModule;
   const engineModule = await import(pathToFileURL(path.join(temp, "runtime", "javascript", "engine", "engine.js")).href);
   const engine = engineModule.default ?? engineModule;
   const pythonProvidersModule = await import(pathToFileURL(path.join(temp, "runtime", "pythonProviders.js")).href);
@@ -95,6 +98,37 @@ try {
   if (py32.status !== "success" || py32.nodeResults?.table?.kind !== "table" || py32.nodeResults?.plot?.kind !== "plot") throw new Error(`declarative table Python failed: ${JSON.stringify(py32)}`);
   tableRegistration.unload();
 
+  const conditionalZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-conditional-ui.plugin.zip"));
+  const conditionalManifest = await archives.readNodePluginArchive(arrayBuffer(conditionalZip));
+  const conditionalSpec = conditionalManifest.nodes[0].spec;
+  const scaleValues = declarativeUi.declarativeUiValues(conditionalSpec, { mode: "scale", preset: "custom", factor: 4, offset: 2, showHelp: true });
+  const shiftValues = declarativeUi.declarativeUiValues(conditionalSpec, { mode: "shift", preset: "custom", factor: 4, offset: 2, showHelp: false });
+  const preset = conditionalSpec.parameters.find((item) => item.key === "preset");
+  const factor = conditionalSpec.parameters.find((item) => item.key === "factor");
+  if (!preset || !factor) throw new Error("conditional UI parameters missing");
+  const scaleOptions = declarativeUi.resolveDeclarativeParameter(preset, scaleValues).options.map((item) => item.value).join(",");
+  const shiftOptions = declarativeUi.resolveDeclarativeParameter(preset, shiftValues).options.map((item) => item.value).join(",");
+  if (scaleOptions !== "custom,double,triple" || shiftOptions !== "custom,plus1,plus5") throw new Error(`linked enum options failed: ${scaleOptions} / ${shiftOptions}`);
+  if (!declarativeUi.declarativeUiVisible(factor.visibleWhen, scaleValues) || declarativeUi.declarativeUiVisible(factor.visibleWhen, shiftValues)) throw new Error("parameter visibleWhen failed");
+  if (!declarativeUi.declarativeUiVisible(conditionalSpec.ui.parameterGroups.find((item) => item.id === "scale").when, scaleValues)) throw new Error("conditional group visibility failed");
+  if (declarativeUi.declarativeUiVisible(conditionalSpec.ui.help.when, shiftValues)) throw new Error("conditional help visibility failed");
+  const conditionalRegistration = await archives.installNodePluginArchive(arrayBuffer(conditionalZip), { persist: false });
+  const workflow33 = JSON.parse(readFileSync(path.join(root, "examples", "demo-33-conditional-plugin-ui.workflow.json"), "utf8"));
+  const js33 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow33), ""));
+  if (js33.status !== "success" || js33.nodeResults?.print?.value !== 20) throw new Error(`conditional UI JS failed: ${JSON.stringify(js33)}`);
+  const py33 = runPython({ ...workflow33, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py33.status !== "success" || py33.nodeResults?.print?.value !== 20) throw new Error(`conditional UI Python failed: ${JSON.stringify(py33)}`);
+  conditionalRegistration.unload();
+
+  const linkedZip = readFileSync(path.join(root, "examples", "plugin-archives", "demo-linked-enum-table.plugin.zip"));
+  const linkedRegistration = await archives.installNodePluginArchive(arrayBuffer(linkedZip), { persist: false });
+  const workflow34 = JSON.parse(readFileSync(path.join(root, "examples", "demo-34-linked-enum-table.workflow.json"), "utf8"));
+  const js34 = JSON.parse(engine.executeWorkflowJson(JSON.stringify(workflow34), ""));
+  if (js34.status !== "success" || js34.nodeResults?.table?.kind !== "table" || js34.nodeResults?.plot?.kind !== "plot") throw new Error(`linked enum table JS failed: ${JSON.stringify(js34)}`);
+  const py34 = runPython({ ...workflow34, runtimeProviders: { python: pythonProviders.listPythonNodeProviders() } });
+  if (py34.status !== "success" || py34.nodeResults?.table?.kind !== "table" || py34.nodeResults?.plot?.kind !== "plot") throw new Error(`linked enum table Python failed: ${JSON.stringify(py34)}`);
+  linkedRegistration.unload();
+
   const invalid = structuredClone(scaleManifest);
   invalid.id = "demo.invalid-help";
   invalid.nodes[0].spec.nodeType = "demo.invalid_help";
@@ -110,7 +144,7 @@ try {
   ], { cwd: root, encoding: "utf8" });
   if (uiTranspile.error || uiTranspile.status !== 0) throw new Error(uiTranspile.stderr || uiTranspile.stdout || uiTranspile.error?.message);
 
-  console.log("Node Declarative UI smoke: PASS (groups/status/help, host-only UI, archive resource, dual runtime)");
+  console.log("Node Declarative UI smoke: PASS (conditions/linked enums/groups/status/help, host-only UI, archive resource, dual runtime)");
 } finally {
   rmSync(temp, { recursive: true, force: true });
 }

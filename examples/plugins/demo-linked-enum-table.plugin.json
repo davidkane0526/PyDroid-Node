@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "id": "demo.linked-enum-table",
+  "name": "Linked Enum Table Demo",
+  "version": "1.0.0",
+  "description": "Conditional table parameters with host-linked enum options.",
+  "nodes": [
+    {
+      "spec": {
+        "nodeType": "demo.linked_enum_table",
+        "label": "Linked Enum Table",
+        "description": "Generate a table using a profile-specific linked enum.",
+        "tags": [
+          "plugin",
+          "table",
+          "conditional"
+        ],
+        "category": "自定义",
+        "runtimeSupport": [
+          "python",
+          "javascript"
+        ],
+        "defaults": {
+          "rows": 6,
+          "profile": "linear",
+          "series": "value",
+          "scale": 2,
+          "power": 2
+        },
+        "parameters": [
+          {
+            "key": "rows",
+            "label": "Rows",
+            "kind": "number",
+            "defaultValue": 6,
+            "min": 2,
+            "max": 50,
+            "step": 1
+          },
+          {
+            "key": "profile",
+            "label": "Profile",
+            "kind": "select",
+            "defaultValue": "linear",
+            "options": [
+              {
+                "label": "Linear",
+                "value": "linear"
+              },
+              {
+                "label": "Polynomial",
+                "value": "polynomial"
+              }
+            ]
+          },
+          {
+            "key": "series",
+            "label": "Series",
+            "kind": "select",
+            "defaultValue": "value",
+            "options": [
+              {
+                "label": "Value",
+                "value": "value"
+              }
+            ],
+            "optionVariants": [
+              {
+                "when": {
+                  "profile": "linear"
+                },
+                "options": [
+                  {
+                    "label": "Value",
+                    "value": "value"
+                  },
+                  {
+                    "label": "Double",
+                    "value": "double"
+                  }
+                ]
+              },
+              {
+                "when": {
+                  "profile": "polynomial"
+                },
+                "options": [
+                  {
+                    "label": "Square",
+                    "value": "square"
+                  },
+                  {
+                    "label": "Cube",
+                    "value": "cube"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "key": "scale",
+            "label": "Scale",
+            "kind": "number",
+            "defaultValue": 2,
+            "visibleWhen": {
+              "profile": "linear"
+            }
+          },
+          {
+            "key": "power",
+            "label": "Power",
+            "kind": "number",
+            "defaultValue": 2,
+            "min": 2,
+            "max": 6,
+            "step": 1,
+            "visibleWhen": {
+              "profile": "polynomial"
+            }
+          }
+        ],
+        "inputPorts": [],
+        "outputPorts": [
+          {
+            "id": "output",
+            "label": "Table",
+            "valueType": "table"
+          }
+        ],
+        "ui": {
+          "parameterGroups": [
+            {
+              "id": "data",
+              "label": "Data",
+              "parameters": [
+                "rows",
+                "profile",
+                "series"
+              ]
+            },
+            {
+              "id": "linear",
+              "label": "Linear",
+              "parameters": [
+                "scale"
+              ],
+              "when": {
+                "profile": "linear"
+              }
+            },
+            {
+              "id": "polynomial",
+              "label": "Polynomial",
+              "parameters": [
+                "power"
+              ],
+              "when": {
+                "profile": "polynomial"
+              }
+            }
+          ],
+          "status": [
+            {
+              "label": "Profile",
+              "parameter": "profile"
+            },
+            {
+              "label": "Series",
+              "parameter": "series"
+            }
+          ],
+          "help": {
+            "title": "Linked enum",
+            "text": "Series choices are declared by profile; the host does not execute plugin UI code."
+          }
+        }
+      },
+      "icon": "resources/icon.svg",
+      "providers": {
+        "javascript": {
+          "source": "function execute(params, upstream, context, api) {\n  const rows = Math.max(2, Math.trunc(Number(params.rows ?? 6)));\n  const profile = String(params.profile ?? \"linear\");\n  const series = String(params.series ?? \"value\");\n  const scale = Number(params.scale ?? 2);\n  const power = Math.max(2, Math.trunc(Number(params.power ?? 2)));\n  const records = Array.from({ length: rows }, (_, index) => {\n    let selected;\n    if (profile === \"polynomial\") selected = Math.pow(index, series === \"cube\" ? 3 : series === \"square\" ? 2 : power);\n    else selected = index * (series === \"double\" ? 2 : scale);\n    return { index, selected };\n  });\n  return api.Table.fromRecords(records);\n}\n"
+        },
+        "python": {
+          "source": "def execute(params, upstream, context):\n    import pandas as pd\n    rows = max(2, int(params.get(\"rows\", 6)))\n    profile = str(params.get(\"profile\", \"linear\"))\n    series = str(params.get(\"series\", \"value\"))\n    scale = float(params.get(\"scale\", 2))\n    power = max(2, int(params.get(\"power\", 2)))\n    values = []\n    for index in range(rows):\n        if profile == \"polynomial\":\n            exponent = 3 if series == \"cube\" else 2 if series == \"square\" else power\n            values.append(index ** exponent)\n        else:\n            values.append(index * (2 if series == \"double\" else scale))\n    return pd.DataFrame({\"index\": list(range(rows)), \"selected\": values})\n"
+        }
+      }
+    }
+  ],
+  "resources": [
+    {
+      "path": "resources/icon.svg",
+      "base64": "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHJlY3QgeD0iMyIgeT0iMyIgd2lkdGg9IjE4IiBoZWlnaHQ9IjE4IiByeD0iNSIgZmlsbD0iIzIyYTA2YiIvPjxwYXRoIGQ9Ik03IDE2bDMtNCAzIDIgNC02IiBmaWxsPSJub25lIiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjEuOCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+Cg==",
+      "mimeType": "image/svg+xml"
+    }
+  ]
+}

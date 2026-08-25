@@ -1,5 +1,6 @@
 import type { NodeSpec, ParameterSpec } from "./nodeCatalog";
 import { ParameterField } from "./ParameterField";
+import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter } from "./nodeDeclarativeUi";
 import { getNodePluginResourceText } from "./nodePluginPackages";
 import "./node-declarative-inspector.css";
 
@@ -24,18 +25,25 @@ export function NodeDeclarativeInspector({
   onChange: (key: string, value: string | number | boolean | null) => void;
   onExpandCode?: () => void;
 }) {
-  const available = spec.parameters.filter((parameter) => !excludedParameterKeys.has(parameter.key));
+  const effectiveValues = declarativeUiValues(spec, values);
+  const available = spec.parameters
+    .filter((parameter) => !excludedParameterKeys.has(parameter.key))
+    .filter((parameter) => declarativeUiVisible(parameter.visibleWhen, effectiveValues))
+    .map((parameter) => resolveDeclarativeParameter(parameter, effectiveValues));
   const byKey = new Map(available.map((parameter) => [parameter.key, parameter]));
-  const groupedKeys = new Set<string>();
-  const groups = (spec.ui?.parameterGroups ?? []).map((group) => {
-    const parameters = group.parameters.map((key) => byKey.get(key)).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
-    for (const parameter of parameters) groupedKeys.add(parameter.key);
-    return { ...group, parameters };
-  }).filter((group) => group.parameters.length > 0);
-  const remaining = available.filter((parameter) => !groupedKeys.has(parameter.key));
+  const declaredGroupedKeys = new Set((spec.ui?.parameterGroups ?? []).flatMap((group) => group.parameters));
+  const groups = (spec.ui?.parameterGroups ?? [])
+    .filter((group) => declarativeUiVisible(group.when, effectiveValues))
+    .map((group) => ({
+      ...group,
+      parameters: group.parameters.map((key) => byKey.get(key)).filter((parameter): parameter is ParameterSpec => Boolean(parameter)),
+    }))
+    .filter((group) => group.parameters.length > 0);
+  const remaining = available.filter((parameter) => !declaredGroupedKeys.has(parameter.key));
   const basic = remaining.filter((parameter) => !parameter.advanced);
   const advanced = remaining.filter((parameter) => parameter.advanced);
-  const help = spec.ui?.help;
+  const help = declarativeUiVisible(spec.ui?.help?.when, effectiveValues) ? spec.ui?.help : undefined;
+  const status = (spec.ui?.status ?? []).filter((item) => declarativeUiVisible(item.when, effectiveValues));
   const resourceHelp = help?.resource ? getNodePluginResourceText(spec.nodeType, help.resource) : null;
 
   const field = (parameter: ParameterSpec) => <ParameterField
@@ -47,8 +55,8 @@ export function NodeDeclarativeInspector({
   />;
 
   return <>
-    {(spec.ui?.status?.length ?? 0) > 0 && <section className="node-declarative-status" aria-label="节点状态">
-      {spec.ui!.status!.map((item) => <div key={`${item.label}:${item.parameter}`}><span>{item.label}</span><strong>{statusValue(values[item.parameter] ?? spec.defaults[item.parameter])}</strong></div>)}
+    {status.length > 0 && <section className="node-declarative-status" aria-label="节点状态">
+      {status.map((item) => <div key={`${item.label}:${item.parameter}`}><span>{item.label}</span><strong>{statusValue(values[item.parameter] ?? spec.defaults[item.parameter])}</strong></div>)}
     </section>}
     {(help?.text || resourceHelp) && <section className="node-declarative-help">
       {help?.title && <strong>{help.title}</strong>}
