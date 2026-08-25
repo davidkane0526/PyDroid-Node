@@ -57,10 +57,10 @@
     0 2px 5px rgba(74,104,145,.08),
     0 10px 22px rgba(74,104,145,.16);
   transform: none;
-  transition: border-color var(--motion-duration-normal) var(--motion-ease-standard), box-shadow var(--motion-duration-normal) var(--motion-ease-standard), background var(--motion-duration-normal) var(--motion-ease-standard);
+  transition: border-color .14s ease, box-shadow .14s ease, background .14s ease;
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-  border-color: color-mix(in srgb, var(--canvas-node-border) 68%, var(--canvas-selection));
+  border-color: #c1d7ef;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,1),
     inset 0 -1px 0 rgba(170,194,224,.27),
@@ -70,7 +70,7 @@
 }
 .app-shell[data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
   outline: none !important;
-  border-color: color-mix(in srgb, var(--canvas-node-border) 48%, var(--canvas-selection));
+  border-color: #9fc5ee;
   box-shadow:
     0 0 0 1px rgba(54,152,230,.10),
     inset 0 1px 0 rgba(255,255,255,.98),
@@ -165,7 +165,7 @@
   border-color: var(--canvas-node-border);
   background:
     linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 34%, rgba(255,255,255,0) 74%),
-    color-mix(in srgb, var(--canvas-node-face) 96%, #000 4%);
+    linear-gradient(180deg, #1a293b 0%, #182738 100%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.070),
     inset 0 -1px 0 rgba(0,0,0,.28),
@@ -173,10 +173,10 @@
     0 10px 22px rgba(0,0,0,.28);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node:not(.workflow-structure):hover {
-  border-color: color-mix(in srgb, var(--canvas-node-border) 70%, var(--canvas-selection));
+  border-color: #496682;
   background:
     linear-gradient(180deg, rgba(255,255,255,.026) 0, rgba(255,255,255,.008) 34%, rgba(255,255,255,0) 74%),
-    color-mix(in srgb, var(--canvas-node-face) 94%, var(--canvas-selection) 6%);
+    linear-gradient(180deg, #1c2c3f 0%, #19293b 100%);
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.082),
     inset 0 -1px 0 rgba(0,0,0,.30),
@@ -184,7 +184,7 @@
     0 12px 25px rgba(0,0,0,.30);
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.selected:not(.workflow-structure) {
-  border-color: color-mix(in srgb, var(--canvas-node-border) 54%, var(--canvas-selection));
+  border-color: #5480a7;
   box-shadow:
     inset 0 1px 0 rgba(255,255,255,.075),
     inset 0 -1px 0 rgba(0,0,0,.28),
@@ -197,7 +197,7 @@
   border-color: var(--canvas-node-border) !important;
   background:
     linear-gradient(180deg, rgba(255,255,255,.020) 0, rgba(255,255,255,.006) 34%, rgba(255,255,255,0) 74%),
-    color-mix(in srgb, var(--canvas-node-face) 96%, #000 4%) !important;
+    linear-gradient(180deg, #1a293b 0%, #182738 100%) !important;
 }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node__type { color: var(--canvas-node-type); }
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .node-kind-function .workflow-node__type,

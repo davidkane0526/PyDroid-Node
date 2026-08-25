@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.38 (178) · SDK & Repository Cleanup**。主题插件现在通过同一 SDK 声明颜色、材质与动画；Core、设置页、插件管理器、声明式插件 UI 和节点画布消费统一 Design Token / Motion Token，布局与动态节点几何仍由 Core 独占。Remote Web/LAN 生产路径不变；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.39 (179) · Core Default Visual Compatibility Restore**。Plugin SDK / Theme SDK / Design SDK 保留，但默认 `core.default` 重新锁定为已验收的原产品视觉与交互效果；只有明确选择非默认主题时才启用 Theme/Material/Motion 覆盖。动态节点几何仍由 Core 独占。Remote Web/LAN 生产路径不变；当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.38 SDK & Repository Cleanup（当前分支）**：Plugin SDK v4 / UI Theme SDK v2 / Design SDK v1 将颜色、材质、动画和 host-rendered 插件 UI 收敛到同一视觉契约；主题仍不能改变布局或动态节点几何。
+- **1.6.39 Visual Compatibility Restore（当前分支）**：Plugin SDK v4 / UI Theme SDK v2 / Design SDK v1 保持不变；`core.default` 保留原有按钮、弹窗、节点、Soft/Classic 画布材质与动画，第三方主题以显式 opt-in 覆盖这些外观 Token，且仍不能改变布局或动态节点几何。
 - **1.6.34 Final Freeze Audit**：冻结功能面，只允许删除明确无调用的内部代码、退役运行时兼容桥、重复契约和过期开发状态；公共 NodeSpec/Plugin SDK、Workflow Migration、Remote/LAN 既有生产路径不因“内部零引用”被误删。
 - **动态节点与插件体系**：NodeSpec SDK v7 支持动态端口、参数 Socket、重复输入、节点 Variant、Series/Legend、列处理 Pipeline、声明式 Inspector、校验和多输出状态；第三方 `.plugin.zip` 统一走 Manifest + Runtime Provider + resources 生命周期。
 - **MCP / AI Core 接口**：Desktop/Android 提供标准 Streamable HTTP MCP，Core 适配层复用 Editor/Runtime 现有所有权，不建立第二套工作流状态。

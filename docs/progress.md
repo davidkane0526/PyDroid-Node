@@ -1,15 +1,22 @@
-# Current progress — 1.6.38 SDK & Repository Cleanup
+# Current progress — 1.6.39 Core Default Visual Compatibility Restore
 
 Date: 2026-08-25
 
 ## Current release state
 
-- Product version: **1.6.38**, Android versionCode **178**.
-- Build revision: `1.6.38-dev-r133-sdk-repository-cleanup`.
+- Product version: **1.6.39**, Android versionCode **179**.
+- Build revision: `1.6.39-dev-r134-visual-compatibility-restore`.
 
 - 1.6.38 source validation: SDK layout, Unified Design/Theme, node layout, plugin package/archive/manager/declarative UI and UI regression gates pass; Demo **38/38**; Runtime parity **134/134**; JavaScript-capable NodeContract **96/96**; Python **188 passed, 1 skipped**. Formal Windows/Android packaging remains a local Node 24 / pnpm 11.21 release gate.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
+
+## 1.6.39 visual compatibility correction
+
+- `core.default` is now the protected accepted product appearance. Theme/Material/Motion SDK overlays explicitly exclude it.
+- Restored the 1.6.35 visual/effect baseline for shared Core CSS and Classic/Soft canvas materials, while retaining the newer dynamic-node anti-overlap geometry.
+- Added a visual-baseline regression gate covering buttons, dialogs, node enter motion, Soft node materials and Plugin Manager backdrop.
+- Installed third-party themes still consume Theme/Material/Motion tokens; the SDK remains intact and opt-in.
 
 ## Completed before this audit
 
@@ -49,7 +56,7 @@ Date: 2026-08-25
 
 - Plugin SDK v2 now exports UI Theme SDK v1; packages can be node-only, theme-only or combined.
 - UI theme plugins can only override a semantic appearance whitelist. Layout, typography metrics and node geometry remain Core-owned.
-- `src/styles/theme-contract.css` unifies the final appearance layer for shared UI surfaces and canvas styling.
+- `src/styles/theme-contract.css` is the opt-in appearance overlay for installed non-default themes; `core.default` remains the protected accepted visual baseline.
 - Settings → Appearance lists installed themes; removing the active theme deterministically returns to `core.default`.
 - `src/nodes/layout.ts` centralizes node measurement and moves complex dynamic nodes to deterministic side rails/fixed rows, preventing port/default-control overlap.
 - Added theme-only JSON/ZIP examples and dedicated SDK/UI-layout regression gates.

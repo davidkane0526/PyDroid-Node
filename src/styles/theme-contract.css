@@ -2,358 +2,361 @@
  * PyDroid Node visual contract.
  *
  * This file is intentionally appearance-only and is loaded after legacy/core style sheets.
- * Theme plugins can replace semantic color, material and motion tokens, while Core keeps typography,
+ * The built-in core.default theme is excluded so the accepted product appearance remains pixel-compatible.
+ * Installed themes can replace semantic color, material and motion tokens, while Core keeps typography,
  * spacing, dimensions, node geometry and responsive breakpoints deterministic.
  */
-.workspace-shell[data-ui-theme] {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) {
   color: var(--text);
   background: var(--bg);
 }
-.workspace-shell[data-ui-theme] .titlebar {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .titlebar {
   color: var(--text);
   background: var(--surface-deep);
 }
-.workspace-shell[data-ui-theme] .titlebar__brand strong { color: var(--text-bright); }
-.workspace-shell[data-ui-theme] .titlebar__brand span,
-.workspace-shell[data-ui-theme] .titlebar__controls button { color: var(--text-muted); }
-.workspace-shell[data-ui-theme] .titlebar__controls button:hover { color: var(--text-bright); background: var(--surface-hover); }
-.workspace-shell[data-ui-theme] .tabbar__tab { color: var(--text-muted); }
-.workspace-shell[data-ui-theme] .tabbar__tab:hover { color: var(--text); background: var(--surface-hover); }
-.workspace-shell[data-ui-theme] .tabbar__tab.active { border-color: var(--border-soft); color: var(--text-highlight); background: var(--canvas-bg); }
-.workspace-shell[data-ui-theme] .tab-context-menu { border-color: var(--border-pop); color: var(--text); background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: var(--material-popup-shadow); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .titlebar__brand strong { color: var(--text-bright); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .titlebar__brand span,
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .titlebar__controls button { color: var(--text-muted); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .titlebar__controls button:hover { color: var(--text-bright); background: var(--surface-hover); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .tabbar__tab { color: var(--text-muted); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .tabbar__tab:hover { color: var(--text); background: var(--surface-hover); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .tabbar__tab.active { border-color: var(--border-soft); color: var(--text-highlight); background: var(--canvas-bg); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .tab-context-menu { border-color: var(--border-pop); color: var(--text); background: color-mix(in srgb, var(--surface) 96%, transparent); box-shadow: var(--material-popup-shadow); }
 
-.app-shell[data-ui-theme] {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) {
   color: var(--text);
   background: var(--bg);
 }
-.app-shell[data-ui-theme] .topbar,
-.app-shell[data-ui-theme] .node-palette,
-.app-shell[data-ui-theme] .inspector,
-.app-shell[data-ui-theme] .app-statusbar,
-.app-shell[data-ui-theme] .result-panel--bottom {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .topbar,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-palette,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .inspector,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .app-statusbar,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-panel--bottom {
   border-color: var(--border-soft);
   color: var(--text);
   background: var(--surface);
 }
-.app-shell[data-ui-theme] .palette-fixed,
-.app-shell[data-ui-theme] .palette-content,
-.app-shell[data-ui-theme] .node-search { background: var(--surface); }
-.app-shell[data-ui-theme] .palette-tabs { border-color: var(--border-soft); background: var(--surface-deep); }
-.app-shell[data-ui-theme] .palette-tabs button { color: var(--text-muted); }
-.app-shell[data-ui-theme] .palette-tabs button.active { color: var(--text-bright); background: var(--accent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-fixed,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-content,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-search { background: var(--surface); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-tabs { border-color: var(--border-soft); background: var(--surface-deep); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-tabs button { color: var(--text-muted); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-tabs button.active { color: var(--text-bright); background: var(--accent); }
 
-.app-shell[data-ui-theme] .button { color: var(--text-bright); }
-.app-shell[data-ui-theme] .button.primary { background: var(--accent); }
-.app-shell[data-ui-theme] .button.secondary {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button { color: var(--text-bright); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button.primary { background: var(--accent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button.secondary {
   border-color: var(--border);
   color: var(--text-highlight);
   background: var(--surface-raised);
 }
-.app-shell[data-ui-theme] .button.secondary:hover:not(:disabled) { border-color: var(--accent-hover); background: var(--surface-hover); }
-.app-shell[data-ui-theme] .icon-button,
-.app-shell[data-ui-theme] .canvas-toolbar button {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button.secondary:hover:not(:disabled) { border-color: var(--accent-hover); background: var(--surface-hover); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .icon-button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .canvas-toolbar button {
   border-color: var(--border);
   color: var(--text-muted);
   background: var(--surface-raised);
 }
-.app-shell[data-ui-theme] .icon-button:hover:not(:disabled),
-.app-shell[data-ui-theme] .canvas-toolbar button:hover { border-color: var(--border-strong); color: var(--text-highlight); background: var(--surface-hover); }
-.app-shell[data-ui-theme] .canvas-toolbar { border-color: var(--border); color: var(--text); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--material-card-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .icon-button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .canvas-toolbar button:hover { border-color: var(--border-strong); color: var(--text-highlight); background: var(--surface-hover); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .canvas-toolbar { border-color: var(--border); color: var(--text); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--material-card-shadow); }
 
-.app-shell[data-ui-theme] .field > span,
-.app-shell[data-ui-theme] .field .field__heading,
-.app-shell[data-ui-theme] .settings-dialog label,
-.app-shell[data-ui-theme] .node-organization label { color: var(--text-muted); }
-.app-shell[data-ui-theme] .field input,
-.app-shell[data-ui-theme] .field select,
-.app-shell[data-ui-theme] .field textarea,
-.app-shell[data-ui-theme] .node-organization input,
-.app-shell[data-ui-theme] .package-add input {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field > span,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field .field__heading,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog label,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-organization label { color: var(--text-muted); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field select,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field textarea,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-organization input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-add input {
   border-color: var(--border);
   color: var(--text);
   background: var(--surface-deep);
 }
-.app-shell[data-ui-theme] .field input:focus,
-.app-shell[data-ui-theme] .field select:focus,
-.app-shell[data-ui-theme] .field textarea:focus,
-.app-shell[data-ui-theme] .package-add input:focus { border-color: var(--accent-hover); outline: none; box-shadow: 0 0 0 2px var(--ui-focus-ring); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field input:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field select:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field textarea:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-add input:focus { border-color: var(--accent-hover); outline: none; box-shadow: 0 0 0 2px var(--ui-focus-ring); }
 
-.workspace-shell[data-ui-theme] .themed-select__trigger,
-.app-shell[data-ui-theme] .themed-select__trigger {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__trigger,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__trigger {
   border-color: var(--border);
   color: var(--text);
   background: var(--surface-raised);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-bright) 5%, transparent);
 }
-.workspace-shell[data-ui-theme] .themed-select__menu,
-.app-shell[data-ui-theme] .themed-select__menu {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu {
   border-color: var(--border-pop);
   color: var(--text);
   background: color-mix(in srgb, var(--surface) 97%, transparent);
   box-shadow: var(--material-popup-shadow);
 }
-.workspace-shell[data-ui-theme] .themed-select__menu button,
-.app-shell[data-ui-theme] .themed-select__menu button { color: var(--text); }
-.workspace-shell[data-ui-theme] .themed-select__menu button:hover,
-.app-shell[data-ui-theme] .themed-select__menu button:hover { background: var(--surface-hover); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu button { color: var(--text); }
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu button:hover { background: var(--surface-hover); }
 
-.app-shell[data-ui-theme] .settings-dialog,
-.app-shell[data-ui-theme] .package-manager,
-.app-shell[data-ui-theme] .remote-access-dialog,
-.app-shell[data-ui-theme] .interaction-dialog,
-.app-shell[data-ui-theme] .debug-dialog,
-.app-shell[data-ui-theme] .code-editor-modal,
-.app-shell[data-ui-theme] .modern-confirm-dialog {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .remote-access-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .code-editor-modal,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .modern-confirm-dialog {
   border-color: var(--border);
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--material-popup-shadow);
 }
-.app-shell[data-ui-theme] .settings-dialog > header,
-.app-shell[data-ui-theme] .package-manager > header { border-color: var(--border-soft); background: color-mix(in srgb, var(--surface) 94%, var(--surface-raised)); }
-.app-shell[data-ui-theme] .settings-dialog__body .settings-section,
-.app-shell[data-ui-theme] .package-list article { border-color: var(--border-soft); background: color-mix(in srgb, var(--surface-deep) 90%, var(--surface) 10%); }
-.app-shell[data-ui-theme] .settings-dialog h3 { color: var(--text-highlight); }
-.app-shell[data-ui-theme] .settings-dialog small,
-.app-shell[data-ui-theme] .settings-dialog p,
-.app-shell[data-ui-theme] .package-list span { color: var(--text-faint); }
-.app-shell[data-ui-theme] .settings-dialog__body section > button,
-.app-shell[data-ui-theme] .settings-profile-section button,
-.app-shell[data-ui-theme] .settings-extension-actions button {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog > header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager > header { border-color: var(--border-soft); background: color-mix(in srgb, var(--surface) 94%, var(--surface-raised)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog__body .settings-section,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list article { border-color: var(--border-soft); background: color-mix(in srgb, var(--surface-deep) 90%, var(--surface) 10%); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog h3 { color: var(--text-highlight); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog small,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog p,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list span { color: var(--text-faint); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog__body section > button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-profile-section button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-extension-actions button {
   border-color: var(--border-strong);
   color: var(--text-highlight);
   background: var(--surface-raised);
 }
-.app-shell[data-ui-theme] .settings-dialog__body section > button:hover,
-.app-shell[data-ui-theme] .settings-profile-section button:hover,
-.app-shell[data-ui-theme] .settings-extension-actions button:hover { border-color: var(--accent-hover); background: var(--surface-hover); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog__body section > button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-profile-section button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-extension-actions button:hover { border-color: var(--accent-hover); background: var(--surface-hover); }
 
-.app-shell[data-ui-theme] .data-grid__toolbar,
-.app-shell[data-ui-theme] .data-grid__search,
-.app-shell[data-ui-theme] .data-grid__viewport { border-color: var(--border-soft); background: var(--surface-deep); }
-.app-shell[data-ui-theme] .data-grid th,
-.app-shell[data-ui-theme] .data-grid td { border-color: var(--border-soft); color: var(--text); }
-.app-shell[data-ui-theme] .data-grid thead th { color: var(--text-highlight); background: var(--surface-raised); }
-.app-shell[data-ui-theme] .data-grid tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-raised) 48%, transparent); }
-.app-shell[data-ui-theme] .data-grid tbody tr:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid__toolbar,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid__search,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid__viewport { border-color: var(--border-soft); background: var(--surface-deep); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid th,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid td { border-color: var(--border-soft); color: var(--text); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid thead th { color: var(--text-highlight); background: var(--surface-raised); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid tbody tr:nth-child(even) { background: color-mix(in srgb, var(--surface-raised) 48%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .data-grid tbody tr:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 
-.app-shell[data-ui-theme] .workflow-node { color: var(--canvas-node-label); }
-.app-shell[data-ui-theme] .workflow-node__type { color: var(--canvas-node-type); }
-.app-shell[data-ui-theme] .workflow-node__meta { color: var(--canvas-node-meta); }
-.app-shell[data-ui-theme] .react-flow__edge-path,
-.app-shell[data-ui-theme] .react-flow__connection-path { stroke: var(--canvas-edge); }
-.app-shell[data-ui-theme] .react-flow__edge.selected .react-flow__edge-path { stroke: var(--canvas-edge-selected); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .input-port .react-flow__handle,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .output-port .react-flow__handle { border-color: color-mix(in srgb, var(--port-color, var(--canvas-edge)) 70%, var(--canvas-handle-border)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node { color: var(--canvas-node-label); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node__type { color: var(--canvas-node-type); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node__meta { color: var(--canvas-node-meta); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .react-flow__edge-path,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .react-flow__connection-path { stroke: var(--canvas-edge); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .react-flow__edge.selected .react-flow__edge-path { stroke: var(--canvas-edge-selected); }
 
 /* Shared product surfaces: final semantic material pass. */
-.app-shell[data-ui-theme] .flow-library-item,
-.app-shell[data-ui-theme] .flow-library-actions button,
-.app-shell[data-ui-theme] .palette-group button,
-.app-shell[data-ui-theme] .node-default-actions button,
-.app-shell[data-ui-theme] .notebook-view button,
-.app-shell[data-ui-theme] .package-manager button,
-.app-shell[data-ui-theme] .history-list > button,
-.app-shell[data-ui-theme] .history-toolbar button,
-.app-shell[data-ui-theme] .debug-controls button,
-.app-shell[data-ui-theme] .debug-dialog li > button,
-.app-shell[data-ui-theme] .debug-dialog > footer button,
-.app-shell[data-ui-theme] .settings-inline-actions button {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-actions button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-group button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-default-actions button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-view button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-list > button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-toolbar button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-controls button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog li > button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog > footer button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-inline-actions button {
   border-color: var(--border);
   color: var(--text-highlight);
   background: var(--surface-raised);
 }
-.app-shell[data-ui-theme] .flow-library-item:hover,
-.app-shell[data-ui-theme] .history-list > button:hover,
-.app-shell[data-ui-theme] .palette-group button:hover,
-.app-shell[data-ui-theme] .node-default-actions button:hover,
-.app-shell[data-ui-theme] .settings-inline-actions button:hover {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-list > button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-group button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-default-actions button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-inline-actions button:hover {
   border-color: var(--accent-hover);
   background: var(--surface-hover);
 }
-.app-shell[data-ui-theme] .flow-library-item.locked { border-color: color-mix(in srgb, var(--warning) 68%, var(--border)); }
-.app-shell[data-ui-theme] .flow-library-item--demo { border-color: color-mix(in srgb, var(--info) 24%, var(--border)); background: color-mix(in srgb, var(--info) 5%, var(--surface-raised)); }
-.app-shell[data-ui-theme] .flow-library-item--demo strong { color: color-mix(in srgb, var(--info-soft) 72%, var(--text-highlight)); }
-.app-shell[data-ui-theme] .flow-library-item--demo:hover { border-color: color-mix(in srgb, var(--info) 55%, var(--border)); background: color-mix(in srgb, var(--info) 10%, var(--surface-raised)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item.locked { border-color: color-mix(in srgb, var(--warning) 68%, var(--border)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item--demo { border-color: color-mix(in srgb, var(--info) 24%, var(--border)); background: color-mix(in srgb, var(--info) 5%, var(--surface-raised)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item--demo strong { color: color-mix(in srgb, var(--info-soft) 72%, var(--text-highlight)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item--demo:hover { border-color: color-mix(in srgb, var(--info) 55%, var(--border)); background: color-mix(in srgb, var(--info) 10%, var(--surface-raised)); }
 
-.app-shell[data-ui-theme] .notebook-view > header,
-.app-shell[data-ui-theme] .notebook-cell,
-.app-shell[data-ui-theme] .notebook-editor,
-.app-shell[data-ui-theme] .notebook-cell__output,
-.app-shell[data-ui-theme] .runtime-packages,
-.app-shell[data-ui-theme] .package-list article,
-.app-shell[data-ui-theme] .pip-console {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-view > header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-cell,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-editor,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-cell__output,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .runtime-packages,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list article,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .pip-console {
   border-color: var(--border-soft);
   color: var(--text);
   background: var(--surface-deep);
 }
-.app-shell[data-ui-theme] .notebook-cell textarea,
-.app-shell[data-ui-theme] .notebook-cell--markdown textarea,
-.app-shell[data-ui-theme] .notebook-editor__lines,
-.app-shell[data-ui-theme] .pip-console > code,
-.app-shell[data-ui-theme] .runtime-packages code,
-.app-shell[data-ui-theme] .package-list code {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-cell textarea,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-cell--markdown textarea,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-editor__lines,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .pip-console > code,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .runtime-packages code,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list code {
   border-color: var(--border);
   color: var(--text);
   background: var(--surface-overlay);
 }
-.app-shell[data-ui-theme] .notebook-cell textarea:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 2px var(--ui-focus-ring); }
-.app-shell[data-ui-theme] .notebook-error { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 36%, transparent); }
-.app-shell[data-ui-theme] .package-list em { color: var(--success-text); background: color-mix(in srgb, var(--success) 18%, transparent); }
-.app-shell[data-ui-theme] .package-list em.pending { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-cell textarea:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 2px var(--ui-focus-ring); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .notebook-error { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 36%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list em { color: var(--success-text); background: color-mix(in srgb, var(--success) 18%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list em.pending { color: var(--warning); background: color-mix(in srgb, var(--warning) 12%, transparent); }
 
-.app-shell[data-ui-theme] .inspector-toggle,
-.app-shell[data-ui-theme] .palette-toggle,
-.app-shell[data-ui-theme] .statusbar-debug,
-.app-shell[data-ui-theme] .statusbar-history,
-.app-shell[data-ui-theme] .statusbar-service-button,
-.app-shell[data-ui-theme] .statusbar-quick-services .statusbar-history,
-.app-shell[data-ui-theme] .statusbar-task-trigger,
-.app-shell[data-ui-theme] .environment-float-button {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .inspector-toggle,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-toggle,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-debug,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-history,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-service-button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-quick-services .statusbar-history,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-task-trigger,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .environment-float-button {
   border-color: var(--border);
   color: var(--text-muted);
   background: var(--surface-raised);
 }
-.app-shell[data-ui-theme] .inspector-toggle:hover,
-.app-shell[data-ui-theme] .palette-toggle:hover,
-.app-shell[data-ui-theme] .statusbar-debug:hover,
-.app-shell[data-ui-theme] .statusbar-history:hover,
-.app-shell[data-ui-theme] .statusbar-service-button:hover,
-.app-shell[data-ui-theme] .statusbar-task-trigger:hover,
-.app-shell[data-ui-theme] .environment-float-button:hover,
-.app-shell[data-ui-theme] .environment-float-button.active {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .inspector-toggle:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-toggle:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-debug:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-history:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-service-button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-task-trigger:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .environment-float-button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .environment-float-button.active {
   border-color: var(--accent-hover);
   color: var(--text-highlight);
   background: var(--surface-hover);
 }
-.app-shell[data-ui-theme] .app-statusbar__message { border-color: var(--border); color: var(--text-muted); }
-.app-shell[data-ui-theme] .app-statusbar svg { stroke: var(--text-muted); }
-.app-shell[data-ui-theme] .statusbar-service-button--remote.active { border-color: color-mix(in srgb, var(--info) 58%, var(--border)); color: var(--info-soft); background: color-mix(in srgb, var(--info) 12%, var(--surface-raised)); }
-.app-shell[data-ui-theme] .statusbar-service-button__indicator { background: var(--success); }
-.app-shell[data-ui-theme] .statusbar-task-menu,
-.app-shell[data-ui-theme] .environment-floating-panel,
-.app-shell[data-ui-theme] .history-dialog {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .app-statusbar__message { border-color: var(--border); color: var(--text-muted); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .app-statusbar svg { stroke: var(--text-muted); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-service-button--remote.active { border-color: color-mix(in srgb, var(--info) 58%, var(--border)); color: var(--info-soft); background: color-mix(in srgb, var(--info) 12%, var(--surface-raised)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-service-button__indicator { background: var(--success); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-task-menu,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .environment-floating-panel,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-dialog {
   border-color: var(--border-pop);
   color: var(--text);
   background: var(--surface);
   box-shadow: var(--material-popup-shadow);
 }
 
-.app-shell[data-ui-theme] .interaction-backdrop,
-.app-shell[data-ui-theme] .remote-access-backdrop,
-.app-shell[data-ui-theme] .settings-backdrop,
-.app-shell[data-ui-theme] .modern-confirm-backdrop,
-.app-shell[data-ui-theme] .node-plugin-manager-backdrop { background: var(--ui-backdrop); }
-.app-shell[data-ui-theme] .interaction-dialog header,
-.app-shell[data-ui-theme] .debug-dialog > header,
-.app-shell[data-ui-theme] .debug-dialog > footer,
-.app-shell[data-ui-theme] .code-editor-modal header,
-.app-shell[data-ui-theme] .history-dialog > header,
-.app-shell[data-ui-theme] .history-toolbar {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .remote-access-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .modern-confirm-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager-backdrop { background: var(--ui-backdrop); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog > header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog > footer,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .code-editor-modal header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-dialog > header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-toolbar {
   border-color: var(--border-soft);
   color: var(--text);
   background: color-mix(in srgb, var(--surface) 92%, var(--surface-raised));
 }
-.app-shell[data-ui-theme] .interaction-dialog__icon { border-color: var(--accent-hover); color: var(--accent-soft); background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.app-shell[data-ui-theme] .interaction-dialog p,
-.app-shell[data-ui-theme] .remote-access-dialog p,
-.app-shell[data-ui-theme] .settings-profile-section dd,
-.app-shell[data-ui-theme] .agent-audit,
-.app-shell[data-ui-theme] .history-dialog > header span,
-.app-shell[data-ui-theme] .history-list span,
-.app-shell[data-ui-theme] .history-list small { color: var(--text-muted); }
-.app-shell[data-ui-theme] .interaction-dialog input,
-.app-shell[data-ui-theme] .interaction-dialog select,
-.app-shell[data-ui-theme] .remote-pin-input,
-.app-shell[data-ui-theme] .code-editor-modal textarea,
-.app-shell[data-ui-theme] .result-actions input {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog__icon { border-color: var(--accent-hover); color: var(--accent-soft); background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog p,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .remote-access-dialog p,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-profile-section dd,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .agent-audit,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-dialog > header span,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-list span,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-list small { color: var(--text-muted); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog select,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .remote-pin-input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .code-editor-modal textarea,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-actions input {
   border-color: var(--border-strong);
   color: var(--text);
   background: var(--surface-overlay);
 }
-.app-shell[data-ui-theme] .interaction-dialog input:focus,
-.app-shell[data-ui-theme] .interaction-dialog select:focus,
-.app-shell[data-ui-theme] .remote-pin-input:focus,
-.app-shell[data-ui-theme] .code-editor-modal textarea:focus,
-.app-shell[data-ui-theme] .result-actions input:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 2px var(--ui-focus-ring); }
-.app-shell[data-ui-theme] .interaction-dialog .button.alert-false,
-.app-shell[data-ui-theme] .modern-confirm-dialog .danger-confirm { border-color: var(--danger); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 82%, var(--surface)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog input:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog select:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .remote-pin-input:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .code-editor-modal textarea:focus,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-actions input:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 2px var(--ui-focus-ring); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog .button.alert-false,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .modern-confirm-dialog .danger-confirm { border-color: var(--danger); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 82%, var(--surface)); }
 
-.app-shell[data-ui-theme] .settings-dialog label,
-.app-shell[data-ui-theme] .settings-profile-section dt,
-.app-shell[data-ui-theme] .settings-summary-list > span { color: var(--text-muted); }
-.app-shell[data-ui-theme] .settings-summary-list strong,
-.app-shell[data-ui-theme] .settings-dialog .settings-section__heading h3 { color: var(--text-highlight); }
-.app-shell[data-ui-theme] .settings-mcp-value,
-.app-shell[data-ui-theme] .mcp-help-dialog,
-.app-shell[data-ui-theme] .settings-help-button,
-.app-shell[data-ui-theme] .settings-copy-button {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog label,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-profile-section dt,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-summary-list > span { color: var(--text-muted); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-summary-list strong,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog .settings-section__heading h3 { color: var(--text-highlight); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-mcp-value,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .mcp-help-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-help-button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-copy-button {
   border-color: var(--border);
   color: var(--text);
   background: var(--surface-raised);
 }
-.app-shell[data-ui-theme] .settings-copy-button:hover,
-.app-shell[data-ui-theme] .settings-help-button:hover { border-color: var(--accent-hover); background: var(--surface-hover); }
-.app-shell[data-ui-theme] .settings-copy-toast { border-color: color-mix(in srgb, var(--success) 48%, var(--border)); color: var(--success-text); background: color-mix(in srgb, var(--success) 12%, var(--surface)); box-shadow: var(--material-popup-shadow); }
-.app-shell[data-ui-theme] .settings-copy-toast.error { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 34%, var(--surface)); }
-.app-shell[data-ui-theme] .settings-dialog label > input[type="range"],
-.app-shell[data-ui-theme] .field--range input { accent-color: var(--accent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-copy-button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-help-button:hover { border-color: var(--accent-hover); background: var(--surface-hover); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-copy-toast { border-color: color-mix(in srgb, var(--success) 48%, var(--border)); color: var(--success-text); background: color-mix(in srgb, var(--success) 12%, var(--surface)); box-shadow: var(--material-popup-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-copy-toast.error { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 34%, var(--surface)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog label > input[type="range"],
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field--range input { accent-color: var(--accent); }
 
-.app-shell[data-ui-theme] .smb-dialog,
-.app-shell[data-ui-theme] .smb-browser,
-.app-shell[data-ui-theme] .smb-file-manager,
-.app-shell[data-ui-theme] .smb-navigation,
-.app-shell[data-ui-theme] .smb-breadcrumbs,
-.app-shell[data-ui-theme] .smb-connection-panel,
-.app-shell[data-ui-theme] .smb-file-list,
-.app-shell[data-ui-theme] .smb-tree__shares {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-browser,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-file-manager,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-navigation,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-breadcrumbs,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-connection-panel,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-file-list,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-tree__shares {
   border-color: var(--border-soft);
   color: var(--text);
   background: var(--surface);
 }
-.app-shell[data-ui-theme] .smb-dialog > header,
-.app-shell[data-ui-theme] .smb-dialog > footer,
-.app-shell[data-ui-theme] .smb-navigation__heading,
-.app-shell[data-ui-theme] .smb-navigation__footer,
-.app-shell[data-ui-theme] .smb-file-list__header { border-color: var(--border-soft); background: var(--surface-deep); }
-.app-shell[data-ui-theme] .smb-file-row { border-color: var(--border-soft); color: var(--text); background: var(--surface-raised); }
-.app-shell[data-ui-theme] .smb-file-row:hover,
-.app-shell[data-ui-theme] .smb-tree__server-button:hover,
-.app-shell[data-ui-theme] .smb-tree__server.active > .smb-tree__server-button { background: var(--surface-hover); }
-.app-shell[data-ui-theme] .smb-connection-form input,
-.app-shell[data-ui-theme] .smb-icon-button { border-color: var(--border); color: var(--text); background: var(--surface-raised); }
-.app-shell[data-ui-theme] .smb-file-row__name,
-.app-shell[data-ui-theme] .smb-tree__server-button { color: var(--text-highlight); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-dialog > header,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-dialog > footer,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-navigation__heading,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-navigation__footer,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-file-list__header { border-color: var(--border-soft); background: var(--surface-deep); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-file-row { border-color: var(--border-soft); color: var(--text); background: var(--surface-raised); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-file-row:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-tree__server-button:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-tree__server.active > .smb-tree__server-button { background: var(--surface-hover); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-connection-form input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-icon-button { border-color: var(--border); color: var(--text); background: var(--surface-raised); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-file-row__name,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-tree__server-button { color: var(--text-highlight); }
 
-.app-shell[data-ui-theme] .result-panel,
-.app-shell[data-ui-theme] .result-detail-modal,
-.app-shell[data-ui-theme] .node-result-inspector,
-.app-shell[data-ui-theme] .print-results,
-.app-shell[data-ui-theme] .debug-dialog {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-panel,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-detail-modal,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-result-inspector,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .print-results,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog {
   border-color: var(--border-soft);
   color: var(--text);
   background: var(--surface);
 }
-.app-shell[data-ui-theme] .print-results article,
-.app-shell[data-ui-theme] .debug-dialog li,
-.app-shell[data-ui-theme] .debug-summary span,
-.app-shell[data-ui-theme] .result-detail-table details { border-color: var(--border-soft); color: var(--text); background: var(--surface-deep); }
-.app-shell[data-ui-theme] .debug-error { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 28%, transparent); }
-.app-shell[data-ui-theme] .debug-dialog li.paused { border-color: color-mix(in srgb, var(--warning) 44%, var(--border)); background: color-mix(in srgb, var(--warning) 8%, var(--surface-deep)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .print-results article,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog li,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-summary span,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-detail-table details { border-color: var(--border-soft); color: var(--text); background: var(--surface-deep); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-error { border-color: color-mix(in srgb, var(--danger) 52%, var(--border)); color: var(--danger-text); background: color-mix(in srgb, var(--danger-deep) 28%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog li.paused { border-color: color-mix(in srgb, var(--warning) 44%, var(--border)); background: color-mix(in srgb, var(--warning) 8%, var(--surface-deep)); }
 
-.app-shell[data-ui-theme] .workflow-node.status-running { border-color: var(--info); box-shadow: 0 0 0 1px color-mix(in srgb, var(--info) 24%, transparent); }
-.app-shell[data-ui-theme] .workflow-node.status-success { border-color: color-mix(in srgb, var(--success) 74%, var(--canvas-node-border)); }
-.app-shell[data-ui-theme] .workflow-node.status-error,
-.app-shell[data-ui-theme] .workflow-node.status-error.selected,
-.app-shell[data-ui-theme] .workflow-structure.status-error { border-color: var(--danger); box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent); }
-.app-shell[data-ui-theme] .node-run-action { border-color: var(--canvas-node-border); color: var(--accent-hover); background: color-mix(in srgb, var(--canvas-node-face) 92%, var(--surface-deep)); box-shadow: var(--material-control-shadow); }
-.app-shell[data-ui-theme] .node-run-action:hover,
-.app-shell[data-ui-theme] .node-run-action:focus-visible { border-color: var(--accent-hover); color: var(--text-bright); background: color-mix(in srgb, var(--accent) 18%, var(--canvas-node-face)); box-shadow: var(--material-control-shadow); }
-.app-shell[data-ui-theme] .workflow-structure > .workflow-node__body,
-.app-shell[data-ui-theme] .workflow-if-zone__end,
-.app-shell[data-ui-theme] .workflow-loop-zone__end { border-color: var(--canvas-node-border); color: var(--canvas-node-label); background: color-mix(in srgb, var(--canvas-node-face) 94%, var(--surface-deep)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-running { border-color: var(--info); box-shadow: 0 0 0 1px color-mix(in srgb, var(--info) 24%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-success { border-color: color-mix(in srgb, var(--success) 74%, var(--canvas-node-border)); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-error,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-error.selected,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-structure.status-error { border-color: var(--danger); box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-run-action { border-color: var(--canvas-node-border); color: var(--accent-hover); background: color-mix(in srgb, var(--canvas-node-face) 92%, var(--surface-deep)); box-shadow: var(--material-control-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-run-action:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-run-action:focus-visible { border-color: var(--accent-hover); color: var(--text-bright); background: color-mix(in srgb, var(--accent) 18%, var(--canvas-node-face)); box-shadow: var(--material-control-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-structure > .workflow-node__body,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-if-zone__end,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-loop-zone__end { border-color: var(--canvas-node-border); color: var(--canvas-node-label); background: color-mix(in srgb, var(--canvas-node-face) 94%, var(--surface-deep)); }
 
 /* Unified Design SDK v1: material + motion. These rules are appearance-only. */
-.workspace-shell[data-ui-theme][data-theme="light"],
-.app-shell[data-ui-theme][data-theme="light"] {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"])[data-theme="light"],
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"])[data-theme="light"] {
   --material-panel-shadow: 0 8px 24px #52677f24, inset 0 1px 0 #ffffffcc;
   --material-card-shadow: 0 3px 12px #52677f1c, inset 0 1px 0 #ffffffdd;
   --material-control-shadow: 0 1px 2px #52677f1c, inset 0 1px 0 #ffffffee;
@@ -364,51 +367,51 @@
   --material-surface-highlight: #ffffffcc;
 }
 
-.workspace-shell[data-ui-theme] .titlebar,
-.app-shell[data-ui-theme] .topbar,
-.app-shell[data-ui-theme] .node-palette,
-.app-shell[data-ui-theme] .inspector,
-.app-shell[data-ui-theme] .app-statusbar,
-.app-shell[data-ui-theme] .result-panel--bottom {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .titlebar,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .topbar,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-palette,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .inspector,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .app-statusbar,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-panel--bottom {
   box-shadow: inset 0 1px 0 var(--material-surface-highlight);
 }
 
-.app-shell[data-ui-theme] .settings-dialog,
-.app-shell[data-ui-theme] .package-manager,
-.app-shell[data-ui-theme] .node-plugin-manager,
-.app-shell[data-ui-theme] .agent-dialog,
-.app-shell[data-ui-theme] .debug-dialog,
-.app-shell[data-ui-theme] .diagnostics-dialog,
-.app-shell[data-ui-theme] .history-dialog,
-.app-shell[data-ui-theme] .smb-dialog,
-.app-shell[data-ui-theme] .remote-access-dialog,
-.app-shell[data-ui-theme] .workspace-choice-dialog,
-.app-shell[data-ui-theme] .modern-confirm-dialog,
-.app-shell[data-ui-theme] .modern-prompt-dialog,
-.app-shell[data-ui-theme] .interaction-dialog {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .agent-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .diagnostics-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .remote-access-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workspace-choice-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .modern-confirm-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .modern-prompt-dialog,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .interaction-dialog {
   box-shadow: var(--material-popup-shadow);
   animation: ui-surface-enter var(--motion-duration-slow) var(--motion-ease-emphasized) both;
 }
 
-.app-shell[data-ui-theme] .settings-dialog__body section,
-.app-shell[data-ui-theme] .node-plugin-manager__stats,
-.app-shell[data-ui-theme] .node-plugin-manager__list > article,
-.app-shell[data-ui-theme] .package-list article,
-.app-shell[data-ui-theme] .result-export-card,
-.app-shell[data-ui-theme] .workspace-choice-card,
-.app-shell[data-ui-theme] .group-resource-card,
-.app-shell[data-ui-theme] .workflow-function-card {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-dialog__body section,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager__stats,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager__list > article,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-list article,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .result-export-card,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workspace-choice-card,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .group-resource-card,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-function-card {
   box-shadow: var(--material-card-shadow);
 }
 
-.workspace-shell[data-ui-theme] button,
-.app-shell[data-ui-theme] button,
-.workspace-shell[data-ui-theme] .themed-select__trigger,
-.app-shell[data-ui-theme] .themed-select__trigger,
-.app-shell[data-ui-theme] .field input,
-.app-shell[data-ui-theme] .field select,
-.app-shell[data-ui-theme] .field textarea,
-.app-shell[data-ui-theme] .node-inline-control {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) button,
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__trigger,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__trigger,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field select,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field textarea,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-inline-control {
   transition:
     color var(--motion-duration-fast) var(--motion-ease-standard),
     background var(--motion-duration-fast) var(--motion-ease-standard),
@@ -418,79 +421,79 @@
     transform var(--motion-duration-fast) var(--motion-ease-standard);
 }
 
-.app-shell[data-ui-theme] .button,
-.app-shell[data-ui-theme] .icon-button,
-.app-shell[data-ui-theme] .canvas-toolbar button,
-.app-shell[data-ui-theme] .settings-action-row button,
-.app-shell[data-ui-theme] .settings-extension-actions button,
-.app-shell[data-ui-theme] .node-plugin-manager button,
-.app-shell[data-ui-theme] .package-manager button {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .icon-button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .canvas-toolbar button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-action-row button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-extension-actions button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager button,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager button {
   box-shadow: var(--material-control-shadow);
 }
 
-.app-shell[data-ui-theme] .button:hover:not(:disabled),
-.app-shell[data-ui-theme] .icon-button:hover:not(:disabled),
-.app-shell[data-ui-theme] .canvas-toolbar button:hover:not(:disabled),
-.app-shell[data-ui-theme] .settings-action-row button:hover:not(:disabled),
-.app-shell[data-ui-theme] .settings-extension-actions button:hover:not(:disabled),
-.app-shell[data-ui-theme] .node-plugin-manager button:hover:not(:disabled),
-.app-shell[data-ui-theme] .package-manager button:hover:not(:disabled) {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .icon-button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .canvas-toolbar button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-action-row button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-extension-actions button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager button:hover:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager button:hover:not(:disabled) {
   transform: translateY(var(--motion-hover-lift));
 }
 
-.app-shell[data-ui-theme] .button:active:not(:disabled),
-.app-shell[data-ui-theme] .icon-button:active:not(:disabled),
-.app-shell[data-ui-theme] .canvas-toolbar button:active:not(:disabled),
-.app-shell[data-ui-theme] .settings-action-row button:active:not(:disabled),
-.app-shell[data-ui-theme] .settings-extension-actions button:active:not(:disabled),
-.app-shell[data-ui-theme] .node-plugin-manager button:active:not(:disabled),
-.app-shell[data-ui-theme] .package-manager button:active:not(:disabled) {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .button:active:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .icon-button:active:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .canvas-toolbar button:active:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-action-row button:active:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-extension-actions button:active:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager button:active:not(:disabled),
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager button:active:not(:disabled) {
   transform: scale(var(--motion-press-scale));
 }
 
-.app-shell[data-ui-theme] .field input,
-.app-shell[data-ui-theme] .field select,
-.app-shell[data-ui-theme] .field textarea,
-.app-shell[data-ui-theme] .node-inline-control,
-.workspace-shell[data-ui-theme] .themed-select__trigger,
-.app-shell[data-ui-theme] .themed-select__trigger {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field input,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field select,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .field textarea,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-inline-control,
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__trigger,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__trigger {
   box-shadow: var(--material-control-shadow);
 }
 
-.workspace-shell[data-ui-theme] .themed-select__menu,
-.app-shell[data-ui-theme] .themed-select__menu,
-.workspace-shell[data-ui-theme] .tab-context-menu,
-.app-shell[data-ui-theme] .statusbar-task-menu {
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .themed-select__menu,
+.workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .tab-context-menu,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .statusbar-task-menu {
   box-shadow: var(--material-popup-shadow);
   backdrop-filter: blur(var(--material-glass-blur));
   animation: ui-popup-enter var(--motion-duration-normal) var(--motion-ease-emphasized) both;
 }
 
-.app-shell[data-ui-theme] .settings-backdrop,
-.app-shell[data-ui-theme] .package-manager-backdrop,
-.app-shell[data-ui-theme] .node-plugin-manager-backdrop,
-.app-shell[data-ui-theme] .debug-backdrop,
-.app-shell[data-ui-theme] .history-backdrop,
-.app-shell[data-ui-theme] .smb-backdrop {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .settings-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .package-manager-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .debug-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .history-backdrop,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .smb-backdrop {
   backdrop-filter: blur(var(--material-overlay-blur));
   animation: ui-backdrop-enter var(--motion-duration-normal) var(--motion-ease-standard) both;
 }
 
-.app-shell[data-ui-theme] .workflow-node:not(.workflow-structure) {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node:not(.workflow-structure) {
   box-shadow: var(--material-node-shadow);
   transition:
     border-color var(--motion-duration-normal) var(--motion-ease-standard),
     background var(--motion-duration-normal) var(--motion-ease-standard),
     box-shadow var(--motion-duration-normal) var(--motion-ease-standard);
 }
-.app-shell[data-ui-theme] .workflow-node:not(.workflow-structure):hover { box-shadow: var(--material-node-hover-shadow); }
-.app-shell[data-ui-theme] .workflow-node:not(.workflow-structure).selected { box-shadow: var(--material-node-selected-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node:not(.workflow-structure):hover { box-shadow: var(--material-node-hover-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node:not(.workflow-structure).selected { box-shadow: var(--material-node-selected-shadow); }
 
-.app-shell[data-ui-theme] .palette-group button[draggable="true"],
-.app-shell[data-ui-theme] .flow-library-item[draggable="true"],
-.app-shell[data-ui-theme] .group-resource-card[draggable="true"],
-.app-shell[data-ui-theme] .node-plugin-manager__list > article,
-.app-shell[data-ui-theme] .workspace-choice-card {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .palette-group button[draggable="true"],
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .flow-library-item[draggable="true"],
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .group-resource-card[draggable="true"],
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager__list > article,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workspace-choice-card {
   transition:
     border-color var(--motion-duration-normal) var(--motion-ease-standard),
     background var(--motion-duration-normal) var(--motion-ease-standard),
@@ -498,8 +501,8 @@
     transform var(--motion-duration-normal) var(--motion-ease-standard),
     opacity var(--motion-duration-fast) var(--motion-ease-standard);
 }
-.app-shell[data-ui-theme] .node-plugin-manager__list > article:hover,
-.app-shell[data-ui-theme] .workspace-choice-card:hover {
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-plugin-manager__list > article:hover,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workspace-choice-card:hover {
   box-shadow: var(--material-panel-shadow);
   transform: translateY(var(--motion-hover-lift));
 }
@@ -515,8 +518,8 @@
 @keyframes ui-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .workspace-shell[data-ui-theme],
-  .app-shell[data-ui-theme] {
+  .workspace-shell[data-ui-theme]:not([data-ui-theme="core.default"]),
+  .app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) {
     --motion-duration-fast: 0ms;
     --motion-duration-normal: 0ms;
     --motion-duration-slow: 0ms;
@@ -527,13 +530,13 @@
 }
 
 /* Material elevation is shared by every canvas appearance, including dynamic/structure nodes. */
-.app-shell[data-ui-theme] .workflow-structure:not(.workflow-if-zone):not(.workflow-loop-zone) { box-shadow: var(--material-panel-shadow); }
-.app-shell[data-ui-theme] .workflow-structure > .workflow-node__body,
-.app-shell[data-ui-theme] .workflow-if-zone__end,
-.app-shell[data-ui-theme] .workflow-loop-zone__end,
-.app-shell[data-ui-theme] .node-insight,
-.app-shell[data-ui-theme] .react-flow__controls,
-.app-shell[data-ui-theme] .react-flow__minimap { box-shadow: var(--material-card-shadow); }
-.app-shell[data-ui-theme] .workflow-node.status-running:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--info) 24%, transparent), var(--material-node-shadow); }
-.app-shell[data-ui-theme] .workflow-node.status-error:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent), var(--material-node-shadow); }
-.app-shell[data-ui-theme] .workflow-node.status-error.selected:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 36%, transparent), var(--material-node-selected-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-structure:not(.workflow-if-zone):not(.workflow-loop-zone) { box-shadow: var(--material-panel-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-structure > .workflow-node__body,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-if-zone__end,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-loop-zone__end,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .node-insight,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .react-flow__controls,
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .react-flow__minimap { box-shadow: var(--material-card-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-running:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--info) 24%, transparent), var(--material-node-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-error:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 24%, transparent), var(--material-node-shadow); }
+.app-shell[data-ui-theme]:not([data-ui-theme="core.default"]) .workflow-node.status-error.selected:not(.workflow-structure) { box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 36%, transparent), var(--material-node-selected-shadow); }

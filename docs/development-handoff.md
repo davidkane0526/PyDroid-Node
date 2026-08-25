@@ -1,9 +1,9 @@
-# Current development handoff — 1.6.38 SDK & Repository Cleanup
+# Current development handoff — 1.6.39 Core Default Visual Compatibility Restore
 
 Branch: `feature/sdk-repository-cleanup`
-Version: **1.6.38**
+Version: **1.6.39**
 Android versionCode: **178**
-Build revision: `1.6.38-dev-r133-sdk-repository-cleanup`
+Build revision: `1.6.39-dev-r134-visual-compatibility-restore`
 
 ## Current phase
 
@@ -35,6 +35,15 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 
 
 
+
+
+## 1.6.39 visual compatibility correction
+
+- `core.default` is now a protected visual compatibility baseline. The application keeps the accepted pre-Design-SDK button, dialog, node, Canvas and interaction effects by default.
+- `src/styles/theme-contract.css` remains the Theme/Material/Motion mapping layer but explicitly excludes `core.default`; it activates only for an installed non-default theme.
+- Plugin SDK v4, Theme SDK v2, Design SDK v1, the root `sdk/` layout, plugin host split and dynamic-node layout engine remain unchanged.
+- Dynamic-node anti-overlap/ellipsis and endpoint-aware geometry remain active; this release restores appearance, not architecture.
+- Revalidated in 1.6.39: Visual Baseline, UI regression, Canvas 22/22, Node Layout, Theme/Design/Plugin SDK gates, Demo 38/38, Runtime parity 134/134 with JS NodeContract 96/96, Python 188 passed / 1 skipped.
 
 ## 1.6.38 SDK and repository cleanup
 
@@ -100,7 +109,7 @@ This ZIP intentionally has no `node_modules`, and the current cloud shell is not
 
 ## Release-validation next step
 
-For **1.6.38 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
+For **1.6.39 Release Validation**, run the full pinned Node 24 / pnpm 11.21 build matrix:
 
 1. `pnpm check` including TypeScript/Vitest, Python, Runtime parity, NodeContract, Workflow compatibility, Plugin/SDK, MCP, Remote/LAN and architecture gates.
 2. Windows Desktop package build.

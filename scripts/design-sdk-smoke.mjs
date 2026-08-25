@@ -22,10 +22,12 @@ assert.match(theme, /Object\.entries\(material\)/, "Theme CSS variable resolver 
 assert.match(theme, /Object\.entries\(motion\)/, "Theme CSS variable resolver must include motion");
 assert.match(publicSdk, /export \* from "\.\/design"/, "Plugin SDK must export the unified Design SDK");
 assert.match(contract, /var\(--material-popup-shadow\)/, "Dialogs/popups must consume shared material elevation");
-assert.match(contract, /var\(--material-node-shadow\)/, "Nodes must consume shared material elevation");
-assert.match(contract, /var\(--motion-duration-normal\)/, "Core controls must consume shared motion timing");
+assert.match(contract, /var\(--material-node-shadow\)/, "Installed themes must be able to consume shared node material elevation");
+assert.match(contract, /var\(--motion-duration-normal\)/, "Installed themes must be able to consume shared motion timing");
+assert.match(contract, /data-ui-theme="core\.default"/, "Design overlay must explicitly exclude core.default");
+assert.doesNotMatch(styles, /var\(--material-|var\(--motion-/, "Core default component styling must not be rewritten through Design SDK tokens");
 assert.match(contract, /@media \(prefers-reduced-motion: reduce\)/, "Motion contract must respect reduced motion");
 for (const forbidden of ["ui-control-height", "node-width", "node-min-height", "node-scale", "endpoint-scale", "font-size", "padding", "gap"]) {
   assert.ok(!sdk.includes(`\"${forbidden}\"`), `Design SDK must not expose Core geometry token ${forbidden}`);
 }
-console.log("Unified Design SDK smoke: PASS (material, motion, Core geometry isolation, reduced-motion contract)");
+console.log("Unified Design SDK smoke: PASS (opt-in material/motion overlay, core.default compatibility, geometry isolation, reduced-motion contract)");

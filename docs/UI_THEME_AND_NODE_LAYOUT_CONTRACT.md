@@ -51,7 +51,7 @@ A theme plugin **cannot** provide:
 - endpoint size
 - port row spacing or socket-control geometry
 
-`src/styles/theme-contract.css` is loaded last and is appearance-only. It maps semantic color, material and motion tokens onto the product's shared UI surfaces. Legacy component styles may still contain default material values, but the final visual contract overrides their appearance through the semantic token layer.
+`src/styles/theme-contract.css` is loaded last and is appearance-only. It maps semantic color, material and motion tokens onto shared UI surfaces only for non-default installed themes. `core.default` deliberately bypasses this overlay and keeps the accepted legacy product appearance/effects.
 
 ## Theme lifecycle
 

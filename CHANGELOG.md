@@ -1,3 +1,11 @@
+## 1.6.39 (179) — Core Default Visual Compatibility Restore — 2026-08-25
+
+- Restored the accepted pre-Design-SDK Core appearance and interaction effects as the `core.default` visual baseline. Buttons, dialogs, Canvas/Soft node materials, hover/selection states, plugin manager surfaces and legacy enter/drag transitions no longer inherit new material/motion defaults.
+- Kept Plugin SDK v4, UI Theme SDK v2 and Unified Design SDK v1. Theme/material/motion overrides are now opt-in and apply only when a non-default installed UI theme is selected.
+- Preserved the 1.6.36 dynamic-node geometry/anti-overlap fixes and semantic group-node class; this is a visual compatibility correction, not a rollback of node layout or SDK architecture.
+- Added `core-default-visual-baseline-smoke.mjs` so future SDK/theme work cannot silently restyle `core.default`.
+- Build revision: `1.6.39-dev-r134-visual-compatibility-restore`.
+
 ## 1.6.38 (178) — SDK & Repository Cleanup — 2026-08-25
 
 - Promoted `sdk/` to the single public plugin-development surface (Plugin SDK v4): NodeSpec, package/archive/resource, Theme and Design contracts now have explicit ownership outside application implementation.
