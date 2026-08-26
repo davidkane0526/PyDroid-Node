@@ -1,21 +1,28 @@
-# Current progress — 1.6.49 Node Density & Transient UI
+# Current progress — 1.6.50 Simple Node Vertical Rhythm
 
 Date: 2026-08-26
 
-- 1.6.49 node geometry: complex side-rail cards reduce the measured center safety gap to 10 px; simple horizontal cards gain another 8 px of base height. Canvas blank-click dismisses transient node UI through one Core event contract.
+- 1.6.50 simple-node geometry: minimum height is content-driven and also guarantees right-side output endpoints stay clear of the top-right run control; type/title/meta spacing expands and stays vertically centered.
+- 1.6.49 complex side-rail density and canvas blank-click transient-UI dismissal remain unchanged.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.49**, Android versionCode **189**.
-- Build revision: `1.6.49-dev-r144-node-density-transient-ui`.
+- Product version: **1.6.50**, Android versionCode **190**.
+- Build revision: `1.6.50-dev-r145-simple-node-vertical-rhythm`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 
+
+## 1.6.50 simple-node vertical rhythm
+
+- Simple horizontal cards are taller by content contract rather than arbitrary padding. One-line content starts at 84 px; long mixed CJK/Latin titles gain a full second title row and currently measure about 110 px.
+- Multi-output simple nodes also grow enough to keep the first right-side handle below the run-control safety zone, including endpoint/node scaling.
+- Type/title/meta are explicitly centered and use a shared 5 px text gap with expanded line-height so the visual rhythm grows with card height.
 
 ## 1.6.49 node density and transient UI
 

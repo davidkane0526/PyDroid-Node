@@ -1,3 +1,11 @@
+## 1.6.50 (190) — Simple Node Vertical Rhythm — 2026-08-26
+
+- Simple horizontal nodes now use a larger content-driven vertical baseline: one-line cards reserve at least 84 px and mixed CJK/Latin two-line titles reserve about 110 px at nodeScale 1.0.
+- Simple-node minimum height now includes an explicit run-control/output-endpoint clearance constraint. The first right-side output handle cannot overlap the 20 px top-right run control, including multi-output cards, endpointScale > 1 and nodeScale < 1.
+- The simple-node body consumes the measured inner height with centered placement and a shared 5 px text rhythm; type, title and metadata are explicitly centered with expanded line-height instead of remaining visually compressed inside a taller shell.
+- Added Node Layout regression gates for baseline simple height, long-title breathing room, run-button/endpoint clearance under normal and scaled geometry, and centered text spacing. Complex dynamic-node geometry and the accepted Android build path are unchanged.
+- Build revision: `1.6.50-dev-r145-simple-node-vertical-rhythm`.
+
 ## 1.6.49 (189) — Node Density & Transient UI — 2026-08-26
 
 - Complex horizontal dynamic nodes reduce the measured input/output Rail safety gap from 18 px to 10 px, removing more unused lateral whitespace without changing port/control columns.

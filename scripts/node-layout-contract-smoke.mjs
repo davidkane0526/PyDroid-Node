@@ -63,7 +63,21 @@ try {
 
 
   const compactExportLong = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "导出 TER 长表", inputPorts: [{ id: "input", label: "表格", valueType: "table" }], outputPorts: [{ id: "output", label: "CSV", valueType: "csv" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
-  if (compactExportLong.nodeMinHeight < 92) throw new Error("long simple node title did not receive enough vertical breathing room");
+  if (compactExportLong.nodeMinHeight < 108) throw new Error("long simple node title did not receive the expanded centered text rhythm");
+
+  const compactSimple = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "简单节点", inputPorts: [{ id: "input", label: "输入", valueType: "any" }], outputPorts: [{ id: "output", label: "输出", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
+  if (compactSimple.nodeMinHeight < 84) throw new Error("simple horizontal node lost its baseline vertical breathing room");
+
+  const compactTwoOutputs = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "双输出节点", inputPorts: [{ id: "input", label: "输入", valueType: "any" }], outputPorts: [{ id: "left", label: "输出 A", valueType: "any" }, { id: "right", label: "输出 B", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
+  const firstSimpleOutputCenter = compactTwoOutputs.nodeMinHeight / 3;
+  const runButtonBottom = 25;
+  const endpointRadius = 8;
+  if (firstSimpleOutputCenter - endpointRadius < runButtonBottom + 6) throw new Error("simple node run control can still overlap the first output endpoint");
+
+  const compactScaledOutputs = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "缩放输出节点", inputPorts: [], outputPorts: [{ id: "a", label: "A", valueType: "any" }, { id: "b", label: "B", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 0.75, endpointScale: 1.8 });
+  const firstScaledOutputCenter = compactScaledOutputs.nodeMinHeight / 3;
+  const scaledEndpointRadius = 8 * 1.8;
+  if (firstScaledOutputCenter - scaledEndpointRadius < runButtonBottom + 6) throw new Error("scaled simple node can still overlap its run control and first output endpoint");
 
   const staticVertical = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "Static", inputPorts: [{ id: "input", label: "Input", valueType: "any" }], outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (staticVertical.dynamic || staticVertical.direction !== "vertical" || staticVertical.verticalFormLayout) throw new Error("static node layout was unnecessarily overridden");
@@ -119,6 +133,8 @@ try {
   if (!cssSource.includes('top: var(--side-form-top')) throw new Error("horizontal inline form still uses a hard-coded top offset");
   if (!cssSource.includes('.workflow-node--side-rail.direction-horizontal {\n  min-height: var(--node-min-height')) throw new Error("horizontal side-rail card does not directly preserve measured height");
   if (!cssSource.includes('direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__body')) throw new Error("simple horizontal body does not consume measured card height");
+  if (!cssSource.includes('place-content: center;') || !cssSource.includes('gap: calc(5px * var(--node-scale, 1));')) throw new Error("simple horizontal text stack is not vertically centered with expanded line rhythm");
+  if (!cssSource.includes('.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__meta { line-height: 1.25; }')) throw new Error("simple horizontal metadata lost its centered readable line height");
   if (!cssSource.includes('grid-template-columns: minmax(0, var(--input-port-label-width')) throw new Error("horizontal side-form rows do not share the socket label/control columns");
   if (!cssSource.includes('left: calc(30px * var(--node-scale, 1));') || !cssSource.includes('transform: none;')) throw new Error("horizontal dynamic header is not centered against the full card");
   if (!catalogSource.includes('inlineParameterLabels: { aggregate: "聚合" }') || !catalogSource.includes('inlineParameterLabels: { colorMap: "配色" }')) throw new Error("pivot/heatmap inline controls lost their concise form labels");

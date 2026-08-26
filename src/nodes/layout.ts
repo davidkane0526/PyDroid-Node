@@ -144,11 +144,23 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   // than the lightweight width estimate suggests. Reserve the second line intentionally
   // instead of letting type/title/meta collapse vertically at runtime.
   const simpleTitleLines = sideRailLayout ? 1 : Math.max(labelUnits > 10 ? 2 : 1, measuredSimpleTitleLines);
-  // Simple horizontal cards use real content height. A two-line title must gain vertical
-  // room instead of squeezing type/title/meta into the same 62 px shell.
-  const longSimpleTitleExtra = !sideRailLayout && labelUnits > 10 ? 4 : 0;
-  const simpleHorizontalContentHeight = 72 + longSimpleTitleExtra + (simpleTitleLines - 1) * 18 + inlineRows * 27;
-  const contentHeight = sideRailLayout ? 62 : simpleHorizontalContentHeight;
+  // Simple horizontal cards use real content height. Their vertical rhythm must account for
+  // type/title/meta spacing instead of only stretching the outer shell. Long titles gain a
+  // full extra text row, while every simple card keeps enough baseline breathing room.
+  const longSimpleTitleExtra = !sideRailLayout && labelUnits > 10 ? 6 : 0;
+  const simpleHorizontalContentHeight = 84 + longSimpleTitleExtra + (simpleTitleLines - 1) * 20 + inlineRows * 29;
+
+  // The top-right run control shares the right edge with output handles. For static/simple
+  // horizontal cards, reserve enough vertical distance so the first output endpoint can never
+  // overlap the 20 px run button, even with endpointScale > 1 or nodeScale < 1. Port positions
+  // for these cards are percentage-distributed, so the first output center is H/(count + 1).
+  const runButtonBottom = 25; // CSS: top 5 px + 20 px control height
+  const runEndpointGap = 6;
+  const endpointRadius = 8 * input.endpointScale;
+  const simpleOutputClearanceHeight = !sideRailLayout && direction === "horizontal" && outputPorts.length
+    ? ((runButtonBottom + runEndpointGap + endpointRadius) * (outputPorts.length + 1)) / Math.max(0.01, input.nodeScale)
+    : 0;
+  const contentHeight = sideRailLayout ? 62 : Math.max(simpleHorizontalContentHeight, simpleOutputClearanceHeight);
   const verticalFormRows = socketRows + inlineRows;
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29

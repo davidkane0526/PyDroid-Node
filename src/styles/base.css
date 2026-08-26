@@ -451,10 +451,24 @@ button, input, select, textarea { font: inherit; }
    the outer shell, so extra height becomes balanced top/bottom breathing room instead of
    unused space below the text stack. */
 .workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__body {
-  min-height: calc(var(--node-min-height, calc(62px * var(--node-scale, 1))) - 12px * var(--node-scale, 1));
-  padding-block: calc(3px * var(--node-scale, 1));
-  align-content: center;
+  min-height: calc(var(--node-min-height, calc(84px * var(--node-scale, 1))) - 12px * var(--node-scale, 1));
+  padding-block: calc(5px * var(--node-scale, 1));
+  place-content: center;
+  justify-items: center;
+  gap: calc(5px * var(--node-scale, 1));
+  text-align: center;
 }
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__type,
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__label,
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__meta {
+  width: 100%;
+  margin-block: 0;
+  justify-self: center;
+  text-align: center;
+}
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__type { line-height: 1.22; }
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__label { line-height: 1.28; }
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__meta { line-height: 1.25; }
 .input-port, .output-port { position: absolute; transform: translateY(-50%); pointer-events: none; }
 .input-port { left: 0; }
 .output-port { right: 0; }

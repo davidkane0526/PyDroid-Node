@@ -143,7 +143,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.49-dev-r144-node-density-transient-ui"
+$script:BuildScriptRevision = "1.6.50-dev-r145-simple-node-vertical-rhythm"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.49 (189) · Node Density & Transient UI**。本版继续沿用已验证可编译的 Android Gradle JVM 对齐路径，并进一步收敛节点二维密度：复杂横向节点将中央安全间隙降至 10 px，简单横向节点增加基础高度；同时建立 Core 级 transient-UI 收起契约，点击画布空白处会自动关闭节点内下拉框等临时展开界面。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.50 (190) · Simple Node Vertical Rhythm**。本版继续沿用已验证可编译的 Android Gradle JVM 对齐路径，并进一步规范简单横向节点：节点高度同时满足标题/描述呼吸空间与右上运行按钮—输出端点安全间距，文字栈随节点增高同步扩大行距并保持真正居中。1.6.49 的复杂节点密度与画布点击自动收起临时 UI 契约保持不变。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,8 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.49 Node Density & Transient UI（当前分支）**：复杂动态节点将输入/输出 Rail 之间的安全间隙收窄到 10 px；简单节点基础内容高度增加 8 px。节点内 ThemedSelect 接入统一 transient-UI 契约，点击画布空白处自动收起。
+- **1.6.50 Simple Node Vertical Rhythm（当前分支）**：简单横向节点按内容与运行按钮/输出端点安全间距共同测量高度；类型、标题、描述使用扩大的统一行距并在卡片内部真正垂直居中。
+- **1.6.49 Node Density & Transient UI**：复杂动态节点将输入/输出 Rail 之间的安全间隙收窄到 10 px；节点内 ThemedSelect 接入统一 transient-UI 契约，点击画布空白处自动收起。
 - **1.6.47 Node Control Polish**：节点下拉菜单、数字微调器与端点语义色统一到 Core 控件；该版本的固定 Windows/Android 构建路径已由用户确认可以编译。
 - **1.6.44 Android Single-JVM Build（历史构建路径）**：Android `assembleDebug` 固定单 JVM `--no-daemon`；Gradle wrapper heap 固定为 1536 MB，`gradle.properties` 禁止 daemon 且不再声明 `org.gradle.jvmargs`，避免 Windows 在构建阶段额外创建第二个 `java.exe`。Gradle build cache 与增量输出仍保留。
 - **1.6.43 Node Layout Balance**：复杂横向节点以左右 Rail + 必要中央间隙决定宽度，不再为标题重复预留整块中央区域；标题/描述跨整卡居中；内联参数与 Socket 默认值共用标签/控件栅格；`table.pivot` 与 `plot.heatmap` 显式显示“聚合/配色”；运行按钮进一步轻量化。
