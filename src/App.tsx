@@ -75,6 +75,7 @@ import { declarativeUiValues, declarativeUiVisible, resolveDeclarativeParameter 
 import { NodePluginManager, getNodePluginIconDataUrl } from "./plugins/PluginManager";
 import { nodeDisplayName } from "./plugins/displayNames";
 import { NumericInput } from "./NumericInput";
+import { ThemedSelect } from "./ThemedSelect";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -435,7 +436,17 @@ function InlineNodeControl({
     return <label className={`node-inline-control node-inline-control--boolean nodrag nopan ${className}`} title={spec.label} onPointerDown={stop}><input type="checkbox" checked={Boolean(value)} disabled={Boolean(spec.disabled || spec.readOnly)} onChange={(event) => onChange(event.target.checked)} /><span>{Boolean(value) ? "True" : "False"}</span></label>;
   }
   if (spec.kind === "select") {
-    return <select className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} value={String(value ?? "")} disabled={Boolean(spec.disabled || spec.readOnly)} onPointerDown={stop} onClick={stop} onChange={(event) => { const option = spec.options?.find((item) => String(item.value) === event.target.value); onChange(option?.value ?? event.target.value); }}>{spec.options?.map((option) => <option key={String(option.value)} value={String(option.value)}>{option.label}</option>)}</select>;
+    const options = spec.options ?? [];
+    const selected = options.find((option) => option.value === value) ?? options.find((option) => String(option.value) === String(value ?? "")) ?? options[0];
+    return <ThemedSelect
+      ariaLabel={spec.label}
+      value={selected?.value ?? String(value ?? "")}
+      options={options}
+      disabled={Boolean(spec.disabled || spec.readOnly)}
+      className={`themed-select--node nodrag nopan ${className}`}
+      stopPropagation
+      onChange={(next) => onChange(next)}
+    />;
   }
   if (spec.kind === "number") {
     return <NumericInput label={spec.label} value={value as string | number | null | undefined} min={spec.min} max={spec.max} step={spec.step} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} className={`numeric-input--node nodrag nopan ${className}`} inputClassName="node-inline-control node-inline-control--number" stopPropagation onChange={onChange} />;

@@ -112,8 +112,8 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   // The header spans the whole card; width is therefore driven by the two rails plus a modest breathing gap,
   // with the title only acting as a minimum-width floor.
   const dynamicHeaderWidth = Math.min(310, Math.max(176, 58 + labelUnits * 8.2));
-  const dynamicRailWidth = inputRailWidth + outputRailWidth + 82;
-  const dynamicHorizontalWidth = Math.min(430, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 230 : 208));
+  const dynamicRailWidth = inputRailWidth + outputRailWidth + 42;
+  const dynamicHorizontalWidth = Math.min(390, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 224 : 198));
   const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
   const baseWidth = direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
@@ -123,17 +123,21 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const inlineRows = inlineParameters.length ? (input.inlineLayout === "row" ? 1 : inlineParameters.length) : 0;
   const sideInlineRows = sideRailLayout ? inlineParameters.length : 0;
   const socketRows = inputDefaultSpecs.length;
-  const basePortRowHeight = dynamic ? 30 : 28;
+  const basePortRowHeight = dynamic ? 31 : 28;
   const minimumHandleRowHeight = Math.ceil((16 * input.endpointScale + 6) / Math.max(0.01, input.nodeScale));
   const portRowHeight = Math.max(basePortRowHeight, minimumHandleRowHeight);
-  const sideHeaderReserve = sideRailLayout ? 40 : 0;
+  const sideHeaderReserve = sideRailLayout ? 36 : 0;
   const sideRailRows = sideRailLayout ? Math.max(outputPorts.length, inputPorts.length + sideInlineRows) : maxPortCount;
   const railHeight = sideRailRows
     ? sideRailLayout
-      ? sideHeaderReserve + sideRailRows * portRowHeight + 10
+      ? sideHeaderReserve + sideRailRows * portRowHeight + 8
       : 34 + sideRailRows * portRowHeight
     : 0;
-  const contentHeight = 62 + (sideRailLayout ? 0 : inlineRows * 27);
+  const simpleTitleWidth = Math.max(86, compactBodyWidth - 18);
+  const estimatedTitleWidth = Math.max(0, labelUnits * 8.4);
+  const simpleTitleLines = sideRailLayout ? 1 : Math.max(1, Math.min(3, Math.ceil(estimatedTitleWidth / simpleTitleWidth)));
+  const longSimpleTitleExtra = !sideRailLayout && labelUnits > 10 ? 12 : 0;
+  const contentHeight = 62 + (sideRailLayout ? 0 : longSimpleTitleExtra + (simpleTitleLines - 1) * 15 + inlineRows * 27);
   const verticalFormRows = socketRows + inlineRows;
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29

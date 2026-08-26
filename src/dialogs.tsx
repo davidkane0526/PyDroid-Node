@@ -9,33 +9,13 @@ import type { AutomatedDiagnosticReport } from "./diagnostics/automated-debug";
 import { CANVAS_THEMES, type CanvasThemeId } from "./canvas-theme";
 import type { McpServerInfo } from "./platform";
 import type { UiThemeDefinition } from "../sdk/theme";
+import { ThemedSelect } from "./ThemedSelect";
 
 export type HistoryEntry = { id: number; at: Date; summary: string };
 export type ResultDetail = { title: string; text: string; preview?: TablePreview };
 export type ReplacementCandidate = { nodeType: string; label: string; inputPorts: { valueType: string }[]; outputPorts: { valueType: string }[] };
 export type ExecutionErrorView = { title: string; nodeType?: string; nodeId?: string; message: string; traceback?: string | null };
 
-
-type ThemedSelectOption = { value: string; label: string };
-
-function ThemedSelect({ value, options, onChange, ariaLabel }: { value: string; options: ThemedSelectOption[]; onChange: (value: string) => void; ariaLabel: string }) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const selected = options.find((option) => option.value === value) ?? options[0];
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: PointerEvent) => {
-      if (rootRef.current?.contains(event.target as Node)) return;
-      setOpen(false);
-    };
-    window.addEventListener("pointerdown", close);
-    return () => window.removeEventListener("pointerdown", close);
-  }, [open]);
-  return <div className={`themed-select ${open ? "open" : ""}`} ref={rootRef}>
-    <button type="button" className="themed-select__trigger" role="combobox" aria-label={ariaLabel} aria-expanded={open} aria-haspopup="listbox" onClick={() => setOpen((current) => !current)}><span>{selected?.label ?? value}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg></button>
-    {open && <div className="themed-select__menu" role="listbox" aria-label={ariaLabel}>{options.map((option) => <button type="button" role="option" aria-selected={option.value === value} className={option.value === value ? "selected" : ""} key={option.value} onClick={() => { onChange(option.value); setOpen(false); }}><span>{option.label}</span>{option.value === value && <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m5 10 3 3 7-7" /></svg>}</button>)}</div>}
-  </div>;
-}
 
 export function ConfirmDialog({ open, title, message, confirmLabel = "确定", cancelLabel = "取消", danger = false, onConfirm, onCancel }: { open: boolean; title: string; message: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean; onConfirm: () => void; onCancel: () => void }) {
   if (!open) return null;

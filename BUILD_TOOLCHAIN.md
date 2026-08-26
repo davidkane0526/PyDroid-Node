@@ -1,6 +1,6 @@
 # PyDroid Node build toolchain
 
-Current build revision: **1.6.46-dev-r141-gradle-client-jvm-alignment** (2026-08-26). Tool discovery remains deterministic/read-only. Android `--no-daemon` now aligns wrapper client/build JVM immutable options and disables the Gradle instrumentation agent to prevent a single-use daemon fork.
+Current build revision: **1.6.47-dev-r142-node-control-polish** (2026-08-26). Tool discovery and the 1.6.46 Gradle client/build JVM alignment remain unchanged; this release only refines node controls, compact geometry and semantic port-label styling.
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 提供路径发现、版本验证、网络和清理辅助函数。
 

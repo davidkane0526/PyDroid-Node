@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.46 (186) · Gradle Client JVM Alignment**。本版保留 1.6.45 节点表单密度修复，并针对用户实机构建日志中 `--no-daemon` 仍派生 single-use daemon 的问题，对齐 Gradle client/build JVM 的不可变参数并关闭 instrumentation agent；目标是让 Android Gradle 构建直接运行在 wrapper client JVM 中，不再创建第二个 `java.exe`。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.47 (187) · Node Control Polish**。本版在保留 1.6.46 Gradle client/build JVM 对齐修复的同时，统一节点内下拉菜单、数字步进器、复杂节点密度与端口语义色：节点不再使用浏览器原生 select/spinner，复杂横向节点进一步按 Rail 收紧，长标题简单节点自动增加高度，端点文字直接继承端点类型色。Android Gradle single-use daemon 修复仍需用户固定 Windows/JDK 21 环境最终验证。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript

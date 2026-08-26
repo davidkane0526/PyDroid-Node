@@ -1,13 +1,13 @@
-# Current development handoff — 1.6.46 Gradle Client JVM Alignment
+# Current development handoff — 1.6.47 Node Control Polish
 
-Branch: `feature/android-client-jvm-alignment`
-Version: **1.6.46**
-Android versionCode: **186**
-Build revision: `1.6.46-dev-r141-gradle-client-jvm-alignment`
+Branch: `feature/node-control-polish`
+Version: **1.6.47**
+Android versionCode: **187**
+Build revision: `1.6.47-dev-r142-node-control-polish`
 
-- 1.6.46 Android build: wrapper client JVM and Gradle build JVM immutable arguments are aligned and the instrumentation agent is disabled so `--no-daemon` can execute without spawning a single-use daemon.
-- 1.6.45 node UI remains unchanged: horizontal dynamic cards share a single form-control width and append inline parameters after input rows.
-- Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
+- 1.6.47 node controls: canvas selects use the shared in-app `ThemedSelect`; numeric steppers are symbol-only; complex horizontal cards use a tighter Rail gap; long-title simple nodes get extra height; port labels inherit the same semantic color as their handles.
+- 1.6.46 Android build alignment is retained unchanged: wrapper client JVM and Gradle build JVM immutable arguments are aligned and the instrumentation agent is disabled.
+- Android formal build remains open until the user reruns the pinned Windows/JDK 21 build and confirms Gradle no longer forks a single-use daemon.
 
 ## Current phase
 
@@ -32,9 +32,19 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.46: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.44: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.44: **38/38**.
+- Runtime parity revalidated in 1.6.47: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.47: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.47: **38/38**.
+
+
+## 1.6.47 node control polish
+
+- Canvas-node select parameters now use Core `ThemedSelect`; native browser popup styling is no longer part of the node UI.
+- Core `NumericInput` uses plain compact chevrons without boxed spinner chrome or separators.
+- Horizontal dynamic-node width is more tightly Rail-driven, while long-title simple nodes gain measured vertical breathing room.
+- Port label text inherits the same `--port-color` as the endpoint handle in both light and dark modes.
+- Node Layout/UI/Canvas/Theme/Design/Plugin/SDK regressions, Demo 38/38, Runtime parity 134/134, JS NodeContract 96/96 and Python 188 passed / 1 skipped are green.
+- 1.6.46 Gradle client-JVM alignment remains intact and still requires the user's pinned Windows/JDK 21 build for final acceptance.
 
 
 

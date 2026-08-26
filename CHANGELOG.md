@@ -1,3 +1,14 @@
+## 1.6.47 (187) — Node Control Polish — 2026-08-26
+
+- Replaced native browser `<select>` inside canvas nodes with the shared Core `ThemedSelect`, so dropdown menus use the same compact material, hover/selected treatment and light/dark visual contract as the rest of the application.
+- Simplified Core `NumericInput` steppers to symbol-only chevrons: no boxed inner chrome, no horizontal divider and no hover fill; node and Inspector numeric controls still share one implementation.
+- Tightened horizontal dynamic-node width measurement by reducing the fixed center breathing gap while preserving measured input/output Rail widths and form containment.
+- Long-label simple nodes receive additional measured height instead of compressing multi-line titles and metadata into the old minimum.
+- Port labels now inherit the exact `--port-color` used by their React Flow handles, keeping table/number/plot/CSV/any endpoint dots and text semantically consistent in light and dark modes.
+- Added regression gates for in-app node dropdowns, minimalist numeric steppers, semantic port-label color inheritance, compact dynamic width and long-title height. Runtime semantics and the 1.6.46 Android Gradle client-JVM alignment are unchanged.
+- Revalidated Demo **38/38**, Runtime parity **134/134**, JavaScript-capable NodeContract **96/96**, Python **188 passed / 1 skipped**, Node Layout/UI/Canvas/Plugin/Theme/Design/SDK gates.
+- Build revision: `1.6.47-dev-r142-node-control-polish`.
+
 ## 1.6.46 (186) — Gradle Client JVM Alignment — 2026-08-26
 
 - Fixed the remaining Android `--no-daemon` release-validation failure where Gradle still printed `To honour the JVM settings ... a single-use Daemon process will be forked` and Windows rejected the second `java.exe` with `CreateProcess error=5`.

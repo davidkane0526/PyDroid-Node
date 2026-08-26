@@ -451,8 +451,8 @@ button, input, select, textarea { font: inherit; }
 .output-port { right: 0; }
 .input-port .react-flow__handle, .output-port .react-flow__handle { pointer-events: all; }
 .input-port .node-port-label, .output-port .node-port-label { position: absolute; top: 50%; display: grid; width: var(--port-label-width, 42px); transform: translateY(-50%); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-xs); line-height: 1.15; }
-.input-port .node-port-label { left: 11px; color: var(--accent-soft); text-align: left; }
-.output-port .node-port-label { right: 11px; color: #a7f3d0; text-align: right; }
+.input-port .node-port-label { left: 11px; color: var(--port-color, var(--accent-soft)); text-align: left; }
+.output-port .node-port-label { right: 11px; color: var(--port-color, #34d399); text-align: right; }
 .input-port .node-port-label small, .output-port .node-port-label small { opacity: .65; font-size: 9px; }
 .workflow-node.selected { border-color: var(--accent-hover); box-shadow: 0 0 0 2px #2563eb55; }
 .node-selection-check{ position: absolute; z-index: 8; top: -11px; display: grid; width: 25px; height: 25px; padding: 0; place-items: center; border: 2px solid var(--text-muted); border-radius: 7px; color: #fff; background: var(--surface-deep); box-shadow: 0 4px 12px #0008; font-size: 14px; font-weight: 800; }
@@ -756,7 +756,7 @@ button, input, select, textarea { font: inherit; }
 .app-shell[data-theme="light"] .remote-access-dialog { border-color: #cbd5e1; color: #172554; background: #fff; }.app-shell[data-theme="light"] .remote-access-dialog p { color: #52677f; }.app-shell[data-theme="light"] .remote-pin-input { border-color: #60a5fa; color: #172554; background: #f8fafc; }
 .app-shell[data-theme="light"] .error-detail-dialog details pre { color: #fee2e2; background: #172033; }.app-shell[data-theme="light"] .error-detail-dialog > div button { color: #fff; background: #b91c1c; }.error-detail-dialog > div button:active, .data-grid__actions button:active { transform: translateY(1px) scale(.97); filter: brightness(.9); }
 .workflow-node.status-error, .workflow-node.status-error.selected, .workflow-structure.status-error { border: 3px solid #ef4444 !important; box-shadow: 0 0 0 4px #ef444444, 0 8px 24px #ef444466 !important; }
-.input-port .node-port-label, .output-port .node-port-label { font-size: calc(10.5px * var(--node-scale, 1)); font-weight: 650; }.input-port .node-port-label small, .output-port .node-port-label small { margin-top: 1px; font-size: calc(8.75px * var(--node-scale, 1)); opacity: .86; }.output-port .node-port-label { color: #34d399; font-weight: 650; }.workflow-node.direction-vertical .input-port .node-port-label, .workflow-node.direction-vertical .output-port .node-port-label { font-size: calc(11px * var(--node-scale, 1)); }
+.input-port .node-port-label, .output-port .node-port-label { font-size: calc(10.5px * var(--node-scale, 1)); font-weight: 650; }.input-port .node-port-label small, .output-port .node-port-label small { margin-top: 1px; font-size: calc(8.75px * var(--node-scale, 1)); opacity: .86; }.output-port .node-port-label { color: var(--port-color, #34d399); font-weight: 650; }.workflow-node.direction-vertical .input-port .node-port-label, .workflow-node.direction-vertical .output-port .node-port-label { font-size: calc(11px * var(--node-scale, 1)); }
 .settings-inline-actions button { padding: 6px 9px; font-size: var(--font-xs); }
 .app-shell[data-theme="light"] .node-selection-check { border-color: #64748b; color: #1e293b; background: #ffffff; box-shadow: 0 3px 9px #64748b44; }.app-shell[data-theme="light"] .react-flow__resize-control.handle { border-color: #1d4ed8; background: #dbeafe; }
 .app-shell[data-theme="light"] .result-actions label{ color: #40566f; }
@@ -766,7 +766,7 @@ button, input, select, textarea { font: inherit; }
 .app-shell[data-theme="light"] .notebook-editor { border-color: #b9c7d8; background: #fff; }.app-shell[data-theme="light"] .notebook-editor__lines { border-color: #dbe3ed; color: #64748b; background: #edf2f7; }.app-shell[data-theme="light"] .debug-dialog { border-color: #cbd5e1; color: #1e293b; background: #fff; }.app-shell[data-theme="light"] .debug-dialog > header, .app-shell[data-theme="light"] .debug-dialog > footer, .app-shell[data-theme="light"] .debug-dialog li { border-color: #dbe3ed; }.app-shell[data-theme="light"] .debug-dialog > footer button { border-color: #cbd5e1; color: #173a63; background: #f8fafc; }
 .app-shell[data-theme="light"] .debug-controls button, .app-shell[data-theme="light"] .debug-dialog li > button { border-color: #b9c7d8; color: #173a63; background: #f8fafc; }.app-shell[data-theme="light"] .debug-summary span { color: #1e40af; background: #dbeafe; }.app-shell[data-theme="light"] .debug-dialog li.paused { border-color: #d97706; background: #fef3c7; }
 .app-shell[data-theme="light"] .runtime-packages { border-color: #b9c7d8; color: #334155; background: #fff; }.app-shell[data-theme="light"] .runtime-packages summary { color: #1e3a5f; font-weight: 600; }.app-shell[data-theme="light"] .runtime-packages code { color: #243b53; background: #e8eef5; font-size: var(--font-xs); }
-.app-shell[data-theme="light"] .input-port .node-port-label { color: #1d4ed8; }.app-shell[data-theme="light"] .output-port .node-port-label { color: #047857; }.app-shell[data-theme="light"] .workflow-node.status-error, .app-shell[data-theme="light"] .workflow-node.status-error.selected, .app-shell[data-theme="light"] .workflow-structure.status-error { border-color: #dc2626 !important; box-shadow: 0 0 0 4px #fecaca, 0 7px 20px #991b1b44 !important; }
+.app-shell[data-theme="light"] .input-port .node-port-label, .app-shell[data-theme="light"] .output-port .node-port-label { color: var(--port-color, #475569); }.app-shell[data-theme="light"] .workflow-node.status-error, .app-shell[data-theme="light"] .workflow-node.status-error.selected, .app-shell[data-theme="light"] .workflow-structure.status-error { border-color: #dc2626 !important; box-shadow: 0 0 0 4px #fecaca, 0 7px 20px #991b1b44 !important; }
 
 @media (min-width: 1200px) {
   .workflow-node { min-height: max(calc(62px * var(--node-scale, 1)), var(--node-min-height, calc(58px * var(--node-scale, 1)))); }
@@ -2278,22 +2278,22 @@ button, input, select, textarea { font: inherit; }
 .themed-select__trigger {
   display: flex;
   width: 100%;
-  min-height: 32px;
+  min-height: 31px;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 6px 9px;
+  gap: 9px;
+  padding: 5px 9px;
   border: 1px solid var(--border);
   border-radius: 7px;
   color: var(--text-bright);
   background: var(--surface-hover);
-  box-shadow: inset 0 1px 0 #ffffff08;
+  box-shadow: inset 0 1px 0 #ffffff06;
   cursor: pointer;
   text-align: left;
   font-size: 12px;
 }
 .themed-select__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.themed-select__trigger svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.7; }
+.themed-select__trigger svg { width: 12px; height: 8px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
 .themed-select.open .themed-select__trigger,
 .themed-select__trigger:focus-visible {
   border-color: color-mix(in srgb, var(--accent-hover) 70%, var(--border));
@@ -2307,26 +2307,26 @@ button, input, select, textarea { font: inherit; }
   right: 0;
   left: 0;
   display: grid;
-  gap: 2px;
-  min-width: max(100%, 156px);
-  padding: 5px;
-  border: 1px solid var(--border-pop);
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--surface) 96%, transparent);
-  box-shadow: 0 10px 28px #0008, 0 2px 8px #0005;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  gap: 1px;
+  min-width: max(100%, 148px);
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-pop) 82%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 12px 30px #0006, 0 2px 7px #0003;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .themed-select__menu button {
   display: flex;
   width: 100%;
-  min-height: 31px;
+  min-height: 29px;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 6px 8px;
+  padding: 5px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   color: var(--text);
   background: transparent;
   cursor: pointer;
@@ -2334,8 +2334,8 @@ button, input, select, textarea { font: inherit; }
   font-size: 12px;
 }
 .themed-select__menu button:hover { background: var(--surface-hover); }
-.themed-select__menu button.selected { color: var(--text-highlight); background: color-mix(in srgb, var(--accent) 18%, transparent); }
-.themed-select__menu button svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--accent-hover); stroke-width: 1.8; }
+.themed-select__menu button.selected { color: var(--text-highlight); background: color-mix(in srgb, var(--accent) 11%, var(--surface-hover)); }
+.themed-select__menu button svg { width: 12px; height: 9px; flex: none; fill: none; stroke: var(--accent-hover); stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
 .workspace-shell[data-theme="light"] .themed-select__trigger,
 .app-shell[data-theme="light"] .themed-select__trigger {
   border-color: #cbd5e1;
@@ -2354,7 +2354,7 @@ button, input, select, textarea { font: inherit; }
 .workspace-shell[data-theme="light"] .themed-select__menu button:hover,
 .app-shell[data-theme="light"] .themed-select__menu button:hover { background: #eef3f8; }
 .workspace-shell[data-theme="light"] .themed-select__menu button.selected,
-.app-shell[data-theme="light"] .themed-select__menu button.selected { color: #173a63; background: #dbeafe; }
+.app-shell[data-theme="light"] .themed-select__menu button.selected { color: #173a63; background: #e8f1fb; }
 
 /* Modern in-app confirmation replaces the native Windows/Chromium message box. */
 .modern-confirm-backdrop { z-index: 2100; background: #02061799; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
@@ -3976,6 +3976,47 @@ select.node-inline-control {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.themed-select--node {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  pointer-events: all;
+}
+.themed-select--node .themed-select__trigger {
+  box-sizing: border-box;
+  height: calc(23px * var(--node-scale, 1));
+  min-height: 0;
+  padding: calc(1px * var(--node-scale, 1)) calc(6px * var(--node-scale, 1));
+  border-color: color-mix(in srgb, var(--border-strong) 88%, transparent);
+  border-radius: calc(5px * var(--node-scale, 1));
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-deep) 92%, var(--surface-raised));
+  box-shadow: inset 0 1px 1px rgba(2, 6, 23, .04);
+  font-size: calc(9.5px * var(--node-scale, 1));
+  font-weight: 620;
+}
+.themed-select--node .themed-select__trigger svg {
+  width: calc(9px * var(--node-scale, 1));
+  height: calc(6px * var(--node-scale, 1));
+}
+.themed-select--node .themed-select__menu {
+  top: calc(100% + 3px * var(--node-scale, 1));
+  right: auto;
+  min-width: 100%;
+  width: max(100%, calc(108px * var(--node-scale, 1)));
+  padding: calc(3px * var(--node-scale, 1));
+  border-radius: calc(6px * var(--node-scale, 1));
+  box-shadow: 0 calc(8px * var(--node-scale, 1)) calc(22px * var(--node-scale, 1)) rgba(2, 6, 23, .28), 0 2px 5px rgba(2, 6, 23, .16);
+}
+.themed-select--node .themed-select__menu button {
+  min-height: calc(24px * var(--node-scale, 1));
+  padding: calc(4px * var(--node-scale, 1)) calc(6px * var(--node-scale, 1));
+  border-radius: calc(4px * var(--node-scale, 1));
+  font-size: calc(9.5px * var(--node-scale, 1));
+}
+.themed-select--node .themed-select__menu button.selected {
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface-hover));
+}
 .numeric-input {
   position: relative;
   display: block;
@@ -3984,7 +4025,7 @@ select.node-inline-control {
 }
 .numeric-input__field {
   box-sizing: border-box;
-  padding-right: 26px !important;
+  padding-right: 20px !important;
   appearance: textfield;
   -moz-appearance: textfield;
 }
@@ -3996,16 +4037,15 @@ select.node-inline-control {
 .numeric-input__stepper {
   position: absolute;
   z-index: 2;
-  top: 5px;
+  top: 4px;
   right: 4px;
-  bottom: 5px;
+  bottom: 4px;
   display: grid;
-  width: 14px;
+  width: 11px;
   grid-template-rows: 1fr 1fr;
-  overflow: hidden;
-  border-left: 1px solid color-mix(in srgb, var(--border-strong) 46%, transparent);
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--surface-raised) 30%, transparent);
+  overflow: visible;
+  border: 0;
+  background: transparent;
 }
 .numeric-input__stepper button {
   display: grid;
@@ -4014,24 +4054,23 @@ select.node-inline-control {
   padding: 0;
   place-items: center;
   border: 0;
-  color: var(--text-faint);
+  color: color-mix(in srgb, var(--text-faint) 78%, transparent);
   background: transparent;
   cursor: pointer;
 }
-.numeric-input__stepper button + button {
-  border-top: 1px solid color-mix(in srgb, var(--border-strong) 32%, transparent);
+.numeric-input__stepper button:hover:not(:disabled),
+.numeric-input__stepper button:focus-visible {
+  color: var(--accent-hover);
+  background: transparent;
+  outline: none;
 }
-.numeric-input__stepper button:hover:not(:disabled) {
-  color: var(--text-highlight);
-  background: color-mix(in srgb, var(--accent) 9%, transparent);
-}
-.numeric-input__stepper button:disabled { opacity: .3; cursor: default; }
+.numeric-input__stepper button:disabled { opacity: .24; cursor: default; }
 .numeric-input__stepper svg {
-  width: 7px;
+  width: 6px;
   height: 4px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.1;
+  stroke-width: 1.15;
   stroke-linecap: round;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
@@ -4041,17 +4080,16 @@ select.node-inline-control {
 }
 .numeric-input--node .numeric-input__field {
   height: 100%;
-  padding-right: calc(19px * var(--node-scale, 1)) !important;
+  padding-right: calc(17px * var(--node-scale, 1)) !important;
 }
 .numeric-input--node .numeric-input__stepper {
-  top: calc(3px * var(--node-scale, 1));
-  right: calc(3px * var(--node-scale, 1));
-  bottom: calc(3px * var(--node-scale, 1));
-  width: calc(13px * var(--node-scale, 1));
-  border-radius: calc(3px * var(--node-scale, 1));
+  top: calc(4px * var(--node-scale, 1));
+  right: calc(4px * var(--node-scale, 1));
+  bottom: calc(4px * var(--node-scale, 1));
+  width: calc(10px * var(--node-scale, 1));
 }
 .numeric-input--node .numeric-input__stepper svg {
-  width: calc(7px * var(--node-scale, 1));
+  width: calc(6px * var(--node-scale, 1));
   height: calc(4px * var(--node-scale, 1));
 }
 .node-inline-control:hover {
@@ -4181,7 +4219,7 @@ select.node-inline-control {
   min-width: 0;
   transform: none;
   overflow: hidden;
-  color: var(--accent-soft);
+  color: var(--port-color, var(--accent-soft));
   font-size: calc(10.5px * var(--node-scale, 1));
   font-weight: 650;
   line-height: 1.15;
@@ -4190,7 +4228,7 @@ select.node-inline-control {
   white-space: nowrap;
 }
 .workflow-node--dynamic-ui .output-port .node-port-label {
-  color: #34d399;
+  color: var(--port-color, #34d399);
   text-align: right;
 }
 .workflow-node--dynamic-ui .node-port-label small {
@@ -4518,3 +4556,6 @@ select.node-inline-control {
 }
 .app-shell[data-theme="light"] .workflow-loop-zone .workflow-structure__lane > span { background: #ffffffde; }
 .workflow-node__plugin-icon { width: 18px; height: 18px; object-fit: contain; vertical-align: -4px; margin-right: 6px; }
+
+.app-shell[data-theme="light"] .themed-select--node .themed-select__trigger { background: #fff; border-color: #aebed0; box-shadow: inset 0 1px 0 #fff; }
+.app-shell[data-theme="light"] .themed-select--node .themed-select__menu { background: rgba(255,255,255,.985); border-color: #c7d3e1; box-shadow: 0 9px 22px rgba(45,67,92,.14), 0 2px 5px rgba(45,67,92,.08); }

@@ -13,6 +13,7 @@ const dialogs = readFileSync(path.join(root, "src/dialogs.tsx"), "utf8");
 const canvasThemes = readFileSync(path.join(root, "src/styles/canvas.css"), "utf8");
 const nodeLayout = readFileSync(path.join(root, "src/nodes/layout.ts"), "utf8");
 const numericInput = readFileSync(path.join(root, "src/NumericInput.tsx"), "utf8");
+const themedSelect = readFileSync(path.join(root, "src/ThemedSelect.tsx"), "utf8");
 const parameterField = readFileSync(path.join(root, "src/ParameterField.tsx"), "utf8");
 const themeContract = readFileSync(path.join(root, "src/styles/theme-contract.css"), "utf8");
 
@@ -119,6 +120,13 @@ assert.match(css, /workflow-node__inline-controls--side-form[\s\S]*input-port-la
 assert.match(css, /workflow-node--side-rail\.direction-horizontal \.workflow-node__label[\s\S]*left:\s*calc\(30px \* var\(--node-scale, 1\)\)[\s\S]*workflow-node__meta[\s\S]*text-align:\s*center[\s\S]*transform:\s*none/, "horizontal dynamic title and description must use the full-card visual center rather than asymmetric rail space");
 assert.match(numericInput, /numeric-input__stepper[\s\S]*aria-label=\{`\$\{label\} 增加`\}[\s\S]*aria-label=\{`\$\{label\} 减少`\}/, "numeric controls should use the compact Core stepper instead of Chromium's oversized native spinner");
 assert.match(parameterField, /NumericInput[\s\S]*spec\.kind === "number"/, "inspector number fields should share the same Core NumericInput component as node controls");
+assert.match(app, /spec\.kind === "select"[\s\S]*ThemedSelect[\s\S]*themed-select--node/, "node select parameters should use the shared in-app dropdown instead of the native browser select popup");
+assert.doesNotMatch(app.slice(app.indexOf("function InlineNodeControl"), app.indexOf("function WorkflowNodeCard")), /<select/, "node inline controls must not regress to native select popups");
+assert.match(themedSelect, /themed-select__menu[\s\S]*role="listbox"[\s\S]*aria-selected/, "shared dropdown should own its popup/listbox presentation and selection state");
+assert.match(css, /\.themed-select--node \.themed-select__menu \{[^}]*min-width:\s*100%;[^}]*border-radius:\s*calc\(6px/, "node dropdown menu should be compact, aligned to the control and rendered with the shared material");
+assert.match(css, /\.numeric-input__stepper \{[^}]*width:\s*11px;[^}]*border:\s*0;[^}]*background:\s*transparent;/, "numeric stepper should be symbol-only without the old boxed spinner chrome");
+assert.doesNotMatch(css, /\.numeric-input__stepper button \+ button\s*\{[^}]*border-top/, "numeric stepper should not split its chevrons with an old-fashioned divider");
+assert.match(css, /\.workflow-node--dynamic-ui \.node-port-label \{[^}]*color:\s*var\(--port-color/, "dynamic port labels should inherit the same semantic color as their endpoint");
 assert.match(css, /numeric-input__field::?-webkit-inner-spin-button|numeric-input__field::\-webkit-inner-spin-button/, "native Chromium number spinners should be removed from node inline controls");
 assert.match(app, /inlineParameterLabels[\s\S]*inlineLayout[\s\S]*workflow-node__inline-control--label-hidden/, "dynamic node UI should support declarative compact labels and row/stack layouts");
 assert.match(app, /__notebook_order_in[\s\S]*__notebook_order_out/, "Notebook execution-order links should use hidden non-user handles rather than consuming data ports");

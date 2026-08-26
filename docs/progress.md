@@ -1,20 +1,30 @@
-# Current progress — 1.6.46 Gradle Client JVM Alignment
+# Current progress — 1.6.47 Node Control Polish
 
 Date: 2026-08-26
 
-- 1.6.46 Android packaging: `--no-daemon` now aligns the wrapper client JVM with the build JVM and disables the Gradle instrumentation agent, removing the remaining reason to fork a single-use daemon.
+- 1.6.47 node UI: native node select popups and boxed numeric spinners are replaced by shared Core controls; complex horizontal nodes are tighter, long-title simple nodes gain height, and port label/handle semantic colors are unified.
+- 1.6.46 Android packaging alignment is retained unchanged and still awaits pinned Windows/JDK 21 confirmation that no single-use daemon is forked.
 - 1.6.45 node UI remains unchanged: horizontal dynamic cards share a single form-control width and append inline parameters after input rows.
 - Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
 
 ## Current release state
 
-- Product version: **1.6.46**, Android versionCode **186**.
-- Build revision: `1.6.46-dev-r141-gradle-client-jvm-alignment`.
+- Product version: **1.6.47**, Android versionCode **187**.
+- Build revision: `1.6.47-dev-r142-node-control-polish`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
+
+
+## 1.6.47 node control polish
+
+- Shared `ThemedSelect` is now used inside canvas nodes; node dropdown menus are Core-rendered rather than browser-native.
+- Shared `NumericInput` stepper is reduced to plain chevrons with no inner box/divider.
+- Horizontal dynamic Rail gap is reduced while containment remains measured; long-title simple nodes receive additional height.
+- Port labels inherit their endpoint `--port-color`, aligning table/number/plot/CSV/any semantics.
+- Revalidated Demo 38/38, Runtime parity 134/134, JS NodeContract 96/96, Python 188 passed / 1 skipped plus Node Layout/UI/Canvas/Theme/Design/Plugin/SDK gates.
 
 
 ## 1.6.46 Gradle client JVM alignment

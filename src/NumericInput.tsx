@@ -50,8 +50,8 @@ export function NumericInput({
       onChange={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
     />
     <span className="numeric-input__stepper">
-      <button type="button" tabIndex={-1} aria-label={`${label} 增加`} disabled={disabled || readOnly} onClick={(event) => { event.stopPropagation(); adjust(1); }}><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M2 4.2 5 1.8 8 4.2" /></svg></button>
-      <button type="button" tabIndex={-1} aria-label={`${label} 减少`} disabled={disabled || readOnly} onClick={(event) => { event.stopPropagation(); adjust(-1); }}><svg viewBox="0 0 10 6" aria-hidden="true"><path d="M2 1.8 5 4.2 8 1.8" /></svg></button>
+      <button type="button" tabIndex={-1} aria-label={`${label} 增加`} disabled={disabled || readOnly} onClick={(event) => { event.stopPropagation(); adjust(1); }}><svg viewBox="0 0 8 5" aria-hidden="true"><path d="M1.5 3.75 4 1.5l2.5 2.25" /></svg></button>
+      <button type="button" tabIndex={-1} aria-label={`${label} 减少`} disabled={disabled || readOnly} onClick={(event) => { event.stopPropagation(); adjust(-1); }}><svg viewBox="0 0 8 5" aria-hidden="true"><path d="M1.5 1.25 4 3.5l2.5-2.25" /></svg></button>
     </span>
   </span>;
 }

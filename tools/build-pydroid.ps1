@@ -143,7 +143,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.46-dev-r141-gradle-client-jvm-alignment"
+$script:BuildScriptRevision = "1.6.47-dev-r142-node-control-polish"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}
