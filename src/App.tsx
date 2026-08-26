@@ -90,19 +90,17 @@ const PALETTE_MIN_WIDTH = 216;
 type PaletteResource = EditorResourceRef;
 type ThemeMode = "system" | "dark" | "light";
 const notebookCellRows = (source: string) => Math.max(3, source.split("\n").reduce((rows, line) => rows + Math.max(1, Math.ceil(Array.from(line).length / 96)), 0));
-const VALUE_TYPE_COLORS: Record<ValueType, string> = { table: "#22c55e", plot: "#a855f7", csv: "#14b8a6", number: "#f59e0b", text: "#3b82f6", boolean: "#ef4444", list: "#06b6d4", object: "#8b5cf6", any: "#64748b" };
+const VALUE_TYPE_COLORS: Record<ValueType, string> = { table: "#22c55e", plot: "#a855f7", csv: "#14b8a6", number: "#f59e0b", text: "#3b82f6", boolean: "#ef4444", color: "#ec4899", datetime: "#0ea5e9", list: "#06b6d4", object: "#8b5cf6", any: "#64748b" };
 const bytesToBase64 = (bytes: Uint8Array) => { let binary = ""; for (let offset = 0; offset < bytes.length; offset += 0x8000) binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000)); return btoa(binary); };
 
 const EdgeActionsContext = createContext<{ disconnect: (ids: string[]) => void }>({ disconnect: () => undefined });
 
-function TypedGradientEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data, selected }: EdgeProps) {
+function TypedGradientEdge({ id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data }: EdgeProps) {
   const edgeActions = useContext(EdgeActionsContext);
   const [path] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
   const gradientId = `edge-gradient-${id.replace(/[^A-Za-z0-9_-]/g, "-")}`;
   const colors = data as { sourceColor?: string; targetColor?: string } | undefined;
-  const centerX = (sourceX + targetX) / 2;
-  const centerY = (sourceY + targetY) / 2;
-  return <><defs><linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={sourceX} y1={sourceY} x2={targetX} y2={targetY}><stop offset="0%" stopColor={colors?.sourceColor ?? "#64748b"}/><stop offset="100%" stopColor={colors?.targetColor ?? "#64748b"}/></linearGradient></defs><BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={38} style={{ ...style, stroke: `url(#${gradientId})` }} /><path className="edge-disconnect-hit" d={path} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); edgeActions.disconnect([id]); }} />{selected && <foreignObject className="edge-disconnect-control" x={centerX - 14} y={centerY - 14} width="28" height="28"><button type="button" aria-label="断开连线" title="断开连线" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); edgeActions.disconnect([id]); }}>×</button></foreignObject>}</>;
+  return <><defs><linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={sourceX} y1={sourceY} x2={targetX} y2={targetY}><stop offset="0%" stopColor={colors?.sourceColor ?? "#64748b"}/><stop offset="100%" stopColor={colors?.targetColor ?? "#64748b"}/></linearGradient></defs><BaseEdge id={id} path={path} markerEnd={markerEnd} interactionWidth={38} style={{ ...style, stroke: `url(#${gradientId})` }} /><path className="edge-disconnect-hit" d={path} onDoubleClick={(event) => { event.preventDefault(); event.stopPropagation(); edgeActions.disconnect([id]); }} /></>;
 }
 
 function NotebookEditor({ value, rows, onChange }: { value: string; rows: number; onChange: (value: string) => void }) {
@@ -451,6 +449,12 @@ function InlineNodeControl({
   }
   if (spec.kind === "number") {
     return <NumericInput label={spec.label} value={value as string | number | null | undefined} min={spec.min} max={spec.max} step={spec.step} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} className={`numeric-input--node nodrag nopan ${className}`} inputClassName="node-inline-control node-inline-control--number" stopPropagation onChange={onChange} />;
+  }
+  if (spec.kind === "color") {
+    return <input className={`node-inline-control node-inline-control--color nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="color" value={String(value ?? "#3b82f6")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
+  }
+  if (spec.kind === "datetime") {
+    return <input className={`node-inline-control node-inline-control--datetime nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="datetime-local" value={String(value ?? "")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
   }
   return <input className={`node-inline-control nodrag nopan ${className}`} aria-label={spec.label} title={spec.label} type="text" value={String(value ?? "")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onPointerDown={stop} onClick={stop} onChange={(event) => onChange(event.target.value)} />;
 }

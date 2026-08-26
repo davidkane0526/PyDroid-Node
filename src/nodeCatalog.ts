@@ -1,8 +1,8 @@
-export type ParameterKind = "text" | "textarea" | "number" | "boolean" | "select" | "list";
+export type ParameterKind = "text" | "textarea" | "number" | "boolean" | "select" | "list" | "color" | "datetime";
 
 export type ParameterOptionSpec = { label: string; value: string | number | boolean };
 
-export type ValueType = "table" | "plot" | "csv" | "number" | "text" | "boolean" | "list" | "object" | "any";
+export type ValueType = "table" | "plot" | "csv" | "number" | "text" | "boolean" | "color" | "datetime" | "list" | "object" | "any";
 export type NodeRuntimeId = "python" | "javascript";
 export type NodeExecutionModel = "standard" | "control-flow" | "custom-code" | "function" | "ui" | "workflow";
 export type NodeStateScope = "none" | "temporary" | "global";
@@ -132,7 +132,7 @@ export type NodeSpec = {
   docsUrl?: string;
   pythonCallable?: string;
   excludedSignatureParameters?: string[];
-  category: "输入输出" | "表格处理" | "Pandas 常用" | "Python 内置" | "逻辑控制" | "统计" | "绘图" | "列表处理" | "自定义";
+  category: "基础" | "输入输出" | "表格处理" | "Pandas 常用" | "Python 内置" | "逻辑控制" | "统计" | "绘图" | "列表处理" | "自定义";
   defaults: Record<string, string | number | boolean | null>;
   parameters: ParameterSpec[];
   inputPorts: PortSpec[];
@@ -360,6 +360,41 @@ export const NODE_CATALOG: NodeSpec[] = [
     inputPorts: [],
     outputPorts: TABLE_OUTPUT,
     parameters: [{ key: "columns", label: "列名", kind: "list", itemType: "text", placeholder: "x,y,value" }],
+  },
+  {
+    nodeType: "value.number", runtimeSupport: ["python", "javascript"],
+    label: "数值", category: "基础", description: "提供一个可复用的数值常量。", tags: ["基础", "数值", "number", "constant"],
+    defaults: { value: 0 }, inputPorts: [], outputPorts: [{ id: "output", label: "数值", valueType: "number" }],
+    parameters: [{ key: "value", label: "值", kind: "number", required: true }],
+    ui: { inlineParameters: ["value"], inlineParameterLabels: { value: "值" }, inlineLayout: "stack" },
+  },
+  {
+    nodeType: "value.text", runtimeSupport: ["python", "javascript"],
+    label: "文本", category: "基础", description: "提供一个可复用的文本常量。", tags: ["基础", "文本", "text", "string", "constant"],
+    defaults: { value: "" }, inputPorts: [], outputPorts: [{ id: "output", label: "文本", valueType: "text" }],
+    parameters: [{ key: "value", label: "值", kind: "text" }],
+    ui: { inlineParameters: ["value"], inlineParameterLabels: { value: "值" }, inlineLayout: "stack" },
+  },
+  {
+    nodeType: "value.boolean", runtimeSupport: ["python", "javascript"],
+    label: "布尔", category: "基础", description: "提供 True / False 布尔常量。", tags: ["基础", "布尔", "boolean", "constant"],
+    defaults: { value: false }, inputPorts: [], outputPorts: [{ id: "output", label: "布尔", valueType: "boolean" }],
+    parameters: [{ key: "value", label: "值", kind: "boolean" }],
+    ui: { inlineParameters: ["value"], inlineParameterLabels: { value: "值" }, inlineLayout: "stack" },
+  },
+  {
+    nodeType: "value.color", runtimeSupport: ["python", "javascript"],
+    label: "颜色", category: "基础", description: "提供十六进制颜色值。", tags: ["基础", "颜色", "color", "hex", "constant"],
+    defaults: { value: "#3b82f6" }, inputPorts: [], outputPorts: [{ id: "output", label: "颜色", valueType: "color" }],
+    parameters: [{ key: "value", label: "颜色", kind: "color", required: true }],
+    ui: { inlineParameters: ["value"], inlineParameterLabels: { value: "颜色" }, inlineLayout: "stack" },
+  },
+  {
+    nodeType: "value.datetime", runtimeSupport: ["python", "javascript"],
+    label: "日期时间", category: "基础", description: "提供本地日期时间字符串，适合时间戳、调度和记录流程。", tags: ["基础", "时间", "日期", "datetime", "constant"],
+    defaults: { value: "2026-01-01T00:00" }, inputPorts: [], outputPorts: [{ id: "output", label: "时间", valueType: "datetime" }],
+    parameters: [{ key: "value", label: "日期时间", kind: "datetime", required: true }],
+    ui: { inlineParameters: ["value"], inlineParameterLabels: { value: "时间" }, inlineLayout: "stack" },
   },
   {
     nodeType: "generate.empty_list", runtimeSupport: ["python", "javascript"],
@@ -1866,7 +1901,7 @@ export function searchNodeCatalog(query: string): NodeSpec[] {
 }
 
 export function areValueTypesCompatible(source: ValueType, target: ValueType): boolean {
-  return source === "any" || target === "any" || source === target;
+  return source === "any" || target === "any" || source === target || ((source === "color" || source === "datetime") && target === "text");
 }
 
 export function getInputPort(nodeType: string, portId: string | null | undefined): PortSpec | undefined {

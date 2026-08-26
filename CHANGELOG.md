@@ -1,3 +1,12 @@
+## 1.6.51 (191) — Group & Primitive Node Polish — 2026-08-26
+
+- Group cards now use the same measured geometry/typography rhythm as the refined node system; horizontal groups reserve a real header region before ports, and Soft dark mode uses a restrained semantic container material so a group is visually distinct from a normal node without changing geometry.
+- Soft dynamic-node controls keep their box geometry but drop visible outer outlines, using surface hierarchy and a light focus inset instead.
+- NumericInput chevrons are vertically centered as one symbol stack.
+- Add five first-party primitive value nodes: `value.number`, `value.text`, `value.boolean`, `value.color`, and `value.datetime`, with Python/JavaScript runtime parity and dedicated color/datetime semantic port types.
+- Selected edges keep selection highlighting but no longer render floating disconnect-X buttons; double-click disconnect remains available. Canvas object selection also suppresses accidental browser text-selection styling.
+- Build revision: `1.6.51-dev-r146-group-primitive-node-polish`.
+
 ## 1.6.50 (190) — Simple Node Vertical Rhythm — 2026-08-26
 
 - Simple horizontal nodes now use a larger content-driven vertical baseline: one-line cards reserve at least 84 px and mixed CJK/Latin two-line titles reserve about 110 px at nodeScale 1.0.

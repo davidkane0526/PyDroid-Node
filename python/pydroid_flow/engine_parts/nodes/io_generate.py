@@ -17,6 +17,11 @@ from ..random_portable import _PortableRandom
 from ..values import _as_bool, _decode_json_compatible
 
 NODE_TYPES = {
+    "value.number",
+    "value.text",
+    "value.boolean",
+    "value.color",
+    "value.datetime",
     "io.read_text",
     "io.read_json",
     "io.read_table",
@@ -50,7 +55,17 @@ def execute(
             raise ValueError(f"文件序号 {index} 超出范围；当前共 {len(input_files)} 个文件")
         return input_files[index]
 
-    if node_type == "io.read_text":
+    if node_type == "value.number":
+        value = float(params.get("value", 0))
+    elif node_type == "value.text":
+        value = str(params.get("value", ""))
+    elif node_type == "value.boolean":
+        value = bool(params.get("value", False))
+    elif node_type == "value.color":
+        value = str(params.get("value", "#3b82f6"))
+    elif node_type == "value.datetime":
+        value = str(params.get("value", ""))
+    elif node_type == "io.read_text":
         value = str(selected_file().get("text", ""))
     elif node_type == "io.read_json":
         value = _decode_json_compatible(str(selected_file().get("text", "")), "JSON 文件")

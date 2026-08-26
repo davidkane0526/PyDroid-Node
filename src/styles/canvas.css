@@ -295,3 +295,49 @@
   background: #19293b;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 7px 16px rgba(0,0,0,.22);
 }
+
+/* Soft dynamic forms use material depth, not nested hard outlines. Keep the same box
+   geometry by retaining a transparent border; only appearance changes. */
+.app-shell[data-canvas-theme="soft"] .workflow-node--dynamic-ui .node-inline-control,
+.app-shell[data-canvas-theme="soft"] .workflow-node--dynamic-ui .numeric-input__field,
+.app-shell[data-canvas-theme="soft"] .workflow-node--dynamic-ui .themed-select__trigger {
+  border-color: transparent !important;
+  background: color-mix(in srgb, var(--canvas-node-face) 78%, #9db4ce 22%);
+  box-shadow: inset 0 1px 1px rgba(87,108,136,.10);
+}
+.app-shell[data-canvas-theme="soft"] .workflow-node--dynamic-ui .node-inline-control:focus,
+.app-shell[data-canvas-theme="soft"] .workflow-node--dynamic-ui .numeric-input__field:focus,
+.app-shell[data-canvas-theme="soft"] .workflow-node--dynamic-ui .themed-select__trigger:focus-visible {
+  border-color: transparent !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--canvas-selection) 34%, transparent), 0 0 0 1px color-mix(in srgb, var(--canvas-selection) 10%, transparent);
+}
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--dynamic-ui .node-inline-control,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--dynamic-ui .numeric-input__field,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--dynamic-ui .themed-select__trigger {
+  border-color: transparent !important;
+  background: #132132;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), inset 0 -1px 0 rgba(0,0,0,.16);
+}
+
+/* Group cards must read as containers in Soft mode without changing geometry. */
+.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure) {
+  border-color: color-mix(in srgb, var(--canvas-group) 52%, var(--canvas-node-border)) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--canvas-group) 5%, transparent), transparent 44%),
+    var(--canvas-node-face) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--canvas-group) 12%, transparent), 0 10px 24px rgba(74,104,145,.15);
+}
+.app-shell[data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure)::after {
+  inset: 6px;
+  border-color: color-mix(in srgb, var(--canvas-group) 30%, transparent);
+}
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure) {
+  border-color: color-mix(in srgb, var(--canvas-group) 58%, #355068) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--canvas-group) 7%, transparent), transparent 46%),
+    linear-gradient(180deg, #192b3a 0%, #172735 100%) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--canvas-group) 16%, transparent), 0 2px 5px rgba(0,0,0,.38), 0 12px 24px rgba(0,0,0,.29) !important;
+}
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure)::after {
+  border-color: color-mix(in srgb, var(--canvas-group) 36%, transparent);
+}

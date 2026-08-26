@@ -107,6 +107,26 @@ export function ParameterField({
       </label>
     );
   }
+  if (spec.kind === "color") {
+    return (
+      <label className="field">
+        <span>{spec.label}</span>
+        <input type="color" value={String(displayValue ?? "#3b82f6")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onChange={(event) => onChange(event.target.value)} />
+        {spec.description && <small>{spec.description}</small>}
+        {validationHint}
+      </label>
+    );
+  }
+  if (spec.kind === "datetime") {
+    return (
+      <label className="field">
+        <span>{spec.label}</span>
+        <input type="datetime-local" value={String(displayValue ?? "")} readOnly={Boolean(spec.readOnly)} disabled={Boolean(spec.disabled)} onChange={(event) => onChange(event.target.value)} />
+        {spec.description && <small>{spec.description}</small>}
+        {validationHint}
+      </label>
+    );
+  }
   if (spec.kind === "number") {
     return (
       <label className="field">

@@ -1,16 +1,16 @@
-# Current progress — 1.6.50 Simple Node Vertical Rhythm
+# Current progress — 1.6.51 Group & Primitive Node Polish
 
 Date: 2026-08-26
 
-- 1.6.50 simple-node geometry: minimum height is content-driven and also guarantees right-side output endpoints stay clear of the top-right run control; type/title/meta spacing expands and stays vertically centered.
+- 1.6.51 node polish: Group geometry and Soft-dark container identity are unified with the shared node system; Soft dynamic input controls are borderless material surfaces; numeric steppers are vertically centered; five primitive value source nodes are built in; selected edges no longer show floating X controls.
 - 1.6.49 complex side-rail density and canvas blank-click transient-UI dismissal remain unchanged.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.50**, Android versionCode **190**.
-- Build revision: `1.6.50-dev-r145-simple-node-vertical-rhythm`.
+- Product version: **1.6.51**, Android versionCode **191**.
+- Build revision: `1.6.51-dev-r146-group-primitive-node-polish`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
@@ -18,7 +18,7 @@ Date: 2026-08-26
 
 
 
-## 1.6.50 simple-node vertical rhythm
+## 1.6.51 group and primitive node polish
 
 - Simple horizontal cards are taller by content contract rather than arbitrary padding. One-line content starts at 84 px; long mixed CJK/Latin titles gain a full second title row and currently measure about 110 px.
 - Multi-output simple nodes also grow enough to keep the first right-side handle below the run-control safety zone, including endpoint/node scaling.

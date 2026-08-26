@@ -13,6 +13,21 @@ export function executeIoGenerateNode(nodeType: string, params: Record<string, u
   const table = (): Table => requireTable(upstream, "Table input");
 
   switch (nodeType) {
+    case "value.number": {
+      return { outputs: { output: Number(params.value ?? 0) }, tableResult, plotResult, exportResult };
+    }
+    case "value.text": {
+      return { outputs: { output: String(params.value ?? "") }, tableResult, plotResult, exportResult };
+    }
+    case "value.boolean": {
+      return { outputs: { output: Boolean(params.value) }, tableResult, plotResult, exportResult };
+    }
+    case "value.color": {
+      return { outputs: { output: String(params.value ?? "#3b82f6") }, tableResult, plotResult, exportResult };
+    }
+    case "value.datetime": {
+      return { outputs: { output: String(params.value ?? "") }, tableResult, plotResult, exportResult };
+    }
     case "io.read_text": {
       const file = selectedFile(context, params);
       return { outputs: { output: String(file.text ?? "") }, tableResult, plotResult, exportResult };

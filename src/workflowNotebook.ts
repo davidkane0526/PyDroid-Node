@@ -696,7 +696,7 @@ export function analyzedNotebookToWorkflow(name: string, cells: NotebookCell[], 
     } catch { return []; }
   };
   const parseValueTypeList = (value: unknown): ValueType[] => {
-    const allowed = new Set<ValueType>(["table", "plot", "csv", "number", "text", "boolean", "list", "object", "any"]);
+    const allowed = new Set<ValueType>(["table", "plot", "csv", "number", "text", "boolean", "color", "datetime", "list", "object", "any"]);
     return parseStringList(value).map((item) => allowed.has(item as ValueType) ? item as ValueType : "any");
   };
   const functionDefinitions: WorkflowFunctionDefinition[] = [];
@@ -1437,6 +1437,11 @@ for _path in input_files:
     _frames.append(_frame)
 ${name} = pd.concat(_frames, ignore_index=True)`;
   }
+  if (type === "value.number") return `${name} = float(${params}.get("value", 0))`;
+  if (type === "value.text") return `${name} = str(${params}.get("value", ""))`;
+  if (type === "value.boolean") return `${name} = bool(${params}.get("value", False))`;
+  if (type === "value.color") return `${name} = str(${params}.get("value", "#3b82f6"))`;
+  if (type === "value.datetime") return `${name} = str(${params}.get("value", ""))`;
   if (type === "io.read_text") return `${name} = input_files[int(${params}.get("fileIndex", 0))].read_text(encoding=${params}.get("encoding", "utf-8"))`;
   if (type === "io.read_json") return `${name} = json.loads(input_files[int(${params}.get("fileIndex", 0))].read_text(encoding=${params}.get("encoding", "utf-8")))`;
   if (type === "io.read_table") return `_path = input_files[int(${params}.get("fileIndex", 0))]

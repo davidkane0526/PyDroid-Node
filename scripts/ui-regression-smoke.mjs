@@ -130,6 +130,12 @@ assert.match(app, /onPaneClick=\{\(\) => \{ dismissTransientUi\("canvas"\)/, "cl
 assert.match(themedSelect, /addEventListener\(TRANSIENT_UI_DISMISS_EVENT, dismiss\)/, "shared dropdowns should collapse when the canvas emits the transient-UI dismiss contract");
 assert.match(css, /\.themed-select--node \.themed-select__menu \{[^}]*min-width:\s*100%;[^}]*border-radius:\s*calc\(6px/, "node dropdown menu should be compact, aligned to the control and rendered with the shared material");
 assert.match(css, /\.numeric-input__stepper \{[^}]*width:\s*11px;[^}]*border:\s*0;[^}]*background:\s*transparent;/, "numeric stepper should be symbol-only without the old boxed spinner chrome");
+assert.match(css, /\.numeric-input__stepper \{[^}]*top:\s*50%;[^}]*height:\s*14px;[^}]*transform:\s*translateY\(-50%\);/, "numeric stepper symbols should be optically centered inside the input");
+assert.match(canvasThemes, /workflow-node--dynamic-ui \.node-inline-control[\s\S]*border-color:\s*transparent\s*!important;[\s\S]*background:/, "Soft dynamic node controls should use surface hierarchy instead of hard outer outlines");
+assert.match(css, /workflow-node\.node-kind-group:not\(\.workflow-structure\)[\s\S]*min-height:[\s\S]*94px[\s\S]*workflow-node__label[\s\S]*17px/, "group nodes should share the enlarged node geometry and typography rhythm");
+assert.match(canvasThemes, /data-theme="dark"\]\[data-canvas-theme="soft"\][\s\S]*node-kind-group[\s\S]*canvas-group/, "dark Soft group cards should retain a clear semantic container material");
+assert.doesNotMatch(app, /edge-disconnect-control[\s\S]*>×</, "selected edges should not show floating disconnect X controls");
+
 assert.doesNotMatch(css, /\.numeric-input__stepper button \+ button\s*\{[^}]*border-top/, "numeric stepper should not split its chevrons with an old-fashioned divider");
 assert.match(css, /\.workflow-node--dynamic-ui \.node-port-label \{[^}]*color:\s*var\(--port-color/, "dynamic port labels should inherit the same semantic color as their endpoint");
 assert.match(css, /numeric-input__field::?-webkit-inner-spin-button|numeric-input__field::\-webkit-inner-spin-button/, "native Chromium number spinners should be removed from node inline controls");

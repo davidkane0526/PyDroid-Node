@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.50 (190) · Simple Node Vertical Rhythm**。本版继续沿用已验证可编译的 Android Gradle JVM 对齐路径，并进一步规范简单横向节点：节点高度同时满足标题/描述呼吸空间与右上运行按钮—输出端点安全间距，文字栈随节点增高同步扩大行距并保持真正居中。1.6.49 的复杂节点密度与画布点击自动收起临时 UI 契约保持不变。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.51 (191) · Group & Primitive Node Polish**。本版继续沿用已验证可编译的 Android Gradle JVM 对齐路径，在不改变既有 Classic/Soft 默认视觉基线的前提下统一 Group 节点几何与暗色 Soft 容器语义、修正数字步进器垂直居中、让 Soft 动态表单用材质层级而非硬描边表达输入，并新增数值、文本、布尔、颜色、日期时间五类基础值节点。框选/连线选择不再弹出浮动 X 删除控件。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,7 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.50 Simple Node Vertical Rhythm（当前分支）**：简单横向节点按内容与运行按钮/输出端点安全间距共同测量高度；类型、标题、描述使用扩大的统一行距并在卡片内部真正垂直居中。
+- **1.6.51 Group & Primitive Node Polish（当前分支）**：Group 节点纳入统一尺寸/文字节奏并在 Soft 暗色中具有清晰容器语义；Soft 动态输入改用材质层级而非硬描边；数字步进器符号垂直居中；新增数值、文本、布尔、颜色、日期时间五类基础值节点；选中连线不再显示浮动 X。
 - **1.6.49 Node Density & Transient UI**：复杂动态节点将输入/输出 Rail 之间的安全间隙收窄到 10 px；节点内 ThemedSelect 接入统一 transient-UI 契约，点击画布空白处自动收起。
 - **1.6.47 Node Control Polish**：节点下拉菜单、数字微调器与端点语义色统一到 Core 控件；该版本的固定 Windows/Android 构建路径已由用户确认可以编译。
 - **1.6.44 Android Single-JVM Build（历史构建路径）**：Android `assembleDebug` 固定单 JVM `--no-daemon`；Gradle wrapper heap 固定为 1536 MB，`gradle.properties` 禁止 daemon 且不再声明 `org.gradle.jvmargs`，避免 Windows 在构建阶段额外创建第二个 `java.exe`。Gradle build cache 与增量输出仍保留。

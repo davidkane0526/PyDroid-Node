@@ -30,7 +30,7 @@ type RawFunctionDefinition = {
 type FunctionMap = Map<string, RawFunctionDefinition>;
 
 function isValueType(value: unknown): value is ValueType {
-  return ["table", "plot", "csv", "number", "text", "boolean", "list", "object", "any"].includes(String(value));
+  return ["table", "plot", "csv", "number", "text", "boolean", "color", "datetime", "list", "object", "any"].includes(String(value));
 }
 
 function normalizedPorts(rawPorts: RawPort[] | undefined): PortSpec[] {

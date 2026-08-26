@@ -1,11 +1,11 @@
-# Current development handoff — 1.6.50 Simple Node Vertical Rhythm
+# Current development handoff — 1.6.51 Group & Primitive Node Polish
 
 Branch: `feature/node-density-transient-ui`
-Version: **1.6.50**
-Android versionCode: **190**
-Build revision: `1.6.50-dev-r145-simple-node-vertical-rhythm`
+Version: **1.6.51**
+Android versionCode: **191**
+Build revision: `1.6.51-dev-r146-group-primitive-node-polish`
 
-- 1.6.50 simple-node geometry: horizontal simple cards use a larger content-driven minimum height and a run-control/output-endpoint clearance constraint. Type/title/meta spacing expands with the measured card and remains centered.
+- 1.6.51 node polish: Group cards now use shared measured geometry and a clearer Soft-dark container material; Soft dynamic inputs use material depth instead of visible outer borders; NumericInput stepper symbols are vertically centered; primitive Number/Text/Boolean/Color/DateTime source nodes are built in; selected edges no longer show floating disconnect-X controls.
 - 1.6.49 complex-node density and Core transient-UI canvas-dismiss behavior are retained unchanged.
 - 1.6.47 shared node controls and 1.6.46 Gradle client/build JVM alignment are retained unchanged.
 - The user has confirmed the pinned build path now compiles; Android build-process alignment is therefore an accepted baseline unless a new reproduced build log shows otherwise.
@@ -33,12 +33,12 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.50: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.50: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.50: **38/38**.
+- Runtime parity revalidated in 1.6.51: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
+- Python suite revalidated in 1.6.51: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.51: **38/38**.
 
 
-## 1.6.50 simple-node vertical rhythm
+## 1.6.51 group and primitive node polish
 
 - Simple horizontal cards reserve at least 84 px for one-line content and about 110 px for the current long mixed CJK/Latin two-line export title at nodeScale 1.0.
 - A geometric clearance constraint keeps the top-right run control away from right-side output handles; multi-output, endpointScale and nodeScale are part of the same calculation.

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "primitive_value_sources",
+      "description": "Core scalar source nodes preserve number, text, boolean, color and datetime values across Python and JavaScript runtimes",
+      "workflow": {
+        "schemaVersion": 4,
+        "name": "Primitive values",
+        "nodes": [
+          { "id": "number", "position": { "x": 0, "y": 0 }, "data": { "label": "数值", "nodeType": "value.number", "nodeVersion": 1, "parameters": { "value": 12.5 }, "status": "idle" } },
+          { "id": "text", "position": { "x": 0, "y": 120 }, "data": { "label": "文本", "nodeType": "value.text", "nodeVersion": 1, "parameters": { "value": "PyDroid" }, "status": "idle" } },
+          { "id": "boolean", "position": { "x": 0, "y": 240 }, "data": { "label": "布尔", "nodeType": "value.boolean", "nodeVersion": 1, "parameters": { "value": true }, "status": "idle" } },
+          { "id": "color", "position": { "x": 0, "y": 360 }, "data": { "label": "颜色", "nodeType": "value.color", "nodeVersion": 1, "parameters": { "value": "#22c55e" }, "status": "idle" } },
+          { "id": "datetime", "position": { "x": 0, "y": 480 }, "data": { "label": "日期时间", "nodeType": "value.datetime", "nodeVersion": 1, "parameters": { "value": "2026-08-26T15:00" }, "status": "idle" } }
+        ],
+        "edges": [],
+        "functions": [],
+        "requirements": [],
+        "environment": { "pythonImports": [], "pythonDefinitions": [] },
+        "parameters": []
+      },
+      "expected": {
+        "status": "success",
+        "executionOrder": ["number", "text", "boolean", "color", "datetime"],
+        "semanticValueResults": {
+          "number": 12.5,
+          "text": "PyDroid",
+          "boolean": true,
+          "color": "#22c55e",
+          "datetime": "2026-08-26T15:00"
+        }
+      }
+    }
+  ]
+}
