@@ -48,7 +48,7 @@ try {
   ];
   const heatmapLayout = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "绘制 TER 热图", inputPorts: heatmapInputs, outputPorts: [{ id: "output", label: "图像", valueType: "plot" }], inputDefaultSpecs: heatmapDefaults, inlineParameters: [{ key: "colorMap", label: "配色", kind: "select", defaultValue: "viridis", options: [{ value: "viridis", label: "Viridis" }] }], inlineLayout: "row", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   const heatmapInputTops = heatmapInputs.map((_, index) => heatmapLayout.portTop(index, heatmapInputs.length));
-  if (!heatmapLayout.sideRailLayout || heatmapLayout.nodeMinHeight < 190 || heatmapLayout.nodeWidth > 285) throw new Error("horizontal heatmap is not using content-fit side-rail geometry");
+  if (!heatmapLayout.sideRailLayout || heatmapLayout.nodeMinHeight < 190 || heatmapLayout.nodeWidth > 277) throw new Error("horizontal heatmap is not using content-fit side-rail geometry");
   if (heatmapInputTops.at(-1) + heatmapLayout.portRowHeight / 2 >= heatmapLayout.nodeMinHeight) throw new Error("horizontal heatmap socket row escapes the card boundary");
   if (Math.abs(heatmapLayout.portTop(0, 1) - heatmapLayout.nodeMinHeight / 2) > 1) throw new Error("horizontal heatmap output is not vertically centered");
   const heatmapSocketColumn = heatmapLayout.inputRailWidth + heatmapLayout.sideFormControlOffset;
@@ -63,7 +63,7 @@ try {
 
 
   const compactExportLong = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "导出 TER 长表", inputPorts: [{ id: "input", label: "表格", valueType: "table" }], outputPorts: [{ id: "output", label: "CSV", valueType: "csv" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
-  if (compactExportLong.nodeMinHeight < 84) throw new Error("long simple node title did not receive enough vertical breathing room");
+  if (compactExportLong.nodeMinHeight < 92) throw new Error("long simple node title did not receive enough vertical breathing room");
 
   const staticVertical = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "Static", inputPorts: [{ id: "input", label: "Input", valueType: "any" }], outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
   if (staticVertical.dynamic || staticVertical.direction !== "vertical" || staticVertical.verticalFormLayout) throw new Error("static node layout was unnecessarily overridden");
@@ -89,7 +89,7 @@ try {
   ];
 
   const pivotHorizontalLayout = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "生成 TER 矩阵", inputPorts: pivotInputs, outputPorts: [{ id: "output", label: "表格", valueType: "table" }], inputDefaultSpecs: pivotDefaults, inlineParameters: [{ key: "aggregate", label: "聚合", kind: "select", defaultValue: "mean", options: [{ value: "mean", label: "平均值" }] }], inlineLayout: "row", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
-  if (!pivotHorizontalLayout.sideRailLayout || pivotHorizontalLayout.nodeWidth > 270) throw new Error("horizontal pivot still reserves excessive empty center width");
+  if (!pivotHorizontalLayout.sideRailLayout || pivotHorizontalLayout.nodeWidth > 262) throw new Error("horizontal pivot still reserves excessive empty center width");
   if (pivotHorizontalLayout.nodeMinHeight < 190) throw new Error("horizontal pivot became vertically cramped while reducing width");
 
   const pivotLayout = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "生成 TER 矩阵", inputPorts: pivotInputs, outputPorts: [{ id: "output", label: "表格", valueType: "table" }], inputDefaultSpecs: pivotDefaults, inlineParameters: [inline], inlineLayout: "row", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });

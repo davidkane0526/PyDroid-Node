@@ -115,7 +115,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   // account for every label/control, so the center only needs a small collision-safe gap.
   // Do not reserve a decorative empty center column: it makes form-heavy nodes look hollow.
   const dynamicHeaderWidth = Math.min(286, Math.max(164, 52 + labelUnits * 7.8));
-  const dynamicRailGap = 18;
+  const dynamicRailGap = 10;
   const dynamicRailWidth = inputRailWidth + outputRailWidth + dynamicRailGap;
   const dynamicHorizontalWidth = Math.min(340, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 224 : 190));
   const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
@@ -147,7 +147,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   // Simple horizontal cards use real content height. A two-line title must gain vertical
   // room instead of squeezing type/title/meta into the same 62 px shell.
   const longSimpleTitleExtra = !sideRailLayout && labelUnits > 10 ? 4 : 0;
-  const simpleHorizontalContentHeight = 64 + longSimpleTitleExtra + (simpleTitleLines - 1) * 18 + inlineRows * 27;
+  const simpleHorizontalContentHeight = 72 + longSimpleTitleExtra + (simpleTitleLines - 1) * 18 + inlineRows * 27;
   const contentHeight = sideRailLayout ? 62 : simpleHorizontalContentHeight;
   const verticalFormRows = socketRows + inlineRows;
   const verticalHeight = verticalFormLayout

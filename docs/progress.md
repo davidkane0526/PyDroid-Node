@@ -1,21 +1,26 @@
-# Current progress — 1.6.48 Node Content Balance
+# Current progress — 1.6.49 Node Density & Transient UI
 
 Date: 2026-08-26
 
-- 1.6.48 node geometry: simple cards gain height from actual title wrapping while complex side-rail cards remove the remaining fixed center whitespace; both dimensions are now content-driven instead of independently tuned.
+- 1.6.49 node geometry: complex side-rail cards reduce the measured center safety gap to 10 px; simple horizontal cards gain another 8 px of base height. Canvas blank-click dismisses transient node UI through one Core event contract.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.48**, Android versionCode **188**.
-- Build revision: `1.6.48-dev-r143-node-content-balance`.
+- Product version: **1.6.49**, Android versionCode **189**.
+- Build revision: `1.6.49-dev-r144-node-density-transient-ui`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 
+
+## 1.6.49 node density and transient UI
+
+- Complex horizontal dynamic nodes are narrower via a 10 px measured Rail gap; simple horizontal nodes are slightly taller via +8 px base content height.
+- Canvas blank-click now closes transient node UI through one Core event contract, currently consumed by `ThemedSelect`.
 
 ## 1.6.48 node content balance
 

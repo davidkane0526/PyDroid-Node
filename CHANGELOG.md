@@ -1,3 +1,11 @@
+## 1.6.49 (189) — Node Density & Transient UI — 2026-08-26
+
+- Complex horizontal dynamic nodes reduce the measured input/output Rail safety gap from 18 px to 10 px, removing more unused lateral whitespace without changing port/control columns.
+- Simple horizontal nodes gain 8 px of base content height so compact cards keep more vertical breathing room, including long mixed CJK/Latin titles.
+- Added a Core transient-UI dismiss contract. Clicking the blank React Flow canvas now closes node dropdowns immediately; future temporary node popovers can consume the same event.
+- Node Layout and UI regression gates now enforce the narrower complex-card caps, taller simple-card minimum, and canvas-dismiss behavior.
+- Build revision: `1.6.49-dev-r144-node-density-transient-ui`.
+
 ## 1.6.48 (188) — Node Content Balance — 2026-08-26
 
 - Replaced the remaining fixed horizontal-card spacing heuristic with content-driven two-dimensional geometry: complex side-rail nodes now reserve only the measured input Rail, an 18 px collision-safe center gap, and the measured output Rail.

@@ -76,6 +76,7 @@ import { NodePluginManager, getNodePluginIconDataUrl } from "./plugins/PluginMan
 import { nodeDisplayName } from "./plugins/displayNames";
 import { NumericInput } from "./NumericInput";
 import { ThemedSelect } from "./ThemedSelect";
+import { dismissTransientUi } from "./ui/transientUi";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -3638,7 +3639,7 @@ function FlowEditor({ session, lifecycle, resourceLibrary, tabName = "工作流 
               event.preventDefault();
               openSelectionMenu(event.clientX, event.clientY);
             }}
-            onPaneClick={() => { setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); if (!selectionMode) { setSelectedId(null); setSelectedIds([]); } }}
+            onPaneClick={() => { dismissTransientUi("canvas"); setContextMenu(null); setSelectionMenu(null); setFlowMenu(null); setResourceMenu(null); if (!selectionMode) { setSelectedId(null); setSelectedIds([]); } }}
             selectionOnDrag={finePointer && pointerMode === "mouse"}
             panOnDrag={finePointer && pointerMode === "mouse" ? [1, 2] : false}
             deleteKeyCode={null}

@@ -17,6 +17,8 @@ const themedSelect = readFileSync(path.join(root, "src/ThemedSelect.tsx"), "utf8
 const parameterField = readFileSync(path.join(root, "src/ParameterField.tsx"), "utf8");
 const themeContract = readFileSync(path.join(root, "src/styles/theme-contract.css"), "utf8");
 
+const transientUi = readFileSync(path.join(root, "src/ui/transientUi.ts"), "utf8");
+
 const pluginManagerCss = readFileSync(path.join(root, "src/plugins/plugin-manager.css"), "utf8");
 const pluginManager = readFileSync(path.join(root, "src/plugins/PluginManager.tsx"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
@@ -123,6 +125,9 @@ assert.match(parameterField, /NumericInput[\s\S]*spec\.kind === "number"/, "insp
 assert.match(app, /spec\.kind === "select"[\s\S]*ThemedSelect[\s\S]*themed-select--node/, "node select parameters should use the shared in-app dropdown instead of the native browser select popup");
 assert.doesNotMatch(app.slice(app.indexOf("function InlineNodeControl"), app.indexOf("function WorkflowNodeCard")), /<select/, "node inline controls must not regress to native select popups");
 assert.match(themedSelect, /themed-select__menu[\s\S]*role="listbox"[\s\S]*aria-selected/, "shared dropdown should own its popup/listbox presentation and selection state");
+assert.match(transientUi, /TRANSIENT_UI_DISMISS_EVENT[\s\S]*pydroid:transient-ui-dismiss/, "transient node UI should expose one Core dismiss event");
+assert.match(app, /onPaneClick=\{\(\) => \{ dismissTransientUi\("canvas"\)/, "clicking the blank canvas should dismiss transient node UI before changing selection");
+assert.match(themedSelect, /addEventListener\(TRANSIENT_UI_DISMISS_EVENT, dismiss\)/, "shared dropdowns should collapse when the canvas emits the transient-UI dismiss contract");
 assert.match(css, /\.themed-select--node \.themed-select__menu \{[^}]*min-width:\s*100%;[^}]*border-radius:\s*calc\(6px/, "node dropdown menu should be compact, aligned to the control and rendered with the shared material");
 assert.match(css, /\.numeric-input__stepper \{[^}]*width:\s*11px;[^}]*border:\s*0;[^}]*background:\s*transparent;/, "numeric stepper should be symbol-only without the old boxed spinner chrome");
 assert.doesNotMatch(css, /\.numeric-input__stepper button \+ button\s*\{[^}]*border-top/, "numeric stepper should not split its chevrons with an old-fashioned divider");

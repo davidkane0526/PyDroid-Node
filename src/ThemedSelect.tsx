@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { TRANSIENT_UI_DISMISS_EVENT } from "./ui/transientUi";
 
 export type ThemedSelectValue = string | number | boolean;
 export type ThemedSelectOption<T extends ThemedSelectValue = ThemedSelectValue> = { value: T; label: string };
@@ -34,11 +35,14 @@ export function ThemedSelect<T extends ThemedSelectValue>({
       setOpen(false);
     };
     const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    const dismiss = () => setOpen(false);
     window.addEventListener("pointerdown", close);
     window.addEventListener("keydown", escape);
+    window.addEventListener(TRANSIENT_UI_DISMISS_EVENT, dismiss);
     return () => {
       window.removeEventListener("pointerdown", close);
       window.removeEventListener("keydown", escape);
+      window.removeEventListener(TRANSIENT_UI_DISMISS_EVENT, dismiss);
     };
   }, [open]);
 
