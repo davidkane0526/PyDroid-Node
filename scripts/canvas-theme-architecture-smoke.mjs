@@ -4,7 +4,7 @@ import process from "node:process";
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
-const app = read("src/App.tsx");
+const app = `${read("src/App.tsx")}\n${read("src/nodes/WorkflowNodeView.tsx")}`;
 const dialogs = read("src/dialogs.tsx");
 const main = read("src/main.tsx");
 const registry = read("src/canvas-theme.ts");
@@ -14,7 +14,7 @@ const sharedStyles = read("src/styles/base.css");
 const checks = [
   [registry.includes('"classic"') && registry.includes('"soft"'), "canvas theme registry exposes classic and soft themes"],
   [registry.includes('DEFAULT_CANVAS_THEME: CanvasThemeId = "soft"'), "soft theme is the explicit new default"],
-  [main.indexOf('"./styles/canvas.css"') > main.indexOf('"./styles/fixes.css"'), "canvas theme CSS is a final isolated override layer"],
+  [main.indexOf('"./styles/canvas.css"') > main.indexOf('"./styles/result-presentation.css"'), "canvas theme CSS is a final isolated override layer"],
   [app.includes("data-canvas-theme={canvasTheme}"), "canvas theme id is exposed on the app shell"],
   [app.includes("node-kind-function") && app.includes("node-kind-group") && app.includes("node-kind-flow"), "nodes expose semantic theme classes"],
   [app.includes("canvasTheme: normalizeCanvasTheme(saved.canvasTheme"), "saved canvas theme is normalized"],

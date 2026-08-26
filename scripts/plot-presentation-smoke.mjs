@@ -3,13 +3,13 @@ import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
-const app = read("src/App.tsx");
+const app = `${read("src/App.tsx")}\n${read("src/nodes/WorkflowNodeView.tsx")}`;
 const dialogs = read("src/dialogs.tsx");
 const plotView = read("src/ui/PlotView.tsx");
 const plotPreview = read("src/ui/PlotPreview.tsx");
 const plotThumbnail = read("src/ui/PlotThumbnail.tsx");
 const plots = read("src/runtime/javascript/engine/plots.ts");
-const fixes = read("src/styles/fixes.css");
+const presentationCss = read("src/styles/result-presentation.css");
 const labHtml = read("theme-lab/index.html");
 const labCss = read("theme-lab/theme.css");
 const labJs = read("theme-lab/theme.js");
@@ -18,7 +18,7 @@ const checks = [
   ["exports use a dedicated result region", app.includes('className="result-exports"') && app.includes('className="result-export-card"')],
   ["export links are no longer injected into result heading", !/result-actions[\s\S]{0,1000}download-link/.test(app)],
   ["raster plot uses a range slider", dialogs.includes('type="range"') && dialogs.includes('plot-lightbox__raster-stage')],
-  ["100% raster zoom is defined as fitted panel size", dialogs.includes('100% 为适应面板') && fixes.includes('.plot-lightbox__raster-image')],
+  ["100% raster zoom is defined as fitted panel size", dialogs.includes('100% 为适应面板') && presentationCss.includes('.plot-lightbox__raster-image')],
   ["compact ECharts heatmaps preserve hidden visualMap mapping", plotView.includes('show: false, calculable: false') && plotView.includes('chart.type === "heatmap"')],
   ["heatmap formatter behavior is rebuilt in presentation layer", plotView.includes('__pydroidHeatmapMeta') && plotView.includes('heatmapFormatter')],
   ["interactive charts use bounded data-aware device pixel ratio", plotView.includes("preferredDevicePixelRatio") && plotView.includes("points >= 12_000")],

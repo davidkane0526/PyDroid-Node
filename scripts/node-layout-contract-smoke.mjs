@@ -129,7 +129,7 @@ try {
   const denseEndpointLayout = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "Dense Endpoints", inputPorts: ports, outputPorts: [{ id: "output", label: "Output", valueType: "any" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: true, hasDynamicPorts: false, isGroup: false, nodeScale: 0.75, endpointScale: 1.8 });
   if (denseEndpointLayout.portRowHeight * 0.75 < 16 * 1.8 + 5) throw new Error("horizontal dynamic port rows do not reserve enough room for enlarged endpoints");
 
-  const appSource = readFileSync(path.join(root, "src", "App.tsx"), "utf8");
+  const appSource = `${readFileSync(path.join(root, "src", "App.tsx"), "utf8")}\n${readFileSync(path.join(root, "src", "nodes", "WorkflowNodeView.tsx"), "utf8")}`;
   const cssSource = readFileSync(path.join(root, "src", "styles", "base.css"), "utf8");
   const catalogSource = readFileSync(path.join(root, "src", "nodeCatalog.ts"), "utf8");
   if (!appSource.includes('nodeLayout.verticalFormLayout ? "workflow-node--vertical-form"')) throw new Error("WorkflowNodeCard does not expose vertical form layout class");

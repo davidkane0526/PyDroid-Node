@@ -1,10 +1,11 @@
-# Current development handoff — 1.6.55 Primitive Centered Rhythm
+# Current development handoff — 1.6.56 Ownership Consolidation
 
-Branch: `feature/primitive-centered-rhythm`
-Version: **1.6.55**
-Android versionCode: **195**
-Build revision: `1.6.55-dev-r150-primitive-centered-rhythm`
+Branch: `feature/ownership-consolidation`
+Version: **1.6.56**
+Android versionCode: **196**
+Build revision: `1.6.56-dev-r151-ownership-consolidation`
 
+- 1.6.56 Ownership Consolidation: node rendering/typed-edge/view contexts moved out of `App.tsx`; Notebook editor and app error boundary now have focused owners. The generic CSS `fixes.css` patch layer is removed without changing cascade order.
 - 1.6.55 Primitive Centered Rhythm: Primitive cards keep the compact 1.6.54 footprint but the title + micro-control stack is now absolutely centered against the whole measured card. Title-to-control spacing is increased to ~7 px; generic dynamic/simple-node body rhythm can no longer offset the Primitive content group.
 - 1.6.49 complex-node density and Core transient-UI canvas-dismiss behavior are retained unchanged.
 - 1.6.47 shared node controls and 1.6.46 Gradle client/build JVM alignment are retained unchanged.
@@ -33,9 +34,17 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.55: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
-- Python suite revalidated in 1.6.55: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.55: **38/38**.
+- Runtime parity revalidated in 1.6.56: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
+- Python suite revalidated in 1.6.56: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.56: **38/38**.
+
+
+## 1.6.56 Ownership Consolidation
+
+- `App.tsx` is now an application/workspace shell rather than also owning canvas-node rendering. Node card rendering, inline controls, typed gradient edges and node-view contexts live in `src/nodes/WorkflowNodeView.tsx`.
+- `NotebookEditor` and `AppErrorBoundary` are separate UI components. `App.tsx` is about 4184 lines and the ownership audit now enforces a stricter <4300-line ceiling plus a bounded Node View module.
+- The generic `src/styles/fixes.css` late patch bucket is gone. Existing rules preserve their original order under explicit shell/responsive, panel and result-presentation files. `style-ownership-smoke.mjs` prevents the generic fixes layer from returning.
+- No Runtime, Workflow, MCP, Remote Web/LAN, plugin, Theme/Design SDK or accepted node geometry behavior was intentionally changed.
 
 
 ## 1.6.55 Primitive Centered Rhythm

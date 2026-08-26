@@ -1,0 +1,101 @@
+/* Responsive corrections layered after styles.css. Keep these overrides small and intentional. */
+
+/* Endpoint size is a user setting. Mobile used to replace it with a fixed 18 px handle. */
+.workflow-node .react-flow__handle {
+  width: calc(14px * var(--endpoint-scale, 1)) !important;
+  height: calc(14px * var(--endpoint-scale, 1)) !important;
+  border-width: calc(3px * var(--endpoint-scale, 1)) !important;
+}
+
+/* Keep the physical touch target comfortable without changing the visible endpoint size. */
+@media (pointer: coarse) {
+  .workflow-node .react-flow__handle::after {
+    position: absolute;
+    inset: -7px;
+    content: "";
+  }
+}
+
+/* The old 621–760 px rule restored a two-column settings layout and caused portrait overflow. */
+@media (max-width: 820px) and (orientation: portrait) {
+  .settings-dialog.settings-dialog--adaptive .settings-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .settings-dialog.settings-dialog--adaptive .settings-layout .settings-section--canvas {
+    grid-column: auto !important;
+  }
+  .settings-dialog.settings-dialog--adaptive .settings-control-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .settings-control-grid > label,
+  .settings-primary-control{
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px !important;
+  }
+}
+
+/* LAN banner: keep the Phase-1 content-width information strip on one row everywhere. */
+@media (max-height: 640px) and (orientation: landscape), (max-width: 900px) {
+  .remote-server-banner { display: flex; width: max-content; max-width: calc(100vw - 16px); }
+  .remote-server-banner strong { display: inline-flex; }
+  .remote-server-banner code { min-width: 0; width: auto; }
+}
+
+.smb-browser-toolbar .smb-favorite-button.active {
+  color: #d99a00;
+  border-color: color-mix(in srgb, #d99a00 45%, var(--border));
+}
+.smb-favorites { position: relative; flex: none; }
+.smb-favorites__panel {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  width: min(330px, calc(100vw - 28px));
+  max-height: min(320px, 48vh);
+  overflow: auto;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .22);
+}
+.smb-favorites__empty { padding: 12px; color: var(--text-muted); font-size: 11px; text-align: center; }
+.smb-favorite-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 5px; }
+.smb-favorite-row--current {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.smb-favorite-row--current > button:first-child { color: var(--text-highlight); }
+.smb-favorite-row > button:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.smb-favorite-row > button:first-child:hover { background: var(--surface-hover); }
+.smb-favorite-row strong,
+.smb-favorite-row small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.smb-favorite-row small { color: var(--text-muted); }
+.smb-favorite-row__remove {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+}
+.smb-favorite-row__remove:hover { color: var(--danger); background: var(--surface-hover); }
+

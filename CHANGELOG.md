@@ -1,3 +1,12 @@
+## 1.6.56 (196) — Ownership Consolidation — 2026-08-26
+
+- Extracted the canvas node presentation boundary from `App.tsx` into `src/nodes/WorkflowNodeView.tsx`; `WorkflowNodeCard`, inline node controls, typed edges and node-view contexts no longer belong to the application shell.
+- Extracted `NotebookEditor` and `AppErrorBoundary` into focused UI modules. `App.tsx` is reduced from 4414 to about 4184 lines without changing workflow/runtime behavior.
+- Removed the generic `src/styles/fixes.css` patch layer. Its existing rules retain their original cascade order but now live under explicit `shell-responsive.css`, `panels.css` and `result-presentation.css` owners.
+- Added ownership regression gates so node rendering cannot silently return to `App.tsx` and a generic CSS fixes bucket cannot reappear. Existing UI/layout tests now validate the extracted node-view boundary instead of assuming every implementation lives in `App.tsx`.
+- Revalidated Demo **38/38**, Runtime parity **135/135**, JavaScript-capable NodeContract **101/101**, Python **188 passed / 1 skipped**, Node Layout/UI/Canvas/Plugin/Theme/Design/Workflow/MCP/Remote/LAN/build-tool architecture gates.
+- Build revision: `1.6.56-dev-r151-ownership-consolidation`.
+
 ## 1.6.55 (195) — Primitive Centered Rhythm — 2026-08-26
 
 - Primitive value cards now use an independent absolute full-card content stack, so title and micro-control are centered against the real card geometry rather than generic node body rules.
