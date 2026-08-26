@@ -1,21 +1,28 @@
-# Current progress — 1.6.47 Node Control Polish
+# Current progress — 1.6.48 Node Content Balance
 
 Date: 2026-08-26
 
-- 1.6.47 node UI: native node select popups and boxed numeric spinners are replaced by shared Core controls; complex horizontal nodes are tighter, long-title simple nodes gain height, and port label/handle semantic colors are unified.
-- 1.6.46 Android packaging alignment is retained unchanged and still awaits pinned Windows/JDK 21 confirmation that no single-use daemon is forked.
-- 1.6.45 node UI remains unchanged: horizontal dynamic cards share a single form-control width and append inline parameters after input rows.
-- Android formal build remains open: the latest user log still shows Gradle forking a single-use daemon under `--no-daemon`, then Windows rejects the second `java.exe` with CreateProcess error=5.
+- 1.6.48 node geometry: simple cards gain height from actual title wrapping while complex side-rail cards remove the remaining fixed center whitespace; both dimensions are now content-driven instead of independently tuned.
+- 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
+- The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.47**, Android versionCode **187**.
-- Build revision: `1.6.47-dev-r142-node-control-polish`.
+- Product version: **1.6.48**, Android versionCode **188**.
+- Build revision: `1.6.48-dev-r143-node-content-balance`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
+
+
+## 1.6.48 node content balance
+
+- Complex horizontal cards reserve only measured side Rails plus an 18 px safe center gap; the header does not allocate a second empty content column.
+- Long simple-node titles reserve at least two title lines when production CJK/Latin font metrics would wrap them, increasing base height to about 86 px instead of compressing the text stack.
+- Simple horizontal bodies fill the measured inner height and center their content vertically.
+- Added regression limits for `table.pivot`/heatmap width and long-title simple-node height so width/height imbalance cannot silently return.
 
 
 ## 1.6.47 node control polish

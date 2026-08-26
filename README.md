@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.47 (187) · Node Control Polish**。本版在保留 1.6.46 Gradle client/build JVM 对齐修复的同时，统一节点内下拉菜单、数字步进器、复杂节点密度与端口语义色：节点不再使用浏览器原生 select/spinner，复杂横向节点进一步按 Rail 收紧，长标题简单节点自动增加高度，端点文字直接继承端点类型色。Android Gradle single-use daemon 修复仍需用户固定 Windows/JDK 21 环境最终验证。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.48 (188) · Node Content Balance**。本版保留已验证可编译的 1.6.46 Gradle client/build JVM 对齐路径，并把节点布局从“固定紧凑阈值”进一步收敛为内容驱动的二维测量：复杂横向节点只保留真实左右 Rail 与最小安全间隙，长标题简单节点按实际换行增加高度且正文在卡片内垂直居中，避免“上下拥挤”与“左右空白”同时存在。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,9 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.44 Android Single-JVM Build（当前分支）**：Android `assembleDebug` 固定单 JVM `--no-daemon`；Gradle wrapper heap 固定为 1536 MB，`gradle.properties` 禁止 daemon 且不再声明 `org.gradle.jvmargs`，避免 Windows 在构建阶段额外创建第二个 `java.exe`。Gradle build cache 与增量输出仍保留。
+- **1.6.48 Node Content Balance（当前分支）**：横向节点改为内容驱动的二维几何；复杂动态节点宽度只由输入 Rail + 18 px 安全间隙 + 输出 Rail 决定，简单节点高度按实际标题换行增长并让正文垂直居中，解决上下拥挤与左右留白失衡。
+- **1.6.47 Node Control Polish**：节点下拉菜单、数字微调器与端点语义色统一到 Core 控件；该版本的固定 Windows/Android 构建路径已由用户确认可以编译。
+- **1.6.44 Android Single-JVM Build（历史构建路径）**：Android `assembleDebug` 固定单 JVM `--no-daemon`；Gradle wrapper heap 固定为 1536 MB，`gradle.properties` 禁止 daemon 且不再声明 `org.gradle.jvmargs`，避免 Windows 在构建阶段额外创建第二个 `java.exe`。Gradle build cache 与增量输出仍保留。
 - **1.6.43 Node Layout Balance**：复杂横向节点以左右 Rail + 必要中央间隙决定宽度，不再为标题重复预留整块中央区域；标题/描述跨整卡居中；内联参数与 Socket 默认值共用标签/控件栅格；`table.pivot` 与 `plot.heatmap` 显式显示“聚合/配色”；运行按钮进一步轻量化。
 - **1.6.41 Horizontal Rail Containment**：修复宽屏断点把动态节点 `min-height` 强制压回 62 px 的旧 CSS 冲突；横向动态节点的输入/输出 Rail 分别按端口数量居中，单输出位于右侧中线，所有 Socket 控件保持在节点卡片边界内。
 - **1.6.40 Vertical Dynamic Node Form Layout**：纵向工作流中的动态节点不再被强制改成横向左右 Rail；输入端口保持顶部、输出端口保持底部，Socket 默认值与内联控件按统一标签列/控件列纵向排列，节点以增加高度换取更紧凑的宽度。横向布局仍保留固定端口行 Rail；`core.default` 视觉基线不变。

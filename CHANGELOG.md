@@ -1,3 +1,12 @@
+## 1.6.48 (188) — Node Content Balance — 2026-08-26
+
+- Replaced the remaining fixed horizontal-card spacing heuristic with content-driven two-dimensional geometry: complex side-rail nodes now reserve only the measured input Rail, an 18 px collision-safe center gap, and the measured output Rail.
+- Long/simple horizontal nodes now measure their vertical content budget from the real title-wrap requirement; mixed CJK/Latin titles which wrap at production font metrics receive a second title line and an 86 px base card height instead of compressing type/title/meta.
+- Simple horizontal node bodies consume the measured card height, so additional height becomes balanced top/bottom breathing room rather than unused space below the text stack.
+- `table.pivot`-shaped horizontal cards measure about 260 × 199 px at nodeScale 1.0, while `导出 TER 长表` measures about 239 × 86 px; nodeScale continues to scale both dimensions uniformly.
+- The user confirmed the pinned build path now compiles; the 1.6.46 Gradle client/build JVM alignment remains unchanged in this UI/layout-only release.
+- Build revision: `1.6.48-dev-r143-node-content-balance`.
+
 ## 1.6.47 (187) — Node Control Polish — 2026-08-26
 
 - Replaced native browser `<select>` inside canvas nodes with the shared Core `ThemedSelect`, so dropdown menus use the same compact material, hover/selected treatment and light/dark visual contract as the rest of the application.

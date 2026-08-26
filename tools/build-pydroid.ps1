@@ -143,7 +143,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.47-dev-r142-node-control-polish"
+$script:BuildScriptRevision = "1.6.48-dev-r143-node-content-balance"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

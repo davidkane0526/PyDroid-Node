@@ -446,6 +446,15 @@ button, input, select, textarea { font: inherit; }
 .workflow-node__body { display: grid; align-content: center; min-width: 0; min-height: 46px; text-align: center; }
 .workflow-node.has-inputs .workflow-node__body { margin-left: calc(var(--port-label-width, 42px) + 14px); }
 .workflow-node.has-outputs .workflow-node__body { margin-right: calc(var(--port-label-width, 42px) + 14px); }
+
+/* Content-fit simple horizontal cards: measured min-height belongs to the body as well as
+   the outer shell, so extra height becomes balanced top/bottom breathing room instead of
+   unused space below the text stack. */
+.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__body {
+  min-height: calc(var(--node-min-height, calc(62px * var(--node-scale, 1))) - 12px * var(--node-scale, 1));
+  padding-block: calc(3px * var(--node-scale, 1));
+  align-content: center;
+}
 .input-port, .output-port { position: absolute; transform: translateY(-50%); pointer-events: none; }
 .input-port { left: 0; }
 .output-port { right: 0; }

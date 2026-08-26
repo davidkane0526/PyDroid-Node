@@ -1,13 +1,13 @@
-# Current development handoff — 1.6.47 Node Control Polish
+# Current development handoff — 1.6.48 Node Content Balance
 
-Branch: `feature/node-control-polish`
-Version: **1.6.47**
-Android versionCode: **187**
-Build revision: `1.6.47-dev-r142-node-control-polish`
+Branch: `feature/node-content-balance`
+Version: **1.6.48**
+Android versionCode: **188**
+Build revision: `1.6.48-dev-r143-node-content-balance`
 
-- 1.6.47 node controls: canvas selects use the shared in-app `ThemedSelect`; numeric steppers are symbol-only; complex horizontal cards use a tighter Rail gap; long-title simple nodes get extra height; port labels inherit the same semantic color as their handles.
-- 1.6.46 Android build alignment is retained unchanged: wrapper client JVM and Gradle build JVM immutable arguments are aligned and the instrumentation agent is disabled.
-- Android formal build remains open until the user reruns the pinned Windows/JDK 21 build and confirms Gradle no longer forks a single-use daemon.
+- 1.6.48 node geometry: horizontal cards use content-driven two-dimensional measurement. Complex dynamic cards keep only measured input/output Rails plus an 18 px safety gap; simple long-title cards gain true content height and vertically centered body breathing room.
+- 1.6.47 shared node controls and 1.6.46 Gradle client/build JVM alignment are retained unchanged.
+- The user has confirmed the pinned build path now compiles; Android build-process alignment is therefore an accepted baseline unless a new reproduced build log shows otherwise.
 
 ## Current phase
 
@@ -32,9 +32,18 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.47: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
-- Python suite revalidated in 1.6.47: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.47: **38/38**.
+- Runtime parity revalidated in 1.6.48: **134/134** golden workflows; JavaScript-capable NodeContract coverage **96/96**.
+- Python suite revalidated in 1.6.48: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.48: **38/38**.
+
+
+## 1.6.48 node content balance
+
+- Complex horizontal dynamic nodes no longer reserve a decorative fixed center column: width is input Rail + 18 px collision-safe gap + output Rail, with the centered header acting only as a minimum floor.
+- Long/simple horizontal nodes reserve the real title-wrap height; mixed CJK/Latin labels above the wrap threshold receive a second title line and a larger card rather than squeezing type/title/meta.
+- Simple horizontal bodies consume measured card height, distributing extra room above and below the content stack.
+- `table.pivot`-shaped cards measure about 260 × 199 px and `导出 TER 长表` about 239 × 86 px at nodeScale 1.0.
+- Build pipeline behavior is unchanged; the user has confirmed the pinned build now compiles.
 
 
 ## 1.6.47 node control polish
@@ -44,7 +53,7 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Horizontal dynamic-node width is more tightly Rail-driven, while long-title simple nodes gain measured vertical breathing room.
 - Port label text inherits the same `--port-color` as the endpoint handle in both light and dark modes.
 - Node Layout/UI/Canvas/Theme/Design/Plugin/SDK regressions, Demo 38/38, Runtime parity 134/134, JS NodeContract 96/96 and Python 188 passed / 1 skipped are green.
-- 1.6.46 Gradle client-JVM alignment remains intact and still requires the user's pinned Windows/JDK 21 build for final acceptance.
+- 1.6.46 Gradle client-JVM alignment remains intact; the user subsequently confirmed the pinned build can compile, so this path is now the accepted build baseline.
 
 
 

@@ -111,9 +111,13 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   // Side-rail cards do not need a second full-width center column for the title.
   // The header spans the whole card; width is therefore driven by the two rails plus a modest breathing gap,
   // with the title only acting as a minimum-width floor.
-  const dynamicHeaderWidth = Math.min(310, Math.max(176, 58 + labelUnits * 8.2));
-  const dynamicRailWidth = inputRailWidth + outputRailWidth + 42;
-  const dynamicHorizontalWidth = Math.min(390, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 224 : 198));
+  // Horizontal dynamic cards are content-driven in both dimensions. The rails already
+  // account for every label/control, so the center only needs a small collision-safe gap.
+  // Do not reserve a decorative empty center column: it makes form-heavy nodes look hollow.
+  const dynamicHeaderWidth = Math.min(286, Math.max(164, 52 + labelUnits * 7.8));
+  const dynamicRailGap = 18;
+  const dynamicRailWidth = inputRailWidth + outputRailWidth + dynamicRailGap;
+  const dynamicHorizontalWidth = Math.min(340, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 224 : 190));
   const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
   const baseWidth = direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
@@ -135,9 +139,16 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     : 0;
   const simpleTitleWidth = Math.max(86, compactBodyWidth - 18);
   const estimatedTitleWidth = Math.max(0, labelUnits * 8.4);
-  const simpleTitleLines = sideRailLayout ? 1 : Math.max(1, Math.min(3, Math.ceil(estimatedTitleWidth / simpleTitleWidth)));
-  const longSimpleTitleExtra = !sideRailLayout && labelUnits > 10 ? 12 : 0;
-  const contentHeight = 62 + (sideRailLayout ? 0 : longSimpleTitleExtra + (simpleTitleLines - 1) * 15 + inlineRows * 27);
+  const measuredSimpleTitleLines = Math.max(1, Math.min(3, Math.ceil(estimatedTitleWidth / simpleTitleWidth)));
+  // Mixed CJK/Latin titles around this length wrap earlier in the real 16 px canvas font
+  // than the lightweight width estimate suggests. Reserve the second line intentionally
+  // instead of letting type/title/meta collapse vertically at runtime.
+  const simpleTitleLines = sideRailLayout ? 1 : Math.max(labelUnits > 10 ? 2 : 1, measuredSimpleTitleLines);
+  // Simple horizontal cards use real content height. A two-line title must gain vertical
+  // room instead of squeezing type/title/meta into the same 62 px shell.
+  const longSimpleTitleExtra = !sideRailLayout && labelUnits > 10 ? 4 : 0;
+  const simpleHorizontalContentHeight = 64 + longSimpleTitleExtra + (simpleTitleLines - 1) * 18 + inlineRows * 27;
+  const contentHeight = sideRailLayout ? 62 : simpleHorizontalContentHeight;
   const verticalFormRows = socketRows + inlineRows;
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29
