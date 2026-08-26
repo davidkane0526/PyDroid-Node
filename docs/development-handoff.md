@@ -1,11 +1,11 @@
-# Current development handoff — 1.6.54 Primitive Content Footprint
+# Current development handoff — 1.6.55 Primitive Centered Rhythm
 
-Branch: `feature/primitive-content-footprint`
-Version: **1.6.54**
-Android versionCode: **194**
-Build revision: `1.6.54-dev-r149-primitive-content-footprint`
+Branch: `feature/primitive-centered-rhythm`
+Version: **1.6.55**
+Android versionCode: **195**
+Build revision: `1.6.55-dev-r150-primitive-centered-rhythm`
 
-- 1.6.54 primitive content footprint: Primitive value sources now reserve only the real title + micro-control footprint. Base geometry is ~88–98 px for Number/Boolean, ~100–112 px Text, ~98–108 px Color, and ~132–142 px DateTime at nodeScale=1, with a ~60 px vertical base. Redundant output type labels and Boolean state text are removed; semantic handle color remains the output-type cue.
+- 1.6.55 Primitive Centered Rhythm: Primitive cards keep the compact 1.6.54 footprint but the title + micro-control stack is now absolutely centered against the whole measured card. Title-to-control spacing is increased to ~7 px; generic dynamic/simple-node body rhythm can no longer offset the Primitive content group.
 - 1.6.49 complex-node density and Core transient-UI canvas-dismiss behavior are retained unchanged.
 - 1.6.47 shared node controls and 1.6.46 Gradle client/build JVM alignment are retained unchanged.
 - The user has confirmed the pinned build path now compiles; Android build-process alignment is therefore an accepted baseline unless a new reproduced build log shows otherwise.
@@ -33,15 +33,16 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.54: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
-- Python suite revalidated in 1.6.54: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.54: **38/38**.
+- Runtime parity revalidated in 1.6.55: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
+- Python suite revalidated in 1.6.55: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.55: **38/38**.
 
 
-## 1.6.54 primitive content footprint
+## 1.6.55 Primitive Centered Rhythm
 
-- Primitive card geometry is driven only by title + micro-control footprint; duplicated output type labels no longer consume vertical space.
-- Boolean is a pure micro switch with no redundant 开/关 text. Number/Text/Color/DateTime controls are proportionally smaller while keeping the same runtime and popover behavior.
+- Primitive card geometry remains content-driven and compact; duplicated output labels remain hidden.
+- The body is an independent full-card flex stack (`position:absolute; inset:0`) so title and control share the true card centerline.
+- Title-to-control gap is ~7 px while the existing compact card dimensions remain unchanged.
 - Primitive output handles keep semantic type color but hide the repeated textual type label; the node title is the single source of meaning.
 
 ## 1.6.53 primitive compact centering polish

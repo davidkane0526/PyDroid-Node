@@ -4614,22 +4614,31 @@ select.node-inline-control {
   user-select: text;
 }
 
-/* Primitive value nodes are true micro-instruments: total geometry is content-boxed,
-   centered on the whole card, and never inherits generic dynamic-node title padding. */
+/* Primitive value nodes are true micro-instruments. The card owns the exact measured
+   geometry while one independent content stack fills that geometry and centers itself.
+   This intentionally bypasses generic simple/dynamic-node body rhythm. */
 .workflow-node--primitive {
   box-sizing: border-box;
+  height: var(--node-min-height, 60px);
+  min-height: var(--node-min-height, 60px);
   padding: 0 !important;
   overflow: visible;
 }
 .workflow-node--primitive .workflow-node__body {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
   box-sizing: border-box;
   width: 100%;
-  min-height: calc(var(--node-min-height, 60px) - 2px);
+  height: 100%;
+  min-height: 0 !important;
   margin: 0 !important;
-  padding: calc(5px * var(--node-scale, 1)) calc(6px * var(--node-scale, 1)) !important;
-  place-content: center;
-  justify-items: center;
-  gap: calc(4px * var(--node-scale, 1));
+  padding: calc(4px * var(--node-scale, 1)) calc(6px * var(--node-scale, 1)) !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(7px * var(--node-scale, 1));
   text-align: center;
 }
 .workflow-node--primitive .workflow-node__label,
@@ -4645,24 +4654,23 @@ select.node-inline-control {
   white-space: normal;
 }
 .workflow-node--primitive .workflow-node__inline-controls {
-  width: auto;
+  display: flex;
+  width: 100%;
   max-width: calc(118px * var(--node-scale, 1));
   margin: 0;
-  justify-items: center;
+  align-items: center;
+  justify-content: center;
   gap: 0;
 }
 .workflow-node--primitive .workflow-node__inline-controls > .workflow-node__inline-control--label-hidden {
-  display: grid;
+  display: flex;
   width: auto;
-  justify-items: center;
+  align-items: center;
+  justify-content: center;
 }
 .workflow-node--primitive .workflow-node__meta { display: none; }
 .workflow-node--primitive.direction-vertical {
   padding: 0 !important;
-}
-.workflow-node--primitive.direction-vertical .workflow-node__body,
-.workflow-node--primitive.direction-horizontal .workflow-node__body {
-  min-height: calc(var(--node-min-height, 60px) - 2px);
 }
 /* Primitive title already names the value type. Repeating the same word at the output
    handle forces unnecessary card height and visual noise, so keep only the semantic handle. */

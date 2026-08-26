@@ -1,3 +1,10 @@
+## 1.6.55 (195) — Primitive Centered Rhythm — 2026-08-26
+
+- Primitive value cards now use an independent absolute full-card content stack, so title and micro-control are centered against the real card geometry rather than generic node body rules.
+- Title-to-control spacing is increased from ~4 px to ~7 px while keeping the compact 1.6.54 card footprint.
+- Primitive inline controls are flex-centered as one content group; generic dynamic/simple-node margins and min-height no longer affect their visual center.
+- Build revision: `1.6.55-dev-r150-primitive-centered-rhythm`.
+
 ## 1.6.54 (194) — Primitive Content Footprint — 2026-08-26
 
 - Primitive value cards now size to the real title + micro-control footprint instead of reserving card area for duplicated output type text.

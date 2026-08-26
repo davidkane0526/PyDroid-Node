@@ -26,7 +26,7 @@ assert.match(primitiveValueControl, /role="switch"[\s\S]*primitive-toggle__track
 assert.doesNotMatch(primitiveValueControl, /type="color"|type="datetime-local"/, "primitive color/datetime controls must not delegate to large native browser pickers");
 assert.match(primitiveValueControl, /primitive-color-presets[\s\S]*primitive-hex-field/, "color primitive should use a compact swatch/HEX popover");
 assert.match(primitiveValueControl, /primitive-calendar-grid[\s\S]*primitive-time-row/, "datetime primitive should use the shared compact in-app calendar/time popover");
-assert.match(css, /\.workflow-node--primitive \.workflow-node__body[\s\S]*place-content:\s*center/, "primitive nodes should center their title and micro-control rather than mimic inspector forms");
+assert.match(css, /\.workflow-node--primitive \.workflow-node__body[\s\S]*position:\s*absolute[\s\S]*inset:\s*0[\s\S]*justify-content:\s*center[\s\S]*gap:\s*calc\(7px/, "primitive nodes should use an independent full-card centered content stack with deliberate title-control rhythm");
 assert.match(css, /workflow-node--primitive\.workflow-node--dynamic-ui \.workflow-node__label[\s\S]*padding:\s*0 !important/, "primitive titles must cancel generic dynamic-node right padding and stay on the true card centerline");
 assert.match(canvasThemes, /workflow-node--primitive \.primitive-number-input[\s\S]*border-color:\s*transparent/, "Soft primitive controls should use tonal depth instead of nested outlines");
 assert.match(css, /workflow-node--primitive \.output-port \.node-port-label[\s\S]*display:\s*none/, "primitive cards should not reserve height for a redundant output type label");

@@ -1,16 +1,16 @@
-# Current progress — 1.6.54 Primitive Content Footprint
+# Current progress — 1.6.55 Primitive Centered Rhythm
 
 Date: 2026-08-26
 
-- 1.6.54 primitive content footprint: primitive value sources now size to the true title/control footprint, remove repeated output-type text and Boolean state copy, and reduce the vertical base to about 60 px without changing runtime semantics.
+- 1.6.55 Primitive Centered Rhythm: Primitive value cards keep the compact 1.6.54 footprint, but title + micro-control now use an independent full-card centered stack with ~7 px internal rhythm.
 - 1.6.49 complex side-rail density and canvas blank-click transient-UI dismissal remain unchanged.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.54**, Android versionCode **194**.
-- Build revision: `1.6.54-dev-r149-primitive-content-footprint`.
+- Product version: **1.6.55**, Android versionCode **195**.
+- Build revision: `1.6.55-dev-r150-primitive-centered-rhythm`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
@@ -18,10 +18,11 @@ Date: 2026-08-26
 
 
 
-## 1.6.54 primitive content footprint
+## 1.6.55 Primitive Centered Rhythm
 
-- Primitive width/height now follows actual title + micro-control content instead of preserving space for repeated output labels.
-- Output handle color remains semantic; repeated 数值/文本/布尔/颜色/时间 labels are hidden.
+- Primitive width/height continues to follow actual title + micro-control content; repeated output labels remain hidden.
+- Primitive body positioning is now independent from generic node body rules, which guarantees true card-centered content.
+- Title/control spacing is increased to ~7 px without enlarging the compact card footprint.
 - Boolean uses only the compact switch, without a second 开/关 text token.
 
 ## 1.6.53 primitive compact centering polish
