@@ -68,7 +68,7 @@ function BooleanPrimitive({ value, disabled, label, onChange, stop }: { value: u
     disabled={disabled}
     onPointerDown={(event) => stopPropagation(stop, event)}
     onClick={(event) => { stopPropagation(stop, event); if (!disabled) onChange(!active); }}
-  ><span className="primitive-toggle__track" aria-hidden="true"><i /></span><span className="primitive-toggle__state">{active ? "开" : "关"}</span></button>;
+  ><span className="primitive-toggle__track" aria-hidden="true"><i /></span></button>;
 }
 
 function ColorPrimitive({ value, disabled, label, onChange, stop }: { value: unknown; disabled: boolean; label: string; onChange: (value: string) => void; stop: boolean }) {

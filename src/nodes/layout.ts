@@ -127,15 +127,17 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const primitiveSpec = inlineParameters[0];
   const primitiveKind = primitiveSpec?.kind ?? "text";
   const primitiveControlWidth = inlineParameters.length ? Math.max(...inlineParameters.map(inlineControlPreferredWidth)) : 72;
-  const primitiveWidthFloor = primitiveKind === "datetime" ? 150
-    : primitiveKind === "color" ? 118
-      : primitiveKind === "text" ? 122
-        : 104;
-  const primitiveWidthCeiling = primitiveKind === "datetime" ? 158
-    : primitiveKind === "color" ? 128
-      : primitiveKind === "text" ? 136
-        : 116;
-  const primitiveWidth = Math.min(primitiveWidthCeiling, Math.max(primitiveWidthFloor, primitiveControlWidth + 14, 62 + labelUnits * 6.2));
+  // Primitive cards are micro value sources, not small inspector forms. Their card width
+  // follows the real title/control footprint and deliberately omits redundant output-label budget.
+  const primitiveWidthFloor = primitiveKind === "datetime" ? 132
+    : primitiveKind === "color" ? 98
+      : primitiveKind === "text" ? 100
+        : 88;
+  const primitiveWidthCeiling = primitiveKind === "datetime" ? 142
+    : primitiveKind === "color" ? 108
+      : primitiveKind === "text" ? 112
+        : 98;
+  const primitiveWidth = Math.min(primitiveWidthCeiling, Math.max(primitiveWidthFloor, primitiveControlWidth + 8, 44 + labelUnits * 5.4));
   const baseWidth = primitiveLayout ? primitiveWidth : direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
     ? Math.max(34, Math.min(verticalPortLabelWidth, (baseWidth - 24) / maxPortCount))
@@ -182,7 +184,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29
     : (inputDefaultSpecs.length ? 122 : 92) + inlineRows * 27;
-  const primitiveHeight = direction === "horizontal" ? 72 : 80;
+  const primitiveHeight = direction === "horizontal" ? 56 : 60;
   const baseHeight = primitiveLayout ? primitiveHeight : direction === "horizontal" ? Math.max(contentHeight, railHeight) : verticalHeight;
   const portTop = (index: number, count = maxPortCount) => {
     const safeCount = Math.max(1, count);

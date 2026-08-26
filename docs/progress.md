@@ -1,22 +1,28 @@
-# Current progress — 1.6.53 Primitive Compact Centering
+# Current progress — 1.6.54 Primitive Content Footprint
 
 Date: 2026-08-26
 
-- 1.6.53 primitive compact centering: primitive cards now use border-box geometry and per-control width budgets, reducing the five value sources to true micro-card dimensions while explicitly cancelling the generic dynamic-node title offset so title/control share the card centerline.
+- 1.6.54 primitive content footprint: primitive value sources now size to the true title/control footprint, remove repeated output-type text and Boolean state copy, and reduce the vertical base to about 60 px without changing runtime semantics.
 - 1.6.49 complex side-rail density and canvas blank-click transient-UI dismissal remain unchanged.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.53**, Android versionCode **193**.
-- Build revision: `1.6.53-dev-r148-primitive-compact-centering`.
+- Product version: **1.6.54**, Android versionCode **194**.
+- Build revision: `1.6.54-dev-r149-primitive-content-footprint`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 
+
+## 1.6.54 primitive content footprint
+
+- Primitive width/height now follows actual title + micro-control content instead of preserving space for repeated output labels.
+- Output handle color remains semantic; repeated 数值/文本/布尔/颜色/时间 labels are hidden.
+- Boolean uses only the compact switch, without a second 开/关 text token.
 
 ## 1.6.53 primitive compact centering polish
 

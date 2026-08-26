@@ -1,6 +1,6 @@
 # PyDroid Node build toolchain
 
-Current build revision: **1.6.53-dev-r148-primitive-compact-centering** (2026-08-26). The user has confirmed the pinned Windows/Android build compiles; tool discovery and the accepted 1.6.46 Gradle client/build JVM alignment remain unchanged. This release only compacts and recenters primitive-node UI and does not alter the accepted build path.
+Current build revision: **1.6.54-dev-r149-primitive-content-footprint** (2026-08-26). The user has confirmed the pinned Windows/Android build compiles; tool discovery and the accepted 1.6.46 Gradle client/build JVM alignment remain unchanged. This release only reduces Primitive value-node content footprint and does not alter the accepted build path.
 
 正常入口是 `Build PyDroid GUI.cmd`。`tools/build-pydroid.ps1` 是唯一构建编排根，`tools/modules/` 提供路径发现、版本验证、网络和清理辅助函数。
 

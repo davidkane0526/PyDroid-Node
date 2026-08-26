@@ -1,3 +1,11 @@
+## 1.6.54 (194) — Primitive Content Footprint — 2026-08-26
+
+- Primitive value cards now size to the real title + micro-control footprint instead of reserving card area for duplicated output type text.
+- Hide redundant primitive output labels while preserving semantic output-handle colors; the node title remains the single visible type label.
+- Boolean primitive is reduced to the switch itself with no duplicate 开/关 state text. Number/Text/Color/DateTime micro-controls and card geometry are reduced proportionally; vertical base height is now about 60 px at nodeScale 1.0.
+- Revalidated Demo 38/38, Runtime parity 135/135, JavaScript-capable NodeContract 101/101, Python 188 passed / 1 skipped, Node Layout/UI/Canvas/Plugin/Theme/Design/Workflow/MCP/Remote/LAN/build-tool gates.
+- Build revision: `1.6.54-dev-r149-primitive-content-footprint`.
+
 ## 1.6.53 (193) — Primitive Compact Centering — 2026-08-26
 
 - Primitive value cards now use border-box geometry so measured width/height is the real card size rather than padding-expanded size.

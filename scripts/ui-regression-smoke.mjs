@@ -29,6 +29,8 @@ assert.match(primitiveValueControl, /primitive-calendar-grid[\s\S]*primitive-tim
 assert.match(css, /\.workflow-node--primitive \.workflow-node__body[\s\S]*place-content:\s*center/, "primitive nodes should center their title and micro-control rather than mimic inspector forms");
 assert.match(css, /workflow-node--primitive\.workflow-node--dynamic-ui \.workflow-node__label[\s\S]*padding:\s*0 !important/, "primitive titles must cancel generic dynamic-node right padding and stay on the true card centerline");
 assert.match(canvasThemes, /workflow-node--primitive \.primitive-number-input[\s\S]*border-color:\s*transparent/, "Soft primitive controls should use tonal depth instead of nested outlines");
+assert.match(css, /workflow-node--primitive \.output-port \.node-port-label[\s\S]*display:\s*none/, "primitive cards should not reserve height for a redundant output type label");
+assert.doesNotMatch(primitiveValueControl, /primitive-toggle__state/, "boolean primitive should be a pure micro switch without redundant state text");
 const pluginManagerCss = readFileSync(path.join(root, "src/plugins/plugin-manager.css"), "utf8");
 const pluginManager = readFileSync(path.join(root, "src/plugins/PluginManager.tsx"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");

@@ -81,11 +81,11 @@ try {
 
   const primitiveNumber = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "数值", inputPorts: [], outputPorts: [{ id: "output", label: "数值", valueType: "number" }], inputDefaultSpecs: [], inlineParameters: [{ key: "value", label: "值", kind: "number", defaultValue: 0 }], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, isPrimitive: true, nodeScale: 1, endpointScale: 1 });
   if (!primitiveNumber.primitiveLayout || primitiveNumber.sideRailLayout || primitiveNumber.verticalFormLayout) throw new Error("primitive value source still uses generic side/form rails");
-  if (primitiveNumber.nodeWidth > 118 || primitiveNumber.nodeMinHeight > 82) throw new Error("primitive value source node lost micro-card geometry");
+  if (primitiveNumber.nodeWidth > 100 || primitiveNumber.nodeMinHeight > 62) throw new Error("primitive value source node lost micro-card geometry");
   const primitiveVerticalNumber = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "数值", inputPorts: [], outputPorts: [{ id: "output", label: "数值", valueType: "number" }], inputDefaultSpecs: [], inlineParameters: [{ key: "value", label: "值", kind: "number", defaultValue: 0 }], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, isPrimitive: true, nodeScale: 1, endpointScale: 1 });
-  if (primitiveVerticalNumber.nodeWidth > 118 || primitiveVerticalNumber.nodeMinHeight > 82) throw new Error("vertical primitive number node is still oversized");
+  if (primitiveVerticalNumber.nodeWidth > 100 || primitiveVerticalNumber.nodeMinHeight > 62) throw new Error("vertical primitive number node is still oversized");
   const primitiveDateTime = layout.resolveNodeCardLayout({ requestedDirection: "vertical", label: "日期时间", inputPorts: [], outputPorts: [{ id: "output", label: "时间", valueType: "datetime" }], inputDefaultSpecs: [], inlineParameters: [{ key: "value", label: "日期时间", kind: "datetime", defaultValue: "2026-01-01T00:00" }], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, isPrimitive: true, nodeScale: 1, endpointScale: 1 });
-  if (primitiveDateTime.nodeWidth > 160 || primitiveDateTime.nodeMinHeight > 82) throw new Error("datetime primitive node is still oversized");
+  if (primitiveDateTime.nodeWidth > 144 || primitiveDateTime.nodeMinHeight > 62) throw new Error("datetime primitive node is still oversized");
 
   const groupCard = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "TER 扫描分析", inputPorts: [{ id: "input", label: "扫描数据", valueType: "table" }], outputPorts: [{ id: "output", label: "TER 长表", valueType: "table" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: true, isGroup: true, nodeScale: 1, endpointScale: 1 });
   if (groupCard.nodeWidth < 242 || groupCard.nodeMinHeight < 94) throw new Error("group card did not adopt the shared enlarged geometry");
@@ -145,7 +145,7 @@ try {
   if (!cssSource.includes('top: var(--side-form-top')) throw new Error("horizontal inline form still uses a hard-coded top offset");
   if (!cssSource.includes('.workflow-node--side-rail.direction-horizontal {\n  min-height: var(--node-min-height')) throw new Error("horizontal side-rail card does not directly preserve measured height");
   if (!cssSource.includes('direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__body')) throw new Error("simple horizontal body does not consume measured card height");
-  if (!cssSource.includes('place-content: center;') || !cssSource.includes('gap: calc(5px * var(--node-scale, 1));')) throw new Error("simple horizontal text stack is not vertically centered with expanded line rhythm");
+  if (!cssSource.includes('place-content: center;') || !cssSource.includes('gap: calc(4px * var(--node-scale, 1));')) throw new Error("simple horizontal text stack is not vertically centered with expanded line rhythm");
   if (!cssSource.includes('.workflow-node.direction-horizontal:not(.workflow-structure):not(.workflow-node--side-rail) .workflow-node__meta { line-height: 1.25; }')) throw new Error("simple horizontal metadata lost its centered readable line height");
   if (!cssSource.includes('grid-template-columns: minmax(0, var(--input-port-label-width')) throw new Error("horizontal side-form rows do not share the socket label/control columns");
   if (!cssSource.includes('left: calc(30px * var(--node-scale, 1));') || !cssSource.includes('transform: none;')) throw new Error("horizontal dynamic header is not centered against the full card");

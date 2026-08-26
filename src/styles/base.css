@@ -4624,12 +4624,12 @@ select.node-inline-control {
 .workflow-node--primitive .workflow-node__body {
   box-sizing: border-box;
   width: 100%;
-  min-height: calc(var(--node-min-height, 80px) - 2px);
+  min-height: calc(var(--node-min-height, 60px) - 2px);
   margin: 0 !important;
-  padding: calc(6px * var(--node-scale, 1)) calc(7px * var(--node-scale, 1)) calc(14px * var(--node-scale, 1)) !important;
+  padding: calc(5px * var(--node-scale, 1)) calc(6px * var(--node-scale, 1)) !important;
   place-content: center;
   justify-items: center;
-  gap: calc(5px * var(--node-scale, 1));
+  gap: calc(4px * var(--node-scale, 1));
   text-align: center;
 }
 .workflow-node--primitive .workflow-node__label,
@@ -4637,7 +4637,7 @@ select.node-inline-control {
   width: 100%;
   padding: 0 !important;
   overflow: visible;
-  font-size: calc(12px * var(--node-scale, 1));
+  font-size: calc(11px * var(--node-scale, 1));
   font-weight: 700;
   line-height: 1.15;
   text-align: center;
@@ -4646,7 +4646,7 @@ select.node-inline-control {
 }
 .workflow-node--primitive .workflow-node__inline-controls {
   width: auto;
-  max-width: calc(136px * var(--node-scale, 1));
+  max-width: calc(118px * var(--node-scale, 1));
   margin: 0;
   justify-items: center;
   gap: 0;
@@ -4662,23 +4662,21 @@ select.node-inline-control {
 }
 .workflow-node--primitive.direction-vertical .workflow-node__body,
 .workflow-node--primitive.direction-horizontal .workflow-node__body {
-  min-height: calc(var(--node-min-height, 80px) - 2px);
+  min-height: calc(var(--node-min-height, 60px) - 2px);
 }
-.workflow-node--primitive.direction-vertical .output-port .node-port-label {
-  bottom: calc(5px * var(--node-scale, 1));
-  font-size: calc(8.5px * var(--node-scale, 1));
-  line-height: 1.1;
-}
+/* Primitive title already names the value type. Repeating the same word at the output
+   handle forces unnecessary card height and visual noise, so keep only the semantic handle. */
 .workflow-node--primitive .output-port .node-port-label {
-  font-weight: 700;
+  display: none;
 }
 
 .primitive-toggle {
   display: inline-flex;
-  height: calc(21px * var(--node-scale, 1));
+  height: calc(18px * var(--node-scale, 1));
   align-items: center;
-  gap: calc(5px * var(--node-scale, 1));
-  padding: 0 calc(2px * var(--node-scale, 1));
+  justify-content: center;
+  gap: 0;
+  padding: 0;
   border: 0;
   color: var(--text-muted);
   background: transparent;
@@ -4688,8 +4686,8 @@ select.node-inline-control {
 .primitive-toggle__track {
   position: relative;
   display: block;
-  width: calc(26px * var(--node-scale, 1));
-  height: calc(14px * var(--node-scale, 1));
+  width: calc(24px * var(--node-scale, 1));
+  height: calc(13px * var(--node-scale, 1));
   flex: none;
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-faint) 23%, var(--surface-deep));
@@ -4700,8 +4698,8 @@ select.node-inline-control {
   position: absolute;
   top: calc(2px * var(--node-scale, 1));
   left: calc(2px * var(--node-scale, 1));
-  width: calc(10px * var(--node-scale, 1));
-  height: calc(10px * var(--node-scale, 1));
+  width: calc(8px * var(--node-scale, 1));
+  height: calc(8px * var(--node-scale, 1));
   border-radius: 50%;
   background: var(--text-muted);
   box-shadow: 0 1px 2px rgba(2,6,23,.22);
@@ -4712,20 +4710,14 @@ select.node-inline-control {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 42%, transparent);
 }
 .primitive-toggle.on .primitive-toggle__track i {
-  transform: translateX(calc(12px * var(--node-scale, 1)));
+  transform: translateX(calc(11px * var(--node-scale, 1)));
   background: #fff;
 }
-.primitive-toggle__state {
-  min-width: calc(12px * var(--node-scale, 1));
-  color: var(--text-faint);
-  font-size: calc(8px * var(--node-scale, 1));
-  font-weight: 700;
-}
-.primitive-toggle.on .primitive-toggle__state { color: var(--success-text); }
+.primitive-toggle__state { display: none; }
 
 .numeric-input--primitive {
-  width: calc(66px * var(--node-scale, 1));
-  height: calc(22px * var(--node-scale, 1));
+  width: calc(56px * var(--node-scale, 1));
+  height: calc(20px * var(--node-scale, 1));
 }
 .numeric-input--primitive .primitive-number-input {
   width: 100%;
@@ -4737,7 +4729,7 @@ select.node-inline-control {
   color: var(--text-bright);
   background: color-mix(in srgb, var(--surface-deep) 91%, var(--surface-raised));
   outline: none;
-  font-size: calc(9px * var(--node-scale, 1));
+  font-size: calc(8.5px * var(--node-scale, 1));
   font-weight: 690;
   text-align: center;
 }
@@ -4750,15 +4742,15 @@ select.node-inline-control {
 
 .primitive-text-input {
   box-sizing: border-box;
-  width: calc(102px * var(--node-scale, 1));
-  height: calc(23px * var(--node-scale, 1));
+  width: calc(84px * var(--node-scale, 1));
+  height: calc(20px * var(--node-scale, 1));
   padding: 0 calc(8px * var(--node-scale, 1));
   border: 1px solid color-mix(in srgb, var(--border-strong) 68%, transparent);
-  border-radius: calc(11.5px * var(--node-scale, 1));
+  border-radius: calc(10px * var(--node-scale, 1));
   color: var(--text-bright);
   background: color-mix(in srgb, var(--surface-deep) 91%, var(--surface-raised));
   outline: none;
-  font-size: calc(8.7px * var(--node-scale, 1));
+  font-size: calc(8.2px * var(--node-scale, 1));
   text-align: center;
 }
 .primitive-text-input::placeholder { color: color-mix(in srgb, var(--text-faint) 65%, transparent); }
@@ -4773,38 +4765,38 @@ select.node-inline-control {
 .primitive-color-trigger,
 .primitive-datetime-trigger {
   display: inline-flex;
-  height: calc(23px * var(--node-scale, 1));
+  height: calc(20px * var(--node-scale, 1));
   box-sizing: border-box;
   align-items: center;
   justify-content: center;
   gap: calc(6px * var(--node-scale, 1));
   padding: 0 calc(8px * var(--node-scale, 1));
   border: 1px solid color-mix(in srgb, var(--border-strong) 68%, transparent);
-  border-radius: calc(11.5px * var(--node-scale, 1));
+  border-radius: calc(10px * var(--node-scale, 1));
   color: var(--text-bright);
   background: color-mix(in srgb, var(--surface-deep) 91%, var(--surface-raised));
   cursor: pointer;
   font-family: inherit;
 }
-.primitive-color-trigger { min-width: calc(96px * var(--node-scale, 1)); }
+.primitive-color-trigger { min-width: calc(82px * var(--node-scale, 1)); }
 .primitive-color-trigger__swatch {
-  width: calc(14px * var(--node-scale, 1));
-  height: calc(14px * var(--node-scale, 1));
+  width: calc(12px * var(--node-scale, 1));
+  height: calc(12px * var(--node-scale, 1));
   border-radius: calc(5px * var(--node-scale, 1));
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.24), 0 1px 3px rgba(2,6,23,.2);
 }
-.primitive-color-trigger code { color: var(--text-muted); font: 650 calc(8px * var(--node-scale, 1))/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.primitive-datetime-trigger { min-width: calc(128px * var(--node-scale, 1)); }
+.primitive-color-trigger code { color: var(--text-muted); font: 650 calc(7.4px * var(--node-scale, 1))/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.primitive-datetime-trigger { min-width: calc(114px * var(--node-scale, 1)); }
 .primitive-datetime-trigger svg {
-  width: calc(9px * var(--node-scale, 1));
-  height: calc(9px * var(--node-scale, 1));
+  width: calc(8px * var(--node-scale, 1));
+  height: calc(8px * var(--node-scale, 1));
   flex: none;
   fill: none;
   stroke: var(--info-soft);
   stroke-width: 1.25;
   stroke-linecap: round;
 }
-.primitive-datetime-trigger span { font-size: calc(8.2px * var(--node-scale, 1)); font-weight: 650; white-space: nowrap; }
+.primitive-datetime-trigger span { font-size: calc(7.6px * var(--node-scale, 1)); font-weight: 650; white-space: nowrap; }
 
 .primitive-popover {
   position: absolute;
