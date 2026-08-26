@@ -1,11 +1,11 @@
-# Current development handoff — 1.6.52 Primitive Micro-UI Polish
+# Current development handoff — 1.6.53 Primitive Compact Centering
 
-Branch: `feature/primitive-micro-ui-polish`
-Version: **1.6.52**
-Android versionCode: **192**
-Build revision: `1.6.52-dev-r147-primitive-micro-ui-polish`
+Branch: `feature/primitive-compact-centering`
+Version: **1.6.53**
+Android versionCode: **193**
+Build revision: `1.6.53-dev-r148-primitive-compact-centering`
 
-- 1.6.52 primitive micro-UI: Number/Text/Boolean/Color/DateTime value sources now use dedicated compact controls and dedicated primitive geometry. Color/DateTime use Core popovers rather than browser native pickers; Boolean uses a small switch; Number/Text use compact capsules. Soft mode remains borderless/material-based.
+- 1.6.53 primitive compact centering: Primitive cards now use border-box geometry and per-control width budgets (Number/Boolean ~104 px, Text ~122 px, Color ~118 px, DateTime up to ~158 px at nodeScale=1). Vertical base height is 80 px. Generic dynamic-node title padding is explicitly cancelled so title and micro-control share the true card centerline. Existing Core popovers and Soft borderless material behavior are retained.
 - 1.6.49 complex-node density and Core transient-UI canvas-dismiss behavior are retained unchanged.
 - 1.6.47 shared node controls and 1.6.46 Gradle client/build JVM alignment are retained unchanged.
 - The user has confirmed the pinned build path now compiles; Android build-process alignment is therefore an accepted baseline unless a new reproduced build log shows otherwise.
@@ -33,12 +33,12 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.52: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
-- Python suite revalidated in 1.6.52: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.52: **38/38**.
+- Runtime parity revalidated in 1.6.53: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
+- Python suite revalidated in 1.6.53: **188 passed, 1 skipped**.
+- Built-in Demo smoke revalidated in 1.6.53: **38/38**.
 
 
-## 1.6.52 primitive micro-UI polish
+## 1.6.53 primitive compact centering polish
 
 - Primitive value sources use a dedicated layout branch instead of generic dynamic side/form rails. Horizontal primitive cards stay below 180 px at nodeScale 1.0; vertical cards remain compact and center title + value control.
 - Boolean is a small switch. Number/Text are short centered capsules. Color is a swatch + HEX control with a compact preset/HEX popover. DateTime is a compact in-app month/time popover. Native browser color/datetime pickers are not used.

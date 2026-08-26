@@ -1,6 +1,6 @@
 # PyDroid Flow
 
-> **当前开发版本：1.6.52 (192) · Primitive Micro-UI Polish**。本版继续沿用已验收的 Windows/Android 构建链和现有 Classic/Soft 视觉基线，将数值、文本、布尔、颜色、日期时间五类基础值节点从“普通表单控件”重做为紧凑微控件：布尔使用小型开关，数值/文本使用短胶囊，颜色使用色块 + HEX 弹层，日期时间使用软件内置紧凑日历/时间弹层；不再调用浏览器原生大型颜色/日期选择器。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
+> **当前开发版本：1.6.53 (193) · Primitive Compact Centering**。本版沿用已验收的 Windows/Android 构建链与 Classic/Soft 视觉基线，进一步把五类基础值节点收敛为真正的微型值卡片：卡片尺寸按内容类型分别计算并采用 border-box，总体显著缩小；同时取消动态节点通用标题右侧预留，使标题与微控件回到整张卡片的真实中心轴。当前开发状态以 [docs/development-handoff.md](docs/development-handoff.md) 为准。
 
 PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复用数据处理节点编辑器。
 用户通过同一套可视化工作流读取数据、处理表格、绘制图表并导出结果；Python 与 JavaScript
@@ -20,7 +20,8 @@ PyDroid Flow 是一个以 Android 和 Windows 桌面端为首要平台的可复�
 
 ## 当前功能
 
-- **1.6.52 Primitive Micro-UI Polish（当前分支）**：五类基础值节点改用独立 Primitive Micro-UI 与独立紧凑几何；布尔为小型开关，数值/文本为短胶囊，颜色为色块 + HEX 弹层，日期时间为 Core 自绘紧凑日历/时间弹层；Soft 模式继续使用材质层级而非硬描边。
+- **1.6.53 Primitive Compact Centering（当前分支）**：Primitive 值节点采用真实 border-box 微卡片几何，数值/布尔/文本/颜色/日期时间按控件类型分别收窄，并取消动态节点标题右侧预留，保证标题与微控件在整张卡片上真正居中。
+- **1.6.52 Primitive Micro-UI Polish**：五类基础值节点改用独立 Primitive Micro-UI；布尔为小型开关，数值/文本为短胶囊，颜色与日期时间使用 Core 自绘弹层。
 - **1.6.51 Group & Primitive Node Polish**：Group 节点纳入统一尺寸/文字节奏并在 Soft 暗色中具有清晰容器语义；新增五类基础值节点；选中连线不再显示浮动 X。
 - **1.6.49 Node Density & Transient UI**：复杂动态节点将输入/输出 Rail 之间的安全间隙收窄到 10 px；节点内 ThemedSelect 接入统一 transient-UI 契约，点击画布空白处自动收起。
 - **1.6.47 Node Control Polish**：节点下拉菜单、数字微调器与端点语义色统一到 Core 控件；该版本的固定 Windows/Android 构建路径已由用户确认可以编译。

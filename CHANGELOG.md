@@ -1,3 +1,11 @@
+## 1.6.53 (193) — Primitive Compact Centering — 2026-08-26
+
+- Primitive value cards now use border-box geometry so measured width/height is the real card size rather than padding-expanded size.
+- Primitive cards are substantially smaller: Number/Boolean ~104 px base width, Text ~122 px, Color ~118 px, DateTime up to ~158 px; vertical base height is 80 px.
+- Primitive titles explicitly cancel the generic dynamic-node right padding, restoring the true card centerline.
+- Number/Text/Boolean/Color/DateTime micro-controls are reduced proportionally while preserving hit targets and existing popover behavior.
+- Build revision: `1.6.53-dev-r148-primitive-compact-centering`.
+
 ## 1.6.52 (192) — Primitive Micro-UI Polish — 2026-08-26
 
 - Reworked primitive value nodes as dedicated micro-instruments rather than generic dynamic forms. Primitive nodes no longer use side-rail/vertical-form layout and keep a compact centered value geometry.

@@ -27,6 +27,7 @@ assert.doesNotMatch(primitiveValueControl, /type="color"|type="datetime-local"/,
 assert.match(primitiveValueControl, /primitive-color-presets[\s\S]*primitive-hex-field/, "color primitive should use a compact swatch/HEX popover");
 assert.match(primitiveValueControl, /primitive-calendar-grid[\s\S]*primitive-time-row/, "datetime primitive should use the shared compact in-app calendar/time popover");
 assert.match(css, /\.workflow-node--primitive \.workflow-node__body[\s\S]*place-content:\s*center/, "primitive nodes should center their title and micro-control rather than mimic inspector forms");
+assert.match(css, /workflow-node--primitive\.workflow-node--dynamic-ui \.workflow-node__label[\s\S]*padding:\s*0 !important/, "primitive titles must cancel generic dynamic-node right padding and stay on the true card centerline");
 assert.match(canvasThemes, /workflow-node--primitive \.primitive-number-input[\s\S]*border-color:\s*transparent/, "Soft primitive controls should use tonal depth instead of nested outlines");
 const pluginManagerCss = readFileSync(path.join(root, "src/plugins/plugin-manager.css"), "utf8");
 const pluginManager = readFileSync(path.join(root, "src/plugins/PluginManager.tsx"), "utf8");

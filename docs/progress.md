@@ -1,16 +1,16 @@
-# Current progress — 1.6.52 Primitive Micro-UI Polish
+# Current progress — 1.6.53 Primitive Compact Centering
 
 Date: 2026-08-26
 
-- 1.6.52 primitive micro-UI: the five built-in primitive value sources now use compact dedicated controls/geometry; browser-native color and datetime pickers are removed from primitive nodes; Soft primitives keep borderless material depth.
+- 1.6.53 primitive compact centering: primitive cards now use border-box geometry and per-control width budgets, reducing the five value sources to true micro-card dimensions while explicitly cancelling the generic dynamic-node title offset so title/control share the card centerline.
 - 1.6.49 complex side-rail density and canvas blank-click transient-UI dismissal remain unchanged.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.52**, Android versionCode **192**.
-- Build revision: `1.6.52-dev-r147-primitive-micro-ui-polish`.
+- Product version: **1.6.53**, Android versionCode **193**.
+- Build revision: `1.6.53-dev-r148-primitive-compact-centering`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
@@ -18,7 +18,7 @@ Date: 2026-08-26
 
 
 
-## 1.6.52 primitive micro-UI polish
+## 1.6.53 primitive compact centering polish
 
 - Primitive nodes use their own compact geometry and no longer reserve generic dynamic form rails.
 - Boolean uses a compact toggle; Number/Text use short capsules; Color/DateTime use Core popovers instead of native browser pickers.

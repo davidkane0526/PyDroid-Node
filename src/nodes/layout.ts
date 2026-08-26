@@ -124,8 +124,18 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const dynamicRailWidth = inputRailWidth + outputRailWidth + dynamicRailGap;
   const dynamicHorizontalWidth = Math.min(340, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 242 : 190));
   const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
-  const primitiveControlWidth = inlineParameters.length ? Math.max(...inlineParameters.map(inlineControlPreferredWidth)) : 96;
-  const primitiveWidth = Math.min(196, Math.max(164, primitiveControlWidth + 34, 86 + labelUnits * 7.2));
+  const primitiveSpec = inlineParameters[0];
+  const primitiveKind = primitiveSpec?.kind ?? "text";
+  const primitiveControlWidth = inlineParameters.length ? Math.max(...inlineParameters.map(inlineControlPreferredWidth)) : 72;
+  const primitiveWidthFloor = primitiveKind === "datetime" ? 150
+    : primitiveKind === "color" ? 118
+      : primitiveKind === "text" ? 122
+        : 104;
+  const primitiveWidthCeiling = primitiveKind === "datetime" ? 158
+    : primitiveKind === "color" ? 128
+      : primitiveKind === "text" ? 136
+        : 116;
+  const primitiveWidth = Math.min(primitiveWidthCeiling, Math.max(primitiveWidthFloor, primitiveControlWidth + 14, 62 + labelUnits * 6.2));
   const baseWidth = primitiveLayout ? primitiveWidth : direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
     ? Math.max(34, Math.min(verticalPortLabelWidth, (baseWidth - 24) / maxPortCount))
@@ -172,7 +182,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29
     : (inputDefaultSpecs.length ? 122 : 92) + inlineRows * 27;
-  const primitiveHeight = direction === "horizontal" ? 88 : 108;
+  const primitiveHeight = direction === "horizontal" ? 72 : 80;
   const baseHeight = primitiveLayout ? primitiveHeight : direction === "horizontal" ? Math.max(contentHeight, railHeight) : verticalHeight;
   const portTop = (index: number, count = maxPortCount) => {
     const safeCount = Math.max(1, count);
