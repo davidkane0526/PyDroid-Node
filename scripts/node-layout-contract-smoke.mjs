@@ -79,9 +79,9 @@ try {
   const scaledEndpointRadius = 8 * 1.8;
   if (firstScaledOutputCenter - scaledEndpointRadius < runButtonBottom + 6) throw new Error("scaled simple node can still overlap its run control and first output endpoint");
 
-  const primitiveNumber = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "数值", inputPorts: [], outputPorts: [{ id: "output", label: "数值", valueType: "number" }], inputDefaultSpecs: [], inlineParameters: [{ key: "value", label: "值", kind: "number", defaultValue: 0 }], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, nodeScale: 1, endpointScale: 1 });
-  if (!primitiveNumber.sideRailLayout || primitiveNumber.inputRailWidth <= 0) throw new Error("primitive source inline control did not reserve a real form rail");
-  if (primitiveNumber.nodeWidth > 250 || primitiveNumber.sideFormTop < 36) throw new Error("primitive source node lost compact centered form geometry");
+  const primitiveNumber = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "数值", inputPorts: [], outputPorts: [{ id: "output", label: "数值", valueType: "number" }], inputDefaultSpecs: [], inlineParameters: [{ key: "value", label: "值", kind: "number", defaultValue: 0 }], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: false, isGroup: false, isPrimitive: true, nodeScale: 1, endpointScale: 1 });
+  if (!primitiveNumber.primitiveLayout || primitiveNumber.sideRailLayout || primitiveNumber.verticalFormLayout) throw new Error("primitive value source still uses generic side/form rails");
+  if (primitiveNumber.nodeWidth > 180 || primitiveNumber.nodeMinHeight > 96) throw new Error("primitive value source node lost compact micro-control geometry");
 
   const groupCard = layout.resolveNodeCardLayout({ requestedDirection: "horizontal", label: "TER 扫描分析", inputPorts: [{ id: "input", label: "扫描数据", valueType: "table" }], outputPorts: [{ id: "output", label: "TER 长表", valueType: "table" }], inputDefaultSpecs: [], inlineParameters: [], inlineLayout: "stack", hasVariants: false, hasInputPortGroups: false, hasDynamicPorts: true, isGroup: true, nodeScale: 1, endpointScale: 1 });
   if (groupCard.nodeWidth < 242 || groupCard.nodeMinHeight < 94) throw new Error("group card did not adopt the shared enlarged geometry");

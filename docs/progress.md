@@ -1,22 +1,28 @@
-# Current progress — 1.6.51 Group & Primitive Node Polish
+# Current progress — 1.6.52 Primitive Micro-UI Polish
 
 Date: 2026-08-26
 
-- 1.6.51 node polish: Group geometry and Soft-dark container identity are unified with the shared node system; Soft dynamic input controls are borderless material surfaces; numeric steppers are vertically centered; five primitive value source nodes are built in; selected edges no longer show floating X controls.
+- 1.6.52 primitive micro-UI: the five built-in primitive value sources now use compact dedicated controls/geometry; browser-native color and datetime pickers are removed from primitive nodes; Soft primitives keep borderless material depth.
 - 1.6.49 complex side-rail density and canvas blank-click transient-UI dismissal remain unchanged.
 - 1.6.47 shared controls/semantic port colors and 1.6.46 Android JVM alignment are retained unchanged.
 - The user has confirmed the pinned Windows/Android build can compile; build alignment is now an accepted baseline.
 
 ## Current release state
 
-- Product version: **1.6.51**, Android versionCode **191**.
-- Build revision: `1.6.51-dev-r146-group-primitive-node-polish`.
+- Product version: **1.6.52**, Android versionCode **192**.
+- Build revision: `1.6.52-dev-r147-primitive-micro-ui-polish`.
 
 - 1.6.44 was the first `--no-daemon` attempt. User logs proved that removing `org.gradle.jvmargs` was insufficient because Gradle still required JPMS/instrumentation/build-JVM compatibility and forked a single-use daemon. 1.6.46 supersedes that build-path assumption.
 - Phase: release convergence; the visual contract is now unified as Plugin SDK v4 + Theme SDK v2 + Design SDK v1. Pinned-toolchain Windows/Android packaging and final physical acceptance remain.
 - Remote Web/LAN production behavior is unchanged from the accepted baseline.
 
 
+
+## 1.6.52 primitive micro-UI polish
+
+- Primitive nodes use their own compact geometry and no longer reserve generic dynamic form rails.
+- Boolean uses a compact toggle; Number/Text use short capsules; Color/DateTime use Core popovers instead of native browser pickers.
+- Color/DateTime popovers close through the shared blank-canvas transient-UI dismiss contract.
 
 ## 1.6.51 group and primitive node polish
 

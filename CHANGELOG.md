@@ -1,3 +1,13 @@
+## 1.6.52 (192) — Primitive Micro-UI Polish — 2026-08-26
+
+- Reworked primitive value nodes as dedicated micro-instruments rather than generic dynamic forms. Primitive nodes no longer use side-rail/vertical-form layout and keep a compact centered value geometry.
+- Boolean uses a small semantic toggle; Number and Text use compact centered capsules.
+- Color no longer invokes the browser native color picker: the node uses a swatch + HEX trigger with a compact in-app preset/HEX popover.
+- DateTime no longer invokes `datetime-local`: the node uses a compact in-app month grid plus hour/minute editor and `现在` action. Color/DateTime popovers consume the shared transient-UI dismissal contract and close on blank-canvas click.
+- Soft primitive controls preserve borderless material depth; Classic keeps explicit control boundaries. Runtime semantics and the accepted Android/Windows build path are unchanged.
+- Revalidated Demo 38/38, Runtime parity 135/135, JavaScript-capable NodeContract 101/101, Python 188 passed / 1 skipped, Node Layout/UI/Canvas/Plugin/Theme/Design/Workflow/MCP/Remote/LAN build gates.
+- Build revision: `1.6.52-dev-r147-primitive-micro-ui-polish`.
+
 ## 1.6.51 (191) — Group & Primitive Node Polish — 2026-08-26
 
 - Group cards now use the same measured geometry/typography rhythm as the refined node system; horizontal groups reserve a real header region before ports, and Soft dark mode uses a restrained semantic container material so a group is visually distinct from a normal node without changing geometry.

@@ -77,6 +77,7 @@ import { nodeDisplayName } from "./plugins/displayNames";
 import { NumericInput } from "./NumericInput";
 import { ThemedSelect } from "./ThemedSelect";
 import { dismissTransientUi } from "./ui/transientUi";
+import { PrimitiveValueControl } from "./ui/PrimitiveValueControl";
 
 const AUTOSAVE_KEY = "pydroid-flow.autosave.v1";
 const PERSONAL_TEMPLATES_KEY = "pydroid-flow.custom-templates.v1";
@@ -424,13 +425,16 @@ function InlineNodeControl({
   value,
   className = "",
   onChange,
+  primitive = false,
 }: {
   spec: ParameterSpec;
   value: unknown;
   className?: string;
   onChange: (value: string | number | boolean | null) => void;
+  primitive?: boolean;
 }) {
   const stop = (event: ReactPointerEvent<HTMLElement> | ReactMouseEvent<HTMLElement>) => event.stopPropagation();
+  if (primitive) return <PrimitiveValueControl spec={spec} value={value} stopPropagation onChange={onChange} />;
   if (spec.kind === "boolean") {
     return <label className={`node-inline-control node-inline-control--boolean nodrag nopan ${className}`} title={spec.label} onPointerDown={stop}><input type="checkbox" checked={Boolean(value)} disabled={Boolean(spec.disabled || spec.readOnly)} onChange={(event) => onChange(event.target.checked)} /><span>{Boolean(value) ? "True" : "False"}</span></label>;
   }
@@ -490,6 +494,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
   const inspectorParameterCount = (spec?.parameters ?? []).filter((parameter) => !inlineOwnedParameterKeys.has(parameter.key)).length;
   const inputDefaultSpecs = inputPorts.map((port) => port.defaultParameter ? parameterByKey.get(port.defaultParameter) : undefined).filter((parameter): parameter is ParameterSpec => Boolean(parameter));
   const hasInlineSocketDefaults = inputDefaultSpecs.length > 0;
+  const isPrimitiveValueNode = ["value.number", "value.text", "value.boolean", "value.color", "value.datetime"].includes(data.nodeType);
   const nodeLayout = resolveNodeCardLayout({
     requestedDirection: direction,
     label: data.label,
@@ -502,6 +507,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     hasInputPortGroups: Boolean(spec?.inputPortGroups?.length),
     hasDynamicPorts: data.nodeType === "custom.python_function" || data.nodeType === "function.call" || data.nodeType === "function.map" || data.nodeType === "workflow.group",
     isGroup: data.nodeType === "workflow.group",
+    isPrimitive: isPrimitiveValueNode,
     nodeScale,
     endpointScale,
   });
@@ -544,7 +550,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
     return effectiveDirection === "horizontal" ? { top: `${((index + 1) * 100) / (outputPorts.length + 1)}%` } : { left: `${((index + 1) * 100) / (outputPorts.length + 1)}%` };
   };
   return (
-    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--vertical-form-label-width": `${verticalFormLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--side-form-control-offset": `${sideFormControlOffset * nodeScale}px`, "--side-form-top": `${sideFormTop * nodeScale}px`, "--node-center-shift": `${nodeCenterShift * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${nodeLayout.sideRailLayout ? "workflow-node--side-rail" : ""} ${nodeLayout.verticalFormLayout ? "workflow-node--vertical-form" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
+    <div style={{ "--node-width": `${isStructure ? 520 : nodeWidth}px`, "--node-min-height": `${isStructure ? (isBoundaryZone ? 250 : 220) : nodeMinHeight}px`, "--port-label-width": `${Math.max(inputPortLabelWidth, outputPortLabelWidth) * nodeScale}px`, "--input-port-label-width": `${inputPortLabelWidth * nodeScale}px`, "--output-port-label-width": `${outputPortLabelWidth * nodeScale}px`, "--vertical-port-label-width": `${verticalPortLabelWidth * nodeScale}px`, "--vertical-form-label-width": `${verticalFormLabelWidth * nodeScale}px`, "--input-rail-width": `${inputRailWidth * nodeScale}px`, "--output-rail-width": `${outputRailWidth * nodeScale}px`, "--side-form-control-offset": `${sideFormControlOffset * nodeScale}px`, "--side-form-top": `${sideFormTop * nodeScale}px`, "--node-center-shift": `${nodeCenterShift * nodeScale}px`, "--socket-control-width": `${socketControlWidth * nodeScale}px`, "--vertical-port-item-width": `${verticalPortItemWidth * nodeScale}px`, "--node-scale": nodeScale, "--endpoint-scale": endpointScale } as CSSProperties} data-workflow-node-id={id} className={`workflow-node ${nodeKindClasses} direction-${effectiveDirection} ${isStructure ? "workflow-structure" : ""} ${isIfZone ? "workflow-structure--if workflow-if-zone" : ""} ${isLoopZone ? `workflow-structure--loop workflow-loop-zone workflow-loop-zone--${data.nodeType === "logic.for_each_value" ? "for" : "while"}` : ""} ${hasDynamicUi ? "workflow-node--dynamic-ui" : ""} ${nodeLayout.sideRailLayout ? "workflow-node--side-rail" : ""} ${nodeLayout.verticalFormLayout ? "workflow-node--vertical-form" : ""} ${isPrimitiveValueNode ? "workflow-node--primitive" : ""} ${inputPorts.length ? "has-inputs" : ""} ${hasInlineSocketDefaults ? "has-inline-input-defaults" : ""} ${outputPorts.length ? "has-outputs" : ""} status-${data.status ?? "idle"} ${selected ? "selected" : ""}`}>
       {selection.active && <button className={`node-selection-check nodrag nopan ${selected ? "checked" : ""}`} type="button" aria-label={`${selected ? "取消选择" : "选择"}${data.label}`} aria-pressed={selected} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); selection.toggle(id); }}>{selected ? "✓" : ""}</button>}
       <button className="node-run-action nodrag nopan" type="button" disabled={nodeRun.busy} aria-label={`运行 ${data.label}`} title="单独运行 · 自动补齐上游依赖" onPointerDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); nodeRun.run(id); }}><svg className="node-run-action__icon" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M5.25 3.15 L11.25 6.55 Q12.85 7 11.25 7.45 L5.25 10.85 Q4.25 11.42 4.25 10.28 L4.25 3.72 Q4.25 2.58 5.25 3.15 Z" /></svg></button>
       {isStructure && <NodeResizer minWidth={isBoundaryZone ? 440 : 360} minHeight={isBoundaryZone ? 250 : 220} isVisible={selected} />}
@@ -576,7 +582,7 @@ function WorkflowNodeCard({ id, data, selected }: NodeProps<WorkflowNode>) {
         {inlineParameters.length > 0 && <div className={`workflow-node__inline-controls workflow-node__inline-controls--${inlineLayout} ${useHorizontalSideForm ? "workflow-node__inline-controls--side-form" : ""}`}>{inlineParameters.map((parameter) => {
           const declaredLabel = Object.prototype.hasOwnProperty.call(inlineParameterLabels, parameter.key) ? inlineParameterLabels[parameter.key] : parameter.label;
           const showLabel = declaredLabel !== null && declaredLabel !== "";
-          return <label className={showLabel ? "" : "workflow-node__inline-control--label-hidden"} key={parameter.key} title={parameter.label}>{showLabel && <span>{declaredLabel}</span>}<InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>;
+          return <label className={showLabel ? "" : "workflow-node__inline-control--label-hidden"} key={parameter.key} title={parameter.label}>{showLabel && <span>{declaredLabel}</span>}<InlineNodeControl spec={parameter} value={data.parameters[parameter.key] ?? parameter.defaultValue} primitive={isPrimitiveValueNode} onChange={(value) => nodeParameters.update(id, parameter.key, value)} /></label>;
         })}</div>}
         <div className="workflow-node__meta">
           {data.nodeType === "workflow.group"

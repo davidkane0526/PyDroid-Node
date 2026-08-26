@@ -4613,3 +4613,292 @@ select.node-inline-control {
   -webkit-user-select: text;
   user-select: text;
 }
+
+/* Primitive value nodes are compact value instruments, not miniature inspector forms. */
+.workflow-node--primitive {
+  overflow: visible;
+}
+.workflow-node--primitive .workflow-node__body {
+  display: grid;
+  min-height: 0;
+  margin: 0 !important;
+  padding: calc(11px * var(--node-scale, 1)) calc(15px * var(--node-scale, 1)) !important;
+  place-content: center;
+  justify-items: center;
+  gap: calc(8px * var(--node-scale, 1));
+  text-align: center;
+}
+.workflow-node--primitive .workflow-node__label {
+  width: 100%;
+  padding: 0;
+  overflow: visible;
+  font-size: calc(13.5px * var(--node-scale, 1));
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: clip;
+  white-space: normal;
+}
+.workflow-node--primitive .workflow-node__inline-controls {
+  width: auto;
+  max-width: calc(154px * var(--node-scale, 1));
+  margin: 0;
+  justify-items: center;
+  gap: 0;
+}
+.workflow-node--primitive .workflow-node__inline-controls > .workflow-node__inline-control--label-hidden {
+  display: grid;
+  width: auto;
+  justify-items: center;
+}
+.workflow-node--primitive .workflow-node__meta { display: none; }
+.workflow-node--primitive.direction-vertical {
+  padding-block: calc(15px * var(--node-scale, 1));
+}
+.workflow-node--primitive.direction-vertical .workflow-node__body {
+  min-height: calc(64px * var(--node-scale, 1));
+}
+.workflow-node--primitive.direction-horizontal .workflow-node__body {
+  min-height: calc(58px * var(--node-scale, 1));
+}
+.workflow-node--primitive .output-port .node-port-label {
+  font-size: calc(9.5px * var(--node-scale, 1));
+  font-weight: 700;
+}
+
+.primitive-toggle {
+  display: inline-flex;
+  height: calc(25px * var(--node-scale, 1));
+  align-items: center;
+  gap: calc(7px * var(--node-scale, 1));
+  padding: 0 calc(4px * var(--node-scale, 1));
+  border: 0;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+}
+.primitive-toggle__track {
+  position: relative;
+  display: block;
+  width: calc(30px * var(--node-scale, 1));
+  height: calc(17px * var(--node-scale, 1));
+  flex: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-faint) 23%, var(--surface-deep));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-faint) 16%, transparent);
+  transition: background .13s ease, box-shadow .13s ease;
+}
+.primitive-toggle__track i {
+  position: absolute;
+  top: calc(2px * var(--node-scale, 1));
+  left: calc(2px * var(--node-scale, 1));
+  width: calc(13px * var(--node-scale, 1));
+  height: calc(13px * var(--node-scale, 1));
+  border-radius: 50%;
+  background: var(--text-muted);
+  box-shadow: 0 1px 3px rgba(2,6,23,.24);
+  transition: transform .14s ease, background .14s ease;
+}
+.primitive-toggle.on .primitive-toggle__track {
+  background: color-mix(in srgb, var(--success) 74%, var(--surface-deep));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--success) 42%, transparent);
+}
+.primitive-toggle.on .primitive-toggle__track i {
+  transform: translateX(calc(13px * var(--node-scale, 1)));
+  background: #fff;
+}
+.primitive-toggle__state {
+  min-width: calc(14px * var(--node-scale, 1));
+  color: var(--text-faint);
+  font-size: calc(9px * var(--node-scale, 1));
+  font-weight: 700;
+}
+.primitive-toggle.on .primitive-toggle__state { color: var(--success-text); }
+
+.numeric-input--primitive {
+  width: calc(82px * var(--node-scale, 1));
+  height: calc(26px * var(--node-scale, 1));
+}
+.numeric-input--primitive .primitive-number-input {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 0 calc(17px * var(--node-scale, 1)) 0 calc(8px * var(--node-scale, 1)) !important;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 72%, transparent);
+  border-radius: calc(13px * var(--node-scale, 1));
+  color: var(--text-bright);
+  background: color-mix(in srgb, var(--surface-deep) 91%, var(--surface-raised));
+  outline: none;
+  font-size: calc(10px * var(--node-scale, 1));
+  font-weight: 690;
+  text-align: center;
+}
+.numeric-input--primitive .numeric-input__stepper {
+  right: calc(5px * var(--node-scale, 1));
+  width: calc(8px * var(--node-scale, 1));
+  height: calc(12px * var(--node-scale, 1));
+}
+.numeric-input--primitive .numeric-input__stepper svg { width: calc(5px * var(--node-scale, 1)); height: calc(3px * var(--node-scale, 1)); }
+
+.primitive-text-input {
+  box-sizing: border-box;
+  width: calc(124px * var(--node-scale, 1));
+  height: calc(27px * var(--node-scale, 1));
+  padding: 0 calc(10px * var(--node-scale, 1));
+  border: 1px solid color-mix(in srgb, var(--border-strong) 68%, transparent);
+  border-radius: calc(13.5px * var(--node-scale, 1));
+  color: var(--text-bright);
+  background: color-mix(in srgb, var(--surface-deep) 91%, var(--surface-raised));
+  outline: none;
+  font-size: calc(9.5px * var(--node-scale, 1));
+  text-align: center;
+}
+.primitive-text-input::placeholder { color: color-mix(in srgb, var(--text-faint) 65%, transparent); }
+.primitive-text-input:focus,
+.numeric-input--primitive .primitive-number-input:focus {
+  border-color: color-mix(in srgb, var(--accent-hover) 58%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.primitive-popover-root { position: relative; z-index: 4; display: inline-grid; justify-items: center; pointer-events: all; }
+.primitive-popover-root.open { z-index: 120; }
+.primitive-color-trigger,
+.primitive-datetime-trigger {
+  display: inline-flex;
+  height: calc(27px * var(--node-scale, 1));
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  gap: calc(6px * var(--node-scale, 1));
+  padding: 0 calc(8px * var(--node-scale, 1));
+  border: 1px solid color-mix(in srgb, var(--border-strong) 68%, transparent);
+  border-radius: calc(13.5px * var(--node-scale, 1));
+  color: var(--text-bright);
+  background: color-mix(in srgb, var(--surface-deep) 91%, var(--surface-raised));
+  cursor: pointer;
+  font-family: inherit;
+}
+.primitive-color-trigger { min-width: calc(114px * var(--node-scale, 1)); }
+.primitive-color-trigger__swatch {
+  width: calc(17px * var(--node-scale, 1));
+  height: calc(17px * var(--node-scale, 1));
+  border-radius: calc(6px * var(--node-scale, 1));
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.24), 0 1px 3px rgba(2,6,23,.2);
+}
+.primitive-color-trigger code { color: var(--text-muted); font: 650 calc(8.5px * var(--node-scale, 1))/1 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.primitive-datetime-trigger { min-width: calc(148px * var(--node-scale, 1)); }
+.primitive-datetime-trigger svg {
+  width: calc(11px * var(--node-scale, 1));
+  height: calc(11px * var(--node-scale, 1));
+  flex: none;
+  fill: none;
+  stroke: var(--info-soft);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+.primitive-datetime-trigger span { font-size: calc(8.8px * var(--node-scale, 1)); font-weight: 650; white-space: nowrap; }
+
+.primitive-popover {
+  position: absolute;
+  z-index: 2200;
+  top: calc(100% + 6px * var(--node-scale, 1));
+  left: 50%;
+  transform: translateX(-50%);
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--border-pop) 72%, transparent);
+  border-radius: calc(9px * var(--node-scale, 1));
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  box-shadow: 0 12px 28px rgba(2,6,23,.36), 0 2px 6px rgba(2,6,23,.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  pointer-events: all;
+}
+.primitive-color-popover { width: calc(176px * var(--node-scale, 1)); padding: calc(8px * var(--node-scale, 1)); }
+.primitive-color-presets { display: grid; grid-template-columns: repeat(6, 1fr); gap: calc(5px * var(--node-scale, 1)); }
+.primitive-color-presets button {
+  width: calc(21px * var(--node-scale, 1));
+  height: calc(21px * var(--node-scale, 1));
+  padding: 0;
+  border: 0;
+  border-radius: calc(6px * var(--node-scale, 1));
+  background: var(--primitive-swatch);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.2);
+  cursor: pointer;
+}
+.primitive-color-presets button.selected { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--accent-hover); }
+.primitive-hex-field { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 7px; margin-top: 8px; color: var(--text-faint); font-size: 8px; font-weight: 750; }
+.primitive-hex-field input {
+  min-width: 0;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  color: var(--text-bright);
+  background: var(--surface-deep);
+  font: 650 9px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.primitive-datetime-popover { width: calc(224px * var(--node-scale, 1)); padding: calc(8px * var(--node-scale, 1)); }
+.primitive-calendar-head { display: grid; grid-template-columns: 24px 1fr 24px; align-items: center; margin-bottom: 5px; }
+.primitive-calendar-head strong { text-align: center; font-size: calc(9px * var(--node-scale, 1)); }
+.primitive-calendar-head button,
+.primitive-time-row button {
+  height: calc(23px * var(--node-scale, 1));
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: calc(14px * var(--node-scale, 1));
+}
+.primitive-calendar-head button:hover,
+.primitive-time-row button:hover { color: var(--text-bright); background: var(--surface-hover); }
+.primitive-calendar-weekdays,
+.primitive-calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.primitive-calendar-weekdays { margin-bottom: 2px; }
+.primitive-calendar-weekdays span { color: var(--text-faint); font-size: calc(7.5px * var(--node-scale, 1)); font-weight: 700; text-align: center; }
+.primitive-calendar-grid button,
+.primitive-calendar-grid > span {
+  display: grid;
+  height: calc(23px * var(--node-scale, 1));
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  font-size: calc(8.5px * var(--node-scale, 1));
+}
+.primitive-calendar-grid button { cursor: pointer; }
+.primitive-calendar-grid button:hover { color: var(--text-bright); background: var(--surface-hover); }
+.primitive-calendar-grid button.selected { color: #fff; background: var(--accent); }
+.primitive-time-row { display: grid; grid-template-columns: auto 32px auto 32px 1fr; align-items: center; gap: 4px; margin-top: 7px; padding-top: 7px; border-top: 1px solid color-mix(in srgb, var(--border-soft) 68%, transparent); color: var(--text-faint); font-size: 8px; }
+.primitive-time-row input {
+  width: 32px;
+  height: 23px;
+  box-sizing: border-box;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  outline: none;
+  color: var(--text-bright);
+  background: var(--surface-deep);
+  text-align: center;
+  font-size: 9px;
+  font-weight: 700;
+}
+.primitive-time-row i { font-style: normal; text-align: center; }
+.primitive-time-row button { justify-self: end; padding: 0 7px; font-size: 8px; font-weight: 700; }
+
+.app-shell[data-theme="light"] .primitive-number-input,
+.app-shell[data-theme="light"] .primitive-text-input,
+.app-shell[data-theme="light"] .primitive-color-trigger,
+.app-shell[data-theme="light"] .primitive-datetime-trigger { color: #17324f; background: #f3f7fb; border-color: #cbd8e6; }
+.app-shell[data-theme="light"] .primitive-popover { color: #243b53; background: rgba(255,255,255,.985); border-color: #cbd5e1; box-shadow: 0 10px 24px rgba(71,85,105,.16), 0 2px 6px rgba(71,85,105,.08); }
+.app-shell[data-theme="light"] .primitive-hex-field input,
+.app-shell[data-theme="light"] .primitive-time-row input { color: #17324f; background: #edf3f8; }

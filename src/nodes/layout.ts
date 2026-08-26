@@ -14,6 +14,7 @@ export type NodeCardLayoutInput = {
   hasInputPortGroups: boolean;
   hasDynamicPorts: boolean;
   isGroup: boolean;
+  isPrimitive?: boolean;
   nodeScale: number;
   endpointScale: number;
 };
@@ -23,6 +24,7 @@ export type NodeCardLayout = {
   dynamic: boolean;
   sideRailLayout: boolean;
   verticalFormLayout: boolean;
+  primitiveLayout: boolean;
   inputPortLabelWidth: number;
   outputPortLabelWidth: number;
   verticalPortLabelWidth: number;
@@ -62,8 +64,9 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const { inputPorts, outputPorts, inputDefaultSpecs, inlineParameters } = input;
   const dynamic = inputDefaultSpecs.length > 0 || inlineParameters.length > 0 || input.hasVariants || input.hasInputPortGroups || input.hasDynamicPorts;
   const maxPortCount = Math.max(inputPorts.length, outputPorts.length);
-  const sideRailLayout = dynamic && maxPortCount > 0 && input.requestedDirection === "horizontal";
-  const verticalFormLayout = dynamic && maxPortCount > 0 && input.requestedDirection === "vertical";
+  const primitiveLayout = Boolean(input.isPrimitive);
+  const sideRailLayout = !primitiveLayout && dynamic && maxPortCount > 0 && input.requestedDirection === "horizontal";
+  const verticalFormLayout = !primitiveLayout && dynamic && maxPortCount > 0 && input.requestedDirection === "vertical";
   const direction: NodeLayoutDirection = input.requestedDirection;
 
   const longestInput = Math.max(0, ...inputPorts.map((port) => visualTextUnits(port.label ?? "")));
@@ -78,7 +81,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const socketControlWidth = sideRailLayout
     ? Math.max(inputDefaultSpecs.length || inlineParameters.length ? 96 : 0, inputDefaultControlWidth, inlineParameterControlWidth)
     : inputDefaultControlWidth;
-  const inputRailWidth = inputPorts.length || inlineParameters.length ? 13 + inputPortLabelWidth + (inputDefaultSpecs.length || inlineParameters.length ? 7 + socketControlWidth : 0) : 0;
+  const inputRailWidth = !primitiveLayout && (inputPorts.length || inlineParameters.length) ? 13 + inputPortLabelWidth + (inputDefaultSpecs.length || inlineParameters.length ? 7 + socketControlWidth : 0) : 0;
   const outputRailWidth = outputPorts.length ? 13 + outputPortLabelWidth : 0;
   const sideFormControlOffset = inputDefaultSpecs.length ? (11 + inputPortLabelWidth + 7) - inputRailWidth : 0;
   const nodeCenterShift = (outputRailWidth - inputRailWidth) / 2;
@@ -121,7 +124,9 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const dynamicRailWidth = inputRailWidth + outputRailWidth + dynamicRailGap;
   const dynamicHorizontalWidth = Math.min(340, Math.max(dynamicRailWidth, dynamicHeaderWidth, input.isGroup ? 242 : 190));
   const horizontalWidth = sideRailLayout ? dynamicHorizontalWidth : simpleHorizontalWidth;
-  const baseWidth = direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
+  const primitiveControlWidth = inlineParameters.length ? Math.max(...inlineParameters.map(inlineControlPreferredWidth)) : 96;
+  const primitiveWidth = Math.min(196, Math.max(164, primitiveControlWidth + 34, 86 + labelUnits * 7.2));
+  const baseWidth = primitiveLayout ? primitiveWidth : direction === "vertical" ? Math.max(input.isGroup ? 230 : 0, verticalWidth) : horizontalWidth;
   const verticalPortItemWidth = maxPortCount
     ? Math.max(34, Math.min(verticalPortLabelWidth, (baseWidth - 24) / maxPortCount))
     : Math.max(verticalPortLabelWidth, 64);
@@ -167,7 +172,8 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
   const verticalHeight = verticalFormLayout
     ? 104 + verticalFormRows * 29
     : (inputDefaultSpecs.length ? 122 : 92) + inlineRows * 27;
-  const baseHeight = direction === "horizontal" ? Math.max(contentHeight, railHeight) : verticalHeight;
+  const primitiveHeight = direction === "horizontal" ? 88 : 108;
+  const baseHeight = primitiveLayout ? primitiveHeight : direction === "horizontal" ? Math.max(contentHeight, railHeight) : verticalHeight;
   const portTop = (index: number, count = maxPortCount) => {
     const safeCount = Math.max(1, count);
     const occupiedHeight = safeCount * portRowHeight;
@@ -191,6 +197,7 @@ export function resolveNodeCardLayout(input: NodeCardLayoutInput): NodeCardLayou
     dynamic,
     sideRailLayout,
     verticalFormLayout,
+    primitiveLayout,
     inputPortLabelWidth,
     outputPortLabelWidth,
     verticalPortLabelWidth,

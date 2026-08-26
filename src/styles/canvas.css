@@ -341,3 +341,21 @@
 .app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node.node-kind-group:not(.workflow-structure)::after {
   border-color: color-mix(in srgb, var(--canvas-group) 36%, transparent);
 }
+
+/* Primitive micro-controls in Soft cards use tonal depth only; no nested hard frames. */
+.app-shell[data-canvas-theme="soft"] .workflow-node--primitive .primitive-number-input,
+.app-shell[data-canvas-theme="soft"] .workflow-node--primitive .primitive-text-input,
+.app-shell[data-canvas-theme="soft"] .workflow-node--primitive .primitive-color-trigger,
+.app-shell[data-canvas-theme="soft"] .workflow-node--primitive .primitive-datetime-trigger {
+  border-color: transparent !important;
+  background: color-mix(in srgb, var(--canvas-node-face) 75%, #9db4ce 25%);
+  box-shadow: inset 0 1px 1px rgba(87,108,136,.08);
+}
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--primitive .primitive-number-input,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--primitive .primitive-text-input,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--primitive .primitive-color-trigger,
+.app-shell[data-theme="dark"][data-canvas-theme="soft"] .workflow-node--primitive .primitive-datetime-trigger {
+  border-color: transparent !important;
+  background: #132132;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.025), inset 0 -1px 0 rgba(0,0,0,.15);
+}

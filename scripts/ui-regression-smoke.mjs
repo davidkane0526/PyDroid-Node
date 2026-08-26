@@ -15,10 +15,19 @@ const nodeLayout = readFileSync(path.join(root, "src/nodes/layout.ts"), "utf8");
 const numericInput = readFileSync(path.join(root, "src/NumericInput.tsx"), "utf8");
 const themedSelect = readFileSync(path.join(root, "src/ThemedSelect.tsx"), "utf8");
 const parameterField = readFileSync(path.join(root, "src/ParameterField.tsx"), "utf8");
+const primitiveValueControl = readFileSync(path.join(root, "src/ui/PrimitiveValueControl.tsx"), "utf8");
 const themeContract = readFileSync(path.join(root, "src/styles/theme-contract.css"), "utf8");
 
 const transientUi = readFileSync(path.join(root, "src/ui/transientUi.ts"), "utf8");
 
+
+assert.match(app, /workflow-node--primitive/, "primitive value sources should expose a dedicated micro-node contract");
+assert.match(primitiveValueControl, /role="switch"[\s\S]*primitive-toggle__track/, "boolean primitive should use a compact switch instead of a checkbox row");
+assert.doesNotMatch(primitiveValueControl, /type="color"|type="datetime-local"/, "primitive color/datetime controls must not delegate to large native browser pickers");
+assert.match(primitiveValueControl, /primitive-color-presets[\s\S]*primitive-hex-field/, "color primitive should use a compact swatch/HEX popover");
+assert.match(primitiveValueControl, /primitive-calendar-grid[\s\S]*primitive-time-row/, "datetime primitive should use the shared compact in-app calendar/time popover");
+assert.match(css, /\.workflow-node--primitive \.workflow-node__body[\s\S]*place-content:\s*center/, "primitive nodes should center their title and micro-control rather than mimic inspector forms");
+assert.match(canvasThemes, /workflow-node--primitive \.primitive-number-input[\s\S]*border-color:\s*transparent/, "Soft primitive controls should use tonal depth instead of nested outlines");
 const pluginManagerCss = readFileSync(path.join(root, "src/plugins/plugin-manager.css"), "utf8");
 const pluginManager = readFileSync(path.join(root, "src/plugins/PluginManager.tsx"), "utf8");
 assert.match(app, /errorIndicatorTimersRef/, "tab error badges should have transient timers");
