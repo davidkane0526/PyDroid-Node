@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readCoreStyles } from "./style-test-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFileSync(path.join(root, file), "utf8");
 const sdk = read("sdk/design.ts");
 const theme = read("sdk/theme.ts");
 const contract = read("src/styles/theme-contract.css");
-const styles = read("src/styles/base.css");
+const styles = readCoreStyles(root);
 const publicSdk = read("sdk/index.ts");
 
 assert.match(sdk, /UI_DESIGN_SDK_VERSION\s*=\s*1/, "Unified Design SDK version missing");

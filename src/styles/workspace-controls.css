@@ -1,0 +1,996 @@
+/* pointer-native desktop drag, narrow inspector heading, and DataGrid overflow fixes. */
+.app-shell.native-platform .mobile-brand {
+  display: flex;
+  height: 34px;
+  align-items: center;
+  margin-right: 27px;
+  padding-right: 0;
+  line-height: 1;
+  letter-spacing: .16px;
+}
+.app-shell.native-platform .tabbar__tab { align-items: flex-start; }
+.app-shell.native-platform .tabbar__name {
+  display: flex !important;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.app-shell.native-platform .tabbar__close { margin-top: 4px; }
+
+.inspector {
+  container-name: inspector-panel;
+  container-type: inline-size;
+}
+@container inspector-panel (max-width: 350px) {
+  .inspector__heading {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    grid-template-rows: 30px 30px;
+    justify-content: start;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .inspector__heading h2 {
+    grid-column: 1;
+    grid-row: 1;
+    margin: 0;
+    line-height: 30px;
+  }
+  .inspector__heading-tools { display: contents; }
+  .inspector-dock-switch {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: start;
+  }
+  .inspector__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+    min-width: 0;
+    gap: 12px;
+  }
+  .inspector__actions button { white-space: nowrap; }
+}
+
+.data-grid__toolbar {
+  grid-template-columns: minmax(0, 1fr) max-content max-content !important;
+  align-items: center;
+}
+.data-grid__search { width: 100%; min-width: 0; }
+.data-grid__search input { width: 100%; min-width: 0; }
+.data-grid__page-size {
+  width: auto;
+  min-width: 64px;
+  max-width: 72px;
+  height: 30px;
+  padding-inline: 5px !important;
+  white-space: nowrap;
+}
+
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: flex !important;
+  grid-column: 1 / -1;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 5px;
+}
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button {
+  flex: 0 0 auto;
+  min-width: 30px;
+  height: 30px;
+  padding-inline: 6px;
+}
+.data-grid__actions button:nth-last-child(-n + 2) { min-width: 48px; }
+.node-result-inspector .data-grid__toolbar {
+  grid-template-columns: minmax(0, 1fr) max-content max-content !important;
+}
+.node-result-inspector .data-grid__search { min-width: 0; }
+.node-result-inspector .data-grid__page-size {
+  min-width: 62px;
+  max-width: 68px;
+  font-size: var(--font-xs);
+}
+
+
+.palette-group button[draggable="false"],
+.group-resource-card[draggable="false"],
+.flow-library-item[draggable="false"] { touch-action: pan-y; }
+@media (pointer: fine) {
+  .palette-group button[draggable="false"],
+  .group-resource-card[draggable="false"],
+  .flow-library-item[draggable="false"] { touch-action: none; }
+}
+.palette-drag-preview { z-index: 1400; }
+
+/* proportional inspector header, compact DataGrid, themed dropdowns and modern confirms. */
+
+/* Keep inspector controls grouped naturally. Only wrap when the panel is genuinely narrow. */
+.inspector__heading {
+  display: flex;
+  min-width: 0;
+  min-height: 34px;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.inspector__heading h2 { flex: none; margin: 0; line-height: 30px; }
+.inspector__heading-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+.inspector__actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+}
+.inspector__actions button { flex: none; white-space: nowrap; }
+@container inspector-panel (max-width: 278px) {
+  .inspector__heading {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    grid-template-rows: 30px 30px;
+    justify-content: start;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .inspector__heading h2 { grid-column: 1; grid-row: 1; }
+  .inspector__heading-tools { display: contents; }
+  .inspector-dock-switch { grid-column: 2; grid-row: 1; justify-self: start; }
+  .inspector__actions { grid-column: 1 / -1; grid-row: 2; justify-self: start; gap: 12px; }
+}
+
+/* Bring the custom pointer-drag card nearer to the pointer while preserving the lift animation. */
+.palette-drag-preview {
+  transform: translate(12px, calc(-100% - 10px)) rotate(-.8deg) scale(.97);
+  animation: palette-drag-enter-near .14s cubic-bezier(.2,.8,.2,1);
+}
+.palette-drag-preview.over-canvas {
+  transform: translate(12px, calc(-100% - 10px)) rotate(0) scale(1.025);
+}
+@keyframes palette-drag-enter-near {
+  from { opacity: 0; transform: translate(10px, calc(-100% - 4px)) scale(.92); }
+  to { opacity: .92; }
+}
+
+/* DataGrid: first row is search + page size; second row is equal-width actions. */
+.data-grid { container-name: data-grid-panel; container-type: inline-size; }
+.data-grid__toolbar,
+.node-result-inspector .data-grid__toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content !important;
+  align-items: center;
+  gap: 6px;
+}
+.data-grid__search {
+  width: 100%;
+  min-width: 0;
+  flex: none;
+}
+.data-grid__search > span { flex: none; }
+.data-grid__search input { width: 100%; min-width: 0; }
+.data-grid__page-size,
+.node-result-inspector .data-grid__page-size {
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
+  height: 30px;
+  padding-inline: 5px !important;
+  white-space: nowrap;
+}
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: grid !important;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 6px;
+}
+.data-grid__actions--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.data-grid__actions--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button,
+.data-grid__actions button:nth-last-child(-n + 2) {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.data-grid__pager {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px;
+}
+.data-grid__pager > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.data-grid__pager > div { min-width: 0; }
+@container data-grid-panel (max-width: 285px) {
+  .data-grid__page-size,
+  .node-result-inspector .data-grid__page-size { width: 68px; min-width: 68px; max-width: 68px; }
+  .data-grid__search { padding-inline: 6px; }
+  .data-grid__search input { font-size: 10.5px; }
+  .data-grid__pager { grid-template-columns: minmax(0, 1fr); justify-items: start; }
+  .data-grid__pager > div { justify-self: stretch; justify-content: center; width: 100%; }
+}
+
+/* Result header remains legible when docked into a narrow inspector. */
+.result-panel { container-name: result-panel-box; container-type: inline-size; }
+.result-panel__heading { min-width: 0; }
+.result-panel__heading h3 { flex: none; white-space: nowrap; }
+.node-result-inspector h3 { gap: 8px; white-space: nowrap; }
+.node-result-inspector h3 small { flex: none; }
+@container result-panel-box (max-width: 305px) {
+  .result-panel__heading { display: grid; grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 7px; }
+  .result-actions { width: 100%; justify-content: flex-start; gap: 7px; }
+  .result-summary { white-space: nowrap; }
+}
+
+/* Theme-consistent dropdowns: avoid the operating system's native select popup. */
+.themed-select {
+  position: relative;
+  z-index: 1;
+  width: 144px;
+  min-width: 120px;
+  max-width: 100%;
+}
+.themed-select.open { z-index: 80; }
+.themed-select__trigger {
+  display: flex;
+  width: 100%;
+  min-height: 31px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text-bright);
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 0 #ffffff06;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.themed-select__trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.themed-select__trigger svg { width: 12px; height: 8px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.45; stroke-linecap: round; stroke-linejoin: round; }
+.themed-select.open .themed-select__trigger,
+.themed-select__trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-hover) 70%, var(--border));
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+.themed-select__menu {
+  position: absolute;
+  z-index: 2000;
+  top: calc(100% + 5px);
+  right: 0;
+  left: 0;
+  display: grid;
+  gap: 1px;
+  min-width: max(100%, 148px);
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--border-pop) 82%, transparent);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 12px 30px #0006, 0 2px 7px #0003;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.themed-select__menu button {
+  display: flex;
+  width: 100%;
+  min-height: 29px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: 5px;
+  color: var(--text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 12px;
+}
+.themed-select__menu button:hover { background: var(--surface-hover); }
+.themed-select__menu button.selected { color: var(--text-highlight); background: color-mix(in srgb, var(--accent) 11%, var(--surface-hover)); }
+.themed-select__menu button svg { width: 12px; height: 9px; flex: none; fill: none; stroke: var(--accent-hover); stroke-width: 1.55; stroke-linecap: round; stroke-linejoin: round; }
+.workspace-shell[data-theme="light"] .themed-select__trigger,
+.app-shell[data-theme="light"] .themed-select__trigger {
+  border-color: #cbd5e1;
+  color: #1e293b;
+  background: #ffffff;
+  box-shadow: inset 0 1px 0 #fff;
+}
+.workspace-shell[data-theme="light"] .themed-select__menu,
+.app-shell[data-theme="light"] .themed-select__menu {
+  border-color: #cbd5e1;
+  background: rgba(255,255,255,.98);
+  box-shadow: 0 8px 20px rgba(71,85,105,.13), 0 2px 6px rgba(71,85,105,.07);
+}
+.workspace-shell[data-theme="light"] .themed-select__menu button,
+.app-shell[data-theme="light"] .themed-select__menu button { color: #243b53; }
+.workspace-shell[data-theme="light"] .themed-select__menu button:hover,
+.app-shell[data-theme="light"] .themed-select__menu button:hover { background: #eef3f8; }
+.workspace-shell[data-theme="light"] .themed-select__menu button.selected,
+.app-shell[data-theme="light"] .themed-select__menu button.selected { color: #173a63; background: #e8f1fb; }
+
+/* Modern in-app confirmation replaces the native Windows/Chromium message box. */
+.modern-confirm-backdrop { z-index: 2100; background: #02061799; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+.modern-confirm-dialog {
+  display: grid;
+  width: min(430px, calc(100vw - 32px));
+  overflow: hidden;
+  border: 1px solid var(--border-pop);
+  border-radius: 14px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface) 97%, transparent);
+  box-shadow: 0 24px 70px #000b, 0 4px 18px #0007;
+  animation: modern-dialog-in .16s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes modern-dialog-in { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
+.modern-confirm-dialog > header {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 30px;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 16px 12px;
+}
+.modern-confirm-dialog > header > div { display: grid; gap: 2px; }
+.modern-confirm-dialog > header strong { color: var(--text-bright); font-size: 15px; }
+.modern-confirm-dialog > header small { color: var(--text-faint); font-size: 11px; }
+.modern-confirm-dialog__icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--accent-soft);
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface-raised));
+  font-size: 18px;
+  font-weight: 700;
+}
+.modern-confirm-dialog__icon.danger { color: #fecaca; background: #7f1d1d66; }
+.modern-confirm-dialog__close { display: grid; width: 30px; height: 30px; padding: 0; place-items: center; border: 0; border-radius: 7px; color: var(--text-muted); background: transparent; cursor: pointer; font-size: 20px; }
+.modern-confirm-dialog__close:hover { color: var(--text-bright); background: var(--surface-hover); }
+.modern-confirm-dialog__content { padding: 2px 16px 17px 65px; }
+.modern-confirm-dialog__content p { margin: 0; color: var(--text-muted); font-size: 13px; line-height: 1.65; }
+.modern-confirm-dialog > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border-soft); background: color-mix(in srgb, var(--surface-deep) 72%, transparent); }
+.modern-confirm-dialog > footer .button { min-width: 76px; justify-content: center; }
+.modern-confirm-dialog .danger-confirm { border-color: #b91c1c; color: #fff; background: #dc2626; }
+.modern-confirm-dialog .danger-confirm:hover { background: #ef4444; }
+.workspace-shell[data-theme="light"] .modern-confirm-backdrop,
+.app-shell[data-theme="light"] .modern-confirm-backdrop { background: rgba(30,41,59,.24); }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog,
+.app-shell[data-theme="light"] .modern-confirm-dialog {
+  border-color: #cbd5e1;
+  color: #1e293b;
+  background: rgba(255,255,255,.985);
+  box-shadow: 0 18px 48px rgba(71,85,105,.18), 0 3px 10px rgba(71,85,105,.09);
+}
+.workspace-shell[data-theme="light"] .modern-confirm-dialog > header strong,
+.app-shell[data-theme="light"] .modern-confirm-dialog > header strong { color: #172554; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog__content p,
+.app-shell[data-theme="light"] .modern-confirm-dialog__content p { color: #52677f; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog > footer,
+.app-shell[data-theme="light"] .modern-confirm-dialog > footer { border-color: #dbe3ed; background: #f8fafc; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog__icon,
+.app-shell[data-theme="light"] .modern-confirm-dialog__icon { color: #1d4ed8; background: #dbeafe; }
+.workspace-shell[data-theme="light"] .modern-confirm-dialog__icon.danger,
+.app-shell[data-theme="light"] .modern-confirm-dialog__icon.danger { color: #b91c1c; background: #fee2e2; }
+
+/* Settings secondary controls follow the same visual system as the new dropdowns. */
+.settings-inline-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.settings-inline-actions button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  color: var(--text-highlight);
+  background: var(--surface-hover);
+  box-shadow: inset 0 1px 0 #ffffff08;
+  cursor: pointer;
+  font-size: var(--font-xs);
+}
+.settings-inline-actions button:hover { border-color: var(--accent-hover); background: color-mix(in srgb, var(--surface-hover) 80%, var(--accent) 20%); }
+.app-shell[data-theme="light"] .settings-inline-actions button,
+.workspace-shell[data-theme="light"] .settings-inline-actions button { border-color: #cbd5e1; color: #1e3a5f; background: #f8fafc; box-shadow: none; }
+.app-shell[data-theme="light"] .settings-inline-actions button:hover,
+.workspace-shell[data-theme="light"] .settings-inline-actions button:hover { border-color: #93b4dc; background: #eef4fb; }
+
+.modern-prompt-dialog .modern-confirm-dialog__content { padding-top: 4px; }
+.modern-prompt-dialog .modern-confirm-dialog__content input {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  color: var(--text-bright);
+  background: var(--surface-deep);
+  font-size: 13px;
+}
+.modern-prompt-dialog .modern-confirm-dialog__content input:focus { border-color: var(--accent-hover); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
+.app-shell[data-theme="light"] .modern-prompt-dialog .modern-confirm-dialog__content input,
+.workspace-shell[data-theme="light"] .modern-prompt-dialog .modern-confirm-dialog__content input { border-color: #cbd5e1; color: #172554; background: #fff; }
+
+
+/* unified inspector heading, palette minimum width, DataGrid action sizing and tab indicator alignment. */
+
+/* The Parameters panel is a peer of Resources: same title scale, same left/right header rhythm.
+   Technical node type remains useful, but the user-facing node label is the first line below the panel title. */
+.inspector__heading {
+  display: grid;
+  min-width: 0;
+  min-height: 34px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+.inspector__heading h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.inspector__heading-tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  justify-self: end;
+  gap: 10px;
+}
+.inspector__actions { gap: 10px; }
+.inspector__selection {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin: 12px 0 18px;
+}
+.inspector__node-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--text-highlight);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+.inspector__selection .inspector__node-type {
+  margin: 0;
+  color: var(--accent-hover);
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 10.5px;
+  line-height: 1.35;
+  word-break: break-all;
+}
+.app-shell[data-theme="light"] .inspector__node-name { color: #1e293b; }
+.app-shell[data-theme="light"] .inspector__selection .inspector__node-type { color: #405f82; }
+
+/* Controlled two-line layout when the inspector itself becomes narrow. This avoids both huge dead gaps
+   and character-by-character wrapping of Copy/Delete/Collapse. */
+@container inspector-panel (max-width: 360px) {
+  .inspector__heading {
+    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-rows: 30px 30px;
+    column-gap: 10px;
+    row-gap: 4px;
+  }
+  .inspector__heading h2 { grid-column: 1; grid-row: 1; }
+  .inspector__heading-tools { display: contents; }
+  .inspector-dock-switch {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .inspector__actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+    gap: 12px;
+  }
+}
+@media (max-width: 720px) {
+  .inspector__heading h2 { font-size: 14px; }
+}
+
+/* Keep the Resources pane wide enough for the four Phase 8 tabs (Nodes / Functions / Groups / Flows).
+   216 px prevents Chinese labels from being compressed while retaining useful canvas space on Android. */
+@media (min-width: 901px) {
+  .workspace,
+  .workspace.inspector-right { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr) var(--inspector-width, 320px); }
+  .workspace.inspector-bottom { grid-template-columns: var(--palette-width, 216px) minmax(0, 1fr); }
+}
+@media (min-width: 721px) and (max-width: 900px) {
+  .workspace,
+  .workspace.inspector-right {
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 30vw)) minmax(0, 1fr) min(var(--inspector-width, 300px), 42vw);
+  }
+  .workspace.inspector-bottom {
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 30vw)) minmax(0, 1fr);
+  }
+}
+@media (max-width: 720px) {
+  .workspace,
+  .workspace.inspector-bottom,
+  .workspace.inspector-collapsed {
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 46vw)) minmax(0, 1fr);
+  }
+  .workspace.inspector-right {
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 38vw)) minmax(0, 1fr) minmax(210px, min(var(--inspector-width, 260px), 42vw));
+  }
+}
+@media (orientation: landscape) and (max-height: 720px) {
+  .workspace.inspector-right {
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 23vw)) minmax(0, 1fr) minmax(230px, min(var(--inspector-width, 300px), 36vw));
+  }
+  .workspace.inspector-bottom {
+    grid-template-columns: minmax(216px, min(var(--palette-width, 216px), 23vw)) minmax(0, 1fr);
+  }
+}
+
+/* DataGrid action row: glyph-only controls stay compact; text controls get the space they actually need.
+   The row still spans exactly the same width as search + page-size above it. */
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: grid !important;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 6px;
+}
+.data-grid__actions--4 {
+  grid-template-columns: 34px 34px minmax(48px, 1fr) minmax(48px, 1fr);
+}
+.data-grid__actions--3 {
+  grid-template-columns: 34px 34px minmax(48px, 1fr);
+}
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button,
+.data-grid__actions button:nth-last-child(-n + 2) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 6px;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.data-grid__actions button:nth-child(-n + 2) {
+  padding-inline: 0;
+  font-size: 13px;
+}
+@container data-grid-panel (max-width: 190px) {
+  .data-grid__actions,
+  .node-result-inspector .data-grid__actions { gap: 4px; }
+  .data-grid__actions--4 { grid-template-columns: 32px 32px minmax(42px, 1fr) minmax(42px, 1fr); }
+  .data-grid__actions--3 { grid-template-columns: 32px 32px minmax(42px, 1fr); }
+  .data-grid__page-size,
+  .node-result-inspector .data-grid__page-size { width: 66px; min-width: 66px; max-width: 66px; }
+}
+
+/* Mobile active-tab marker aligns with the bottom edge of the 34 px topbar buttons (8 px above header bottom).
+   Desktop keeps the same marker but uses a subtler hairline. */
+.app-shell.native-platform .tabbar__tab.active::after {
+  bottom: 8px;
+  height: 1px;
+}
+.app-shell:not(.native-platform) .tabbar__tab.active::after {
+  height: .75px;
+}
+
+
+/* Match the Parameters panel's content inset to the Resources header instead of double-padding the right dock. */
+.workspace.inspector-right .inspector { padding: 0; }
+.workspace.inspector-right .inspector-scroll { padding: 11px 12px 18px; }
+
+/* rebalance DataGrid actions and use the horizontal inspector area efficiently. */
+
+/* Keep the toolbar frame full width, but do not stretch two icon-only actions to the same visual weight
+   as text actions. The compact pair stays on the left and the text pair is grouped on the right. */
+.data-grid__actions,
+.node-result-inspector .data-grid__actions {
+  display: grid !important;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1 / -1;
+  align-items: stretch;
+  gap: 6px;
+}
+.data-grid__actions--4,
+.node-result-inspector .data-grid__actions--4 {
+  grid-template-columns: 38px 38px minmax(10px, 1fr) minmax(68px, 96px) minmax(68px, 96px);
+}
+.data-grid__actions--4 > button:nth-child(1) { grid-column: 1; }
+.data-grid__actions--4 > button:nth-child(2) { grid-column: 2; }
+.data-grid__actions--4 > button:nth-child(3) { grid-column: 4; }
+.data-grid__actions--4 > button:nth-child(4) { grid-column: 5; }
+.data-grid__actions--3,
+.node-result-inspector .data-grid__actions--3 {
+  grid-template-columns: 38px 38px minmax(10px, 1fr) minmax(68px, 104px);
+}
+.data-grid__actions--3 > button:nth-child(1) { grid-column: 1; }
+.data-grid__actions--3 > button:nth-child(2) { grid-column: 2; }
+.data-grid__actions--3 > button:nth-child(3) { grid-column: 4; }
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button,
+.data-grid__actions button:nth-last-child(-n + 2) {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 4px 8px;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+}
+.data-grid__actions button:nth-child(-n + 2) {
+  padding-inline: 0;
+  font-size: 13px;
+}
+@container data-grid-panel (max-width: 300px) {
+  .data-grid__actions,
+  .node-result-inspector .data-grid__actions { gap: 5px; }
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 {
+    grid-template-columns: 34px 34px minmax(4px, 1fr) minmax(58px, 78px) minmax(58px, 78px);
+  }
+  .data-grid__actions--3,
+  .node-result-inspector .data-grid__actions--3 {
+    grid-template-columns: 34px 34px minmax(4px, 1fr) minmax(62px, 84px);
+  }
+}
+@container data-grid-panel (max-width: 220px) {
+  .data-grid__actions,
+  .node-result-inspector .data-grid__actions { gap: 4px; }
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 {
+    grid-template-columns: 32px 32px minmax(2px, 1fr) 56px 56px;
+  }
+  .data-grid__actions--3,
+  .node-result-inspector .data-grid__actions--3 {
+    grid-template-columns: 32px 32px minmax(2px, 1fr) 60px;
+  }
+  .data-grid__actions button,
+  .node-result-inspector .data-grid__actions button { padding-inline: 4px; }
+}
+
+/* A bottom-docked inspector has horizontal room but little vertical room. Treat that room as a responsive
+   form grid: compact controls can share rows, while objects that benefit from width keep the full span. */
+.workspace.inspector-bottom .inspector-scroll {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-auto-flow: row dense;
+  align-content: start;
+  align-items: start;
+  gap: 12px 14px;
+  padding: 14px 18px 18px;
+}
+.workspace.inspector-bottom .inspector__heading,
+.workspace.inspector-bottom .inspector__selection,
+.workspace.inspector-bottom .node-result-inspector,
+.workspace.inspector-bottom .group-settings,
+.workspace.inspector-bottom .node-organization,
+.workspace.inspector-bottom .node-default-actions,
+.workspace.inspector-bottom .custom-templates,
+.workspace.inspector-bottom .advanced-parameters,
+.workspace.inspector-bottom .validation-error,
+.workspace.inspector-bottom .result-panel,
+.workspace.inspector-bottom .muted {
+  grid-column: 1 / -1;
+}
+.workspace.inspector-bottom .inspector__heading { margin: 0; }
+.workspace.inspector-bottom .inspector__selection { margin: 0 0 2px; }
+.workspace.inspector-bottom .node-file-picker,
+.workspace.inspector-bottom .callable-signature,
+.workspace.inspector-bottom .field,
+.workspace.inspector-bottom .signature-summary,
+.workspace.inspector-bottom .node-default-actions,
+.workspace.inspector-bottom .custom-templates,
+.workspace.inspector-bottom .advanced-parameters,
+.workspace.inspector-bottom .validation-error,
+.workspace.inspector-bottom .muted {
+  min-width: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.workspace.inspector-bottom .field {
+  align-self: start;
+}
+.workspace.inspector-bottom .node-organization {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+.workspace.inspector-bottom .node-organization label { min-width: 0; }
+.workspace.inspector-bottom .node-default-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+}
+.workspace.inspector-bottom .node-default-actions small {
+  flex: 1 1 260px;
+  min-width: 180px;
+}
+.workspace.inspector-bottom .advanced-parameters[open] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px 14px;
+  padding-bottom: 10px;
+}
+.workspace.inspector-bottom .advanced-parameters[open] > summary {
+  grid-column: 1 / -1;
+  margin-bottom: 0;
+}
+.workspace.inspector-bottom .advanced-parameters[open] > .field { margin: 0; }
+
+/* At medium widths two columns are still useful; below that, revert naturally to a single-column form. */
+@container inspector-panel (max-width: 620px) {
+  .workspace.inspector-bottom .inspector-scroll {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 10px 12px;
+    padding-inline: 14px;
+  }
+  .workspace.inspector-bottom .node-organization {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  }
+}
+@container inspector-panel (max-width: 470px) {
+  .workspace.inspector-bottom .inspector-scroll { grid-template-columns: minmax(0, 1fr); }
+  .workspace.inspector-bottom .node-organization { grid-template-columns: minmax(0, 1fr); }
+}
+
+
+/* blank startup, robust compact table controls, bottom-inspector flow layout, and touch marquee selection. */
+
+/* DataGrid: the two glyph buttons are compact, while Copy / Fullscreen share all remaining width.
+   No spacer column is used, so a scrollbar or one-pixel container difference can never push Fullscreen outside. */
+.data-grid__actions--4,
+.node-result-inspector .data-grid__actions--4 {
+  grid-template-columns: 36px 36px minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 6px;
+}
+.data-grid__actions--3,
+.node-result-inspector .data-grid__actions--3 {
+  grid-template-columns: 36px 36px minmax(0, 1fr) !important;
+  gap: 6px;
+}
+.data-grid__actions--4 > button:nth-child(1),
+.data-grid__actions--4 > button:nth-child(2),
+.data-grid__actions--4 > button:nth-child(3),
+.data-grid__actions--4 > button:nth-child(4),
+.data-grid__actions--3 > button:nth-child(1),
+.data-grid__actions--3 > button:nth-child(2),
+.data-grid__actions--3 > button:nth-child(3) { grid-column: auto !important; }
+.data-grid__actions button,
+.node-result-inspector .data-grid__actions button { box-sizing: border-box; }
+@container data-grid-panel (max-width: 230px) {
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 { grid-template-columns: 32px 32px minmax(0, 1fr) minmax(0, 1fr) !important; gap: 5px; }
+  .data-grid__actions--3,
+  .node-result-inspector .data-grid__actions--3 { grid-template-columns: 32px 32px minmax(0, 1fr) !important; gap: 5px; }
+}
+@container data-grid-panel (max-width: 190px) {
+  .data-grid__actions--4,
+  .node-result-inspector .data-grid__actions--4 { grid-template-columns: 30px 30px minmax(0, 1fr) minmax(0, 1fr) !important; gap: 4px; }
+  .data-grid__actions button,
+  .node-result-inspector .data-grid__actions button { padding-inline: 3px; }
+}
+
+/* Right dock keeps the original vertical flow. Bottom dock uses content-aware columns: file actions need less
+   room than long callable documentation, so descriptive text gets the larger share and wraps less. */
+.inspector-node-overview { display: contents; }
+.workspace.inspector-bottom .inspector-node-overview {
+  display: grid;
+  min-width: 0;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(260px, .82fr) minmax(360px, 1.18fr);
+  align-items: stretch;
+  gap: 12px 16px;
+}
+.workspace.inspector-bottom .inspector-node-overview > .node-file-picker,
+.workspace.inspector-bottom .inspector-node-overview > .callable-signature {
+  min-width: 0;
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+.workspace.inspector-bottom .inspector-node-overview > .node-file-picker { align-content: center; }
+.workspace.inspector-bottom .inspector-node-overview > .callable-signature { align-content: center; }
+@container inspector-panel (max-width: 820px) {
+  .workspace.inspector-bottom .inspector-node-overview { grid-template-columns: minmax(230px, .9fr) minmax(300px, 1.1fr); gap: 10px 12px; }
+}
+@container inspector-panel (max-width: 610px) {
+  .workspace.inspector-bottom .inspector-node-overview { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Advanced fields use their own real grid wrapper. This avoids <details> layout quirks and allows the number
+   of columns to follow the actual bottom-panel width. */
+.workspace.inspector-bottom .advanced-parameters[open] { display: block; padding-bottom: 10px; }
+.workspace.inspector-bottom .advanced-parameters[open] > summary { margin-bottom: 8px; }
+.workspace.inspector-bottom .advanced-parameters__grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  align-items: start;
+  gap: 10px 14px;
+}
+.workspace.inspector-bottom .advanced-parameters__grid > .field { min-width: 0; margin: 0; }
+@container inspector-panel (max-width: 780px) {
+  .workspace.inspector-bottom .advanced-parameters__grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 9px 12px; }
+}
+@container inspector-panel (max-width: 470px) {
+  .workspace.inspector-bottom .advanced-parameters__grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Organization fields share the same control height; the joined input/button composite no longer looks taller. */
+.node-organization label > input,
+.node-organization label > span { min-height: 38px; height: 38px; box-sizing: border-box; }
+.node-organization label > span { align-items: stretch; }
+.node-organization label > span > input,
+.node-organization label > span > button { height: 38px; box-sizing: border-box; }
+
+/* Touch marquee: one-finger motion above 10 px before the hold remains panning. After a 520 ms hold on blank
+   canvas the parent captures the pointer and this screen-space marquee becomes the only active gesture. */
+.touch-marquee {
+  position: fixed;
+  z-index: 75;
+  box-sizing: border-box;
+  min-width: 1px;
+  min-height: 1px;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 88%, white 12%);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 12%, transparent), inset 0 0 18px color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
+}
+.touch-marquee::before,
+.touch-marquee::after {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 5px #0005;
+  content: "";
+}
+.touch-marquee::before { left: -6px; top: -6px; }
+.touch-marquee::after { right: -6px; bottom: -6px; }
+.app-shell[data-theme="light"] .touch-marquee { background: #2563eb14; box-shadow: 0 0 0 1px #2563eb16, inset 0 0 18px #2563eb0c; }
+.canvas-panel.touch-marquee-active { cursor: crosshair; }
+
+/* workspace creation / unsaved-change dialogs. */
+.workspace-choice-dialog { width: min(520px, calc(100vw - 28px)); }
+.workspace-choice-dialog__choices { display: grid; gap: 10px; padding: 4px 16px 16px; }
+.workspace-choice-card {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  padding: 11px 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  color: var(--text);
+  background: color-mix(in srgb, var(--surface-deep) 78%, transparent);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease, transform .14s ease;
+}
+.workspace-choice-card:hover { border-color: var(--border-pop); background: var(--surface-hover); transform: translateY(-1px); }
+.workspace-choice-card:active { transform: translateY(0); }
+.workspace-choice-card__icon { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 9px; color: var(--accent-hover); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.workspace-choice-card__icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.workspace-choice-card > span:nth-child(2) { display: grid; gap: 4px; min-width: 0; }
+.workspace-choice-card strong { color: var(--text-bright); font-size: 13px; font-weight: 650; }
+.workspace-choice-card small { color: var(--text-faint); font-size: 11px; line-height: 1.45; }
+.workspace-choice-card__arrow { width: 17px; height: 17px; fill: none; stroke: var(--text-faint); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.workspace-choice-dialog > footer { padding-top: 10px; }
+.modern-confirm-dialog__icon.warning { color: #fbbf24; background: color-mix(in srgb, #f59e0b 17%, transparent); font-size: 11px; }
+.unsaved-changes-dialog > footer { flex-wrap: wrap; }
+.unsaved-changes-dialog .unsaved-discard { border-color: color-mix(in srgb, #ef4444 45%, var(--border-soft)); color: #fca5a5; background: transparent; }
+.unsaved-changes-dialog .unsaved-discard:hover { border-color: #ef4444; color: #fff; background: color-mix(in srgb, #ef4444 22%, transparent); }
+.workspace-shell[data-theme="light"] .workspace-choice-card,
+.app-shell[data-theme="light"] .workspace-choice-card { border-color: #d5deea; color: #334155; background: #f8fafc; }
+.workspace-shell[data-theme="light"] .workspace-choice-card:hover,
+.app-shell[data-theme="light"] .workspace-choice-card:hover { border-color: #b7c6d8; background: #f1f5f9; }
+.workspace-shell[data-theme="light"] .workspace-choice-card strong,
+.app-shell[data-theme="light"] .workspace-choice-card strong { color: #172554; }
+.workspace-shell[data-theme="light"] .workspace-choice-card small,
+.app-shell[data-theme="light"] .workspace-choice-card small { color: #64748b; }
+.workspace-shell[data-theme="light"] .workspace-choice-card__icon,
+.app-shell[data-theme="light"] .workspace-choice-card__icon { color: #1d4ed8; background: #e8f0ff; }
+.workspace-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard,
+.app-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard { color: #b91c1c; border-color: #fecaca; }
+.workspace-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard:hover,
+.app-shell[data-theme="light"] .unsaved-changes-dialog .unsaved-discard:hover { color: #991b1b; background: #fee2e2; border-color: #fca5a5; }
+@media (max-width: 560px) {
+  .workspace-choice-dialog__choices { gap: 8px; padding-inline: 12px; }
+  .workspace-choice-card { grid-template-columns: 34px minmax(0, 1fr) 16px; gap: 9px; min-height: 62px; padding: 9px 10px; }
+  .workspace-choice-card__icon { width: 32px; height: 32px; }
+  .workspace-choice-card small { font-size: 10.5px; }
+  .unsaved-changes-dialog > footer { display: grid; grid-template-columns: 1fr 1fr; }
+  .unsaved-changes-dialog > footer .button.primary { grid-column: 1 / -1; grid-row: 1; }
+  .unsaved-changes-dialog > footer .unsaved-discard { grid-column: 1; grid-row: 2; }
+  .unsaved-changes-dialog > footer .button.secondary { grid-column: 2; grid-row: 2; }
+}
+
+
+/* restore native two-finger pinch and polish transient tab-close affordance. */
+.tabbar__close svg {
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Canvas gestures are fully owned by the app on Android: one finger pans/long-holds, two fingers pinch. */
+.app-shell.native-platform .canvas-panel { touch-action: none; }
+
+/* A temporary mobile close affordance belongs to the tab's upper-right corner and never participates
+   in the tab's flex layout. SVG geometry guarantees the X is optically and mathematically centered. */
+.app-shell.native-platform .tabbar__close.visible {
+  position: absolute !important;
+  z-index: 6;
+  top: 3px !important;
+  right: 4px !important;
+  display: grid !important;
+  width: 18px;
+  height: 18px;
+  margin: 0 !important;
+  padding: 0;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 78%, transparent);
+  border-radius: 6px;
+  color: var(--text-muted);
+  background: color-mix(in srgb, var(--surface-raised) 92%, transparent) !important;
+  box-shadow: 0 2px 7px #0003;
+  opacity: 1 !important;
+}
+.app-shell.native-platform .tabbar__close.visible svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+  margin: 0;
+  overflow: visible;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.app-shell.native-platform .tabbar__close.visible:active {
+  color: var(--text-bright);
+  background: var(--surface-hover) !important;
+}
+.app-shell.native-platform .tabbar__tab:has(.tabbar__close.visible) .tabbar__name { padding-right: 12px; }
+.app-shell[data-theme="light"].native-platform .tabbar__close.visible {
+  border-color: #cbd5e1;
+  color: #52677f;
+  background: rgba(248, 250, 252, .96) !important;
+  box-shadow: 0 2px 6px rgba(71, 85, 105, .15);
+}

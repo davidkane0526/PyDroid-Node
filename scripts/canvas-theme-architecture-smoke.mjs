@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { readCoreStyles } from "./style-test-utils.mjs";
 
 const root = process.cwd();
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
@@ -9,7 +10,7 @@ const dialogs = read("src/dialogs.tsx");
 const main = read("src/main.tsx");
 const registry = read("src/canvas-theme.ts");
 const css = read("src/styles/canvas.css");
-const sharedStyles = read("src/styles/base.css");
+const sharedStyles = readCoreStyles(root);
 
 const checks = [
   [registry.includes('"classic"') && registry.includes('"soft"'), "canvas theme registry exposes classic and soft themes"],

@@ -1,4 +1,4 @@
-/* === PyDroid Node 1.5.8 result/export and plot presentation === */
+/* Result/export and plot presentation. */
 /* Export nodes own a dedicated result surface; filenames no longer compete with preview controls. */
 .result-exports {
   display: grid;

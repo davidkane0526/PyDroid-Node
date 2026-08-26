@@ -1,10 +1,11 @@
-# Current development handoff — 1.6.56 Ownership Consolidation
+# Current development handoff — 1.6.57 Final Code Hygiene
 
-Branch: `feature/ownership-consolidation`
-Version: **1.6.56**
-Android versionCode: **196**
-Build revision: `1.6.56-dev-r151-ownership-consolidation`
+Branch: `feature/final-code-hygiene`
+Version: **1.6.57**
+Android versionCode: **197**
+Build revision: `1.6.57-dev-r152-final-code-hygiene`
 
+- 1.6.57 Final Code Hygiene: monolithic `base.css` is removed; Core CSS is split into explicit ordered ownership files with semantic equivalence preserved. Historical release/Phase labels are removed from production style comments; no visual behavior is intentionally changed.
 - 1.6.56 Ownership Consolidation: node rendering/typed-edge/view contexts moved out of `App.tsx`; Notebook editor and app error boundary now have focused owners. The generic CSS `fixes.css` patch layer is removed without changing cascade order.
 - 1.6.55 Primitive Centered Rhythm: Primitive cards keep the compact 1.6.54 footprint but the title + micro-control stack is now absolutely centered against the whole measured card. Title-to-control spacing is increased to ~7 px; generic dynamic/simple-node body rhythm can no longer offset the Primitive content group.
 - 1.6.49 complex-node density and Core transient-UI canvas-dismiss behavior are retained unchanged.
@@ -34,9 +35,19 @@ PyDroid Node remains in release convergence. The requested **unified plugin/them
 - Node layout: `src/nodes/layout.ts` is the single measurement contract. Horizontal dynamic nodes use deterministic side rails/fixed rows; vertical dynamic nodes preserve top-to-bottom sockets and render editable socket defaults/inline controls as compact aligned form rows.
 - Declarative plugin UI: host-rendered parameter groups, conditions, linked options, numeric constraints, read-only/disabled states, validation hints and bounded result/output-port status.
 - MCP: Desktop/Android Streamable HTTP host on port 8766 with renderer-side Core adapter; no second workflow state owner.
-- Runtime parity revalidated in 1.6.56: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
-- Python suite revalidated in 1.6.56: **188 passed, 1 skipped**.
-- Built-in Demo smoke revalidated in 1.6.56: **38/38**.
+- Runtime parity retained from 1.6.56 and revalidated in 1.6.57: **135/135** golden workflows; JavaScript-capable NodeContract coverage **101/101**.
+- Python suite retained from 1.6.56 and revalidated in 1.6.57: **188 passed, 1 skipped**.
+- Built-in Demo smoke retained from 1.6.56 and revalidated in 1.6.57: **38/38**.
+
+
+## 1.6.57 Final Code Hygiene
+
+- `src/styles/base.css` is gone. Core rules are now owned by `tokens.css`, `workspace-shell.css`, `nodes-base.css`, `light-theme.css`, `data-workspace.css`, `workspace-chrome.css`, `workspace-controls.css`, `settings-services.css`, `workflow-resources.css` and `nodes-dynamic.css`.
+- The files load in the original rule order. A semantic comparison against 1.6.56 confirms the CSS is identical after comments/whitespace are ignored. This is an ownership-only refactor, not a visual redesign.
+- Production CSS comments no longer carry historical release or Phase labels; explanatory comments about layout constraints remain.
+- Style tests use one explicit owner list and forbid resurrection of monolithic `base.css` or generic `fixes.css`.
+- `App.tsx` is intentionally not split further in this release: the remaining large `FlowEditor` body is state-coordination logic, and forcing it into controller/bridge hooks would increase abstraction risk without a functional benefit.
+- After this release, do not continue structural refactoring unless Release Validation exposes a concrete defect.
 
 
 ## 1.6.56 Ownership Consolidation

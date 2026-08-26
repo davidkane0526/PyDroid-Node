@@ -143,7 +143,7 @@ param(
     [int]$PnpmNetworkConcurrency = 16
 )
 
-$script:BuildScriptRevision = "1.6.56-dev-r151-ownership-consolidation"
+$script:BuildScriptRevision = "1.6.57-dev-r152-final-code-hygiene"
 
 $ErrorActionPreference = "Stop"
 try { [Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false) } catch {}

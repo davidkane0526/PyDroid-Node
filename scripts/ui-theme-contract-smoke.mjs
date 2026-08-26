@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { readCoreStyles } from "./style-test-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFileSync(path.join(root, file), "utf8");
@@ -13,7 +14,7 @@ const dialogs = read("src/dialogs.tsx");
 const sdk = read("sdk/theme.ts");
 const designSdk = read("sdk/design.ts");
 const contract = read("src/styles/theme-contract.css");
-const styles = read("src/styles/base.css");
+const styles = readCoreStyles(root);
 const canvas = read("src/styles/canvas.css");
 const pluginManagerCss = read("src/plugins/plugin-manager.css");
 const manifest = JSON.parse(read("examples/plugins/demo-midnight-theme.plugin.json"));

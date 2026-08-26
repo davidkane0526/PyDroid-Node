@@ -5,6 +5,7 @@ import path from "node:path";
 import process from "node:process";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { readCoreStyles } from "./style-test-utils.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const temp = mkdtempSync(path.join(os.tmpdir(), "pydroid-node-layout-"));
@@ -130,7 +131,7 @@ try {
   if (denseEndpointLayout.portRowHeight * 0.75 < 16 * 1.8 + 5) throw new Error("horizontal dynamic port rows do not reserve enough room for enlarged endpoints");
 
   const appSource = `${readFileSync(path.join(root, "src", "App.tsx"), "utf8")}\n${readFileSync(path.join(root, "src", "nodes", "WorkflowNodeView.tsx"), "utf8")}`;
-  const cssSource = readFileSync(path.join(root, "src", "styles", "base.css"), "utf8");
+  const cssSource = readCoreStyles(root);
   const catalogSource = readFileSync(path.join(root, "src", "nodeCatalog.ts"), "utf8");
   if (!appSource.includes('nodeLayout.verticalFormLayout ? "workflow-node--vertical-form"')) throw new Error("WorkflowNodeCard does not expose vertical form layout class");
   if (!appSource.includes('className="workflow-node__socket-form"')) throw new Error("vertical socket defaults are not rendered as body form rows");

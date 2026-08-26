@@ -1,3 +1,12 @@
+## 1.6.57 (197) — Final Code Hygiene — 2026-08-26
+
+- Removed the monolithic `src/styles/base.css`. Its rules are mechanically partitioned into ordered Core owners for tokens, shell, node baseline, light theme, data workspace, workspace chrome/controls, settings/services, workflow resources and dynamic nodes.
+- Preserved CSS semantics exactly: the concatenated owner files are rule-for-rule equivalent to the previous `base.css` after comments are ignored, and import order preserves the original cascade.
+- Removed historical release/Phase labels from production CSS comments while retaining explanatory comments that document layout intent.
+- Updated UI/layout/theme smoke tests to consume the explicit Core style-owner list instead of assuming a monolithic stylesheet. Added a regression gate preventing either `base.css` or `fixes.css` from returning.
+- No Runtime, Workflow, MCP, Remote Web/LAN, plugin, Theme/Design SDK, node geometry or user-facing behavior is intentionally changed.
+- Build revision: `1.6.57-dev-r152-final-code-hygiene`.
+
 ## 1.6.56 (196) — Ownership Consolidation — 2026-08-26
 
 - Extracted the canvas node presentation boundary from `App.tsx` into `src/nodes/WorkflowNodeView.tsx`; `WorkflowNodeCard`, inline node controls, typed edges and node-view contexts no longer belong to the application shell.

@@ -69,7 +69,7 @@ If the selected theme disappears, Settings automatically falls back to `core.def
 
 ## Core-owned UI geometry
 
-Shared control geometry stays in Core (`src/styles/base.css`) and is not exported by the theme SDK. Examples include:
+Shared control geometry stays in Core (`src/styles/tokens.css` plus the explicit workspace/node style owners) and is not exported by the theme SDK. Examples include:
 
 - `--ui-control-height`
 - `--ui-radius-sm/md/lg`

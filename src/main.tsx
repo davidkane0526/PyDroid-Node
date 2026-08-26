@@ -1,7 +1,16 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "@xyflow/react/dist/style.css";
-import "./styles/base.css";
+import "./styles/tokens.css";
+import "./styles/workspace-shell.css";
+import "./styles/nodes-base.css";
+import "./styles/light-theme.css";
+import "./styles/data-workspace.css";
+import "./styles/workspace-chrome.css";
+import "./styles/workspace-controls.css";
+import "./styles/settings-services.css";
+import "./styles/workflow-resources.css";
+import "./styles/nodes-dynamic.css";
 import "./styles/shell-responsive.css";
 import "./styles/panels.css";
 import "./styles/result-presentation.css";

@@ -1,0 +1,70 @@
+:root {
+  /* 字体栈：system-ui 优先，显式中文 fallback 统一 Android(Noto Sans CJK) 与 Windows(微软雅黑) 渲染 */
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", sans-serif;
+  color: #e5e7eb;
+  background: var(--bg);
+  font-synthesis: none;
+  /* 主题色 token（暗色默认值；亮色在 .app-shell[data-theme="light"] 覆盖） */
+  --bg: #0b1020;
+  --bg-canvas: #0b1020;
+  --surface: #111827;
+  --surface-deep: #0f172a;
+  --surface-raised: #172033;
+  --surface-hover: #1e293b;
+  --surface-overlay: #0b1220;
+  --border-soft: #263047;
+  --border: #334155;
+  --border-strong: #475569;
+  --border-pop: #3b4964;
+  --text: #e2e8f0;
+  --text-bright: #f8fafc;
+  --text-highlight: #dbeafe;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --text-faintest: #718096;
+  --accent: #2563eb;
+  --accent-hover: #60a5fa;
+  --accent-soft: #93c5fd;
+  --accent-active: #1d4ed8;
+  --info: #38bdf8;
+  --info-soft: #7dd3fc;
+  --success: #22c55e;
+  --success-text: #86efac;
+  --warning: #fde68a;
+  --danger: #fca5a5;
+  --danger-text: #fecaca;
+  --danger-deep: #7f1d1d;
+  --violet: #8b5cf6;
+  /* Plugin theme/design fallback tokens. Core default keeps the accepted legacy component styling. */
+  --ui-backdrop: #020617d9;
+  --ui-shadow: #000c;
+  --ui-focus-ring: #2563eb33;
+  --material-panel-shadow: 0 10px 28px #00000038, inset 0 1px 0 #ffffff08;
+  --material-card-shadow: 0 4px 14px #00000024, inset 0 1px 0 #ffffff08;
+  --material-control-shadow: 0 1px 2px #00000024, inset 0 1px 0 #ffffff0b;
+  --material-popup-shadow: 0 18px 48px #00000066, inset 0 1px 0 #ffffff0a;
+  --material-node-shadow: 0 6px 16px #00000032, inset 0 1px 0 #ffffff0a;
+  --material-node-hover-shadow: 0 9px 22px #0000003d, inset 0 1px 0 #ffffff0d;
+  --material-node-selected-shadow: 0 0 0 1px #60a5fa66, 0 10px 26px #00000047, inset 0 1px 0 #ffffff0d;
+  --material-surface-highlight: #ffffff0a;
+  --material-overlay-blur: 10px;
+  --material-glass-blur: 8px;
+  --motion-duration-fast: 110ms;
+  --motion-duration-normal: 160ms;
+  --motion-duration-slow: 220ms;
+  --motion-ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --motion-ease-emphasized: cubic-bezier(.2, .8, .2, 1);
+  --motion-hover-lift: -1px;
+  --motion-press-scale: .985;
+  --motion-enter-distance: 6px;
+  --ui-control-height: 32px;
+  --ui-radius-sm: 7px;
+  --ui-radius-md: 9px;
+  --ui-radius-lg: 13px;
+  --ui-panel-gap: 10px;
+  /* 字号 token：收敛碎片化字号，最小 11px 保证移动端可读 */
+  --font-xs: 11px;
+}
+* { box-sizing: border-box; }
+html, body, #root { width: 100%; height: 100%; margin: 0; background: var(--bg); }
+button, input, select, textarea { font: inherit; }

@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { readCoreStyles } from "./style-test-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => readFileSync(path.join(root, file), "utf8");
-const base = read("src/styles/base.css");
+const base = readCoreStyles(root);
 const canvas = read("src/styles/canvas.css");
 const plugin = read("src/plugins/plugin-manager.css");
 const overlay = read("src/styles/theme-contract.css");
